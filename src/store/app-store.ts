@@ -8,7 +8,8 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>((set) => ({
-  useMockData: localStorage.getItem('fym_mock_data') !== 'false',
+  // Default to mock data only when Supabase isn't configured
+  useMockData: !import.meta.env.VITE_SUPABASE_URL,
   sidebarCollapsed: false,
   toggleMockData: () =>
     set((state) => {
