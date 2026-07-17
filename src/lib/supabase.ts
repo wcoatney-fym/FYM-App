@@ -1,14 +1,22 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Database } from './database.types';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl =
+  localStorage.getItem('fym_supabase_url') ||
+  import.meta.env.VITE_SUPABASE_URL ||
+  '';
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('[FYM] Supabase env vars not set — running in mock-data mode.');
+const supabaseAnonKey =
+  localStorage.getItem('fym_supabase_anon_key') ||
+  import.meta.env.VITE_SUPABASE_ANON_KEY ||
+  '';
+
+export const supabase = supabaseUrl && supabaseAnonKey
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null;
+
+export function getSupabaseClient() {
+  const url = localStorage.getItem('fym_supabase_url') || import.meta.env.VITE_SUPABASE_URL || '';
+  const key = localStorage.getItem('fym_supabase_anon_key') || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+  if (url && key) return createClient(url, key);
+  return null;
 }
-
-export const supabase =
-  supabaseUrl && supabaseAnonKey
-    ? createClient<Database>(supabaseUrl, supabaseAnonKey)
-    : null;
