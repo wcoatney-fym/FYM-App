@@ -1,14 +1,17 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAppStore } from '@/store/app-store';
 import { mockAgents } from '@/lib/mock-data';
-import { Search } from 'lucide-react';
+import { Search, Activity } from 'lucide-react';
 
 export function AgentsPage() {
   const { useMockData } = useAppStore();
+  const navigate = useNavigate();
   const agents = useMockData ? mockAgents : mockAgents;
   const [search, setSearch] = useState('');
 
@@ -30,9 +33,7 @@ export function AgentsPage() {
         <Card className="border-slate-200">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-4 flex-wrap">
-              <CardTitle className="text-base font-semibold text-slate-900">
-                Agent Directory
-              </CardTitle>
+              <CardTitle className="text-base font-semibold text-slate-900">Agent Directory</CardTitle>
               <div className="relative w-full sm:w-72">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <Input
@@ -53,6 +54,7 @@ export function AgentsPage() {
                   <TableHead className="font-semibold text-slate-600">Agency</TableHead>
                   <TableHead className="font-semibold text-slate-600">Writing #</TableHead>
                   <TableHead className="font-semibold text-slate-600 text-right">Active Policies</TableHead>
+                  <TableHead className="font-semibold text-slate-600 text-right">Health</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -63,11 +65,21 @@ export function AgentsPage() {
                     <TableCell className="text-slate-600">{agent.agency}</TableCell>
                     <TableCell className="text-slate-600 font-mono text-sm">{agent.writing_number}</TableCell>
                     <TableCell className="text-right text-slate-700 font-medium">{agent.active_policies}</TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 h-7 px-2"
+                        onClick={() => navigate(`/agents/${agent.id}/health`)}
+                      >
+                        <Activity size={13} className="mr-1" /> View
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-slate-400">
+                    <TableCell colSpan={6} className="text-center py-8 text-slate-400">
                       No agents match your search.
                     </TableCell>
                   </TableRow>

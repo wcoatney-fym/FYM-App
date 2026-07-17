@@ -3,75 +3,126 @@ import {
   LayoutDashboard,
   Building2,
   Users,
-  FileText,
   AlertTriangle,
+  FileText,
   Settings,
-  Headphones,
   ChevronLeft,
   ChevronRight,
+  Headphones,
+  Trophy,
+  ShieldCheck,
+  LogOut,
 } from 'lucide-react';
 import { useAppStore } from '@/store/app-store';
+import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 
-const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/agencies', icon: Building2, label: 'Agencies' },
-  { to: '/agents', icon: Users, label: 'Agents' },
-  { to: '/contracting', icon: FileText, label: 'Contracting' },
-  { to: '/at-risk', icon: AlertTriangle, label: 'At-Risk' },
-  { to: '/crm-ops', icon: Headphones, label: 'CRM Ops' },
-  { to: '/settings', icon: Settings, label: 'Settings' },
+interface NavItem {
+  to: string;
+  label: string;
+  icon: React.ElementType;
+}
+
+const agentNav: NavItem[] = [
+  { to: '/my-health', label: 'My Book Health', icon: ShieldCheck },
+  { to: '/at-risk', label: 'At-Risk', icon: AlertTriangle },
+  { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
+  { to: '/settings', label: 'Settings', icon: Settings },
+];
+
+const managerNav: NavItem[] = [
+  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/agents', label: 'Agents', icon: Users },
+  { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
+  { to: '/settings', label: 'Settings', icon: Settings },
+];
+
+const adminNav: NavItem[] = [
+  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/agencies', label: 'Agencies', icon: Building2 },
+  { to: '/agents', label: 'Agents', icon: Users },
+  { to: '/at-risk', label: 'At-Risk', icon: AlertTriangle },
+  { to: '/contracting', label: 'Contracting', icon: FileText },
+  { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
+  { to: '/crm-ops', label: 'CRM Ops', icon: Headphones },
+  { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
 export function Sidebar() {
   const { sidebarCollapsed, toggleSidebar } = useAppStore();
+  const { role, profile, signOut } = useAuth();
+
+  const navItems =
+    role === 'agent' ? agentNav :
+    role === 'manager' ? managerNav :
+    adminNav;
 
   return (
     <aside
       className={cn(
-        'fixed left-0 top-0 z-40 h-screen bg-[#1e3a5f] text-white transition-all duration-300 flex flex-col',
+        'fixed left-0 top-0 h-full bg-[#1e3a5f] text-white flex flex-col transition-all duration-300 z-40',
         sidebarCollapsed ? 'w-16' : 'w-56'
       )}
     >
-      <div className="flex items-center h-16 px-4 border-b border-white/10">
+      {/* Logo */}
+      <div className={cn('flex items-center gap-3 px-4 py-5 border-b border-white/10', sidebarCollapsed && 'justify-center px-0')}>
+        <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center flex-shrink-0">
+          <ShieldCheck size={16} className="text-white" />
+        </div>
         {!sidebarCollapsed && (
-          <span className="text-lg font-bold tracking-tight whitespace-nowrap">
-            FYM Command
-          </span>
+          <div>
+            <p className="text-sm font-bold tracking-wide">FYM</p>
+            <p className="text-[10px] text-white/50 uppercase tracking-widest leading-none mt-0.5">
+              {role ?? 'loading'}
+            </p>
+          </div>
         )}
-        <button
-          onClick={toggleSidebar}
-          className="ml-auto p-1.5 rounded-md hover:bg-white/10 transition-colors"
-        >
-          {sidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-        </button>
       </div>
 
-      <nav className="flex-1 py-4 space-y-1 px-2 overflow-y-auto">
-        {navItems.map(({ to, icon: Icon, label }) => (
+      {/* Nav */}
+      <nav className="flex-1 py-4 space-y-0.5 overflow-y-auto">
+        {navItems.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
+            end={to === '/'}
             className={({ isActive }) =>
               cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                'flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors',
                 isActive
                   ? 'bg-white/15 text-white'
-                  : 'text-white/70 hover:bg-white/10 hover:text-white'
+                  : 'text-white/60 hover:bg-white/10 hover:text-white',
+                sidebarCollapsed && 'justify-center px-0'
               )
             }
           >
-            <Icon size={20} className="shrink-0" />
-            {!sidebarCollapsed && <span className="whitespace-nowrap">{label}</span>}
+            <Icon size={18} className="flex-shrink-0" />
+            {!sidebarCollapsed && label}
           </NavLink>
         ))}
       </nav>
 
-      <div className="p-4 border-t border-white/10">
-        {!sidebarCollapsed && (
-          <p className="text-xs text-white/50">FYM Financial v1.0</p>
-        )}
-      </div>
+      {/* User / sign-out */}
+      {!sidebarCollapsed && profile && (
+        <div className="border-t border-white/10 px-4 py-3">
+          <p className="text-xs font-medium text-white truncate">{profile.full_name ?? 'FYM User'}</p>
+          <button
+            onClick={signOut}
+            className="flex items-center gap-1.5 text-xs text-white/50 hover:text-white mt-1 transition-colors"
+          >
+            <LogOut size={12} />
+            Sign out
+          </button>
+        </div>
+      )}
+
+      {/* Collapse toggle */}
+      <button
+        onClick={toggleSidebar}
+        className="flex items-center justify-center h-10 border-t border-white/10 text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+      >
+        {sidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+      </button>
     </aside>
   );
 }
