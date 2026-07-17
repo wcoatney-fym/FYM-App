@@ -11,6 +11,7 @@ import { CrmOpsPage } from '@/pages/CrmOpsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { LeaderboardPage } from '@/pages/LeaderboardPage';
 import { AgentHealthPage } from '@/pages/AgentHealthPage';
+import { AgentProvisioningPage } from '@/pages/AgentProvisioningPage';
 import { AdminFinancialsPage } from '@/pages/AdminFinancialsPage';
 import { ManagerWorkboardPage } from '@/pages/ManagerWorkboardPage';
 
@@ -34,6 +35,7 @@ function App() {
             <Route path="/leaderboard" element={<LeaderboardPage />} />
             <Route path="/agents/:agentId/health" element={<AgentHealthPage />} />
             <Route path="/my-health" element={<AgentHealthPage />} />
+            <Route path="/provision" element={<AgentProvisioningPage />} />
             <Route path="/financials" element={<AdminFinancialsPage />} />
             <Route path="/workboard" element={<ManagerWorkboardPage />} />
           </Route>

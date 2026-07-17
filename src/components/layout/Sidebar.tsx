@@ -14,6 +14,7 @@ import {
   LogOut,
   BarChart3,
   ClipboardList,
+  UserPlus,
 } from 'lucide-react';
 import { useAppStore } from '@/store/app-store';
 import { useAuth } from '@/contexts/AuthContext';
@@ -40,7 +41,7 @@ const managerNav: NavItem[] = [
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
-const adminNav: NavItem[] = [
+const adminNav: NavItem[] = [ // updated below
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/agencies', label: 'Agencies', icon: Building2 },
   { to: '/agents', label: 'Agents', icon: Users },
@@ -50,6 +51,7 @@ const adminNav: NavItem[] = [
   { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { to: '/crm-ops', label: 'CRM Ops', icon: Headphones },
   { to: '/financials', label: 'Financials', icon: BarChart3 },
+  { to: '/provision', label: 'Provision Agents', icon: UserPlus },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
