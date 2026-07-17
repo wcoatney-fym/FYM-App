@@ -32,14 +32,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  async function fetchProfile(userId: string) {
+  async function fetchProfile(userId: string): Promise<void> {
     if (!supabase) return;
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, role, agency_id, full_name, npn, writing_number')
-      .eq('id', userId)
-      .maybeSingle();
-    setProfile(data ?? null);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, role, agency_id, full_name, npn, writing_number')
+        .eq('id', userId)
+        .maybeSingle();
+      if (!error && data) setProfile(data as Profile);
+    } catch {
+      // Profile fetch failed — app still works, role-gated nav falls back to adminNav
+    }
   }
 
   useEffect(() => {
@@ -51,15 +55,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id).finally(() => setLoading(false));
-      else setLoading(false);
+      if (session?.user) {
+        fetchProfile(session.user.id).finally(() => setLoading(false));
+      } else {
+        setLoading(false);
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id);
-      else setProfile(null);
+      if (session?.user) {
+        fetchProfile(session.user.id);
+      } else {
+        setProfile(null);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -74,6 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function signOut() {
     if (!supabase) return;
     await supabase.auth.signOut();
+    setProfile(null);
   }
 
   return (
