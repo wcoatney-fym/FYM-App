@@ -149,6 +149,7 @@ Deno.serve(async (req) => {
   let trackerOffset = 0;
   let totalSynced = 0;
   let totalErrors = 0;
+  const errorMessages: string[] = [];
   const syncedAt = new Date().toISOString();
 
   while (true) {
@@ -162,13 +163,15 @@ Deno.serve(async (req) => {
 
     if (fetchError) {
       console.error('Tracker fetch error:', fetchError.message);
+      errorMessages.push('HI fetch @' + trackerOffset + ': ' + fetchError.message);
       totalErrors++;
       break;
     }
     if (!policies || policies.length === 0) break;
 
     // ── Step 3: Transform → policy_cache rows ─────────────────────────────
-    const rows: PolicyCacheRow[] = policies.map((p: TrackerPolicy) => {
+    // Filter out rows with null policy_number — they can't be upserted
+    const rows: PolicyCacheRow[] = policies.filter((p: TrackerPolicy) => !!p.policy_number).map((p: TrackerPolicy) => {
       const { isAtRisk, flagType } = resolveRiskFlag(p);
       const agentId = p.agent_number ? (profileMap.get(p.agent_number.trim()) ?? null) : null;
 
@@ -197,6 +200,7 @@ Deno.serve(async (req) => {
 
     if (upsertError) {
       console.error('Upsert error at offset', trackerOffset, ':', upsertError.message);
+      errorMessages.push('HI upsert @' + trackerOffset + ': ' + upsertError.message);
       totalErrors++;
     } else {
       totalSynced += rows.length;
@@ -219,12 +223,13 @@ Deno.serve(async (req) => {
 
     if (fetchError) {
       console.error('Tracker HHC fetch error:', fetchError.message);
+      errorMessages.push('HHC fetch @' + trackerOffset + ': ' + fetchError.message);
       totalErrors++;
       break;
     }
     if (!policies || policies.length === 0) break;
 
-    const rows: PolicyCacheRow[] = policies.map((p: TrackerPolicy) => {
+    const rows: PolicyCacheRow[] = policies.filter((p: TrackerPolicy) => !!p.policy_number).map((p: TrackerPolicy) => {
       const { isAtRisk, flagType } = resolveRiskFlag(p);
       const agentId = p.agent_number ? (profileMap.get(p.agent_number.trim()) ?? null) : null;
 
@@ -252,6 +257,7 @@ Deno.serve(async (req) => {
 
     if (upsertError) {
       console.error('HHC upsert error at offset', trackerOffset, ':', upsertError.message);
+      errorMessages.push('HHC upsert @' + trackerOffset + ': ' + upsertError.message);
       totalErrors++;
     } else {
       totalSynced += rows.length;
@@ -261,12 +267,22 @@ Deno.serve(async (req) => {
     trackerOffset += BATCH_SIZE;
   }
 
+  // Debug: check which env vars are present
+  const envCheck = {
+    TRACKER_SUPABASE_URL: !!Deno.env.get('TRACKER_SUPABASE_URL'),
+    TRACKER_SUPABASE_KEY: !!Deno.env.get('TRACKER_SUPABASE_KEY'),
+    APP_SUPABASE_URL: !!Deno.env.get('APP_SUPABASE_URL'),
+    APP_SUPABASE_SERVICE_KEY: !!Deno.env.get('APP_SUPABASE_SERVICE_KEY'),
+  };
+
   const result = {
     ok: totalErrors === 0,
     synced: totalSynced,
     errors: totalErrors,
+    errorMessages,
     agentsMapped: profileMap.size,
     syncedAt,
+    envCheck,
   };
 
   console.log('Sync complete:', result);
