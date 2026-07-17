@@ -1,0 +1,2 @@
+[functions.sync-policy-cache]
+verify_jwt = true
