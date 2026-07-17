@@ -12,7 +12,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Headphones,
-  BookOpen,
   Trophy,
   ShieldCheck,
   LogOut,
@@ -25,7 +24,7 @@ interface NavItem {
 }
 
 const agentNav: NavItem[] = [
-  { to: '/', label: 'My Book', icon: BookOpen },
+  { to: '/my-health', label: 'My Book Health', icon: ShieldCheck },
   { to: '/at-risk', label: 'At-Risk', icon: AlertTriangle },
   { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { to: '/settings', label: 'Settings', icon: Settings },

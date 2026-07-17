@@ -36,9 +36,9 @@ function rankBadge(rank: number) {
 }
 
 export function LeaderboardPage() {
-  const { role, agencyId, profile } = useAuth();
+  const { role, profile } = useAuth();
   const [rows, setRows] = useState<LeaderboardRow[]>(mockLeaderboard);
-  const [loading, setLoading] = useState(false);
+  const [_loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!supabase) return;

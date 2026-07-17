@@ -10,6 +10,7 @@ import { AtRiskPage } from '@/pages/AtRiskPage';
 import { CrmOpsPage } from '@/pages/CrmOpsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { LeaderboardPage } from '@/pages/LeaderboardPage';
+import { AgentHealthPage } from '@/pages/AgentHealthPage';
 
 function App() {
   return (
@@ -27,6 +28,8 @@ function App() {
             <Route path="/contracting" element={<ContractingPage />} />
             <Route path="/at-risk" element={<AtRiskPage />} />
             <Route path="/leaderboard" element={<LeaderboardPage />} />
+            <Route path="/agents/:agentId/health" element={<AgentHealthPage />} />
+            <Route path="/my-health" element={<AgentHealthPage />} />
             <Route path="/crm-ops" element={<CrmOpsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
