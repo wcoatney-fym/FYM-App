@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   LogOut,
   BarChart3,
+  ClipboardList,
 } from 'lucide-react';
 import { useAppStore } from '@/store/app-store';
 import { useAuth } from '@/contexts/AuthContext';
@@ -33,6 +34,7 @@ const agentNav: NavItem[] = [
 
 const managerNav: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/workboard', label: 'Workboard', icon: ClipboardList },
   { to: '/agents', label: 'Agents', icon: Users },
   { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { to: '/settings', label: 'Settings', icon: Settings },
@@ -43,6 +45,7 @@ const adminNav: NavItem[] = [
   { to: '/agencies', label: 'Agencies', icon: Building2 },
   { to: '/agents', label: 'Agents', icon: Users },
   { to: '/at-risk', label: 'At-Risk', icon: AlertTriangle },
+  { to: '/workboard', label: 'Workboard', icon: ClipboardList },
   { to: '/contracting', label: 'Contracting', icon: FileText },
   { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { to: '/crm-ops', label: 'CRM Ops', icon: Headphones },
