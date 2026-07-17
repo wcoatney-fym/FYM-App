@@ -11,6 +11,7 @@ import { CrmOpsPage } from '@/pages/CrmOpsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { LeaderboardPage } from '@/pages/LeaderboardPage';
 import { AgentHealthPage } from '@/pages/AgentHealthPage';
+import { AdminFinancialsPage } from '@/pages/AdminFinancialsPage';
 
 function App() {
   return (
@@ -32,6 +33,7 @@ function App() {
             <Route path="/leaderboard" element={<LeaderboardPage />} />
             <Route path="/agents/:agentId/health" element={<AgentHealthPage />} />
             <Route path="/my-health" element={<AgentHealthPage />} />
+            <Route path="/financials" element={<AdminFinancialsPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

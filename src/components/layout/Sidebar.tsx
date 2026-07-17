@@ -12,6 +12,7 @@ import {
   Trophy,
   ShieldCheck,
   LogOut,
+  BarChart3,
 } from 'lucide-react';
 import { useAppStore } from '@/store/app-store';
 import { useAuth } from '@/contexts/AuthContext';
@@ -45,6 +46,7 @@ const adminNav: NavItem[] = [
   { to: '/contracting', label: 'Contracting', icon: FileText },
   { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { to: '/crm-ops', label: 'CRM Ops', icon: Headphones },
+  { to: '/financials', label: 'Financials', icon: BarChart3 },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
