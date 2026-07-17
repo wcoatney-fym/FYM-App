@@ -109,6 +109,74 @@ Deno.serve(async (req) => {
     return new Response('Method not allowed', { status: 405 });
   }
 
+  // ?check=1 — test both keys live without doing a full sync
+  const url = new URL(req.url);
+  if (url.searchParams.get('check') === '1') {
+    const trackerUrl = Deno.env.get('TRACKER_SUPABASE_URL') ?? '';
+    const trackerKey = Deno.env.get('TRACKER_SUPABASE_KEY') ?? '';
+    const appUrl = Deno.env.get('APP_SUPABASE_URL') ?? '';
+    const appServiceKey = Deno.env.get('APP_SUPABASE_SERVICE_KEY') ?? '';
+
+    // Test 1: tracker — fetch 1 row
+    let trackerOk = false;
+    let trackerDetail = '';
+    try {
+      const res = await fetch(`${trackerUrl}/rest/v1/form_submissions?limit=1&select=policy_number`, {
+        headers: { apikey: trackerKey, Authorization: `Bearer ${trackerKey}` },
+      });
+      const body = await res.json();
+      if (Array.isArray(body) && body.length > 0) {
+        trackerOk = true;
+        trackerDetail = `OK — sample policy_number: ${body[0].policy_number}`;
+      } else {
+        trackerDetail = `Unexpected response: ${JSON.stringify(body).slice(0, 120)}`;
+      }
+    } catch (e) {
+      trackerDetail = `Exception: ${e}`;
+    }
+
+    // Test 2: app — attempt a write (upsert a canary row, then delete it)
+    let appOk = false;
+    let appDetail = '';
+    try {
+      const canary = [{
+        policy_number: '__canary_test__',
+        agency_id: 'test',
+        is_at_risk: false,
+        synced_at: new Date().toISOString(),
+      }];
+      const upsertRes = await fetch(`${appUrl}/rest/v1/policy_cache`, {
+        method: 'POST',
+        headers: {
+          apikey: appServiceKey,
+          Authorization: `Bearer ${appServiceKey}`,
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates,return=minimal',
+        },
+        body: JSON.stringify(canary),
+      });
+      if (upsertRes.ok || upsertRes.status === 201) {
+        // Clean up canary
+        await fetch(`${appUrl}/rest/v1/policy_cache?policy_number=eq.__canary_test__`, {
+          method: 'DELETE',
+          headers: { apikey: appServiceKey, Authorization: `Bearer ${appServiceKey}` },
+        });
+        appOk = true;
+        appDetail = 'OK — write + delete succeeded';
+      } else {
+        const body = await upsertRes.json();
+        appDetail = `HTTP ${upsertRes.status}: ${JSON.stringify(body).slice(0, 120)}`;
+      }
+    } catch (e) {
+      appDetail = `Exception: ${e}`;
+    }
+
+    return new Response(JSON.stringify({
+      tracker: { ok: trackerOk, detail: trackerDetail },
+      app: { ok: appOk, detail: appDetail },
+    }, null, 2), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  }
+
   const trackerUrl = Deno.env.get('TRACKER_SUPABASE_URL');
   const trackerKey = Deno.env.get('TRACKER_SUPABASE_KEY');
   const appUrl = Deno.env.get('APP_SUPABASE_URL');

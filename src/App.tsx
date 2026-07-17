@@ -12,6 +12,7 @@ import { SettingsPage } from '@/pages/SettingsPage';
 import { LeaderboardPage } from '@/pages/LeaderboardPage';
 import { AgentHealthPage } from '@/pages/AgentHealthPage';
 import { AdminFinancialsPage } from '@/pages/AdminFinancialsPage';
+import { ManagerWorkboardPage } from '@/pages/ManagerWorkboardPage';
 
 function App() {
   return (
@@ -34,6 +35,7 @@ function App() {
             <Route path="/agents/:agentId/health" element={<AgentHealthPage />} />
             <Route path="/my-health" element={<AgentHealthPage />} />
             <Route path="/financials" element={<AdminFinancialsPage />} />
+            <Route path="/workboard" element={<ManagerWorkboardPage />} />
           </Route>
         </Routes>
       </BrowserRouter>
