@@ -85,23 +85,36 @@ function estimateDraftCount(
 
 /**
  * Determine if a policy is at-risk and what flag type to assign.
+ *
+ * At-risk definition (matches lifecycle evaluator): active policy whose
+ * paid_to_date is before today — meaning premium is overdue.
+ * Flag types:
+ *   - 'at_risk'        — already fired in GHL lifecycle (at_risk_fired_at set)
+ *   - 'payment_failed' — paid_to_date behind today (30+ days = critical, 14+ = urgent)
+ *   - 'payment_watch'  — paid_to_date behind today but < 14 days
  */
 function resolveRiskFlag(policy: TrackerPolicy): { isAtRisk: boolean; flagType: string | null } {
   const today = new Date();
 
+  // Already fired in GHL lifecycle
   if (policy.at_risk_fired_at) {
     return { isAtRisk: true, flagType: 'at_risk' };
   }
 
+  // Non-active policies are not at risk
   if (policy.status && ['lapsed', 'terminated', 'cancelled'].includes(policy.status.toLowerCase())) {
     return { isAtRisk: false, flagType: null };
   }
 
+  // Active policy with paid_to_date behind today = at risk
   if (policy.paid_to_date && policy.status === 'active') {
     const paid = new Date(policy.paid_to_date);
     const lagDays = (today.getTime() - paid.getTime()) / (1000 * 60 * 60 * 24);
-    if (lagDays > 60) {
-      return { isAtRisk: true, flagType: 'payment_failed' };
+    if (lagDays > 0) {
+      return {
+        isAtRisk: true,
+        flagType: lagDays >= 30 ? 'payment_failed' : lagDays >= 14 ? 'payment_failed' : 'payment_watch',
+      };
     }
   }
 
