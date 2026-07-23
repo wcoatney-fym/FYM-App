@@ -1,25 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, Bar, Legend,
+  ResponsiveContainer, BarChart, Bar,
 } from 'recharts';
-import { DollarSign, ShieldAlert, TrendingDown, AlertTriangle } from 'lucide-react';
+import { DollarSign, ShieldAlert, TrendingDown, AlertTriangle, ChevronRight } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────
-interface FinancialSummary {
-  product_type: string;
-  active_count: number;
-  active_premium: number;
-  at_risk_count: number;
-  at_risk_premium: number;
-  drafted_first: number;
-  drafted_third: number;
-}
-
 interface CohortRow {
   product_type: string;
   cohort_month: string;
@@ -32,6 +23,7 @@ interface CohortRow {
 
 interface ConcentrationRow {
   agency_id: string;
+  name: string | null;
   active_count: number;
   active_premium: number;
   at_risk_count: number;
@@ -40,77 +32,75 @@ interface ConcentrationRow {
   premium_concentration_pct: number;
 }
 
+interface AgencySummaryRow {
+  agency_id: string;
+  active_policies: number;
+  active_premium: number;
+  at_risk_count: number;
+  retained_90d: number;
+  eligible_90d: number;
+  retention_pct: number | null;
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────
-function retentionColor(pct: number) {
+function retentionColor(pct: number | null) {
+  if (pct === null) return 'text-slate-400';
   if (pct >= 90) return 'text-emerald-700';
   if (pct >= 85) return 'text-amber-600';
   return 'text-red-600';
 }
-function retentionBadge(pct: number) {
+function retentionBadgeClass(pct: number) {
   if (pct >= 90) return 'bg-emerald-50 text-emerald-700 border-emerald-200';
   if (pct >= 85) return 'bg-amber-50 text-amber-700 border-amber-200';
   return 'bg-red-50 text-red-700 border-red-200';
 }
 function fmt$(n: number) {
-  return '$' + n.toLocaleString();
+  if (n >= 1_000_000) return '$' + (n / 1_000_000).toFixed(1) + 'M';
+  if (n >= 1_000) return '$' + Math.round(n / 1_000) + 'K';
+  return '$' + Math.round(n).toLocaleString();
 }
 function fmtMonth(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' });
 }
 
-// ── Mock fallback ──────────────────────────────────────────────────────────
-const MOCK_SUMMARY: FinancialSummary[] = [
-  { product_type: 'HHC', active_count: 12397, active_premium: 899890, at_risk_count: 102, at_risk_premium: 8573, drafted_first: 9767, drafted_third: 2102 },
-  { product_type: 'HI',  active_count: 11716, active_premium: 524322, at_risk_count: 55,  at_risk_premium: 2378, drafted_first: 11296, drafted_third: 4922 },
-];
-
+// ── Component ──────────────────────────────────────────────────────────────
 export function AdminFinancialsPage() {
-  const [summary, setSummary] = useState<FinancialSummary[]>(MOCK_SUMMARY);
   const [cohorts, setCohorts] = useState<CohortRow[]>([]);
   const [concentration, setConcentration] = useState<ConcentrationRow[]>([]);
+  const [agencySummaries, setAgencySummaries] = useState<AgencySummaryRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!supabase) { setLoading(false); return; }
+
     async function load() {
-      // Financial summary — aggregate directly from policy_cache
-      const { data: rawData } = await supabase!
-        .from('policy_cache')
-        .select('product_type, status, plan_premium, is_at_risk, paid_to_date, policy_effective_date');
-
-      const raw = rawData as Array<{
-        product_type: string | null;
-        status: string | null;
-        plan_premium: number | null;
-        is_at_risk: boolean;
-        paid_to_date: string | null;
-        policy_effective_date: string | null;
-      }> | null;
-
-      if (raw && raw.length > 0) {
-        const byProduct: Record<string, FinancialSummary> = {};
-        for (const r of raw) {
-          const pt = r.product_type ?? 'Other';
-          if (!byProduct[pt]) byProduct[pt] = { product_type: pt, active_count: 0, active_premium: 0, at_risk_count: 0, at_risk_premium: 0, drafted_first: 0, drafted_third: 0 };
-          const s = byProduct[pt];
-          if (r.status === 'active') {
-            s.active_count++;
-            s.active_premium += r.plan_premium ?? 0;
-          }
-          if (r.is_at_risk && r.status === 'active') {
-            s.at_risk_count++;
-            s.at_risk_premium += r.plan_premium ?? 0;
-          }
-          if (r.paid_to_date && r.policy_effective_date) {
-            const eff = new Date(r.policy_effective_date);
-            const paid = new Date(r.paid_to_date);
-            const months = (paid.getFullYear() - eff.getFullYear()) * 12 + (paid.getMonth() - eff.getMonth());
-            if (months >= 1) s.drafted_first++;
-            if (months >= 3) s.drafted_third++;
-          }
+      // Agency names map
+      const { data: agencyNames } = await (supabase as any)
+        .from('agencies')
+        .select('tracker_id, name');
+      const nameMap = new Map<string, string>();
+      if (agencyNames) {
+        for (const a of agencyNames as any[]) {
+          if (a.tracker_id) nameMap.set(a.tracker_id, a.name);
         }
-        setSummary(Object.values(byProduct).filter(p => ['HI','HHC'].includes(p.product_type)).sort((a,b) => b.active_premium - a.active_premium));
+      }
+
+      // Agency retention summary (aggregate KPIs)
+      const { data: summaryData } = await supabase!
+        .from('agency_retention_summary')
+        .select('agency_id, active_policies, active_premium, at_risk_count, retained_90d, eligible_90d, retention_pct');
+      if (summaryData) {
+        setAgencySummaries(
+          (summaryData as any[]).map(r => ({
+            agency_id: r.agency_id,
+            active_policies: Number(r.active_policies) || 0,
+            active_premium: Number(r.active_premium) || 0,
+            at_risk_count: Number(r.at_risk_count) || 0,
+            retained_90d: Number(r.retained_90d) || 0,
+            eligible_90d: Number(r.eligible_90d) || 0,
+            retention_pct: r.retention_pct !== null ? Number(r.retention_pct) : null,
+          }))
+        );
       }
 
       // Cohort retention view
@@ -119,49 +109,97 @@ export function AdminFinancialsPage() {
         .select('*')
         .order('cohort_month', { ascending: false })
         .limit(24);
-      if (cohortData && cohortData.length > 0) setCohorts(cohortData as unknown as CohortRow[]);
+      if (cohortData) setCohorts(cohortData as unknown as CohortRow[]);
 
-      // Concentration view
+      // Concentration view — enriched with names
       const { data: concData } = await supabase!
         .from('agency_concentration')
         .select('*')
         .order('active_premium', { ascending: false })
         .limit(20);
-      if (concData && concData.length > 0) setConcentration(concData as unknown as ConcentrationRow[]);
+      if (concData) {
+        setConcentration(
+          (concData as any[]).map(r => ({
+            ...r,
+            active_premium: Number(r.active_premium) || 0,
+            at_risk_premium: Number(r.at_risk_premium) || 0,
+            at_risk_pct: Number(r.at_risk_pct) || 0,
+            premium_concentration_pct: Number(r.premium_concentration_pct) || 0,
+            name: nameMap.get(r.agency_id) ?? null,
+          }))
+        );
+      }
 
       setLoading(false);
     }
     load();
   }, []);
 
-  const totalPremium = summary.reduce((s, r) => s + r.active_premium, 0);
-  const totalAtRiskPremium = summary.reduce((s, r) => s + r.at_risk_premium, 0);
-  const totalActive = summary.reduce((s, r) => s + r.active_count, 0);
-  const totalAtRisk = summary.reduce((s, r) => s + r.at_risk_count, 0);
-  const blendedRetention = summary.reduce((s, r) => s + r.drafted_third, 0) /
-    Math.max(summary.reduce((s, r) => s + r.drafted_first, 0), 1) * 100;
+  // ── Derived stats from pre-computed views ────────────────────────────────
+  const stats = useMemo(() => {
+    const totalPremium = agencySummaries.reduce((s, r) => s + r.active_premium, 0);
+    const totalActive = agencySummaries.reduce((s, r) => s + r.active_policies, 0);
+    const totalAtRisk = agencySummaries.reduce((s, r) => s + r.at_risk_count, 0);
+    const totalAtRiskPremium = concentration.reduce((s, r) => s + r.at_risk_premium, 0);
+    const totalRetained = agencySummaries.reduce((s, r) => s + r.retained_90d, 0);
+    const totalEligible = agencySummaries.reduce((s, r) => s + r.eligible_90d, 0);
+    const blendedRetention = totalEligible > 0 ? Math.round((totalRetained / totalEligible) * 1000) / 10 : null;
+    const flaggedConcentration = concentration.filter(c => c.premium_concentration_pct >= 10);
 
-  // Chart data — last 12 cohort months, HI + HHC side by side
-  const chartMonths = [...new Set(cohorts.map(c => c.cohort_month))].slice(0, 12).reverse();
-  const retentionChartData = chartMonths.map(month => {
-    const hi  = cohorts.find(c => c.cohort_month === month && c.product_type === 'HI');
-    const hhc = cohorts.find(c => c.cohort_month === month && c.product_type === 'HHC');
-    return {
-      month: fmtMonth(month),
-      HI:  hi?.retention_pct  ?? null,
-      HHC: hhc?.retention_pct ?? null,
-    };
-  });
+    // Product-level stats from cohort_retention (latest cohorts)
+    const latestByProduct: Record<string, { active: number; premium: number; atRisk: number; atRiskPremium: number; retention: number | null }> = {};
+    // Aggregate across all cohorts per product
+    const productAgg: Record<string, { drafted: number; retained: number; premium: number }> = {};
+    for (const c of cohorts) {
+      const pt = c.product_type;
+      if (!productAgg[pt]) productAgg[pt] = { drafted: 0, retained: 0, premium: 0 };
+      productAgg[pt].drafted += c.drafted_first;
+      productAgg[pt].retained += c.retained;
+      productAgg[pt].premium += Number(c.active_premium) || 0;
+    }
 
-  // Concentration: flag agencies with >10% of total premium
-  const flaggedConcentration = concentration.filter(c => c.premium_concentration_pct >= 10);
+    for (const [pt, agg] of Object.entries(productAgg)) {
+      latestByProduct[pt] = {
+        active: 0, premium: agg.premium,
+        atRisk: 0, atRiskPremium: 0,
+        retention: agg.drafted > 0 ? Math.round((agg.retained / agg.drafted) * 1000) / 10 : null,
+      };
+    }
+
+    return { totalPremium, totalActive, totalAtRisk, totalAtRiskPremium, blendedRetention, flaggedConcentration, latestByProduct };
+  }, [agencySummaries, concentration, cohorts]);
+
+  // Chart data — last 12 cohort months
+  const retentionChartData = useMemo(() => {
+    const months = [...new Set(cohorts.map(c => c.cohort_month))].sort().slice(-12);
+    return months.map(month => {
+      const hi = cohorts.find(c => c.cohort_month === month && c.product_type === 'HI');
+      const hhc = cohorts.find(c => c.cohort_month === month && c.product_type === 'HHC');
+      return {
+        month: fmtMonth(month),
+        HI: hi?.retention_pct ?? null,
+        HHC: hhc?.retention_pct ?? null,
+        target: 90,
+      };
+    });
+  }, [cohorts]);
+
+  // Concentration chart with names
+  const concChartData = useMemo(() => {
+    return concentration.slice(0, 10).map(c => ({
+      name: c.name ?? c.agency_id.slice(0, 10),
+      agency_id: c.agency_id,
+      active_premium: c.active_premium,
+      at_risk_premium: c.at_risk_premium,
+    }));
+  }, [concentration]);
 
   if (loading) {
     return (
       <div>
-        <Header title="Admin Financials" />
+        <Header title="Financials" />
         <div className="p-6 space-y-4">
-          {[1,2,3,4].map(i => <div key={i} className="h-32 rounded-lg bg-slate-100 animate-pulse" />)}
+          {[1, 2, 3, 4].map(i => <div key={i} className="h-32 rounded-lg bg-slate-100 animate-pulse" />)}
         </div>
       </div>
     );
@@ -169,117 +207,107 @@ export function AdminFinancialsPage() {
 
   return (
     <div>
-      <Header title="Admin Financials" />
+      <Header title="Financials" />
       <div className="p-6 space-y-6">
 
-        {/* ── KPI strip ── */}
+        {/* KPI strip */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="border-slate-200">
-            <CardContent className="p-5">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Active Premium</p>
-                  <p className="text-2xl font-bold text-slate-900 mt-1">{fmt$(Math.round(totalPremium))}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">/mo across {totalActive.toLocaleString()} policies</p>
+          {[
+            {
+              title: 'Active Premium',
+              value: fmt$(stats.totalPremium) + '/mo',
+              sub: `${stats.totalActive.toLocaleString()} policies`,
+              icon: DollarSign, color: 'text-[#1e3a5f]', bg: 'bg-blue-50',
+            },
+            {
+              title: 'At-Risk Premium',
+              value: fmt$(stats.totalAtRiskPremium),
+              sub: `${stats.totalAtRisk} policies flagged`,
+              icon: ShieldAlert,
+              color: stats.totalAtRisk > 0 ? 'text-red-600' : 'text-slate-400',
+              bg: stats.totalAtRisk > 0 ? 'bg-red-50' : 'bg-slate-50',
+            },
+            {
+              title: 'Blended Retention',
+              value: stats.blendedRetention !== null ? `${stats.blendedRetention}%` : '—',
+              sub: '90-day, all products',
+              icon: TrendingDown,
+              color: stats.blendedRetention !== null ? retentionColor(stats.blendedRetention) : 'text-slate-400',
+              bg: stats.blendedRetention !== null && stats.blendedRetention >= 90 ? 'bg-emerald-50' : 'bg-amber-50',
+            },
+            {
+              title: 'Concentration Risk',
+              value: stats.flaggedConcentration.length.toString(),
+              sub: 'agencies >10% of premium',
+              icon: AlertTriangle,
+              color: stats.flaggedConcentration.length > 0 ? 'text-amber-600' : 'text-slate-400',
+              bg: stats.flaggedConcentration.length > 0 ? 'bg-amber-50' : 'bg-slate-50',
+            },
+          ].map(card => (
+            <Card key={card.title} className="border-slate-200">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-slate-500">{card.title}</p>
+                    <p className="text-2xl font-bold text-slate-900 mt-1">{card.value}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{card.sub}</p>
+                  </div>
+                  <div className={`p-2.5 rounded-lg ${card.bg}`}>
+                    <card.icon size={20} className={card.color} />
+                  </div>
                 </div>
-                <div className="p-2.5 rounded-lg bg-blue-50"><DollarSign size={20} className="text-[#1e3a5f]" /></div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-slate-200">
-            <CardContent className="p-5">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-500">At-Risk Premium</p>
-                  <p className="text-2xl font-bold text-red-700 mt-1">{fmt$(Math.round(totalAtRiskPremium))}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">{totalAtRisk} policies flagged</p>
-                </div>
-                <div className="p-2.5 rounded-lg bg-red-50"><ShieldAlert size={20} className="text-red-600" /></div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-slate-200">
-            <CardContent className="p-5">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Blended Retention</p>
-                  <p className={`text-2xl font-bold mt-1 ${retentionColor(blendedRetention)}`}>{blendedRetention.toFixed(1)}%</p>
-                  <p className="text-xs text-slate-400 mt-0.5">90-day, all products</p>
-                </div>
-                <div className="p-2.5 rounded-lg bg-emerald-50"><TrendingDown size={20} className="text-emerald-700" /></div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-slate-200">
-            <CardContent className="p-5">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-slate-500">Concentration Risk</p>
-                  <p className="text-2xl font-bold text-slate-900 mt-1">{flaggedConcentration.length}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">agencies &gt;10% of premium</p>
-                </div>
-                <div className="p-2.5 rounded-lg bg-amber-50"><AlertTriangle size={20} className="text-amber-600" /></div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
-        {/* ── Premium by product ── */}
+        {/* Product breakdown cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {summary.map(s => {
-            const retention = s.drafted_first > 0 ? (s.drafted_third / s.drafted_first * 100) : 0;
-            return (
-              <Card key={s.product_type} className="border-slate-200">
+          {Object.entries(stats.latestByProduct)
+            .filter(([pt]) => ['HI', 'HHC'].includes(pt))
+            .sort(([, a], [, b]) => b.premium - a.premium)
+            .map(([pt, data]) => (
+              <Card key={pt} className="border-slate-200">
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-base font-semibold text-slate-900">{s.product_type === 'HHC' ? 'Home Health Care' : 'Hospital Indemnity'}</CardTitle>
-                    <Badge className={`text-xs border ${retentionBadge(retention)}`}>{retention.toFixed(1)}% retained</Badge>
+                    <CardTitle className="text-base font-semibold text-slate-900">
+                      {pt === 'HHC' ? 'Home Health Care' : 'Hospital Indemnity'}
+                    </CardTitle>
+                    {data.retention !== null && (
+                      <Badge className={`text-xs border ${retentionBadgeClass(data.retention)}`}>
+                        {data.retention}% retained
+                      </Badge>
+                    )}
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-3">
+                <CardContent>
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
                       <p className="text-slate-500 text-xs">Active premium</p>
-                      <p className="font-semibold text-slate-900">{fmt$(Math.round(s.active_premium))}<span className="font-normal text-slate-400">/mo</span></p>
+                      <p className="font-semibold text-slate-900">{fmt$(data.premium)}<span className="font-normal text-slate-400">/mo</span></p>
                     </div>
                     <div>
-                      <p className="text-slate-500 text-xs">At-risk premium</p>
-                      <p className="font-semibold text-red-700">{fmt$(Math.round(s.at_risk_premium))}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-500 text-xs">Active policies</p>
-                      <p className="font-semibold text-slate-900">{s.active_count.toLocaleString()}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-500 text-xs">At-risk policies</p>
-                      <p className="font-semibold text-red-700">{s.at_risk_count}</p>
-                    </div>
-                  </div>
-                  {/* at-risk premium bar */}
-                  <div>
-                    <div className="flex justify-between text-xs text-slate-400 mb-1">
-                      <span>At-risk exposure</span>
-                      <span>{s.active_premium > 0 ? ((s.at_risk_premium / s.active_premium) * 100).toFixed(1) : 0}% of premium</span>
-                    </div>
-                    <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
-                      <div className="h-full rounded-full bg-red-400" style={{ width: `${Math.min((s.at_risk_premium / Math.max(s.active_premium, 1)) * 100, 100)}%` }} />
+                      <p className="text-slate-500 text-xs">Retention</p>
+                      <p className={`font-semibold ${retentionColor(data.retention)}`}>
+                        {data.retention !== null ? `${data.retention}%` : '—'}
+                      </p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
-            );
-          })}
+            ))}
         </div>
 
-        {/* ── Cohort retention chart ── */}
+        {/* Cohort retention trend */}
         {retentionChartData.length > 0 && (
           <Card className="border-slate-200">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base font-semibold text-slate-900">90-Day Retention by Cohort Month</CardTitle>
-              <p className="text-xs text-slate-400 mt-0.5">Billing-mode aware: non-monthly = 1st draft retained. Cohorts need ≥3 months to appear.</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base font-semibold text-slate-900">90-Day Retention by Cohort</CardTitle>
+                  <p className="text-xs text-slate-400 mt-0.5">Monthly cohorts · HI vs HHC · red dashed line = 90% target</p>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="h-72">
@@ -288,12 +316,16 @@ export function AdminFinancialsPage() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="month" stroke="#64748b" fontSize={11} />
                     <YAxis domain={[70, 105]} stroke="#64748b" fontSize={11} tickFormatter={v => `${v}%`} />
-                    <Tooltip formatter={(v: number) => [`${v}%`, '']} contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-                    <Legend />
-                    <Line type="monotone" dataKey="HI"  stroke="#1e3a5f" strokeWidth={2.5} dot={{ r: 3 }} connectNulls />
-                    <Line type="monotone" dataKey="HHC" stroke="#0ea5e9" strokeWidth={2.5} dot={{ r: 3 }} connectNulls />
-                    {/* 90% target line */}
-                    <Line type="monotone" dataKey={() => 90} stroke="#ef4444" strokeDasharray="4 3" strokeWidth={1.5} dot={false} name="Target (90%)" />
+                    <Tooltip
+                      formatter={(v: number, name: string) => [
+                        v !== null ? `${v}%` : '—',
+                        name === 'target' ? '90% Target' : name,
+                      ]}
+                      contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: 12 }}
+                    />
+                    <Line type="monotone" dataKey="HI" stroke="#1e3a5f" strokeWidth={2.5} dot={{ r: 3, fill: '#1e3a5f' }} connectNulls />
+                    <Line type="monotone" dataKey="HHC" stroke="#0ea5e9" strokeWidth={2.5} dot={{ r: 3, fill: '#0ea5e9' }} connectNulls />
+                    <Line type="monotone" dataKey="target" stroke="#ef4444" strokeDasharray="4 3" strokeWidth={1.5} dot={false} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -301,7 +333,7 @@ export function AdminFinancialsPage() {
           </Card>
         )}
 
-        {/* ── Cohort table (below-target flagged) ── */}
+        {/* Cohort detail table */}
         {cohorts.length > 0 && (
           <Card className="border-slate-200">
             <CardHeader className="pb-2">
@@ -309,22 +341,27 @@ export function AdminFinancialsPage() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-slate-100">
-                <div className="grid grid-cols-6 gap-2 px-4 py-2 bg-slate-50 text-xs font-semibold text-slate-500">
+                <div className="grid grid-cols-7 gap-2 px-4 py-2 bg-slate-50 text-xs font-semibold text-slate-500">
                   <span className="col-span-2">Cohort</span>
                   <span className="text-right">Size</span>
                   <span className="text-right">Drafted</span>
                   <span className="text-right">Retained</span>
                   <span className="text-right">Rate</span>
+                  <span className="text-right">Premium</span>
                 </div>
                 {cohorts.slice(0, 20).map((c, i) => (
-                  <div key={i} className={`grid grid-cols-6 gap-2 px-4 py-2.5 text-sm ${c.retention_pct < 90 ? 'bg-red-50/40' : ''}`}>
+                  <div key={i} className={`grid grid-cols-7 gap-2 px-4 py-2.5 text-sm ${Number(c.retention_pct) < 90 ? 'bg-red-50/40' : ''}`}>
                     <span className="col-span-2 font-medium text-slate-800">
-                      {fmtMonth(c.cohort_month)} <span className="text-slate-400 font-normal">{c.product_type}</span>
+                      {fmtMonth(c.cohort_month)}{' '}
+                      <Badge className={`text-[10px] px-1.5 py-0 border ${
+                        c.product_type === 'HHC' ? 'bg-sky-50 text-sky-700 border-sky-200' : 'bg-violet-50 text-violet-700 border-violet-200'
+                      }`}>{c.product_type}</Badge>
                     </span>
                     <span className="text-right text-slate-600">{c.cohort_size.toLocaleString()}</span>
                     <span className="text-right text-slate-600">{c.drafted_first.toLocaleString()}</span>
                     <span className="text-right text-slate-600">{c.retained.toLocaleString()}</span>
-                    <span className={`text-right font-semibold ${retentionColor(c.retention_pct)}`}>{c.retention_pct}%</span>
+                    <span className={`text-right font-semibold ${retentionColor(Number(c.retention_pct))}`}>{c.retention_pct}%</span>
+                    <span className="text-right text-slate-600">{fmt$(Number(c.active_premium))}</span>
                   </div>
                 ))}
               </div>
@@ -332,59 +369,80 @@ export function AdminFinancialsPage() {
           </Card>
         )}
 
-        {/* ── Concentration risk ── */}
+        {/* Premium concentration — with agency names + clickable */}
         {concentration.length > 0 && (
           <Card className="border-slate-200">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-semibold text-slate-900">Premium Concentration by Agency</CardTitle>
-                <Badge className="bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-100">Top {concentration.length}</Badge>
+                <div>
+                  <CardTitle className="text-base font-semibold text-slate-900">Premium Concentration</CardTitle>
+                  <p className="text-xs text-slate-400 mt-0.5">Top agencies by active premium — click to drill in</p>
+                </div>
+                <Badge className="bg-slate-100 text-slate-600 border-slate-200 border">
+                  Top {concentration.length}
+                </Badge>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="h-64">
+              <div className="h-64 mb-4">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={concentration.slice(0, 10)} margin={{ top: 5, right: 10, left: 10, bottom: 20 }}>
+                  <BarChart data={concChartData} margin={{ top: 5, right: 10, left: 10, bottom: 40 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="agency_id" stroke="#64748b" fontSize={10} angle={-30} textAnchor="end" interval={0} />
-                    <YAxis stroke="#64748b" fontSize={11} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
-                    <Tooltip formatter={(v: number) => [fmt$(Math.round(v)), 'Active premium']} contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0' }} />
-                    <Bar dataKey="active_premium" fill="#1e3a5f" radius={[3,3,0,0]} name="Active premium" />
-                    <Bar dataKey="at_risk_premium" fill="#ef4444" radius={[3,3,0,0]} name="At-risk premium" />
+                    <XAxis dataKey="name" stroke="#64748b" fontSize={10} angle={-35} textAnchor="end" interval={0} height={60} />
+                    <YAxis stroke="#64748b" fontSize={11} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+                    <Tooltip
+                      formatter={(v: number, name: string) => [
+                        fmt$(Math.round(v)),
+                        name === 'active_premium' ? 'Active' : 'At-risk',
+                      ]}
+                      contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: 12 }}
+                    />
+                    <Bar dataKey="active_premium" fill="#1e3a5f" radius={[3, 3, 0, 0]} name="active_premium" />
+                    <Bar dataKey="at_risk_premium" fill="#ef4444" radius={[3, 3, 0, 0]} name="at_risk_premium" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-              {flaggedConcentration.length > 0 && (
+
+              {/* Concentration table with links */}
+              <div className="divide-y divide-slate-100 border-t border-slate-100">
+                <div className="grid grid-cols-7 gap-2 px-4 py-2 bg-slate-50 text-xs font-semibold text-slate-500">
+                  <span className="col-span-2">Agency</span>
+                  <span className="text-right">Active</span>
+                  <span className="text-right">Premium</span>
+                  <span className="text-right">At-Risk</span>
+                  <span className="text-right">Concentration</span>
+                  <span />
+                </div>
+                {concentration.map(c => (
+                  <div key={c.agency_id} className={`grid grid-cols-7 gap-2 px-4 py-2.5 text-sm items-center ${c.premium_concentration_pct >= 10 ? 'bg-amber-50/30' : ''}`}>
+                    <span className="col-span-2 font-medium text-slate-800 truncate">
+                      {c.name ?? <span className="font-mono text-xs text-slate-400">{c.agency_id.slice(0, 12)}…</span>}
+                    </span>
+                    <span className="text-right text-slate-600 tabular-nums">{c.active_count}</span>
+                    <span className="text-right text-slate-700 font-medium tabular-nums">{fmt$(c.active_premium)}</span>
+                    <span className={`text-right font-medium tabular-nums ${c.at_risk_count > 0 ? 'text-red-700' : 'text-slate-300'}`}>
+                      {c.at_risk_count || '—'}
+                    </span>
+                    <span className={`text-right font-semibold tabular-nums ${c.premium_concentration_pct >= 10 ? 'text-amber-700' : 'text-slate-500'}`}>
+                      {c.premium_concentration_pct}%
+                    </span>
+                    <span className="text-center">
+                      <Link to={`/agencies/${c.agency_id}`}>
+                        <ChevronRight size={14} className="text-slate-300 hover:text-[#1e3a5f] transition-colors" />
+                      </Link>
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {stats.flaggedConcentration.length > 0 && (
                 <div className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
-                  ⚠ Concentration flag: {flaggedConcentration.map(c => `${c.agency_id} (${c.premium_concentration_pct}%)`).join(', ')} — each agency holds &gt;10% of total premium
+                  ⚠ Concentration flag: {stats.flaggedConcentration.map(c => c.name ?? c.agency_id.slice(0, 10)).join(', ')} — each holds &gt;10% of total premium
                 </div>
               )}
             </CardContent>
           </Card>
         )}
-
-        {/* ── Recruiting funnel snapshot ── */}
-        <Card className="border-slate-200">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold text-slate-900">Recruiting Funnel</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-3 gap-4 text-center">
-              {[
-                { label: 'Agencies in DB', value: concentration.length, sub: 'writing at least 1 policy' },
-                { label: 'Below 90% retention', value: cohorts.filter(c => c.retention_pct < 90).length > 0 ? [...new Set(cohorts.filter(c => c.retention_pct < 90).map(c => c.product_type))].length : 0, sub: 'product lines flagged' },
-                { label: 'At-risk premium', value: fmt$(Math.round(totalAtRiskPremium)), sub: 'recoverable if actioned' },
-              ].map(item => (
-                <div key={item.label} className="p-4 rounded-lg bg-slate-50 border border-slate-100">
-                  <p className="text-2xl font-bold text-slate-900">{item.value}</p>
-                  <p className="text-xs font-medium text-slate-600 mt-1">{item.label}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">{item.sub}</p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
       </div>
     </div>
   );
