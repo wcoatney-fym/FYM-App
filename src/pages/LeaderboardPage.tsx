@@ -1,119 +1,279 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { useAuth } from '@/contexts/AuthContext';
+import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/lib/supabase';
-import type { Database } from '@/lib/database.types';
-import { Trophy, TrendingUp } from 'lucide-react';
+import { Trophy, TrendingUp, ShieldCheck, AlertTriangle, ChevronRight } from 'lucide-react';
 
-type LeaderboardRow = Database['public']['Views']['agency_leaderboard']['Row'];
+// ── Types ──────────────────────────────────────────────────────────────────
+interface AgencyLeaderRow {
+  agency_id: string;
+  name: string | null;
+  active_policies: number;
+  active_premium: number;
+  at_risk_count: number;
+  retained_90d: number;
+  eligible_90d: number;
+  retention_pct: number | null;
+  rank: number;
+}
 
-const mockLeaderboard: LeaderboardRow[] = [
-  { agent_id: '1', full_name: 'James Mitchell',  agency_id: 'fym', writing_number: 'W-10240', active_count: 63, total_score: 94.2, persistency_score: 38.5, payment_method_score: 19.2, contact_recency_score: 23.1, product_diversity_score: 13.4, agency_rank: 1, fym_rank: 1 },
-  { agent_id: '2', full_name: 'Michael Torres',   agency_id: 'fym', writing_number: 'W-10234', active_count: 52, total_score: 91.7, persistency_score: 37.2, payment_method_score: 18.5, contact_recency_score: 22.5, product_diversity_score: 13.5, agency_rank: 2, fym_rank: 2 },
-  { agent_id: '3', full_name: 'Lisa Nakamura',    agency_id: 'fym', writing_number: 'W-10241', active_count: 37, total_score: 90.1, persistency_score: 36.8, payment_method_score: 18.0, contact_recency_score: 21.8, product_diversity_score: 13.5, agency_rank: 3, fym_rank: 3 },
-  { agent_id: '4', full_name: 'Sarah Chen',       agency_id: 'fym', writing_number: 'W-10235', active_count: 41, total_score: 88.3, persistency_score: 35.5, payment_method_score: 17.6, contact_recency_score: 21.2, product_diversity_score: 14.0, agency_rank: 4, fym_rank: 4 },
-  { agent_id: '5', full_name: 'Robert Garcia',    agency_id: 'fym', writing_number: 'W-10238', active_count: 47, total_score: 85.9, persistency_score: 34.2, payment_method_score: 17.2, contact_recency_score: 20.5, product_diversity_score: 14.0, agency_rank: 5, fym_rank: 5 },
-  { agent_id: '6', full_name: 'Emily Watson',     agency_id: 'fym', writing_number: 'W-10243', active_count: 33, total_score: 83.4, persistency_score: 33.1, payment_method_score: 16.8, contact_recency_score: 20.0, product_diversity_score: 13.5, agency_rank: 6, fym_rank: 6 },
-  { agent_id: '7', full_name: 'Carlos Rivera',    agency_id: 'fym', writing_number: 'W-10242', active_count: 29, total_score: 80.2, persistency_score: 31.8, payment_method_score: 16.2, contact_recency_score: 19.2, product_diversity_score: 13.0, agency_rank: 7, fym_rank: 7 },
-  { agent_id: '8', full_name: 'David Williams',   agency_id: 'fym', writing_number: 'W-10236', active_count: 38, total_score: 78.4, persistency_score: 30.5, payment_method_score: 15.8, contact_recency_score: 18.6, product_diversity_score: 13.5, agency_rank: 8, fym_rank: 8 },
-];
+type SortKey = 'rank' | 'retention' | 'policies' | 'premium' | 'at_risk';
 
-function scoreColor(score: number) {
-  if (score >= 90) return 'text-emerald-700';
-  if (score >= 80) return 'text-blue-700';
-  if (score >= 70) return 'text-amber-700';
+// ── Helpers ────────────────────────────────────────────────────────────────
+function fmt$(n: number) {
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `$${Math.round(n / 1_000)}K`;
+  return `$${Math.round(n).toLocaleString()}`;
+}
+
+function retentionColor(pct: number | null) {
+  if (pct === null) return 'text-slate-400';
+  if (pct >= 90) return 'text-emerald-700';
+  if (pct >= 85) return 'text-amber-700';
   return 'text-red-700';
+}
+
+function retentionBg(pct: number | null) {
+  if (pct === null) return 'bg-slate-100';
+  if (pct >= 90) return 'bg-emerald-50';
+  if (pct >= 85) return 'bg-amber-50';
+  return 'bg-red-50';
 }
 
 function rankBadge(rank: number) {
   if (rank === 1) return <span className="text-lg">🥇</span>;
   if (rank === 2) return <span className="text-lg">🥈</span>;
   if (rank === 3) return <span className="text-lg">🥉</span>;
-  return <span className="text-sm font-bold text-slate-500">#{rank}</span>;
+  return <span className="text-sm font-bold text-slate-400 tabular-nums">#{rank}</span>;
 }
 
+// ── Component ──────────────────────────────────────────────────────────────
 export function LeaderboardPage() {
-  const { role, profile } = useAuth();
-  const [rows, setRows] = useState<LeaderboardRow[]>(mockLeaderboard);
+  const [rows, setRows] = useState<AgencyLeaderRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sortKey, setSortKey] = useState<SortKey>('rank');
+  const [sortAsc, setSortAsc] = useState(true);
+  const [filter, setFilter] = useState<'all' | 'above' | 'below'>('all');
 
   useEffect(() => {
-    if (!supabase) return;
-    supabase
-      .from('agency_leaderboard')
-      .select('*')
-      .order('agency_rank', { ascending: true })
-      .then(({ data }) => {
-        if (data && data.length > 0) setRows(data as unknown as typeof rows);
-      });
+    if (!supabase) { setLoading(false); return; }
+
+    async function load() {
+      // Retention summary
+      const { data: summaryData } = await supabase!
+        .from('agency_retention_summary')
+        .select('agency_id, active_policies, active_premium, at_risk_count, retained_90d, eligible_90d, retention_pct');
+
+      if (!summaryData || summaryData.length === 0) { setLoading(false); return; }
+
+      // Agency names
+      const { data: agencyNames } = await (supabase as any)
+        .from('agencies')
+        .select('tracker_id, name');
+      const nameMap = new Map<string, string>();
+      if (agencyNames) {
+        for (const a of agencyNames as any[]) {
+          if (a.tracker_id) nameMap.set(a.tracker_id, a.name);
+        }
+      }
+
+      // Build ranked rows — rank by retention descending, then by active premium descending as tiebreak
+      const ranked = (summaryData as any[])
+        .map(r => ({
+          agency_id: r.agency_id as string,
+          name: nameMap.get(r.agency_id) ?? null,
+          active_policies: Number(r.active_policies) || 0,
+          active_premium: Number(r.active_premium) || 0,
+          at_risk_count: Number(r.at_risk_count) || 0,
+          retained_90d: Number(r.retained_90d) || 0,
+          eligible_90d: Number(r.eligible_90d) || 0,
+          retention_pct: r.retention_pct !== null ? Number(r.retention_pct) : null,
+          rank: 0,
+        }))
+        .sort((a, b) => {
+          const retA = a.retention_pct ?? -1;
+          const retB = b.retention_pct ?? -1;
+          if (retB !== retA) return retB - retA;
+          return b.active_premium - a.active_premium;
+        });
+
+      ranked.forEach((r, i) => { r.rank = i + 1; });
+      setRows(ranked);
+      setLoading(false);
+    }
+
+    load();
   }, []);
 
-  const myRow = rows.find((r) => r.agent_id === profile?.id);
+  // Stats
+  const stats = useMemo(() => {
+    const total = rows.length;
+    const above = rows.filter(r => r.retention_pct !== null && r.retention_pct >= 90).length;
+    const below = total - above;
+    const totalPolicies = rows.reduce((s, r) => s + r.active_policies, 0);
+    const totalPremium = rows.reduce((s, r) => s + r.active_premium, 0);
+    return { total, above, below, totalPolicies, totalPremium };
+  }, [rows]);
+
+  // Sort + filter
+  const displayed = useMemo(() => {
+    let filtered = [...rows];
+    if (filter === 'above') filtered = filtered.filter(r => r.retention_pct !== null && r.retention_pct >= 90);
+    if (filter === 'below') filtered = filtered.filter(r => r.retention_pct === null || r.retention_pct < 90);
+
+    const dir = sortAsc ? 1 : -1;
+    filtered.sort((a, b) => {
+      switch (sortKey) {
+        case 'rank': return dir * (a.rank - b.rank);
+        case 'retention': return dir * ((a.retention_pct ?? -1) - (b.retention_pct ?? -1));
+        case 'policies': return dir * (a.active_policies - b.active_policies);
+        case 'premium': return dir * (a.active_premium - b.active_premium);
+        case 'at_risk': return dir * (a.at_risk_count - b.at_risk_count);
+        default: return 0;
+      }
+    });
+    return filtered;
+  }, [rows, sortKey, sortAsc, filter]);
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) setSortAsc(p => !p);
+    else { setSortKey(key); setSortAsc(key === 'rank'); }
+  }
+
+  function SortArrow({ k }: { k: SortKey }) {
+    if (sortKey !== k) return null;
+    return <span className="ml-0.5 text-[10px]">{sortAsc ? '▲' : '▼'}</span>;
+  }
 
   return (
     <div>
-      <Header title="Leaderboard" />
-      <div className="p-6 space-y-4">
-        {role === 'agent' && myRow && (
-          <Card className="border-blue-200 bg-blue-50">
-            <CardContent className="p-5 flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full bg-[#1e3a5f] flex items-center justify-center flex-shrink-0">
-                <Trophy size={18} className="text-white" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-slate-800">Your ranking</p>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  #{myRow.agency_rank} in your agency · Book Health Score{' '}
-                  <span className={`font-bold ${scoreColor(myRow.total_score)}`}>{myRow.total_score}</span>
-                </p>
-              </div>
-              <TrendingUp size={18} className="text-blue-600" />
-            </CardContent>
-          </Card>
-        )}
+      <Header title="Agency Leaderboard" />
+      <div className="p-6 space-y-6">
 
-        <Card className="border-slate-200">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-semibold text-slate-900">Agency Leaderboard</CardTitle>
-              <Badge className="bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-100">{rows.length} agents</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y divide-slate-100">
-              {rows.map((row) => {
-                const isMe = row.agent_id === profile?.id;
-                return (
-                  <div key={row.agent_id} className={`flex items-center gap-4 px-4 py-3 transition-colors ${isMe ? 'bg-blue-50' : 'hover:bg-slate-50'}`}>
-                    <div className="w-8 text-center flex-shrink-0">{rankBadge(row.agency_rank)}</div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium truncate ${isMe ? 'text-blue-800' : 'text-slate-900'}`}>
-                        {row.full_name ?? '—'}{isMe && <span className="ml-1.5 text-xs text-blue-500 font-normal">(you)</span>}
-                      </p>
-                      <p className="text-xs text-slate-400">{row.active_count} active policies</p>
+        {/* Stats strip */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { title: 'Total Agencies', value: stats.total.toString(), icon: Trophy, color: 'text-[#1e3a5f]', bg: 'bg-blue-50' },
+            { title: 'Above 90% Target', value: stats.above.toString(), icon: ShieldCheck, color: 'text-emerald-700', bg: 'bg-emerald-50' },
+            { title: 'Below 90% Target', value: stats.below.toString(), icon: AlertTriangle, color: stats.below > 0 ? 'text-red-600' : 'text-slate-400', bg: stats.below > 0 ? 'bg-red-50' : 'bg-slate-50' },
+            { title: 'Total Active Premium', value: fmt$(stats.totalPremium) + '/mo', icon: TrendingUp, color: 'text-slate-700', bg: 'bg-slate-100' },
+          ].map(card => (
+            <Card key={card.title} className="border-slate-200">
+              <CardContent className="p-4">
+                {loading ? (
+                  <div className="h-12 rounded bg-slate-100 animate-pulse" />
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-medium text-slate-500">{card.title}</p>
+                      <p className="text-xl font-bold text-slate-900 mt-0.5">{card.value}</p>
                     </div>
-                    <div className="hidden md:flex items-center gap-3 text-xs text-slate-500">
-                      <span title="Persistency">P: {row.persistency_score}</span>
-                      <span title="Payment mix">$: {row.payment_method_score}</span>
-                      <span title="Contact recency">C: {row.contact_recency_score}</span>
-                      <span title="Product diversity">D: {row.product_diversity_score}</span>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      <span className={`text-lg font-bold ${scoreColor(row.total_score)}`}>{row.total_score}</span>
-                      <p className="text-xs text-slate-400">/ 100</p>
+                    <div className={`p-2 rounded-lg ${card.bg}`}>
+                      <card.icon size={18} className={card.color} />
                     </div>
                   </div>
-                );
-              })}
-            </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {/* Filter tabs */}
+        <div className="flex items-center gap-2">
+          {([['all', 'All'], ['above', '≥ 90%'], ['below', '< 90%']] as const).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setFilter(key)}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                filter === key
+                  ? 'bg-[#1e3a5f] text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+          <span className="ml-auto text-xs text-slate-400">
+            {displayed.length} {displayed.length === 1 ? 'agency' : 'agencies'}
+          </span>
+        </div>
+
+        {/* Leaderboard table */}
+        <Card className="border-slate-200 overflow-hidden">
+          <CardContent className="p-0">
+            {loading ? (
+              <div className="p-6 space-y-3">
+                {[1, 2, 3, 4, 5].map(i => <div key={i} className="h-12 rounded bg-slate-100 animate-pulse" />)}
+              </div>
+            ) : displayed.length === 0 ? (
+              <div className="py-16 text-center text-slate-400">
+                No agencies match the current filter.
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-slate-50 text-xs font-semibold text-slate-500 border-b border-slate-100">
+                  <span
+                    className="col-span-1 cursor-pointer hover:text-slate-800"
+                    onClick={() => toggleSort('rank')}
+                  >Rank <SortArrow k="rank" /></span>
+                  <span className="col-span-3">Agency</span>
+                  <span
+                    className="col-span-2 text-center cursor-pointer hover:text-slate-800"
+                    onClick={() => toggleSort('retention')}
+                  >90-Day Retention <SortArrow k="retention" /></span>
+                  <span
+                    className="col-span-2 text-right cursor-pointer hover:text-slate-800"
+                    onClick={() => toggleSort('policies')}
+                  >Active <SortArrow k="policies" /></span>
+                  <span
+                    className="col-span-2 text-right cursor-pointer hover:text-slate-800"
+                    onClick={() => toggleSort('premium')}
+                  >Premium/mo <SortArrow k="premium" /></span>
+                  <span
+                    className="col-span-1 text-center cursor-pointer hover:text-slate-800"
+                    onClick={() => toggleSort('at_risk')}
+                  >At-Risk <SortArrow k="at_risk" /></span>
+                  <span className="col-span-1" />
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {displayed.map((r) => (
+                    <div
+                      key={r.agency_id}
+                      className={`grid grid-cols-12 gap-2 px-4 py-3 items-center text-sm hover:bg-slate-50/80 transition-colors ${
+                        r.rank <= 3 ? 'bg-amber-50/20' : ''
+                      }`}
+                    >
+                      <span className="col-span-1 text-center">{rankBadge(r.rank)}</span>
+                      <span className="col-span-3 font-medium text-slate-800 truncate">
+                        {r.name ?? <span className="font-mono text-xs text-slate-400">{r.agency_id.slice(0, 12)}…</span>}
+                      </span>
+                      <span className="col-span-2 text-center">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${retentionBg(r.retention_pct)} ${retentionColor(r.retention_pct)}`}>
+                          {r.retention_pct !== null ? `${r.retention_pct}%` : '—'}
+                        </span>
+                      </span>
+                      <span className="col-span-2 text-right text-slate-700 tabular-nums">
+                        {r.active_policies.toLocaleString()}
+                      </span>
+                      <span className="col-span-2 text-right text-slate-700 tabular-nums">
+                        {fmt$(r.active_premium)}
+                      </span>
+                      <span className={`col-span-1 text-center font-medium tabular-nums ${r.at_risk_count > 0 ? 'text-red-700' : 'text-slate-300'}`}>
+                        {r.at_risk_count || '—'}
+                      </span>
+                      <span className="col-span-1 text-center">
+                        <Link to={`/agencies/${r.agency_id}`}>
+                          <ChevronRight size={16} className="text-slate-300 hover:text-[#1e3a5f] transition-colors" />
+                        </Link>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
-
-        <div className="text-xs text-slate-400 px-1 space-y-0.5">
-          <p className="font-medium text-slate-500">Score components</p>
-          <p>P = Persistency (40pts) · $ = Payment method mix (20pts) · C = Contact recency (25pts) · D = Product diversity (15pts)</p>
-        </div>
       </div>
     </div>
   );
