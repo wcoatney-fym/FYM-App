@@ -55,6 +55,15 @@ export default {
           4: 'hsl(var(--chart-4))',
           5: 'hsl(var(--chart-5))',
         },
+        // Activation hub palette (mirrors teamfym.com)
+        fym: {
+          ink: '#1a1a1a',
+          paper: '#faf8f5',
+          brass: '#b68b3c',
+          muted: '#7a7a7a',
+          cream2: '#f0ece4',
+          rule: '#333333',
+        },
       },
       keyframes: {
         'accordion-down': {
