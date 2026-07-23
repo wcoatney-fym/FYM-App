@@ -1,11 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/lib/supabase';
-import { Search, Building2 } from 'lucide-react';
+import { Search, Building2, ChevronRight } from 'lucide-react';
 
 interface AgencyRow {
   agency_id: string;
@@ -158,13 +159,14 @@ export function AgenciesPage() {
                     <TableHead className="font-semibold text-slate-600 text-right">Eligible</TableHead>
                     <TableHead className="font-semibold text-slate-600 text-right">Retention</TableHead>
                     <TableHead className="font-semibold text-slate-600 text-center">Status</TableHead>
+                    <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filtered.map(r => (
                     <TableRow
                       key={r.agency_id}
-                      className={`hover:bg-slate-50 transition-colors ${r.retention_pct !== null && r.retention_pct < 90 ? 'bg-red-50/20' : ''}`}
+                      className={`hover:bg-slate-50 transition-colors cursor-pointer ${r.retention_pct !== null && r.retention_pct < 90 ? 'bg-red-50/20' : ''}`}
                     >
                       <TableCell>
                         <div className="font-medium text-slate-900">
@@ -192,11 +194,16 @@ export function AgenciesPage() {
                       <TableCell className="text-center">
                         {retentionBadge(r.retention_pct)}
                       </TableCell>
+                      <TableCell className="text-center">
+                        <Link to={`/agencies/${r.agency_id}`}>
+                          <ChevronRight size={16} className="text-slate-400 hover:text-[#1e3a5f] transition-colors" />
+                        </Link>
+                      </TableCell>
                     </TableRow>
                   ))}
                   {filtered.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-10 text-slate-400">
+                      <TableCell colSpan={8} className="text-center py-10 text-slate-400">
                         {rows.length === 0 ? 'No agency data yet — sync policy cache to populate.' : 'No agencies match your search.'}
                       </TableCell>
                     </TableRow>

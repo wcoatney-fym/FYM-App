@@ -18,6 +18,7 @@ import { OnboardingListPage } from '@/pages/OnboardingListPage';
 import { OnboardingDetailPage } from '@/pages/OnboardingDetailPage';
 import { OnboardingNewPage } from '@/pages/OnboardingNewPage';
 import { ActivationPage } from '@/pages/ActivationPage';
+import { AgencyDetailPage } from '@/pages/AgencyDetailPage';
 
 function App() {
   return (
@@ -32,6 +33,7 @@ function App() {
           <Route element={<AppLayout />}>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/agencies" element={<AgenciesPage />} />
+            <Route path="/agencies/:agencyId" element={<AgencyDetailPage />} />
             <Route path="/agents" element={<AgentsPage />} />
             <Route path="/contracting" element={<ContractingPage />} />
             <Route path="/at-risk" element={<AtRiskPage />} />
