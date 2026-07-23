@@ -3,8 +3,9 @@ import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
+import { Link } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { ShieldCheck, TrendingUp, AlertTriangle, Building2 } from 'lucide-react';
+import { ShieldCheck, TrendingUp, AlertTriangle, Building2, ChevronRight } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface DashStats {
@@ -313,17 +314,18 @@ export function DashboardPage() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-slate-100">
-                <div className="grid grid-cols-6 gap-2 px-4 py-2 bg-slate-50 text-xs font-semibold text-slate-500">
+                <div className="grid grid-cols-7 gap-2 px-4 py-2 bg-slate-50 text-xs font-semibold text-slate-500">
                   <span className="col-span-2">Agency</span>
                   <span className="text-right">Active</span>
                   <span className="text-right">Premium/mo</span>
                   <span className="text-right">At-Risk</span>
                   <span className="text-right">Retention</span>
+                  <span />
                 </div>
                 {bottomAgencies.map((a) => (
                   <div
                     key={a.agency_id}
-                    className={`grid grid-cols-6 gap-2 px-4 py-2.5 text-sm ${
+                    className={`grid grid-cols-7 gap-2 px-4 py-2.5 text-sm items-center ${
                       a.retention_pct !== null && a.retention_pct < 90 ? 'bg-red-50/30' : ''
                     }`}
                   >
@@ -337,6 +339,11 @@ export function DashboardPage() {
                     </span>
                     <span className={`text-right font-semibold ${retentionColor(a.retention_pct)}`}>
                       {a.retention_pct !== null ? `${a.retention_pct}%` : '—'}
+                    </span>
+                    <span className="text-center">
+                      <Link to={`/agencies/${a.agency_id}`}>
+                        <ChevronRight size={14} className="text-slate-300 hover:text-[#1e3a5f] transition-colors" />
+                      </Link>
                     </span>
                   </div>
                 ))}

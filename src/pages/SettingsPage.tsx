@@ -3,12 +3,9 @@ import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
-import { useAppStore } from '@/store/app-store';
 
 export function SettingsPage() {
-  const { useMockData, toggleMockData } = useAppStore();
   const [url, setUrl] = useState(localStorage.getItem('fym_supabase_url') || '');
   const [key, setKey] = useState(localStorage.getItem('fym_supabase_anon_key') || '');
   const [saved, setSaved] = useState(false);
@@ -24,23 +21,6 @@ export function SettingsPage() {
     <div>
       <Header title="Settings" />
       <div className="p-6 max-w-2xl space-y-6">
-        <Card className="border-slate-200">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold text-slate-900">Data Source</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label className="text-sm font-medium text-slate-700">Mock Data Mode</Label>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Use built-in sample data instead of live Supabase queries
-                </p>
-              </div>
-              <Switch checked={useMockData} onCheckedChange={toggleMockData} />
-            </div>
-          </CardContent>
-        </Card>
-
         <Card className="border-slate-200">
           <CardHeader>
             <CardTitle className="text-base font-semibold text-slate-900">Supabase Connection</CardTitle>
