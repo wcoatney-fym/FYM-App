@@ -77,7 +77,6 @@ export function OnboardingListPage() {
   );
 
   const copyUrl = (slug: string) => {
-    // TODO: update domain when partner hub is built in FYM App
     const url = `${window.location.origin}/activate/${slug}`;
     navigator.clipboard.writeText(url).then(() => {
       setCopied(slug);
