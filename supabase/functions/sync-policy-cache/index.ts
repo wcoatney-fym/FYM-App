@@ -1,8 +1,11 @@
 /**
- * sync-policy-cache — Phase 3 edge function
+ * sync-policy-cache — FYM App edge function
  *
  * Reads live policy data from the FYM Sales Tracker DB (lryxx, read-only)
  * and upserts into policy_cache in the FYM App DB (rcbzag).
+ *
+ * Stage 2 addition: also syncs agencies from tracker → rcbzag.agencies
+ * so agency names stay current as new sub-agencies are added to the tracker.
  *
  * Invocation:
  *   - Manual: POST /functions/v1/sync-policy-cache (with service role key)
@@ -10,7 +13,7 @@
  *
  * Env vars required (set in Supabase dashboard → Functions → Secrets):
  *   TRACKER_SUPABASE_URL       — tracker project URL (lryxx)
- *   TRACKER_SUPABASE_KEY       — tracker service role key (read-only anon is fine)
+ *   TRACKER_SUPABASE_KEY       — tracker anon/publishable key (read-only)
  *   APP_SUPABASE_URL           — FYM App project URL (rcbzag)
  *   APP_SUPABASE_SERVICE_KEY   — FYM App service role key (needed for upsert)
  */
@@ -18,6 +21,13 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const BATCH_SIZE = 500; // stay well under PostgREST's default 1000-row cap
+
+interface TrackerAgency {
+  id: string;
+  name: string;
+  slug: string | null;
+  is_active: boolean;
+}
 
 interface TrackerPolicy {
   policy_number: string;
@@ -75,23 +85,18 @@ function estimateDraftCount(
 
 /**
  * Determine if a policy is at-risk and what flag type to assign.
- * Primary signal: at_risk_fired_at set in tracker (already flagged upstream).
- * Secondary: paid_to_date is >60 days behind today (payment likely failed).
  */
 function resolveRiskFlag(policy: TrackerPolicy): { isAtRisk: boolean; flagType: string | null } {
   const today = new Date();
 
-  // Tracker already flagged it
   if (policy.at_risk_fired_at) {
     return { isAtRisk: true, flagType: 'at_risk' };
   }
 
-  // Lapsed / terminated status
   if (policy.status && ['lapsed', 'terminated', 'cancelled'].includes(policy.status.toLowerCase())) {
-    return { isAtRisk: false, flagType: null }; // not at-risk, just inactive
+    return { isAtRisk: false, flagType: null };
   }
 
-  // Paid-to-date is stale (>60 days behind) on an active policy
   if (policy.paid_to_date && policy.status === 'active') {
     const paid = new Date(policy.paid_to_date);
     const lagDays = (today.getTime() - paid.getTime()) / (1000 * 60 * 60 * 24);
@@ -103,8 +108,58 @@ function resolveRiskFlag(policy: TrackerPolicy): { isAtRisk: boolean; flagType: 
   return { isAtRisk: false, flagType: null };
 }
 
+/**
+ * Sync agencies from tracker → rcbzag.agencies.
+ * Upserts on tracker_id so names/slugs stay fresh as tracker evolves.
+ * Returns { synced, errors }.
+ */
+async function syncAgencies(
+  tracker: ReturnType<typeof createClient>,
+  app: ReturnType<typeof createClient>
+): Promise<{ synced: number; errors: string[] }> {
+  const errors: string[] = [];
+  let synced = 0;
+
+  // Paginate tracker agencies (currently 103, well under 1K, but paginate defensively)
+  let offset = 0;
+  while (true) {
+    const { data: agencies, error } = await tracker
+      .from('agencies')
+      .select('id, name, slug, is_active')
+      .order('name', { ascending: true })
+      .range(offset, offset + BATCH_SIZE - 1);
+
+    if (error) {
+      errors.push(`agencies fetch @${offset}: ${error.message}`);
+      break;
+    }
+    if (!agencies || agencies.length === 0) break;
+
+    const rows = (agencies as TrackerAgency[]).map((a) => ({
+      tracker_id: a.id,
+      name: a.name,
+      slug: a.slug ?? null,
+      is_active: a.is_active,
+    }));
+
+    const { error: upsertError } = await app
+      .from('agencies')
+      .upsert(rows, { onConflict: 'tracker_id' });
+
+    if (upsertError) {
+      errors.push(`agencies upsert @${offset}: ${upsertError.message}`);
+    } else {
+      synced += rows.length;
+    }
+
+    if (agencies.length < BATCH_SIZE) break;
+    offset += BATCH_SIZE;
+  }
+
+  return { synced, errors };
+}
+
 Deno.serve(async (req) => {
-  // Allow GET for easy manual testing; POST for cron/scheduled invocation
   if (req.method !== 'GET' && req.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 });
   }
@@ -117,7 +172,6 @@ Deno.serve(async (req) => {
     const appUrl = Deno.env.get('APP_SUPABASE_URL') ?? '';
     const appServiceKey = Deno.env.get('APP_SUPABASE_SERVICE_KEY') ?? '';
 
-    // Test 1: tracker — fetch 1 row
     let trackerOk = false;
     let trackerDetail = '';
     try {
@@ -135,7 +189,6 @@ Deno.serve(async (req) => {
       trackerDetail = `Exception: ${e}`;
     }
 
-    // Test 2: app — attempt a write (upsert a canary row, then delete it)
     let appOk = false;
     let appDetail = '';
     try {
@@ -156,7 +209,6 @@ Deno.serve(async (req) => {
         body: JSON.stringify(canary),
       });
       if (upsertRes.ok || upsertRes.status === 201) {
-        // Clean up canary
         await fetch(`${appUrl}/rest/v1/policy_cache?policy_number=eq.__canary_test__`, {
           method: 'DELETE',
           headers: { apikey: appServiceKey, Authorization: `Bearer ${appServiceKey}` },
@@ -192,8 +244,14 @@ Deno.serve(async (req) => {
   const tracker = createClient(trackerUrl, trackerKey);
   const app = createClient(appUrl, appServiceKey);
 
-  // ── Step 1: Load writing_number → UUID map from app profiles ──────────────
-  const profileMap = new Map<string, string>(); // writing_number → profile UUID
+  const syncedAt = new Date().toISOString();
+
+  // ── Step 1: Sync agencies (Stage 2 addition) ──────────────────────────────
+  const agencyResult = await syncAgencies(tracker, app);
+  console.log(`Agencies synced: ${agencyResult.synced}, errors: ${agencyResult.errors.length}`);
+
+  // ── Step 2: Load writing_number → UUID map from app profiles ──────────────
+  const profileMap = new Map<string, string>();
   let profileOffset = 0;
   while (true) {
     const { data: profiles, error } = await app
@@ -213,144 +271,77 @@ Deno.serve(async (req) => {
   }
   console.log(`Loaded ${profileMap.size} agent writing_number → UUID mappings`);
 
-  // ── Step 2: Paginate through tracker form_submissions ────────────────────
-  let trackerOffset = 0;
+  // ── Step 3: Paginate through tracker form_submissions (HI + HHC) ──────────
   let totalSynced = 0;
   let totalErrors = 0;
-  const errorMessages: string[] = [];
-  const syncedAt = new Date().toISOString();
+  const errorMessages: string[] = [...agencyResult.errors];
 
-  while (true) {
-    const { data: policies, error: fetchError } = await tracker
-      .from('form_submissions')
-      .select(
-        'policy_number, agent_number, agency_id, agency, product_type, status, plan_premium, billing_mode, policy_effective_date, paid_to_date, at_risk_fired_at'
-      )
-      .eq('product_type', 'HI') // HI first — re-run will get HHC via product_type filter param or remove filter
-      .range(trackerOffset, trackerOffset + BATCH_SIZE - 1);
+  for (const productType of ['HI', 'HHC']) {
+    let trackerOffset = 0;
+    while (true) {
+      const { data: policies, error: fetchError } = await tracker
+        .from('form_submissions')
+        .select(
+          'policy_number, agent_number, agency_id, agency, product_type, status, plan_premium, billing_mode, policy_effective_date, paid_to_date, at_risk_fired_at'
+        )
+        .eq('product_type', productType)
+        .range(trackerOffset, trackerOffset + BATCH_SIZE - 1);
 
-    if (fetchError) {
-      console.error('Tracker fetch error:', fetchError.message);
-      errorMessages.push('HI fetch @' + trackerOffset + ': ' + fetchError.message);
-      totalErrors++;
-      break;
+      if (fetchError) {
+        console.error(`${productType} fetch error:`, fetchError.message);
+        errorMessages.push(`${productType} fetch @${trackerOffset}: ${fetchError.message}`);
+        totalErrors++;
+        break;
+      }
+      if (!policies || policies.length === 0) break;
+
+      const rows: PolicyCacheRow[] = policies
+        .filter((p: TrackerPolicy) => !!p.policy_number)
+        .map((p: TrackerPolicy) => {
+          const { isAtRisk, flagType } = resolveRiskFlag(p);
+          const agentId = p.agent_number ? (profileMap.get(p.agent_number.trim()) ?? null) : null;
+          return {
+            policy_number: p.policy_number,
+            agent_id: agentId,
+            agency_id: p.agency_id ?? p.agency ?? 'unknown',
+            product_type: p.product_type,
+            status: p.status,
+            plan_premium: p.plan_premium,
+            billing_mode: p.billing_mode,
+            policy_effective_date: p.policy_effective_date,
+            paid_to_date: p.paid_to_date,
+            draft_count: estimateDraftCount(p.policy_effective_date, p.paid_to_date, p.billing_mode),
+            last_contact_date: null,
+            flag_type: flagType,
+            is_at_risk: isAtRisk,
+            synced_at: syncedAt,
+          };
+        });
+
+      const { error: upsertError } = await app
+        .from('policy_cache')
+        .upsert(rows, { onConflict: 'policy_number' });
+
+      if (upsertError) {
+        console.error(`${productType} upsert error @${trackerOffset}:`, upsertError.message);
+        errorMessages.push(`${productType} upsert @${trackerOffset}: ${upsertError.message}`);
+        totalErrors++;
+      } else {
+        totalSynced += rows.length;
+      }
+
+      if (policies.length < BATCH_SIZE) break;
+      trackerOffset += BATCH_SIZE;
     }
-    if (!policies || policies.length === 0) break;
-
-    // ── Step 3: Transform → policy_cache rows ─────────────────────────────
-    // Filter out rows with null policy_number — they can't be upserted
-    const rows: PolicyCacheRow[] = policies.filter((p: TrackerPolicy) => !!p.policy_number).map((p: TrackerPolicy) => {
-      const { isAtRisk, flagType } = resolveRiskFlag(p);
-      const agentId = p.agent_number ? (profileMap.get(p.agent_number.trim()) ?? null) : null;
-
-      return {
-        policy_number: p.policy_number,
-        agent_id: agentId,
-        agency_id: p.agency_id ?? p.agency ?? 'unknown',
-        product_type: p.product_type,
-        status: p.status,
-        plan_premium: p.plan_premium,
-        billing_mode: p.billing_mode,
-        policy_effective_date: p.policy_effective_date,
-        paid_to_date: p.paid_to_date,
-        draft_count: estimateDraftCount(p.policy_effective_date, p.paid_to_date, p.billing_mode),
-        last_contact_date: null, // not in tracker — populated later via GHL contact data
-        flag_type: flagType,
-        is_at_risk: isAtRisk,
-        synced_at: syncedAt,
-      };
-    });
-
-    // ── Step 4: Upsert into policy_cache ──────────────────────────────────
-    const { error: upsertError } = await app
-      .from('policy_cache')
-      .upsert(rows, { onConflict: 'policy_number' });
-
-    if (upsertError) {
-      console.error('Upsert error at offset', trackerOffset, ':', upsertError.message);
-      errorMessages.push('HI upsert @' + trackerOffset + ': ' + upsertError.message);
-      totalErrors++;
-    } else {
-      totalSynced += rows.length;
-    }
-
-    if (policies.length < BATCH_SIZE) break;
-    trackerOffset += BATCH_SIZE;
   }
-
-  // ── Step 5: Repeat for HHC ────────────────────────────────────────────
-  trackerOffset = 0;
-  while (true) {
-    const { data: policies, error: fetchError } = await tracker
-      .from('form_submissions')
-      .select(
-        'policy_number, agent_number, agency_id, agency, product_type, status, plan_premium, billing_mode, policy_effective_date, paid_to_date, at_risk_fired_at'
-      )
-      .eq('product_type', 'HHC')
-      .range(trackerOffset, trackerOffset + BATCH_SIZE - 1);
-
-    if (fetchError) {
-      console.error('Tracker HHC fetch error:', fetchError.message);
-      errorMessages.push('HHC fetch @' + trackerOffset + ': ' + fetchError.message);
-      totalErrors++;
-      break;
-    }
-    if (!policies || policies.length === 0) break;
-
-    const rows: PolicyCacheRow[] = policies.filter((p: TrackerPolicy) => !!p.policy_number).map((p: TrackerPolicy) => {
-      const { isAtRisk, flagType } = resolveRiskFlag(p);
-      const agentId = p.agent_number ? (profileMap.get(p.agent_number.trim()) ?? null) : null;
-
-      return {
-        policy_number: p.policy_number,
-        agent_id: agentId,
-        agency_id: p.agency_id ?? p.agency ?? 'unknown',
-        product_type: p.product_type,
-        status: p.status,
-        plan_premium: p.plan_premium,
-        billing_mode: p.billing_mode,
-        policy_effective_date: p.policy_effective_date,
-        paid_to_date: p.paid_to_date,
-        draft_count: estimateDraftCount(p.policy_effective_date, p.paid_to_date, p.billing_mode),
-        last_contact_date: null,
-        flag_type: flagType,
-        is_at_risk: isAtRisk,
-        synced_at: syncedAt,
-      };
-    });
-
-    const { error: upsertError } = await app
-      .from('policy_cache')
-      .upsert(rows, { onConflict: 'policy_number' });
-
-    if (upsertError) {
-      console.error('HHC upsert error at offset', trackerOffset, ':', upsertError.message);
-      errorMessages.push('HHC upsert @' + trackerOffset + ': ' + upsertError.message);
-      totalErrors++;
-    } else {
-      totalSynced += rows.length;
-    }
-
-    if (policies.length < BATCH_SIZE) break;
-    trackerOffset += BATCH_SIZE;
-  }
-
-  // Debug: check which env vars are present
-  const envCheck = {
-    TRACKER_SUPABASE_URL: !!Deno.env.get('TRACKER_SUPABASE_URL'),
-    TRACKER_SUPABASE_KEY: !!Deno.env.get('TRACKER_SUPABASE_KEY'),
-    APP_SUPABASE_URL: !!Deno.env.get('APP_SUPABASE_URL'),
-    APP_SUPABASE_SERVICE_KEY: !!Deno.env.get('APP_SUPABASE_SERVICE_KEY'),
-  };
 
   const result = {
     ok: totalErrors === 0,
-    synced: totalSynced,
-    errors: totalErrors,
+    agencies: { synced: agencyResult.synced, errors: agencyResult.errors.length },
+    policies: { synced: totalSynced, errors: totalErrors },
     errorMessages,
     agentsMapped: profileMap.size,
     syncedAt,
-    envCheck,
   };
 
   console.log('Sync complete:', result);
