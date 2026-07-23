@@ -17,6 +17,7 @@ import { ManagerWorkboardPage } from '@/pages/ManagerWorkboardPage';
 import { OnboardingListPage } from '@/pages/OnboardingListPage';
 import { OnboardingDetailPage } from '@/pages/OnboardingDetailPage';
 import { OnboardingNewPage } from '@/pages/OnboardingNewPage';
+import { ActivationPage } from '@/pages/ActivationPage';
 
 function App() {
   return (
@@ -25,6 +26,7 @@ function App() {
         <Routes>
           {/* Public */}
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/activate/:slug" element={<ActivationPage />} />
 
           {/* Protected — AppLayout enforces auth */}
           <Route element={<AppLayout />}>
