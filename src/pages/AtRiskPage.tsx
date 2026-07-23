@@ -64,18 +64,33 @@ export function AtRiskPage() {
     if (!supabase) { setLoading(false); return; }
 
     async function load() {
-      let query = supabase!
-        .from('manager_at_risk_board')
-        .select('*')
-        .order('days_since_draft', { ascending: false });
+      const PAGE_SIZE = 1000;
+      const allRows: AtRiskRow[] = [];
+      let offset = 0;
 
-      // Agents see only their agency's policies
-      if (role === 'agent' && profile?.agency_id) {
-        query = query.eq('agency_id', profile.agency_id);
+      while (true) {
+        let query = supabase!
+          .from('manager_at_risk_board')
+          .select('*')
+          .order('days_since_draft', { ascending: false })
+          .range(offset, offset + PAGE_SIZE - 1);
+
+        // Agents see only their agency's policies
+        if (role === 'agent' && profile?.agency_id) {
+          query = query.eq('agency_id', profile.agency_id);
+        }
+
+        const { data, error } = await query;
+        if (error) { console.error('At-risk fetch error:', error.message); break; }
+        if (!data || data.length === 0) break;
+
+        allRows.push(...(data as AtRiskRow[]));
+
+        if (data.length < PAGE_SIZE) break; // last page
+        offset += PAGE_SIZE;
       }
 
-      const { data } = await query;
-      if (data) setRows(data as AtRiskRow[]);
+      setRows(allRows);
       setLoading(false);
     }
 
