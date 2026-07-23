@@ -1,10 +1,29 @@
 export type UserRole = 'agent' | 'manager' | 'admin';
 export type AtRiskStatus = 'new' | 'assigned' | 'contacted' | 'saved' | 'lost';
 export type FlagType = 'payment_failed' | 'no_contact' | 'rate_action' | null;
+export type AgencyVariant = 'brent_melanie' | 'fym_direct';
+export type CompTier = '60' | '65' | '70' | '75';
 
 export interface Database {
   public: {
     Tables: {
+      agencies: {
+        Row: {
+          id: string;
+          tracker_id: string | null;
+          name: string;
+          slug: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['agencies']['Row'], 'id' | 'created_at' | 'updated_at' | 'is_active'> & {
+          id?: string;
+          is_active?: boolean;
+        };
+        Update: Partial<Database['public']['Tables']['agencies']['Insert']>;
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;
@@ -18,6 +37,7 @@ export interface Database {
         };
         Insert: Omit<Database['public']['Tables']['profiles']['Row'], 'created_at' | 'updated_at'>;
         Update: Partial<Database['public']['Tables']['profiles']['Insert']>;
+        Relationships: [];
       };
       policy_cache: {
         Row: {
@@ -38,6 +58,7 @@ export interface Database {
         };
         Insert: Omit<Database['public']['Tables']['policy_cache']['Row'], 'synced_at'>;
         Update: Partial<Database['public']['Tables']['policy_cache']['Insert']>;
+        Relationships: [];
       };
       atrisk_tasks: {
         Row: {
@@ -54,6 +75,7 @@ export interface Database {
         };
         Insert: Omit<Database['public']['Tables']['atrisk_tasks']['Row'], 'id' | 'created_at' | 'updated_at'>;
         Update: Partial<Database['public']['Tables']['atrisk_tasks']['Insert']>;
+        Relationships: [];
       };
       atrisk_notes: {
         Row: {
@@ -65,6 +87,38 @@ export interface Database {
         };
         Insert: Omit<Database['public']['Tables']['atrisk_notes']['Row'], 'id' | 'created_at'>;
         Update: never;
+        Relationships: [];
+      };
+      onboarding_agencies: {
+        Row: {
+          id: string;
+          agency_id: string | null;
+          slug: string;
+          agency_name: string;
+          principal_name: string | null;
+          principal_email: string | null;
+          roadmap_progress: Record<string, boolean>;
+          active: boolean;
+          variant: AgencyVariant;
+          comp_tier: CompTier;
+          created_at: string;
+          updated_at: string;
+          last_visited_at: string | null;
+        };
+        Insert: {
+          slug: string;
+          agency_name: string;
+          agency_id?: string | null;
+          principal_name?: string | null;
+          principal_email?: string | null;
+          roadmap_progress?: Record<string, boolean>;
+          active?: boolean;
+          variant?: AgencyVariant;
+          comp_tier?: CompTier;
+          last_visited_at?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['onboarding_agencies']['Insert']>;
+        Relationships: [];
       };
     };
     Views: {
@@ -80,6 +134,7 @@ export interface Database {
           product_diversity_score: number;
           total_score: number;
         };
+        Relationships: [];
       };
       agency_leaderboard: {
         Row: {
@@ -96,6 +151,7 @@ export interface Database {
           agency_rank: number;
           fym_rank: number;
         };
+        Relationships: [];
       };
       atrisk_exposure: {
         Row: {
@@ -108,6 +164,65 @@ export interface Database {
           no_contact_premium: number | null;
           rate_action_premium: number | null;
         };
+        Relationships: [];
+      };
+      agency_concentration: {
+        Row: {
+          agency_id: string | null;
+          active_count: number | null;
+          active_premium: number | null;
+          at_risk_count: number | null;
+          at_risk_premium: number | null;
+          at_risk_pct: number | null;
+          premium_concentration_pct: number | null;
+        };
+        Relationships: [];
+      };
+      agency_retention_summary: {
+        Row: {
+          agency_id: string | null;
+          active_policies: number | null;
+          active_premium: number | null;
+          at_risk_count: number | null;
+          retained_90d: number | null;
+          eligible_90d: number | null;
+          retention_pct: number | null;
+        };
+        Relationships: [];
+      };
+      cohort_retention: {
+        Row: {
+          product_type: string | null;
+          cohort_month: string | null;
+          cohort_size: number | null;
+          drafted_first: number | null;
+          retained: number | null;
+          retention_pct: number | null;
+          active_premium: number | null;
+        };
+        Relationships: [];
+      };
+      manager_at_risk_board: {
+        Row: {
+          policy_number: string | null;
+          agency_id: string | null;
+          agent_id: string | null;
+          product_type: string | null;
+          plan_premium: number | null;
+          flag_type: string | null;
+          paid_to_date: string | null;
+          policy_effective_date: string | null;
+          draft_count: number | null;
+          is_at_risk: boolean | null;
+          synced_at: string | null;
+          days_since_draft: number | null;
+          task_id: string | null;
+          task_status: AtRiskStatus | null;
+          task_assigned_to: string | null;
+          task_due_date: string | null;
+          task_created_at: string | null;
+        };
+        Relationships: [];
       };
     };
     Functions: Record<string, never>;

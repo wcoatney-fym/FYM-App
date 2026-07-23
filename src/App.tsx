@@ -14,6 +14,9 @@ import { AgentHealthPage } from '@/pages/AgentHealthPage';
 import { AgentProvisioningPage } from '@/pages/AgentProvisioningPage';
 import { AdminFinancialsPage } from '@/pages/AdminFinancialsPage';
 import { ManagerWorkboardPage } from '@/pages/ManagerWorkboardPage';
+import { OnboardingListPage } from '@/pages/OnboardingListPage';
+import { OnboardingDetailPage } from '@/pages/OnboardingDetailPage';
+import { OnboardingNewPage } from '@/pages/OnboardingNewPage';
 
 function App() {
   return (
@@ -38,6 +41,9 @@ function App() {
             <Route path="/provision" element={<AgentProvisioningPage />} />
             <Route path="/financials" element={<AdminFinancialsPage />} />
             <Route path="/workboard" element={<ManagerWorkboardPage />} />
+            <Route path="/onboarding" element={<OnboardingListPage />} />
+            <Route path="/onboarding/new" element={<OnboardingNewPage />} />
+            <Route path="/onboarding/:slug" element={<OnboardingDetailPage />} />
           </Route>
         </Routes>
       </BrowserRouter>
