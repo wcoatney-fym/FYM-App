@@ -2,6 +2,11 @@ import { supabase } from '../supabase';
 import type { AgencyVariant } from './variants';
 import type { CompTier } from './compTiers';
 
+function requireSupabase() {
+  if (!supabase) throw new Error('Supabase client not initialised — check VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY');
+  return supabase;
+}
+
 export type RoadmapProgress = Record<string, boolean>;
 
 export interface OnboardingAgency {
@@ -28,7 +33,7 @@ export async function fetchAllOnboardingAgencies(): Promise<OnboardingAgency[]> 
   let offset = 0;
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    const { data, error } = await supabase
+    const { data, error } = await requireSupabase()
       .from('onboarding_agencies')
       .select('*')
       .order('last_visited_at', { ascending: false, nullsFirst: false })
@@ -46,7 +51,7 @@ export async function fetchAllOnboardingAgencies(): Promise<OnboardingAgency[]> 
 }
 
 export async function fetchOnboardingAgency(slug: string): Promise<OnboardingAgency | null> {
-  const { data, error } = await supabase
+  const { data, error } = await requireSupabase()
     .from('onboarding_agencies')
     .select('*')
     .eq('slug', slug)
@@ -64,7 +69,7 @@ export async function updateRoadmapProgress(
   slug: string,
   progress: RoadmapProgress,
 ): Promise<void> {
-  const { error } = await supabase
+  const { error } = await requireSupabase()
     .from('onboarding_agencies')
     .update({ roadmap_progress: progress })
     .eq('slug', slug);
@@ -72,7 +77,7 @@ export async function updateRoadmapProgress(
 }
 
 export async function recordVisit(slug: string): Promise<void> {
-  const { error } = await supabase
+  const { error } = await requireSupabase()
     .from('onboarding_agencies')
     .update({ last_visited_at: new Date().toISOString() })
     .eq('slug', slug);
@@ -96,7 +101,7 @@ export async function createOnboardingAgency(
 ): Promise<{ ok: true; agency: OnboardingAgency } | { ok: false; error: string }> {
   const slug = input.slug || `${slugify(input.agency_name)}-${randomSuffix()}`;
 
-  const { data, error } = await supabase
+  const { data, error } = await requireSupabase()
     .from('onboarding_agencies')
     .insert({
       slug,
@@ -144,7 +149,7 @@ export async function updateOnboardingAgency(
     return { ok: false, error: 'No fields to update' };
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await requireSupabase()
     .from('onboarding_agencies')
     .update(updates)
     .eq('slug', input.slug)

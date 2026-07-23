@@ -43,6 +43,7 @@ export function OnboardingNewPage() {
 
   // Fetch canonical agencies for linking
   useEffect(() => {
+    if (!supabase) return;
     supabase
       .from('agencies')
       .select('id, name')

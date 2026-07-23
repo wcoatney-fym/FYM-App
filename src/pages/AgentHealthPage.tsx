@@ -107,13 +107,13 @@ export function AgentHealthPage() {
         supabase.from('profiles').select('*').eq('id', targetId as string).maybeSingle(),
       ]);
       if (healthRes.data) {
-        setHealthData(healthRes.data);
+        setHealthData(healthRes.data as typeof MOCK_HEALTH);
       } else {
         setHealthData(MOCK_HEALTH);
         setUsingMock(true);
       }
-      setPolicies(policiesRes.data && policiesRes.data.length > 0 ? policiesRes.data : MOCK_POLICIES);
-      setAgentProfile(profileRes.data ?? null);
+      setPolicies((policiesRes.data && policiesRes.data.length > 0 ? policiesRes.data : MOCK_POLICIES) as typeof MOCK_POLICIES);
+      setAgentProfile((profileRes.data ?? null) as typeof agentProfile);
       setLoading(false);
     }
     load();

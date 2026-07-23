@@ -119,7 +119,7 @@ export function AdminFinancialsPage() {
         .select('*')
         .order('cohort_month', { ascending: false })
         .limit(24);
-      if (cohortData && cohortData.length > 0) setCohorts(cohortData);
+      if (cohortData && cohortData.length > 0) setCohorts(cohortData as unknown as CohortRow[]);
 
       // Concentration view
       const { data: concData } = await supabase!
@@ -127,7 +127,7 @@ export function AdminFinancialsPage() {
         .select('*')
         .order('active_premium', { ascending: false })
         .limit(20);
-      if (concData && concData.length > 0) setConcentration(concData);
+      if (concData && concData.length > 0) setConcentration(concData as unknown as ConcentrationRow[]);
 
       setLoading(false);
     }

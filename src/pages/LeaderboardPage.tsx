@@ -45,7 +45,7 @@ export function LeaderboardPage() {
       .select('*')
       .order('agency_rank', { ascending: true })
       .then(({ data }) => {
-        if (data && data.length > 0) setRows(data);
+        if (data && data.length > 0) setRows(data as unknown as typeof rows);
       });
   }, []);
 
