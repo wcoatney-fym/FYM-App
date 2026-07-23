@@ -39,16 +39,7 @@ export const mockContractingPipeline = {
   ],
 };
 
-export const mockAtRiskPolicies = [
-  { id: '1', client_name: 'John Martinez', policy_number: 'POL-2024-0891', product: 'HI', agent: 'Michael Torres', days_at_risk: 12, status: 'lapse_pending' },
-  { id: '2', client_name: 'Sandra Lee', policy_number: 'POL-2024-1023', product: 'HHC', agent: 'Sarah Chen', days_at_risk: 8, status: 'payment_issue' },
-  { id: '3', client_name: 'Richard Brown', policy_number: 'POL-2024-0745', product: 'HI', agent: 'David Williams', days_at_risk: 21, status: 'lapse_pending' },
-  { id: '4', client_name: 'Karen Thompson', policy_number: 'POL-2024-1156', product: 'HHC', agent: 'Robert Garcia', days_at_risk: 5, status: 'no_contact' },
-  { id: '5', client_name: 'Marcus Johnson', policy_number: 'POL-2024-0934', product: 'HI', agent: 'James Mitchell', days_at_risk: 15, status: 'payment_issue' },
-  { id: '6', client_name: 'Diana Flores', policy_number: 'POL-2024-1289', product: 'HI', agent: 'Lisa Nakamura', days_at_risk: 3, status: 'no_contact' },
-  { id: '7', client_name: 'Paul Anderson', policy_number: 'POL-2024-0812', product: 'HHC', agent: 'Carlos Rivera', days_at_risk: 28, status: 'lapse_pending' },
-  { id: '8', client_name: 'Michelle Wang', policy_number: 'POL-2024-1067', product: 'HI', agent: 'Emily Watson', days_at_risk: 9, status: 'payment_issue' },
-];
+// mockAtRiskPolicies removed — AtRiskPage now reads from manager_at_risk_board view (PR #16)
 
 export const mockRetentionTrend = [
   { month: 'Jan', retention: 91.2 },
