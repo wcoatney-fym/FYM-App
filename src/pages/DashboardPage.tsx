@@ -190,11 +190,11 @@ export function DashboardPage() {
     },
     {
       title: '90-Day Retention',
-      value: s?.retention_pct !== null && s?.retention_pct !== undefined ? `${s.retention_pct}%` : '—',
-      sub: s?.retention_pct !== null ? (s!.retention_pct >= 90 ? 'On target ≥ 90%' : 'Below 90% target') : '',
+      value: s && s.retention_pct !== null ? `${s.retention_pct}%` : '—',
+      sub: s && s.retention_pct !== null ? (s.retention_pct >= 90 ? 'On target ≥ 90%' : 'Below 90% target') : '',
       icon: TrendingUp,
-      color: s?.retention_pct !== null && s!.retention_pct >= 90 ? 'text-emerald-700' : 'text-amber-700',
-      bg: s?.retention_pct !== null && s!.retention_pct >= 90 ? 'bg-emerald-50' : 'bg-amber-50',
+      color: s && s.retention_pct !== null && s.retention_pct >= 90 ? 'text-emerald-700' : 'text-amber-700',
+      bg: s && s.retention_pct !== null && s.retention_pct >= 90 ? 'bg-emerald-50' : 'bg-amber-50',
     },
     {
       title: 'At-Risk Policies',
