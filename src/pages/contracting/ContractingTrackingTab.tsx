@@ -5,7 +5,6 @@
  * Search, filter by status/form-type/agency, sortable columns.
  * Detail modal with submission data + uploaded files.
  *
- * Future: CSV export, pagination.
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
@@ -18,6 +17,9 @@ import {
   X,
   Download,
   Eye,
+  FileDown,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { portalSupabase } from '@/lib/portal-supabase';
@@ -87,6 +89,13 @@ export function ContractingTrackingTab() {
   const [sortField, setSortField] = useState<SortField>('date_sent');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
 
+  // Pagination
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
+
+  // CSV
+  const [exporting, setExporting] = useState(false);
+
   // ── Load agents ──────────────────────────────────────────────────────────
 
   const loadAgents = useCallback(async () => {
@@ -147,6 +156,14 @@ export function ContractingTrackingTab() {
     return list;
   }, [agents, search, statusFilter, formTypeFilter, agencyFilter, sortField, sortDir]);
 
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [search, statusFilter, formTypeFilter, agencyFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   // ── Sort toggle ──────────────────────────────────────────────────────────
 
   const toggleSort = (field: SortField) => {
@@ -174,6 +191,59 @@ export function ContractingTrackingTab() {
     () => [...new Set(agents.map((a) => a.form_type))].sort(),
     [agents]
   );
+
+  // ── CSV export ──────────────────────────────────────────────────────────
+
+  const exportToCSV = async () => {
+    setExporting(true);
+    try {
+      const rows = filtered.map((a) => ({
+        'First Name': a.first_name,
+        'Last Name': a.last_name,
+        Email: a.email,
+        Phone: a.phone,
+        'Form Type': FORM_TYPE_LABELS[a.form_type] ?? a.form_type,
+        Agency: a.agency,
+        'Security Code': a.security_code,
+        Status: a.status,
+        'Date Sent': a.date_sent ? new Date(a.date_sent).toLocaleDateString('en-US') : '',
+        'Date Completed': a.date_completed ? new Date(a.date_completed).toLocaleDateString('en-US') : '',
+        'CRM Onboarded': a.crm_onboarded ? 'Yes' : 'No',
+      }));
+
+      if (rows.length === 0) return;
+
+      const headers = Object.keys(rows[0]);
+      const csvContent = [
+        headers.join(','),
+        ...rows.map((row) =>
+          headers
+            .map((h) => {
+              const val = String((row as Record<string, string>)[h] ?? '');
+              return val.includes(',') || val.includes('"') || val.includes('\n')
+                ? `"${val.replace(/"/g, '""')}"`
+                : val;
+            })
+            .join(',')
+        ),
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const today = new Date().toISOString().split('T')[0];
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `agent-tracking-export-${today}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('[Contracting Tracking] CSV export error:', err);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   // ── Detail modal ─────────────────────────────────────────────────────────
 
@@ -311,6 +381,14 @@ export function ContractingTrackingTab() {
           <option value="Aspire">Aspire</option>
         </select>
         <button
+          onClick={exportToCSV}
+          disabled={exporting || filtered.length === 0}
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+        >
+          <FileDown size={14} />
+          {exporting ? 'Exporting...' : 'CSV'}
+        </button>
+        <button
           onClick={() => { setLoading(true); loadAgents(); }}
           className="p-2 rounded-lg hover:bg-slate-100 transition-colors"
           title="Refresh"
@@ -406,7 +484,7 @@ export function ContractingTrackingTab() {
                     </td>
                   </tr>
                 ) : (
-                  filtered.map((agent) => (
+                  paginated.map((agent) => (
                     <tr
                       key={agent.id}
                       className="hover:bg-slate-50 transition-colors cursor-pointer"
@@ -460,6 +538,34 @@ export function ContractingTrackingTab() {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Pagination ─────────────────────────────────────────────── */}
+      {!loading && totalPages > 1 && (
+        <div className="flex items-center justify-between pt-2">
+          <p className="text-xs text-slate-400">
+            Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+          </p>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="p-1.5 rounded-lg hover:bg-slate-100 disabled:opacity-30 transition-colors"
+            >
+              <ChevronLeft size={14} className="text-slate-600" />
+            </button>
+            <span className="text-xs text-slate-600 px-2">
+              {page} / {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="p-1.5 rounded-lg hover:bg-slate-100 disabled:opacity-30 transition-colors"
+            >
+              <ChevronRight size={14} className="text-slate-600" />
+            </button>
           </div>
         </div>
       )}
