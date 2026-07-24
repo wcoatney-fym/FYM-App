@@ -115,7 +115,13 @@ export type AgentPipelineStage =
   | 'actively_selling'
   | 'terminated';
 
-/** Pipeline record — `agent_pipeline` table */
+/**
+ * Pipeline record — `agent_pipeline` table
+ *
+ * Note: `agent_id` is intentionally absent — the column does not exist on
+ * `agent_pipeline` today. It will be added during the portal → rcbzag
+ * migration as a tracked, reviewed migration (not a casual ALTER).
+ */
 export type PortalPipelineRecord = {
   id: string;
   ghl_opportunity_id: string;
@@ -144,7 +150,6 @@ export type PortalPipelineRecord = {
   updated_at: string;
   wn_pending_review: boolean;
   wn_pending_count: number;
-  agent_id: string | null;
 };
 
 /** LOB / writing number assignment — `agent_lob_assignments` table */
@@ -154,6 +159,12 @@ export type PortalLobAssignment = {
   line_of_business: string;
   carrier: string;
   writing_number: string;
+  verified: boolean;
+  verified_at: string | null;
+  verified_by: string | null;
+  submitted_by_agent: boolean;
+  ai_extracted: boolean;
+  source_submission_id: string | null;
   created_at: string;
   updated_at: string;
 };
