@@ -272,6 +272,9 @@ export type PortalTrainingEvent = {
   content_id: string | null;
   content_title: string | null;
   quiz_score: number | null;
+  quiz_max_score: number | null;
+  session_duration_seconds: number | null;
+  metadata: Record<string, unknown> | null;
   created_at: string;
 };
 
@@ -281,11 +284,16 @@ export type PortalTrainingContent = {
   title: string;
   description: string | null;
   content_type: string;
-  content_format: string;
-  carrier: string;
-  category: string;
+  content_url: string | null;
+  content_format: string | null;
+  carrier: string | null;
+  category: string | null;
   has_quiz: boolean;
+  quiz_questions: Record<string, unknown>[] | null;
   display_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 };
 
 /** Live session — `agent_live_sessions` table */
@@ -295,6 +303,7 @@ export type PortalLiveSession = {
   session_datetime: string;
   join_url: string;
   is_active: boolean;
+  created_at: string;
 };
 
 /** Hub login — `agent_hub_logins` table */
@@ -303,6 +312,8 @@ export type PortalHubLogin = {
   agent_id: string;
   logged_in_at: string;
   login_method: string;
+  user_agent: string | null;
+  ip_address: string | null;
 };
 
 /** Live attendance — `agent_live_attendance` table */
