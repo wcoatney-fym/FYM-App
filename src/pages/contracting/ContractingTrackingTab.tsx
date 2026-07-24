@@ -24,7 +24,7 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { portalSupabase } from '@/lib/portal-supabase';
 import { formatPhoneDisplay, formatDate, STATUS_COLORS } from '@/lib/contracting/helpers';
-import type { PortalAgent, AgentFormStatus, PortalIntakeRecord, PortalUploadedFile } from '@/lib/contracting/types';
+import type { PortalAgent, PortalIntakeRecord, PortalUploadedFile } from '@/lib/contracting/types';
 
 // ─── Sort helpers ────────────────────────────────────────────────────────────
 

@@ -17,25 +17,22 @@ import {
   Search,
   Send,
   CheckCircle,
-  Clock,
   RefreshCw,
   AlertCircle,
   Copy,
   Check,
   ChevronDown,
   ChevronUp,
-  X,
   Mail,
   Phone,
   Building2,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { portalSupabase } from '@/lib/portal-supabase';
-import { timeAgo, formatDate, formatPhoneDisplay } from '@/lib/contracting/helpers';
+import { timeAgo, formatPhoneDisplay } from '@/lib/contracting/helpers';
 import { firePopulateWebhook } from '@/lib/contracting/portal-webhooks';
 import type {
   PortalNewHire,
-  PortalAgent,
   AgentFormType,
   AgencyName,
 } from '@/lib/contracting/types';
