@@ -5,7 +5,7 @@ import { LoginPage } from '@/pages/LoginPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { AgenciesPage } from '@/pages/AgenciesPage';
 import { AgentsPage } from '@/pages/AgentsPage';
-import { ContractingPage } from '@/pages/ContractingPage';
+import { ContractingPage } from '@/pages/contracting';
 import { AtRiskPage } from '@/pages/AtRiskPage';
 import { CrmOpsPage } from '@/pages/CrmOpsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
