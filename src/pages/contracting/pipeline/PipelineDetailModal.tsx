@@ -28,7 +28,8 @@ import type {
 } from '@/lib/contracting/types';
 import { STAGES } from './PipelineBoard';
 import { computeProgress } from './pipelineProgress';
-import { WritingNumberReviewPanel } from './WritingNumberReviewPanel';
+// WritingNumberReviewPanel — commented out until agent_pipeline.agent_id exists
+// import { WritingNumberReviewPanel } from './WritingNumberReviewPanel';
 
 interface PipelineDetailModalProps {
   record: PortalPipelineRecord;
@@ -54,7 +55,9 @@ export function PipelineDetailModal({
   const [saved, setSaved] = useState(false);
   const [movingStage, setMovingStage] = useState(false);
   const [pendingStage, setPendingStage] = useState<AgentPipelineStage>(record.stage);
-  const [wnPendingCount, setWnPendingCount] = useState(record.wn_pending_count ?? 0);
+  // wnPendingCount — commented out until agent_pipeline.agent_id exists
+  // and WritingNumberReviewPanel can be re-enabled
+  // const [wnPendingCount, setWnPendingCount] = useState(record.wn_pending_count ?? 0);
 
   const isReadyStage = record.stage === 'hip_broker_ready' || record.stage === 'hip_career_ready';
   const hasChanges =
@@ -343,11 +346,15 @@ export function PipelineDetailModal({
             </div>
           </div>
 
-          {/* Writing Number Review */}
-          {(wnPendingCount > 0 || record.wn_pending_review) &&
-            record.agent_id && (
+          {/* Writing Number Review
+           * TODO: agent_id will be added to agent_pipeline during the
+           * portal → rcbzag migration. Until then, WritingNumberReviewPanel
+           * is gated behind a pipeline_agent_id that doesn't exist yet.
+           * Uncomment when agent_pipeline.agent_id is available.
+           */}
+          {/* (wnPendingCount > 0 || record.wn_pending_review) && (
               <WritingNumberReviewPanel
-                agentId={record.agent_id}
+                agentId={???}
                 agentName={record.agent_name}
                 pendingCount={wnPendingCount}
                 onReviewComplete={(remaining) => {
