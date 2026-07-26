@@ -380,4 +380,45 @@ export type ContractingTab =
   | 'intake'
   | 'tracking'
   | 'pipeline'
-  | 'training';
+  | 'training'
+  | 'database'
+  | 'hierarchy'
+  | 'roster-import';
+
+// ─── Agency Intake Submission Types ──────────────────────────────────────────
+
+/** Public agency intake submission — `agency_intake_submissions` table */
+export type AgencyIntakeSubmission = {
+  id: string;
+  agency_name: string;
+  principal_agent: string;
+  principal_agent_npn: string | null;
+  contracting_email: string;
+  contracting_contact: string | null;
+  agency_npn: string;
+  agency_ein: string | null;
+  street_address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  additional_contacts: AgencyContact[] | null;
+  invited_by_agency_name: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  approved_agency_id: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+/** HIP carriers list */
+export const HIP_CARRIERS = ['UNL', 'GTL'] as const;
+
+/** US States list for address forms */
+export const US_STATES = [
+  'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA',
+  'HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
+  'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
+  'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
+  'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY',
+  'DC'
+] as const;
