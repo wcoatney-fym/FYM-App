@@ -207,8 +207,8 @@ export function AgentProvisioningPage() {
                           onClick={() => setRole(r)}
                           className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
                             role === r
-                              ? 'bg-primary text-white border-[#1e3a5f]'
-                              : 'bg-card text-muted-foreground border-border hover:border-slate-400'
+                              ? 'gradient-primary text-primary-foreground border-primary/30'
+                              : 'bg-secondary text-muted-foreground border-border hover:border-primary/30'
                           }`}
                         >
                           {r.charAt(0).toUpperCase() + r.slice(1)}

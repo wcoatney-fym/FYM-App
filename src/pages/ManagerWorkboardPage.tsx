@@ -269,8 +269,8 @@ export function ManagerWorkboardPage() {
                     onClick={() => setFilterStatus(f)}
                     className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
                       filterStatus === f
-                        ? 'bg-primary text-white border-[#1e3a5f]'
-                        : 'bg-card text-muted-foreground border-border hover:border-slate-400'
+                        ? 'gradient-primary text-primary-foreground border-primary/30'
+                        : 'bg-secondary text-muted-foreground border-border hover:border-primary/30'
                     }`}
                   >
                     {f === 'all' ? `All (${rows.length})` :
@@ -343,7 +343,7 @@ export function ManagerWorkboardPage() {
                           variant="outline"
                           disabled={isBusy}
                           onClick={() => openTask(row.policy_number, row.agency_id)}
-                          className="h-6 px-2 text-[11px] border-border hover:border-[#1e3a5f] hover:text-primary"
+                          className="h-6 px-2 text-[11px] border-border hover:border-primary/50 hover:text-primary"
                         >
                           {isBusy ? '…' : 'Open Task'}
                         </Button>

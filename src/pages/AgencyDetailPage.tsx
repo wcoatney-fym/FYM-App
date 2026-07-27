@@ -398,7 +398,7 @@ export function AgencyDetailPage() {
                             variant="outline"
                             disabled={isBusy}
                             onClick={() => openTask(p.policy_number)}
-                            className="h-6 px-2 text-[11px] border-border hover:border-[#1e3a5f] hover:text-primary"
+                            className="h-6 px-2 text-[11px] border-border hover:border-primary/50 hover:text-primary"
                           >
                             {isBusy ? '…' : 'Task'}
                           </Button>

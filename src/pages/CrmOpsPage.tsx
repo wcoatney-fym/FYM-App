@@ -116,7 +116,7 @@ export function CrmOpsPage() {
           onValueChange={(v) => setActiveTab(v as CrmView)}
         >
           <div className="overflow-x-auto">
-            <TabsList className="bg-slate-100 p-1 inline-flex min-w-max">
+            <TabsList className="bg-secondary p-1 inline-flex min-w-max">
               {/* Command Center group */}
               <TabsTrigger value="dashboard" className="gap-1.5">
                 <BarChart3 className="w-3.5 h-3.5" />
@@ -132,7 +132,7 @@ export function CrmOpsPage() {
               </TabsTrigger>
 
               {/* Separator */}
-              <div className="w-px h-6 bg-slate-300 mx-1 self-center" />
+              <div className="w-px h-6 bg-border mx-1 self-center" />
 
               {/* Work group */}
               <TabsTrigger value="work-queue" className="gap-1.5">
@@ -149,7 +149,7 @@ export function CrmOpsPage() {
               </TabsTrigger>
 
               {/* Separator */}
-              <div className="w-px h-6 bg-slate-300 mx-1 self-center" />
+              <div className="w-px h-6 bg-border mx-1 self-center" />
 
               {/* Tools group */}
               <TabsTrigger value="contact-import" className="gap-1.5">
@@ -170,7 +170,7 @@ export function CrmOpsPage() {
           {/* Work Queue sub-toggle */}
           {activeTab === 'work-queue' && (
             <div className="flex items-center gap-2 mt-4">
-              <div className="flex items-center bg-slate-100 rounded-lg p-0.5">
+              <div className="flex items-center bg-secondary rounded-lg p-0.5">
                 <button
                   onClick={() => setWorkQueueMode('tickets')}
                   className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${

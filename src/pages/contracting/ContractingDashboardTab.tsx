@@ -295,7 +295,7 @@ export function ContractingDashboardTab() {
   return (
     <div className="space-y-6">
       {/* ── Cumulative Performance Hero ─────────────────────────────────── */}
-      <div className="bg-gradient-to-r from-[#1e3a5f] to-[#2d5a8e] rounded-xl p-8 text-white relative overflow-hidden">
+      <div className="bg-gradient-to-r from-[hsl(199,89%,48%)] to-[hsl(142,71%,45%)] rounded-xl p-8 text-white relative overflow-hidden">
         <div className="relative">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center">
