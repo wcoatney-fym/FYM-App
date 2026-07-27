@@ -121,15 +121,15 @@ export function AgentProvisioningPage() {
             { label: 'With Writing #', value: provisionedCount, sub: 'will link on next sync' },
             { label: 'Without Writing #', value: agents.length - provisionedCount, sub: 'health view unavailable' },
           ].map(c => (
-            <Card key={c.label} className="border-slate-200">
+            <Card key={c.label} className="border-border">
               <CardContent className="p-5">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-sm font-medium text-slate-500">{c.label}</p>
-                    <p className="text-2xl font-bold text-slate-900 mt-1">{c.value}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">{c.sub}</p>
+                    <p className="text-sm font-medium text-muted-foreground">{c.label}</p>
+                    <p className="text-2xl font-bold text-foreground mt-1">{c.value}</p>
+                    <p className="text-xs text-muted-foreground/70 mt-0.5">{c.sub}</p>
                   </div>
-                  <div className="p-2.5 rounded-lg bg-blue-50"><Users size={20} className="text-[#1e3a5f]" /></div>
+                  <div className="p-2.5 rounded-lg bg-cyan-500/10"><Users size={20} className="text-primary" /></div>
                 </div>
               </CardContent>
             </Card>
@@ -138,10 +138,10 @@ export function AgentProvisioningPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* ── Provision form ── */}
-          <Card className="border-slate-200">
+          <Card className="border-border">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold text-slate-900 flex items-center gap-2">
-                <UserPlus size={18} className="text-[#1e3a5f]" />
+              <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
+                <UserPlus size={18} className="text-primary" />
                 Provision New Agent
               </CardTitle>
             </CardHeader>
@@ -149,56 +149,56 @@ export function AgentProvisioningPage() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="col-span-2">
-                    <label className="text-xs font-medium text-slate-500 mb-1 block">Full Name *</label>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Full Name *</label>
                     <Input
                       required
                       placeholder="Jane Smith"
                       value={fullName}
                       onChange={e => setFullName(e.target.value)}
-                      className="bg-white"
+                      className="bg-card"
                     />
                   </div>
                   <div className="col-span-2">
-                    <label className="text-xs font-medium text-slate-500 mb-1 block">Email *</label>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Email *</label>
                     <Input
                       required
                       type="email"
                       placeholder="jane@agency.com"
                       value={email}
                       onChange={e => setEmail(e.target.value)}
-                      className="bg-white"
+                      className="bg-card"
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-slate-500 mb-1 block">Writing Number *</label>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Writing Number *</label>
                     <Input
                       required
                       placeholder="e.g. WA12345"
                       value={writingNumber}
                       onChange={e => setWritingNumber(e.target.value)}
-                      className="bg-white font-mono"
+                      className="bg-card font-mono"
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-slate-500 mb-1 block">NPN</label>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">NPN</label>
                     <Input
                       placeholder="12345678"
                       value={npn}
                       onChange={e => setNpn(e.target.value)}
-                      className="bg-white font-mono"
+                      className="bg-card font-mono"
                     />
                   </div>
                   <div className="col-span-2">
-                    <label className="text-xs font-medium text-slate-500 mb-1 block">Agency ID</label>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Agency ID</label>
                     <Input
                       placeholder="Agency UUID or slug"
                       value={agencyId}
                       onChange={e => setAgencyId(e.target.value)}
-                      className="bg-white font-mono text-sm"
+                      className="bg-card font-mono text-sm"
                     />
                   </div>
                   <div className="col-span-2">
-                    <label className="text-xs font-medium text-slate-500 mb-1 block">Role</label>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Role</label>
                     <div className="flex gap-2">
                       {(['agent', 'manager'] as const).map(r => (
                         <button
@@ -207,8 +207,8 @@ export function AgentProvisioningPage() {
                           onClick={() => setRole(r)}
                           className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
                             role === r
-                              ? 'bg-[#1e3a5f] text-white border-[#1e3a5f]'
-                              : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
+                              ? 'bg-primary text-white border-[#1e3a5f]'
+                              : 'bg-card text-muted-foreground border-border hover:border-slate-400'
                           }`}
                         >
                           {r.charAt(0).toUpperCase() + r.slice(1)}
@@ -218,14 +218,14 @@ export function AgentProvisioningPage() {
                   </div>
                 </div>
 
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-muted-foreground/70">
                   A temporary password will be auto-generated. The account is pre-confirmed — they can log in immediately.
                 </p>
 
                 <Button
                   type="submit"
                   disabled={submitting}
-                  className="w-full bg-[#1e3a5f] hover:bg-[#162d4a] text-white"
+                  className="w-full bg-primary hover:bg-primary/80 text-white"
                 >
                   {submitting ? 'Provisioning…' : 'Provision Agent Account'}
                 </Button>
@@ -233,22 +233,22 @@ export function AgentProvisioningPage() {
 
               {/* Success */}
               {result && (
-                <div className="mt-4 p-4 rounded-lg bg-emerald-50 border border-emerald-200">
+                <div className="mt-4 p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                   <div className="flex items-start gap-2">
                     <CheckCircle2 size={18} className="text-emerald-600 mt-0.5 shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-emerald-800">{result.full_name} provisioned!</p>
-                      <p className="text-xs text-emerald-700 mt-1">Writing # {result.writing_number} · {result.role}</p>
-                      <div className="mt-2 p-2.5 rounded bg-white border border-emerald-200 font-mono text-xs text-slate-700 space-y-0.5">
+                      <p className="text-xs text-emerald-400 mt-1">Writing # {result.writing_number} · {result.role}</p>
+                      <div className="mt-2 p-2.5 rounded bg-card border border-emerald-500/20 font-mono text-xs text-foreground/80 space-y-0.5">
                         <div>Email: {result.email}</div>
                         <div>Temp PW: {result.temp_password}</div>
                       </div>
                       {result.policies_will_link > 0 ? (
-                        <p className="text-xs text-emerald-700 mt-2">
+                        <p className="text-xs text-emerald-400 mt-2">
                           🔗 {result.policies_will_link} policies will link on next sync.
                         </p>
                       ) : (
-                        <p className="text-xs text-emerald-700 mt-2">
+                        <p className="text-xs text-emerald-400 mt-2">
                           Policies link automatically on next nightly sync (4 AM CT) once writing number matches.
                         </p>
                       )}
@@ -256,7 +256,7 @@ export function AgentProvisioningPage() {
                         size="sm"
                         variant="outline"
                         onClick={copyCredentials}
-                        className="mt-2 h-7 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                        className="mt-2 h-7 text-xs border-emerald-300 text-emerald-400 hover:bg-emerald-500/10"
                       >
                         <Copy size={12} className="mr-1.5" />
                         {copied ? 'Copied!' : 'Copy credentials'}
@@ -268,18 +268,18 @@ export function AgentProvisioningPage() {
 
               {/* Error */}
               {error && (
-                <div className="mt-4 p-3 rounded-lg bg-red-50 border border-red-200 flex items-start gap-2">
-                  <AlertCircle size={16} className="text-red-600 mt-0.5 shrink-0" />
-                  <p className="text-sm text-red-700">{error}</p>
+                <div className="mt-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 flex items-start gap-2">
+                  <AlertCircle size={16} className="text-red-400 mt-0.5 shrink-0" />
+                  <p className="text-sm text-red-400">{error}</p>
                 </div>
               )}
             </CardContent>
           </Card>
 
           {/* ── Existing agents ── */}
-          <Card className="border-slate-200">
+          <Card className="border-border">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base font-semibold text-slate-900">Current Profiles</CardTitle>
+              <CardTitle className="text-base font-semibold text-foreground">Current Profiles</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               {loadingAgents ? (
@@ -288,7 +288,7 @@ export function AgentProvisioningPage() {
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100 max-h-[480px] overflow-y-auto">
-                  <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-slate-50 text-xs font-semibold text-slate-500">
+                  <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-background text-xs font-semibold text-muted-foreground">
                     <span className="col-span-4">Name</span>
                     <span className="col-span-3">Writing #</span>
                     <span className="col-span-3">NPN</span>
@@ -296,18 +296,18 @@ export function AgentProvisioningPage() {
                   </div>
                   {agents.map(a => (
                     <div key={a.id} className="grid grid-cols-12 gap-2 px-4 py-2.5 text-sm items-center">
-                      <span className="col-span-4 font-medium text-slate-800 truncate">{a.full_name ?? '—'}</span>
-                      <span className={`col-span-3 font-mono text-xs ${a.writing_number ? 'text-slate-700' : 'text-slate-300'}`}>
+                      <span className="col-span-4 font-medium text-foreground truncate">{a.full_name ?? '—'}</span>
+                      <span className={`col-span-3 font-mono text-xs ${a.writing_number ? 'text-foreground/80' : 'text-slate-300'}`}>
                         {a.writing_number ?? 'not set'}
                       </span>
-                      <span className={`col-span-3 font-mono text-xs ${a.npn ? 'text-slate-700' : 'text-slate-300'}`}>
+                      <span className={`col-span-3 font-mono text-xs ${a.npn ? 'text-foreground/80' : 'text-slate-300'}`}>
                         {a.npn ?? '—'}
                       </span>
                       <span className="col-span-2 text-right">
                         <Badge className={`text-[10px] px-1.5 py-0 border ${
                           a.role === 'admin'   ? 'bg-violet-50 text-violet-700 border-violet-200' :
-                          a.role === 'manager' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                                                 'bg-slate-50 text-slate-600 border-slate-200'
+                          a.role === 'manager' ? 'bg-cyan-500/10 text-cyan-400 border-blue-200' :
+                                                 'bg-background text-muted-foreground border-border'
                         }`}>
                           {a.role}
                         </Badge>
@@ -315,7 +315,7 @@ export function AgentProvisioningPage() {
                     </div>
                   ))}
                   {agents.length === 0 && (
-                    <p className="text-center py-8 text-slate-400 text-sm">No profiles yet.</p>
+                    <p className="text-center py-8 text-muted-foreground/70 text-sm">No profiles yet.</p>
                   )}
                 </div>
               )}

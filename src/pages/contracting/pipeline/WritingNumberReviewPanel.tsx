@@ -188,10 +188,10 @@ export function WritingNumberReviewPanel({
   const resolvedSubs = submissions.filter((s) => s.status !== 'pending');
 
   return (
-    <div className="rounded-xl border border-amber-200 bg-amber-50 overflow-hidden">
+    <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 overflow-hidden">
       <button
         onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-amber-100/60 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-amber-500/100/10/60 transition-colors"
       >
         <div className="flex items-center gap-2">
           <PenLine className="w-4 h-4 text-amber-600" />
@@ -199,7 +199,7 @@ export function WritingNumberReviewPanel({
             Writing Number Review
           </span>
           {pendingSubs.length > 0 && (
-            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] font-bold">
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-500/100 text-white text-[10px] font-bold">
               {pendingSubs.length}
             </span>
           )}
@@ -214,49 +214,49 @@ export function WritingNumberReviewPanel({
       {expanded && (
         <div className="px-4 pb-4 space-y-3">
           {loading && (
-            <div className="flex items-center gap-2 py-2 text-sm text-amber-700">
+            <div className="flex items-center gap-2 py-2 text-sm text-amber-400">
               <Loader2 className="w-4 h-4 animate-spin" /> Loading submissions…
             </div>
           )}
 
           {error && (
-            <div className="flex items-center gap-2 text-xs text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+            <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 border border-red-100 rounded-lg px-3 py-2">
               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" /> {error}
             </div>
           )}
 
           {pendingSubs.length > 0 && (
             <div className="space-y-2">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-amber-700">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-amber-400">
                 Pending Review
               </p>
               {pendingSubs.map((sub) => (
                 <div
                   key={sub.id}
-                  className="bg-white rounded-lg border border-amber-100 shadow-sm overflow-hidden"
+                  className="bg-card rounded-lg border border-amber-100 glow-sm overflow-hidden"
                 >
                   <div className="flex items-center justify-between px-3 py-2.5">
                     <div className="flex items-center gap-2 flex-1 min-w-0">
                       {sub.submission_method === 'image' ? (
-                        <Upload className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                        <Upload className="w-3.5 h-3.5 text-muted-foreground/70 flex-shrink-0" />
                       ) : (
-                        <PenLine className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                        <PenLine className="w-3.5 h-3.5 text-muted-foreground/70 flex-shrink-0" />
                       )}
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-slate-800">
+                        <p className="text-sm font-semibold text-foreground">
                           {sub.carrier}
                         </p>
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-xs text-slate-600 font-mono">
+                          <span className="text-xs text-muted-foreground font-mono">
                             {sub.writing_number || '—'}
                           </span>
                           {sub.ai_extracted_number &&
                             sub.ai_extracted_number !== sub.writing_number && (
-                              <span className="text-[10px] text-slate-400">
+                              <span className="text-[10px] text-muted-foreground/70">
                                 (AI read: {sub.ai_extracted_number})
                               </span>
                             )}
-                          <span className="text-[10px] text-slate-400">
+                          <span className="text-[10px] text-muted-foreground/70">
                             ·{' '}
                             {new Date(sub.created_at).toLocaleDateString(
                               'en-US',
@@ -277,7 +277,7 @@ export function WritingNumberReviewPanel({
                           <button
                             onClick={() => handleVerify(sub)}
                             disabled={!!actionLoading}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors"
                           >
                             {actionLoading === sub.id ? (
                               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -293,7 +293,7 @@ export function WritingNumberReviewPanel({
                               setError('');
                             }}
                             disabled={!!actionLoading}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-semibold hover:bg-red-100 disabled:opacity-50 transition-colors"
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold hover:bg-red-100 disabled:opacity-50 transition-colors"
                           >
                             <XCircle className="w-3.5 h-3.5" /> Reject
                           </button>
@@ -303,8 +303,8 @@ export function WritingNumberReviewPanel({
                   </div>
 
                   {reviewingId === sub.id && (
-                    <div className="px-3 pb-3 pt-0 border-t border-amber-100 bg-red-50/50 space-y-2">
-                      <p className="text-xs text-red-700 font-medium pt-2">
+                    <div className="px-3 pb-3 pt-0 border-t border-amber-100 bg-red-500/10/50 space-y-2">
+                      <p className="text-xs text-red-400 font-medium pt-2">
                         Rejection reason (sent to agent):
                       </p>
                       <textarea
@@ -315,7 +315,7 @@ export function WritingNumberReviewPanel({
                         }}
                         rows={2}
                         placeholder="e.g. Writing number not found in carrier system"
-                        className="w-full px-3 py-2 border border-red-200 rounded-lg text-xs focus:ring-2 focus:ring-red-400 focus:border-transparent resize-none bg-white"
+                        className="w-full px-3 py-2 border border-red-500/20 rounded-lg text-xs focus:ring-2 focus:ring-red-400 focus:border-transparent resize-none bg-card"
                       />
                       <div className="flex gap-2">
                         <button
@@ -324,7 +324,7 @@ export function WritingNumberReviewPanel({
                             setRejectNote('');
                             setError('');
                           }}
-                          className="flex-1 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+                          className="flex-1 py-1.5 rounded-lg border border-border text-xs font-semibold text-muted-foreground hover:bg-background transition-colors"
                         >
                           Cancel
                         </button>
@@ -348,23 +348,23 @@ export function WritingNumberReviewPanel({
 
           {resolvedSubs.length > 0 && (
             <div className="space-y-1.5">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/70">
                 History
               </p>
               {resolvedSubs.map((sub) => (
                 <div
                   key={sub.id}
-                  className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-slate-100 text-xs"
+                  className="flex items-center gap-2 px-3 py-2 bg-card rounded-lg border border-border/50 text-xs"
                 >
                   {sub.status === 'verified' ? (
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
                   ) : (
                     <XCircle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
                   )}
-                  <span className="font-semibold text-slate-700">
+                  <span className="font-semibold text-foreground/80">
                     {sub.carrier}
                   </span>
-                  <span className="font-mono text-slate-500">
+                  <span className="font-mono text-muted-foreground">
                     {sub.writing_number || '—'}
                   </span>
                   <span
@@ -382,7 +382,7 @@ export function WritingNumberReviewPanel({
           )}
 
           {!loading && submissions.length === 0 && (
-            <div className="flex items-center gap-2 py-2 text-xs text-amber-700">
+            <div className="flex items-center gap-2 py-2 text-xs text-amber-400">
               <Clock className="w-3.5 h-3.5" /> No submissions found yet.
             </div>
           )}

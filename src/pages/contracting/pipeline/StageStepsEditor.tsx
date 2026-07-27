@@ -82,32 +82,32 @@ export function StageStepsEditor({ onClose }: StageStepsEditorProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white z-10 px-6 py-4 border-b border-slate-200 flex items-center justify-between rounded-t-2xl">
+      <div className="relative bg-card rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-card z-10 px-6 py-4 border-b border-border flex items-center justify-between rounded-t-2xl">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
-              <ListChecks className="w-5 h-5 text-[#1e3a5f]" />
+            <div className="w-10 h-10 rounded-full bg-cyan-500/10 flex items-center justify-center">
+              <ListChecks className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-900">
+              <h2 className="text-lg font-bold text-foreground">
                 Stage Step Checklists
               </h2>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted-foreground">
                 Define the steps agents complete in each stage
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-secondary rounded-lg transition-colors"
           >
-            <X className="w-5 h-5 text-slate-500" />
+            <X className="w-5 h-5 text-muted-foreground" />
           </button>
         </div>
 
         <div className="p-6 space-y-4">
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+            <label className="block text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
               Stage
             </label>
             <select
@@ -115,7 +115,7 @@ export function StageStepsEditor({ onClose }: StageStepsEditorProps) {
               onChange={(e) =>
                 setActiveStage(e.target.value as AgentPipelineStage)
               }
-              className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent bg-white"
+              className="w-full px-4 py-2.5 border border-border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent bg-card"
             >
               {STAGES.map((s) => (
                 <option key={s.key} value={s.key}>
@@ -126,15 +126,15 @@ export function StageStepsEditor({ onClose }: StageStepsEditorProps) {
           </div>
 
           <div className="space-y-2">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
               Steps for {stageLabel}
             </h3>
             {loading ? (
               <div className="flex justify-center py-8">
-                <Loader2 className="w-5 h-5 animate-spin text-[#1e3a5f]" />
+                <Loader2 className="w-5 h-5 animate-spin text-primary" />
               </div>
             ) : stageSteps.length === 0 ? (
-              <p className="text-sm text-slate-400 py-4 text-center">
+              <p className="text-sm text-muted-foreground/70 py-4 text-center">
                 No steps yet — add the first one below.
               </p>
             ) : (
@@ -142,7 +142,7 @@ export function StageStepsEditor({ onClose }: StageStepsEditorProps) {
                 {stageSteps.map((step) => (
                   <div
                     key={step.id}
-                    className="flex items-center gap-2 p-2 rounded-lg border border-slate-200 bg-white"
+                    className="flex items-center gap-2 p-2 rounded-lg border border-border bg-card"
                   >
                     <GripVertical className="w-4 h-4 text-slate-300 flex-shrink-0" />
                     <input
@@ -154,12 +154,12 @@ export function StageStepsEditor({ onClose }: StageStepsEditorProps) {
                         )
                           renameStep(step.id, e.target.value.trim());
                       }}
-                      className="flex-1 px-2 py-1 text-sm border border-transparent hover:border-slate-200 focus:border-blue-400 rounded focus:ring-1 focus:ring-blue-400 focus:outline-none"
+                      className="flex-1 px-2 py-1 text-sm border border-transparent hover:border-border focus:border-blue-400 rounded focus:ring-1 focus:ring-blue-400 focus:outline-none"
                     />
                     <button
                       onClick={() => deleteStep(step.id)}
                       disabled={busyId === step.id}
-                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors flex-shrink-0"
+                      className="p-1.5 text-muted-foreground/70 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors flex-shrink-0"
                     >
                       {busyId === step.id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -173,7 +173,7 @@ export function StageStepsEditor({ onClose }: StageStepsEditorProps) {
             )}
           </div>
 
-          <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+          <div className="flex items-center gap-2 pt-2 border-t border-border/50">
             <input
               value={newLabel}
               onChange={(e) => setNewLabel(e.target.value)}
@@ -181,12 +181,12 @@ export function StageStepsEditor({ onClose }: StageStepsEditorProps) {
                 if (e.key === 'Enter') addStep();
               }}
               placeholder="Add a step..."
-              className="flex-1 px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+              className="flex-1 px-4 py-2.5 border border-border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent"
             />
             <button
               onClick={addStep}
               disabled={adding || !newLabel.trim()}
-              className="flex items-center gap-2 px-4 py-2.5 bg-[#1e3a5f] text-white rounded-lg font-medium text-sm hover:bg-[#162d4a] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-lg font-medium text-sm hover:bg-primary/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {adding ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

@@ -23,17 +23,17 @@ interface AgencyRow {
 }
 
 function retentionColor(pct: number | null) {
-  if (pct === null) return 'text-slate-400';
-  if (pct >= 90) return 'text-emerald-700 font-semibold';
-  if (pct >= 85) return 'text-amber-700 font-semibold';
-  return 'text-red-700 font-bold';
+  if (pct === null) return 'text-muted-foreground/70';
+  if (pct >= 90) return 'text-emerald-400 font-semibold';
+  if (pct >= 85) return 'text-amber-400 font-semibold';
+  return 'text-red-400 font-bold';
 }
 
 function retentionBadge(pct: number | null) {
   if (pct === null) return null;
-  if (pct >= 90) return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 border text-[10px] px-1.5 py-0">On target</Badge>;
-  if (pct >= 85) return <Badge className="bg-amber-50 text-amber-700 border-amber-200 border text-[10px] px-1.5 py-0">At risk</Badge>;
-  return <Badge className="bg-red-50 text-red-700 border-red-200 border text-[10px] px-1.5 py-0">Below target</Badge>;
+  if (pct >= 90) return <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 border text-[10px] px-1.5 py-0">On target</Badge>;
+  if (pct >= 85) return <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20 border text-[10px] px-1.5 py-0">At risk</Badge>;
+  return <Badge className="bg-red-500/10 text-red-400 border-red-500/20 border text-[10px] px-1.5 py-0">Below target</Badge>;
 }
 
 function fmt$(n: number) {
@@ -108,19 +108,19 @@ export function AgenciesPage() {
           {[
             { label: 'Total Agencies', value: rows.length, sub: 'writing active policies' },
             { label: 'Active Premium', value: fmt$(totalPremium), sub: '/mo across all agencies' },
-            { label: 'On Target (≥90%)', value: onTarget, sub: 'retention ≥ 90%', color: 'text-emerald-700' },
-            { label: 'Below Target', value: belowTarget, sub: 'need coaching', color: belowTarget > 0 ? 'text-red-700' : 'text-slate-900' },
+            { label: 'On Target (≥90%)', value: onTarget, sub: 'retention ≥ 90%', color: 'text-emerald-400' },
+            { label: 'Below Target', value: belowTarget, sub: 'need coaching', color: belowTarget > 0 ? 'text-red-400' : 'text-foreground' },
           ].map(c => (
-            <Card key={c.label} className="border-slate-200">
+            <Card key={c.label} className="border-border">
               <CardContent className="py-4 px-5">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-xs font-medium text-slate-500">{c.label}</p>
-                    <p className={`text-2xl font-bold mt-0.5 ${c.color ?? 'text-slate-900'}`}>{c.value}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">{c.sub}</p>
+                    <p className="text-xs font-medium text-muted-foreground">{c.label}</p>
+                    <p className={`text-2xl font-bold mt-0.5 ${c.color ?? 'text-foreground'}`}>{c.value}</p>
+                    <p className="text-xs text-muted-foreground/70 mt-0.5">{c.sub}</p>
                   </div>
-                  <div className="p-2 rounded-lg bg-blue-50">
-                    <Building2 size={18} className="text-[#1e3a5f]" />
+                  <div className="p-2 rounded-lg bg-cyan-500/10">
+                    <Building2 size={18} className="text-primary" />
                   </div>
                 </div>
               </CardContent>
@@ -128,17 +128,17 @@ export function AgenciesPage() {
           ))}
         </div>
 
-        <Card className="border-slate-200">
+        <Card className="border-border">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-4 flex-wrap">
-              <CardTitle className="text-base font-semibold text-slate-900">Agency Directory</CardTitle>
+              <CardTitle className="text-base font-semibold text-foreground">Agency Directory</CardTitle>
               <div className="relative w-full sm:w-64">
-                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/70" />
                 <Input
                   placeholder="Search agency…"
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  className="pl-8 bg-white h-8 text-sm"
+                  className="pl-8 bg-card h-8 text-sm"
                 />
               </div>
             </div>
@@ -151,14 +151,14 @@ export function AgenciesPage() {
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-slate-50">
-                    <TableHead className="font-semibold text-slate-600">Agency</TableHead>
-                    <TableHead className="font-semibold text-slate-600 text-right">Active</TableHead>
-                    <TableHead className="font-semibold text-slate-600 text-right">Premium/mo</TableHead>
-                    <TableHead className="font-semibold text-slate-600 text-right">At-Risk</TableHead>
-                    <TableHead className="font-semibold text-slate-600 text-right">Eligible</TableHead>
-                    <TableHead className="font-semibold text-slate-600 text-right">Retention</TableHead>
-                    <TableHead className="font-semibold text-slate-600 text-center">Status</TableHead>
+                  <TableRow className="bg-background">
+                    <TableHead className="font-semibold text-muted-foreground">Agency</TableHead>
+                    <TableHead className="font-semibold text-muted-foreground text-right">Active</TableHead>
+                    <TableHead className="font-semibold text-muted-foreground text-right">Premium/mo</TableHead>
+                    <TableHead className="font-semibold text-muted-foreground text-right">At-Risk</TableHead>
+                    <TableHead className="font-semibold text-muted-foreground text-right">Eligible</TableHead>
+                    <TableHead className="font-semibold text-muted-foreground text-right">Retention</TableHead>
+                    <TableHead className="font-semibold text-muted-foreground text-center">Status</TableHead>
                     <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>
@@ -166,26 +166,26 @@ export function AgenciesPage() {
                   {filtered.map(r => (
                     <TableRow
                       key={r.agency_id}
-                      className={`hover:bg-slate-50 transition-colors cursor-pointer ${r.retention_pct !== null && r.retention_pct < 90 ? 'bg-red-50/20' : ''}`}
+                      className={`hover:bg-background transition-colors cursor-pointer ${r.retention_pct !== null && r.retention_pct < 90 ? 'bg-red-500/10/20' : ''}`}
                     >
                       <TableCell>
-                        <div className="font-medium text-slate-900">
-                          {r.name ?? <span className="font-mono text-xs text-slate-400">{r.agency_id.slice(0, 8)}…</span>}
+                        <div className="font-medium text-foreground">
+                          {r.name ?? <span className="font-mono text-xs text-muted-foreground/70">{r.agency_id.slice(0, 8)}…</span>}
                         </div>
-                        {r.slug && <div className="text-xs text-slate-400">{r.slug}</div>}
+                        {r.slug && <div className="text-xs text-muted-foreground/70">{r.slug}</div>}
                       </TableCell>
-                      <TableCell className="text-right font-medium text-slate-700">
+                      <TableCell className="text-right font-medium text-foreground/80">
                         {r.active_policies.toLocaleString()}
                       </TableCell>
-                      <TableCell className="text-right text-slate-700">
+                      <TableCell className="text-right text-foreground/80">
                         {fmt$(r.active_premium)}
                       </TableCell>
                       <TableCell className="text-right">
-                        <span className={r.at_risk_count > 0 ? 'text-red-700 font-semibold' : 'text-slate-400'}>
+                        <span className={r.at_risk_count > 0 ? 'text-red-400 font-semibold' : 'text-muted-foreground/70'}>
                           {r.at_risk_count || '—'}
                         </span>
                       </TableCell>
-                      <TableCell className="text-right text-slate-600">
+                      <TableCell className="text-right text-muted-foreground">
                         {r.eligible_90d > 0 ? r.eligible_90d.toLocaleString() : <span className="text-slate-300">—</span>}
                       </TableCell>
                       <TableCell className={`text-right ${retentionColor(r.retention_pct)}`}>
@@ -196,14 +196,14 @@ export function AgenciesPage() {
                       </TableCell>
                       <TableCell className="text-center">
                         <Link to={`/agencies/${r.agency_id}`}>
-                          <ChevronRight size={16} className="text-slate-400 hover:text-[#1e3a5f] transition-colors" />
+                          <ChevronRight size={16} className="text-muted-foreground/70 hover:text-primary transition-colors" />
                         </Link>
                       </TableCell>
                     </TableRow>
                   ))}
                   {filtered.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-10 text-slate-400">
+                      <TableCell colSpan={8} className="text-center py-10 text-muted-foreground/70">
                         {rows.length === 0 ? 'No agency data yet — sync policy cache to populate.' : 'No agencies match your search.'}
                       </TableCell>
                     </TableRow>

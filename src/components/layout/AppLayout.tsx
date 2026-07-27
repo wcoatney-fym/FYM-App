@@ -10,8 +10,8 @@ export function AppLayout() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-[#1e3a5f] border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin glow-primary" />
       </div>
     );
   }
@@ -19,7 +19,7 @@ export function AppLayout() {
   if (!session) return <Navigate to="/login" replace />;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-background">
       <Sidebar />
       <main
         className={cn(

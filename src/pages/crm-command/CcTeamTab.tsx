@@ -17,7 +17,7 @@ const skillDisplay: Record<string, string> = {
   recruiting: 'recruiting', retention: 'retention', ghl: 'GHL',
 };
 const confidenceStyle: Record<string, string> = {
-  low: 'bg-slate-400/10 text-slate-400 border-slate-400/20',
+  low: 'bg-slate-400/10 text-muted-foreground/70 border-slate-400/20',
   medium: 'bg-sky-400/10 text-sky-300 border-sky-400/20',
   high: 'bg-emerald-400/10 text-emerald-300 border-emerald-400/20',
 };

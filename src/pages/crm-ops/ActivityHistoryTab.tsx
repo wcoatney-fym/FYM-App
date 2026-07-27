@@ -41,9 +41,9 @@ type HistoryEvent = {
 type AgencyOption = { id: string; name: string };
 
 const TYPE_STYLES: Record<HistoryEvent['type'], { bg: string; text: string; icon: React.FC<{ className?: string }> }> = {
-  notification: { bg: 'bg-blue-50', text: 'text-blue-700', icon: Bell },
-  roster_upload: { bg: 'bg-emerald-50', text: 'text-emerald-700', icon: Upload },
-  dba_upload: { bg: 'bg-amber-50', text: 'text-amber-700', icon: FileText },
+  notification: { bg: 'bg-cyan-500/10', text: 'text-cyan-400', icon: Bell },
+  roster_upload: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', icon: Upload },
+  dba_upload: { bg: 'bg-amber-500/10', text: 'text-amber-400', icon: FileText },
   cancellation_upload: { bg: 'bg-rose-50', text: 'text-rose-700', icon: FileText },
 };
 
@@ -229,7 +229,7 @@ export const ActivityHistoryTab: React.FC = () => {
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
-                className="ml-2 text-xs text-red-500 hover:text-red-700 flex items-center gap-1"
+                className="ml-2 text-xs text-red-500 hover:text-red-400 flex items-center gap-1"
               >
                 <X className="w-3 h-3" /> Clear all
               </button>

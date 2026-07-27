@@ -134,7 +134,7 @@ export function OnboardingDetailPage() {
               {agency.principal_email && (
                 <a
                   href={`mailto:${agency.principal_email}`}
-                  className="inline-flex items-center gap-1.5 mt-1 text-xs text-blue-600 hover:text-blue-800"
+                  className="inline-flex items-center gap-1.5 mt-1 text-xs text-cyan-400 hover:text-blue-800"
                 >
                   <Mail className="w-3 h-3" />
                   {agency.principal_email}
@@ -172,7 +172,7 @@ export function OnboardingDetailPage() {
             <div className="flex items-center gap-2 flex-shrink-0">
               <Button variant="ghost" size="sm" onClick={copyUrl}>
                 {copied ? (
-                  <><Check className="w-3.5 h-3.5 text-green-600 mr-1" /> Copied</>
+                  <><Check className="w-3.5 h-3.5 text-emerald-400 mr-1" /> Copied</>
                 ) : (
                   <><Copy className="w-3.5 h-3.5 mr-1" /> Copy</>
                 )}
@@ -198,7 +198,7 @@ export function OnboardingDetailPage() {
             <Card key={week.week}>
               <CardHeader className="pb-3">
                 <div className="flex items-baseline gap-4">
-                  <span className="text-2xl font-bold text-blue-600">0{displayNum}</span>
+                  <span className="text-2xl font-bold text-cyan-400">0{displayNum}</span>
                   <div className="flex-1">
                     <div className="text-xs text-muted-foreground uppercase tracking-wider">
                       Week {displayNum}
@@ -216,7 +216,7 @@ export function OnboardingDetailPage() {
                   return (
                     <div key={task.id} className="flex items-start gap-3 py-2">
                       {done ? (
-                        <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
                       ) : (
                         <Circle className="w-4 h-4 text-muted-foreground/30 flex-shrink-0 mt-0.5" />
                       )}
@@ -360,7 +360,7 @@ function EditAgencyForm({
                     type="button"
                     onClick={() => setVariant(cfg.key)}
                     className={`text-left rounded-lg border px-4 py-3 transition-all ${
-                      variant === cfg.key ? 'border-blue-500 bg-blue-50' : 'border-border hover:border-foreground/30'
+                      variant === cfg.key ? 'border-blue-500 bg-cyan-500/10' : 'border-border hover:border-foreground/30'
                     }`}
                   >
                     <div className="text-sm font-medium">{cfg.label}</div>
@@ -381,7 +381,7 @@ function EditAgencyForm({
                     type="button"
                     onClick={() => setCompTier(cfg.key)}
                     className={`text-center rounded-lg border px-3 py-2.5 transition-all ${
-                      compTier === cfg.key ? 'border-blue-500 bg-blue-50' : 'border-border hover:border-foreground/30'
+                      compTier === cfg.key ? 'border-blue-500 bg-cyan-500/10' : 'border-border hover:border-foreground/30'
                     }`}
                   >
                     <div className="text-sm font-medium">{cfg.label}</div>
@@ -399,7 +399,7 @@ function EditAgencyForm({
                     type="button"
                     onClick={() => setActive(val)}
                     className={`text-left rounded-lg border px-4 py-3 transition-all ${
-                      active === val ? 'border-blue-500 bg-blue-50' : 'border-border hover:border-foreground/30'
+                      active === val ? 'border-blue-500 bg-cyan-500/10' : 'border-border hover:border-foreground/30'
                     }`}
                   >
                     <div className="text-sm font-medium">{val ? 'Active' : 'Inactive'}</div>
@@ -412,7 +412,7 @@ function EditAgencyForm({
             </div>
 
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800">
+              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-sm text-red-800">
                 {error}
               </div>
             )}

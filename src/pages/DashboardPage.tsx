@@ -46,10 +46,10 @@ function fmt$(n: number) {
 }
 
 function retentionColor(pct: number | null) {
-  if (pct === null) return 'text-slate-400';
-  if (pct >= 90) return 'text-emerald-700';
-  if (pct >= 85) return 'text-amber-700';
-  return 'text-red-700';
+  if (pct === null) return 'text-muted-foreground/70';
+  if (pct >= 90) return 'text-emerald-400';
+  if (pct >= 85) return 'text-amber-400';
+  return 'text-red-400';
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
@@ -186,29 +186,29 @@ export function DashboardPage() {
       title: 'Active Policies',
       value: s ? s.active_policies.toLocaleString() : '—',
       sub: s ? `${fmt$(s.active_premium)}/mo premium` : '',
-      icon: ShieldCheck, color: 'text-[#1e3a5f]', bg: 'bg-blue-50',
+      icon: ShieldCheck, color: 'text-primary', bg: 'bg-cyan-500/10',
     },
     {
       title: '90-Day Retention',
       value: s && s.retention_pct !== null ? `${s.retention_pct}%` : '—',
       sub: s && s.retention_pct !== null ? (s.retention_pct >= 90 ? 'On target ≥ 90%' : 'Below 90% target') : '',
       icon: TrendingUp,
-      color: s && s.retention_pct !== null && s.retention_pct >= 90 ? 'text-emerald-700' : 'text-amber-700',
-      bg: s && s.retention_pct !== null && s.retention_pct >= 90 ? 'bg-emerald-50' : 'bg-amber-50',
+      color: s && s.retention_pct !== null && s.retention_pct >= 90 ? 'text-emerald-400' : 'text-amber-400',
+      bg: s && s.retention_pct !== null && s.retention_pct >= 90 ? 'bg-emerald-500/10' : 'bg-amber-500/10',
     },
     {
       title: 'At-Risk Policies',
       value: s ? s.at_risk_count.toString() : '—',
       sub: s && s.at_risk_premium > 0 ? `${fmt$(s.at_risk_premium)}/mo exposed` : '',
-      icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50',
+      icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/10',
     },
     {
       title: 'Agencies Below 90%',
       value: s ? `${s.agencies_below_target}` : '—',
       sub: s ? `of ${s.total_agencies} total` : '',
       icon: Building2,
-      color: s && s.agencies_below_target > 0 ? 'text-red-700' : 'text-emerald-700',
-      bg: s && s.agencies_below_target > 0 ? 'bg-red-50' : 'bg-emerald-50',
+      color: s && s.agencies_below_target > 0 ? 'text-red-400' : 'text-emerald-400',
+      bg: s && s.agencies_below_target > 0 ? 'bg-red-500/10' : 'bg-emerald-500/10',
     },
   ];
 
@@ -220,16 +220,16 @@ export function DashboardPage() {
         {/* KPI strip */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {kpiCards.map((card) => (
-            <Card key={card.title} className="border-slate-200">
+            <Card key={card.title} className="border-border">
               <CardContent className="p-5">
                 {loading ? (
                   <div className="h-14 rounded bg-slate-100 animate-pulse" />
                 ) : (
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-sm font-medium text-slate-500">{card.title}</p>
-                      <p className="text-2xl font-bold text-slate-900 mt-1">{card.value}</p>
-                      {card.sub && <p className="text-xs text-slate-400 mt-0.5">{card.sub}</p>}
+                      <p className="text-sm font-medium text-muted-foreground">{card.title}</p>
+                      <p className="text-2xl font-bold text-foreground mt-1">{card.value}</p>
+                      {card.sub && <p className="text-xs text-muted-foreground/70 mt-0.5">{card.sub}</p>}
                     </div>
                     <div className={`p-2.5 rounded-lg ${card.bg}`}>
                       <card.icon size={20} className={card.color} />
@@ -242,18 +242,18 @@ export function DashboardPage() {
         </div>
 
         {/* Retention trend chart */}
-        <Card className="border-slate-200">
+        <Card className="border-border">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-base font-semibold text-slate-900">90-Day Retention by Cohort</CardTitle>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <CardTitle className="text-base font-semibold text-foreground">90-Day Retention by Cohort</CardTitle>
+                <p className="text-xs text-muted-foreground/70 mt-0.5">
                   Monthly cohorts · HI + HHC combined and by product
                 </p>
               </div>
               <div className="flex items-center gap-4 text-xs">
                 <span className="flex items-center gap-1.5">
-                  <span className="w-3 h-0.5 bg-[#1e3a5f] rounded" /> Combined
+                  <span className="w-3 h-0.5 bg-primary rounded" /> Combined
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className="w-3 h-0.5 bg-violet-500 rounded" /> HI
@@ -296,17 +296,17 @@ export function DashboardPage() {
 
         {/* Bottom agencies coaching panel */}
         {!loading && bottomAgencies.length > 0 && (
-          <Card className="border-slate-200">
+          <Card className="border-border">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-base font-semibold text-slate-900">Agency Coaching Signals</CardTitle>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <CardTitle className="text-base font-semibold text-foreground">Agency Coaching Signals</CardTitle>
+                  <p className="text-xs text-muted-foreground/70 mt-0.5">
                     Lowest retention agencies — sorted worst first. Below 90% = coaching needed.
                   </p>
                 </div>
                 {stats && stats.agencies_below_target > 0 && (
-                  <Badge className="bg-red-50 text-red-700 border-red-200 border">
+                  <Badge className="bg-red-500/10 text-red-400 border-red-500/20 border">
                     {stats.agencies_below_target} below target
                   </Badge>
                 )}
@@ -314,7 +314,7 @@ export function DashboardPage() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-slate-100">
-                <div className="grid grid-cols-7 gap-2 px-4 py-2 bg-slate-50 text-xs font-semibold text-slate-500">
+                <div className="grid grid-cols-7 gap-2 px-4 py-2 bg-background text-xs font-semibold text-muted-foreground">
                   <span className="col-span-2">Agency</span>
                   <span className="text-right">Active</span>
                   <span className="text-right">Premium/mo</span>
@@ -326,15 +326,15 @@ export function DashboardPage() {
                   <div
                     key={a.agency_id}
                     className={`grid grid-cols-7 gap-2 px-4 py-2.5 text-sm items-center ${
-                      a.retention_pct !== null && a.retention_pct < 90 ? 'bg-red-50/30' : ''
+                      a.retention_pct !== null && a.retention_pct < 90 ? 'bg-red-500/10/30' : ''
                     }`}
                   >
-                    <span className="col-span-2 font-medium text-slate-800 truncate">
-                      {a.name ?? <span className="font-mono text-xs text-slate-400">{a.agency_id.slice(0, 8)}…</span>}
+                    <span className="col-span-2 font-medium text-foreground truncate">
+                      {a.name ?? <span className="font-mono text-xs text-muted-foreground/70">{a.agency_id.slice(0, 8)}…</span>}
                     </span>
-                    <span className="text-right text-slate-600">{a.active_policies.toLocaleString()}</span>
-                    <span className="text-right text-slate-600">{fmt$(a.active_premium)}</span>
-                    <span className={`text-right font-medium ${a.at_risk_count > 0 ? 'text-red-700' : 'text-slate-400'}`}>
+                    <span className="text-right text-muted-foreground">{a.active_policies.toLocaleString()}</span>
+                    <span className="text-right text-muted-foreground">{fmt$(a.active_premium)}</span>
+                    <span className={`text-right font-medium ${a.at_risk_count > 0 ? 'text-red-400' : 'text-muted-foreground/70'}`}>
                       {a.at_risk_count || '—'}
                     </span>
                     <span className={`text-right font-semibold ${retentionColor(a.retention_pct)}`}>
@@ -342,7 +342,7 @@ export function DashboardPage() {
                     </span>
                     <span className="text-center">
                       <Link to={`/agencies/${a.agency_id}`}>
-                        <ChevronRight size={14} className="text-slate-300 hover:text-[#1e3a5f] transition-colors" />
+                        <ChevronRight size={14} className="text-slate-300 hover:text-primary transition-colors" />
                       </Link>
                     </span>
                   </div>

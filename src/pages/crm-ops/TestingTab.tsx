@@ -126,7 +126,7 @@ export const TestingTab: React.FC = () => {
   if (!agency) {
     return (
       <div className="bg-card rounded-xl border border-border p-12 text-center max-w-lg mx-auto mt-8">
-        <div className="w-16 h-16 rounded-full bg-amber-50 flex items-center justify-center mx-auto mb-4">
+        <div className="w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
           <FlaskConical className="w-8 h-8 text-amber-500" />
         </div>
         <h3 className="text-lg font-bold text-foreground mb-2">No Test Agency</h3>
@@ -166,7 +166,7 @@ export const TestingTab: React.FC = () => {
       <div className="bg-card rounded-xl border border-border p-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center">
               <FlaskConical className="w-5 h-5 text-amber-600" />
             </div>
             <div>
@@ -182,20 +182,20 @@ export const TestingTab: React.FC = () => {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowOnboarding(true)}
-              className="px-4 py-2 text-sm font-medium text-primary bg-blue-50 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors"
+              className="px-4 py-2 text-sm font-medium text-primary bg-cyan-500/10 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors"
             >
               Open Onboarding View
             </button>
             <button
               onClick={() => setUndoTarget(0)}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors"
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg hover:bg-amber-500/100/20 transition-colors"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               Reset All
             </button>
             <button
               onClick={() => setShowDelete(true)}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg hover:bg-red-500/20 transition-colors"
             >
               <Trash2 className="w-3.5 h-3.5" />
               Delete
@@ -223,7 +223,7 @@ export const TestingTab: React.FC = () => {
       </div>
 
       {agency.onboarding_status === 'onboarding_complete' && (
-        <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-6 text-center">
+        <div className="bg-emerald-500/10 rounded-xl border border-emerald-500/20 p-6 text-center">
           <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto mb-3" />
           <h3 className="text-lg font-bold text-foreground mb-1">Onboarding Complete</h3>
           <p className="text-sm text-muted-foreground">
@@ -257,14 +257,14 @@ export const TestingTab: React.FC = () => {
                   </>
                 )}
               </p>
-              <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 rounded-lg border border-amber-200">
+              <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 rounded-lg border border-amber-500/20">
                 <FlaskConical className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                <p className="text-xs text-amber-700 font-medium">Test-only action -- does not affect real agencies</p>
+                <p className="text-xs text-amber-400 font-medium">Test-only action -- does not affect real agencies</p>
               </div>
             </div>
           }
           confirmLabel={undoing ? 'Resetting...' : undoTarget === 0 ? 'Reset All' : 'Undo Step'}
-          confirmColor="bg-amber-600 hover:bg-amber-700"
+          confirmColor="bg-amber-500 hover:bg-amber-700"
           onConfirm={() => handleUndo(undoTarget)}
           onCancel={() => setUndoTarget(null)}
           loading={undoing}
@@ -280,14 +280,14 @@ export const TestingTab: React.FC = () => {
                 This will permanently delete <span className="font-semibold">{agency.name}</span> and all associated data
                 (roster uploads, DBA uploads, notifications).
               </p>
-              <div className="flex items-center gap-2 px-3 py-2 bg-red-50 rounded-lg border border-red-200">
-                <Trash2 className="w-4 h-4 text-red-600 flex-shrink-0" />
-                <p className="text-xs text-red-700 font-medium">You can recreate a fresh test agency at any time</p>
+              <div className="flex items-center gap-2 px-3 py-2 bg-red-500/10 rounded-lg border border-red-500/20">
+                <Trash2 className="w-4 h-4 text-red-400 flex-shrink-0" />
+                <p className="text-xs text-red-400 font-medium">You can recreate a fresh test agency at any time</p>
               </div>
             </div>
           }
           confirmLabel={deleting ? 'Deleting...' : 'Delete Test Agency'}
-          confirmColor="bg-red-600 hover:bg-red-700"
+          confirmColor="bg-red-500 hover:bg-red-700"
           onConfirm={handleDelete}
           onCancel={() => setShowDelete(false)}
           loading={deleting}
@@ -306,11 +306,11 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  pending_csr_assignment: 'bg-amber-400/10 text-amber-400 border-amber-200',
+  pending_csr_assignment: 'bg-amber-400/10 text-amber-400 border-amber-500/20',
   awaiting_agency_phone: 'bg-sky-400/10 text-sky-400 border-sky-200',
   awaiting_roster_upload: 'bg-blue-400/10 text-blue-400 border-blue-200',
   awaiting_dba_upload: 'bg-teal-400/10 text-teal-400 border-teal-200',
-  onboarding_complete: 'bg-emerald-400/10 text-emerald-400 border-emerald-200',
+  onboarding_complete: 'bg-emerald-400/10 text-emerald-400 border-emerald-500/20',
 };
 
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => (
@@ -330,7 +330,7 @@ const StepperBar: React.FC<{ agency: CrmAgency; currentIdx: number }> = ({ agenc
               <div
                 className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
                   state === 'complete'
-                    ? 'bg-emerald-500 text-white'
+                    ? 'bg-emerald-500/100 text-white'
                     : state === 'awaiting'
                     ? 'bg-amber-400/10 text-amber-400 ring-2 ring-amber-300'
                     : state === 'active'
@@ -352,9 +352,9 @@ const StepperBar: React.FC<{ agency: CrmAgency; currentIdx: number }> = ({ agenc
                 <p
                   className={`text-sm font-semibold ${
                     state === 'complete'
-                      ? 'text-emerald-700'
+                      ? 'text-emerald-400'
                       : state === 'awaiting'
-                      ? 'text-amber-700'
+                      ? 'text-amber-400'
                       : state === 'active'
                       ? 'text-primary'
                       : 'text-muted-foreground/70'
@@ -412,18 +412,18 @@ const StepCard: React.FC<{
 
   if (state === 'complete') {
     return (
-      <div className="bg-emerald-50/50 rounded-xl border border-emerald-200 p-5">
+      <div className="bg-emerald-500/10/50 rounded-xl border border-emerald-500/20 p-5">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-lg bg-emerald-500/100/10 flex items-center justify-center">
             <CheckCircle2 className="w-5 h-5 text-emerald-600" />
           </div>
           <div className="flex-1">
-            <h3 className="font-semibold text-emerald-800">Step {idx + 1}: {step.label}</h3>
+            <h3 className="font-semibold text-emerald-400">Step {idx + 1}: {step.label}</h3>
             <p className="text-xs text-emerald-600">Confirmed</p>
           </div>
           <button
             onClick={onUndo}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg hover:bg-amber-500/100/20 transition-colors"
           >
             <Undo2 className="w-3.5 h-3.5" />
             Undo
@@ -436,7 +436,7 @@ const StepCard: React.FC<{
   return (
     <div className="bg-card rounded-xl border-2 border-primary/20 p-5">
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+        <div className="w-9 h-9 rounded-lg bg-cyan-500/10 flex items-center justify-center">
           <span className="text-sm font-bold text-primary">{idx + 1}</span>
         </div>
         <div className="flex-1">

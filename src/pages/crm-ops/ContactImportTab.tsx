@@ -408,9 +408,9 @@ export const ContactImportTab: React.FC = () => {
         </div>
 
         {error && (
-          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+          <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-start gap-2">
             <XCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
-            <p className="text-sm text-red-700">{error}</p>
+            <p className="text-sm text-red-400">{error}</p>
           </div>
         )}
       </div>
@@ -463,7 +463,7 @@ export const ContactImportTab: React.FC = () => {
             ) : (
               <button
                 onClick={removeTag}
-                className="px-4 py-2 text-sm font-medium bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 transition-colors flex items-center gap-1.5"
+                className="px-4 py-2 text-sm font-medium bg-red-500/10 text-red-400 border border-red-500/20 rounded-lg hover:bg-red-500/20 transition-colors flex items-center gap-1.5"
               >
                 <X className="w-3.5 h-3.5" /> Remove Tag
               </button>
@@ -491,12 +491,12 @@ export const ContactImportTab: React.FC = () => {
             </button>
             <span className="text-xs text-muted-foreground">{selectedCount} selected</span>
             {sentCount > 0 && (
-              <span className="inline-flex items-center gap-1 text-xs text-emerald-700">
+              <span className="inline-flex items-center gap-1 text-xs text-emerald-400">
                 <CheckCircle2 className="w-3 h-3" /> {sentCount} sent
               </span>
             )}
             {failedCount > 0 && (
-              <span className="inline-flex items-center gap-1 text-xs text-red-600">
+              <span className="inline-flex items-center gap-1 text-xs text-red-400">
                 <XCircle className="w-3 h-3" /> {failedCount} failed
               </span>
             )}
@@ -506,7 +506,7 @@ export const ContactImportTab: React.FC = () => {
             {failedCount > 0 && !pushing && (
               <button
                 onClick={retryFailed}
-                className="px-3 py-2 text-sm font-medium text-amber-400 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-400/10 transition-colors flex items-center gap-1.5"
+                className="px-3 py-2 text-sm font-medium text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg hover:bg-amber-600/10 transition-colors flex items-center gap-1.5"
               >
                 <RotateCcw className="w-3.5 h-3.5" /> Retry Failed
               </button>
@@ -514,7 +514,7 @@ export const ContactImportTab: React.FC = () => {
             {pushing ? (
               <button
                 onClick={cancelPush}
-                className="px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                className="px-4 py-2 text-sm font-medium bg-red-500 text-white rounded-lg hover:bg-red-700 transition-colors"
               >
                 Cancel
               </button>
@@ -522,7 +522,7 @@ export const ContactImportTab: React.FC = () => {
               <button
                 onClick={pushToZap}
                 disabled={selectedCount === 0 || (sentCount === mappedRows.length)}
-                className="px-4 py-2 text-sm font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-40 transition-colors flex items-center gap-1.5"
+                className="px-4 py-2 text-sm font-medium bg-emerald-500 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-40 transition-colors flex items-center gap-1.5"
               >
                 <Send className="w-3.5 h-3.5" /> Push to Zap
               </button>
@@ -538,7 +538,7 @@ export const ContactImportTab: React.FC = () => {
             </div>
             <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
               <div
-                className="h-full bg-emerald-500 transition-all duration-200"
+                className="h-full bg-emerald-500/100 transition-all duration-200"
                 style={{ width: `${((pushProgress.sent + pushProgress.failed) / pushProgress.total) * 100}%` }}
               />
             </div>
@@ -546,8 +546,8 @@ export const ContactImportTab: React.FC = () => {
         )}
 
         {pushDone && !pushing && (
-          <div className="mt-3 p-2 bg-emerald-50 border border-emerald-200 rounded-lg">
-            <p className="text-sm text-emerald-700 font-medium">
+          <div className="mt-3 p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+            <p className="text-sm text-emerald-400 font-medium">
               Push complete: {pushProgress.sent} sent, {pushProgress.failed} failed
             </p>
           </div>
@@ -628,16 +628,16 @@ export const ContactImportTab: React.FC = () => {
 
       {/* Unmatched NPNs Audit */}
       {unmatchedNpns.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-amber-200 flex items-center justify-between">
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-amber-500/20 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-600" />
-              <span className="text-sm font-semibold text-amber-800">Unmatched NPNs</span>
+              <span className="text-sm font-semibold text-amber-400">Unmatched NPNs</span>
               <span className="text-xs text-amber-600">
                 {unmatchedNpns.length} NPNs ({unmatchedNpns.reduce((s, u) => s + u.clients.length, 0)} contacts not in any roster)
               </span>
             </div>
-            <button onClick={downloadUnmatchedReport} className="px-3 py-1.5 text-xs font-medium text-amber-400 bg-card border border-amber-400/30 rounded-lg hover:bg-amber-400/10 transition-colors flex items-center gap-1">
+            <button onClick={downloadUnmatchedReport} className="px-3 py-1.5 text-xs font-medium text-amber-400 bg-card border border-amber-400/30 rounded-lg hover:bg-amber-600/10 transition-colors flex items-center gap-1">
               <Download className="w-3 h-3" /> Export
             </button>
           </div>
@@ -645,7 +645,7 @@ export const ContactImportTab: React.FC = () => {
             {unmatchedNpns.map(u => (
               <div key={u.npn} className="bg-card border border-amber-400/15 rounded-lg p-3">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs font-mono font-medium text-amber-800 bg-amber-100 px-2 py-0.5 rounded">NPN: {u.npn}</span>
+                  <span className="text-xs font-mono font-medium text-amber-400 bg-amber-500/100/10 px-2 py-0.5 rounded">NPN: {u.npn}</span>
                   <span className="text-xs text-amber-600">{u.clients.length} contact{u.clients.length !== 1 ? 's' : ''}</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5">

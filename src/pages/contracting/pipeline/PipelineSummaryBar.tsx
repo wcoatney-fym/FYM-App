@@ -96,18 +96,18 @@ export function PipelineSummaryBar({ records, stageSteps }: PipelineSummaryBarPr
   );
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm mb-4 overflow-hidden">
+    <div className="bg-card rounded-xl border border-border glow-sm mb-4 overflow-hidden">
       <button
         onClick={() => setCollapsed((v) => !v)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50/50 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-background/50 transition-colors"
       >
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
-            <BarChart3 className="w-4 h-4 text-[#1e3a5f]" />
+          <div className="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center">
+            <BarChart3 className="w-4 h-4 text-primary" />
           </div>
           <div className="text-left">
-            <h3 className="text-sm font-bold text-slate-800">Pipeline Overview</h3>
-            <p className="text-[11px] text-slate-500">
+            <h3 className="text-sm font-bold text-foreground">Pipeline Overview</h3>
+            <p className="text-[11px] text-muted-foreground">
               {totalAgents} agent{totalAgents !== 1 ? 's' : ''} across{' '}
               {STAGES.length} stages
             </p>
@@ -115,22 +115,22 @@ export function PipelineSummaryBar({ records, stageSteps }: PipelineSummaryBarPr
         </div>
         <div className="flex items-center gap-3">
           {totalPendingReviews > 0 && (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-bold">
               <Bell className="w-3 h-3" />
               {totalPendingReviews} pending review
               {totalPendingReviews !== 1 ? 's' : ''}
             </span>
           )}
           {collapsed ? (
-            <ChevronDown className="w-4 h-4 text-slate-400" />
+            <ChevronDown className="w-4 h-4 text-muted-foreground/70" />
           ) : (
-            <ChevronUp className="w-4 h-4 text-slate-400" />
+            <ChevronUp className="w-4 h-4 text-muted-foreground/70" />
           )}
         </div>
       </button>
 
       {!collapsed && (
-        <div className="px-4 pb-4 space-y-4 border-t border-slate-100">
+        <div className="px-4 pb-4 space-y-4 border-t border-border/50">
           <div className="pt-3 space-y-1.5">
             {STAGES.map((stage) => {
               const count = stageCounts.get(stage.key) || 0;
@@ -154,7 +154,7 @@ export function PipelineSummaryBar({ records, stageSteps }: PipelineSummaryBarPr
               return (
                 <div key={stage.key} className="flex items-center gap-2 group">
                   <div className="w-[140px] flex-shrink-0 text-right pr-2">
-                    <span className="text-[11px] font-medium text-slate-600 truncate block">
+                    <span className="text-[11px] font-medium text-muted-foreground truncate block">
                       {stage.label}
                     </span>
                   </div>
@@ -168,7 +168,7 @@ export function PipelineSummaryBar({ records, stageSteps }: PipelineSummaryBarPr
                               ? 'bg-emerald-400'
                               : isActive
                                 ? 'bg-amber-400'
-                                : 'bg-[#1e3a5f]'
+                                : 'bg-primary'
                         }`}
                         style={{
                           width:
@@ -182,7 +182,7 @@ export function PipelineSummaryBar({ records, stageSteps }: PipelineSummaryBarPr
                         )}
                       </div>
                       {count > 0 && pct <= 15 && (
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-600 ml-[calc(8%+4px)]">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground ml-[calc(8%+4px)]">
                           {count}
                         </span>
                       )}
@@ -193,7 +193,7 @@ export function PipelineSummaryBar({ records, stageSteps }: PipelineSummaryBarPr
                         return (
                           <span
                             key={rev.key}
-                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-700 text-[9px] font-bold"
+                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[9px] font-bold"
                             title={`${rev.count} ${rev.label} — pending approval`}
                           >
                             <Icon className="w-2.5 h-2.5" />
@@ -203,7 +203,7 @@ export function PipelineSummaryBar({ records, stageSteps }: PipelineSummaryBarPr
                       })}
                       {stageWn > 0 && (
                         <span
-                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-700 text-[9px] font-bold"
+                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[9px] font-bold"
                           title={`${stageWn} agent(s) with writing numbers pending review`}
                         >
                           <PenLine className="w-2.5 h-2.5" />
@@ -218,15 +218,15 @@ export function PipelineSummaryBar({ records, stageSteps }: PipelineSummaryBarPr
           </div>
 
           {pendingReviews.length > 0 && (
-            <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
+            <div className="flex flex-wrap gap-2 pt-2 border-t border-border/50">
               {pendingReviews.map((rev) => {
                 const Icon = rev.icon;
                 return (
                   <div
                     key={rev.key}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200"
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20"
                   >
-                    <div className="w-6 h-6 rounded-md bg-amber-100 flex items-center justify-center">
+                    <div className="w-6 h-6 rounded-md bg-amber-500/100/10 flex items-center justify-center">
                       <Icon className="w-3.5 h-3.5 text-amber-600" />
                     </div>
                     <div>

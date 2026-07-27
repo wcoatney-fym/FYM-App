@@ -25,7 +25,7 @@ const priorityColors: Record<Priority, string> = {
   P1: 'bg-red-400/10 text-red-400 border-red-400/20',
   P2: 'bg-amber-400/10 text-amber-400 border-amber-400/20',
   P3: 'bg-sky-400/10 text-sky-400 border-sky-400/20',
-  P4: 'bg-slate-400/10 text-slate-400 border-slate-400/20',
+  P4: 'bg-slate-400/10 text-muted-foreground/70 border-slate-400/20',
 };
 
 const categoryColors: Record<TaskCategory, string> = {

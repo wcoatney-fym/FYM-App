@@ -44,24 +44,24 @@ const MOCK_POLICIES: PolicyRow[] = [
 
 function scoreColor(score: number, max: number) {
   const pct = (score / max) * 100;
-  if (pct >= 90) return { bar: 'bg-emerald-500', text: 'text-emerald-700' };
-  if (pct >= 75) return { bar: 'bg-blue-500',    text: 'text-blue-700' };
-  if (pct >= 60) return { bar: 'bg-amber-400',   text: 'text-amber-700' };
-  return { bar: 'bg-red-400', text: 'text-red-700' };
+  if (pct >= 90) return { bar: 'bg-emerald-500/100', text: 'text-emerald-400' };
+  if (pct >= 75) return { bar: 'bg-cyan-500/100',    text: 'text-cyan-400' };
+  if (pct >= 60) return { bar: 'bg-amber-400',   text: 'text-amber-400' };
+  return { bar: 'bg-red-400', text: 'text-red-400' };
 }
 
 function totalScoreColor(score: number) {
-  if (score >= 90) return 'text-emerald-700';
-  if (score >= 80) return 'text-blue-700';
-  if (score >= 70) return 'text-amber-700';
-  return 'text-red-700';
+  if (score >= 90) return 'text-emerald-400';
+  if (score >= 80) return 'text-cyan-400';
+  if (score >= 70) return 'text-amber-400';
+  return 'text-red-400';
 }
 
 function totalScoreBg(score: number) {
-  if (score >= 90) return 'bg-emerald-50 border-emerald-200';
-  if (score >= 80) return 'bg-blue-50 border-blue-200';
-  if (score >= 70) return 'bg-amber-50 border-amber-200';
-  return 'bg-red-50 border-red-200';
+  if (score >= 90) return 'bg-emerald-500/10 border-emerald-500/20';
+  if (score >= 80) return 'bg-cyan-500/10 border-blue-200';
+  if (score >= 70) return 'bg-amber-500/10 border-amber-500/20';
+  return 'bg-red-500/10 border-red-500/20';
 }
 
 function flagLabel(flag: string | null) {
@@ -72,9 +72,9 @@ function flagLabel(flag: string | null) {
 
 function flagColor(flag: string | null) {
   if (!flag) return '';
-  if (flag === 'payment_failed') return 'bg-red-100 text-red-700 border-red-200';
-  if (flag === 'no_contact') return 'bg-amber-100 text-amber-700 border-amber-200';
-  return 'bg-orange-100 text-orange-700 border-orange-200';
+  if (flag === 'payment_failed') return 'bg-red-100 text-red-400 border-red-500/20';
+  if (flag === 'no_contact') return 'bg-amber-500/100/10 text-amber-400 border-amber-500/20';
+  return 'bg-orange-100 text-amber-400 border-orange-200';
 }
 
 export function AgentHealthPage() {
@@ -148,13 +148,13 @@ export function AgentHealthPage() {
       <Header title="Agent Book Health" />
       <div className="p-6 space-y-5">
         {role !== 'agent' && (
-          <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors">
+          <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft size={15} /> Back
           </button>
         )}
 
         {usingMock && (
-          <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+          <div className="text-xs text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded px-3 py-2">
             ⚠ Policy cache not yet populated — showing demo data. Run the sync edge function to populate live data.
           </div>
         )}
@@ -163,33 +163,33 @@ export function AgentHealthPage() {
         <Card className={`border ${totalScoreBg(h.total_score)}`}>
           <CardContent className="p-5 flex items-center justify-between gap-4">
             <div>
-              <p className="text-lg font-semibold text-slate-900">{agentName}</p>
+              <p className="text-lg font-semibold text-foreground">{agentName}</p>
               {agentProfile?.writing_number && (
-                <p className="text-xs text-slate-500 mt-0.5">Writing # {agentProfile.writing_number}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Writing # {agentProfile.writing_number}</p>
               )}
               <div className="flex gap-3 mt-3 text-sm flex-wrap">
-                <span className="text-slate-600"><span className="font-semibold text-slate-900">{h.active_count}</span> active policies</span>
-                <span className="text-slate-400">·</span>
-                <span className="text-slate-600"><span className="font-semibold text-slate-900">${monthlyPremium.toFixed(0)}</span>/mo premium</span>
+                <span className="text-muted-foreground"><span className="font-semibold text-foreground">{h.active_count}</span> active policies</span>
+                <span className="text-muted-foreground/70">·</span>
+                <span className="text-muted-foreground"><span className="font-semibold text-foreground">${monthlyPremium.toFixed(0)}</span>/mo premium</span>
                 {atRiskPolicies.length > 0 && (
                   <>
-                    <span className="text-slate-400">·</span>
-                    <span className="text-red-600 font-medium flex items-center gap-1"><AlertTriangle size={13} /> {atRiskPolicies.length} at risk</span>
+                    <span className="text-muted-foreground/70">·</span>
+                    <span className="text-red-400 font-medium flex items-center gap-1"><AlertTriangle size={13} /> {atRiskPolicies.length} at risk</span>
                   </>
                 )}
               </div>
             </div>
             <div className="text-right flex-shrink-0">
               <p className={`text-5xl font-bold ${totalScoreColor(h.total_score)}`}>{h.total_score}</p>
-              <p className="text-xs text-slate-400 mt-1">Book Health Score</p>
+              <p className="text-xs text-muted-foreground/70 mt-1">Book Health Score</p>
             </div>
           </CardContent>
         </Card>
 
         {/* Score breakdown */}
-        <Card className="border-slate-200">
+        <Card className="border-border">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold text-slate-900">Score Breakdown</CardTitle>
+            <CardTitle className="text-base font-semibold text-foreground">Score Breakdown</CardTitle>
           </CardHeader>
           <CardContent className="space-y-5 pt-1">
             {scoreComponents.map(({ label, icon, score, max, detail }) => {
@@ -198,12 +198,12 @@ export function AgentHealthPage() {
                 <div key={label}>
                   <div className="flex items-center justify-between mb-1.5">
                     <span className={`flex items-center gap-1.5 text-sm font-medium ${colors.text}`}>{icon} {label}</span>
-                    <span className={`text-sm font-bold ${colors.text}`}>{score} <span className="text-slate-400 font-normal">/ {max}</span></span>
+                    <span className={`text-sm font-bold ${colors.text}`}>{score} <span className="text-muted-foreground/70 font-normal">/ {max}</span></span>
                   </div>
                   <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
                     <div className={`h-full rounded-full transition-all ${colors.bar}`} style={{ width: `${(score / max) * 100}%` }} />
                   </div>
-                  <p className="text-xs text-slate-400 mt-1">{detail}</p>
+                  <p className="text-xs text-muted-foreground/70 mt-1">{detail}</p>
                 </div>
               );
             })}
@@ -212,9 +212,9 @@ export function AgentHealthPage() {
 
         {/* At-risk policies */}
         {atRiskPolicies.length > 0 && (
-          <Card className="border-red-200">
+          <Card className="border-red-500/20">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base font-semibold text-red-700 flex items-center gap-2">
+              <CardTitle className="text-base font-semibold text-red-400 flex items-center gap-2">
                 <AlertTriangle size={16} /> At-Risk Policies
               </CardTitle>
             </CardHeader>
@@ -223,8 +223,8 @@ export function AgentHealthPage() {
                 {atRiskPolicies.map((p) => (
                   <div key={p.policy_number} className="flex items-center gap-3 px-4 py-3">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-900">{p.policy_number}</p>
-                      <p className="text-xs text-slate-400">{p.product_type} · ${p.plan_premium}/mo · {p.billing_mode}</p>
+                      <p className="text-sm font-medium text-foreground">{p.policy_number}</p>
+                      <p className="text-xs text-muted-foreground/70">{p.product_type} · ${p.plan_premium}/mo · {p.billing_mode}</p>
                     </div>
                     {p.flag_type && <Badge className={`text-xs border ${flagColor(p.flag_type)}`}>{flagLabel(p.flag_type)}</Badge>}
                   </div>
@@ -235,27 +235,27 @@ export function AgentHealthPage() {
         )}
 
         {/* Full policy book */}
-        <Card className="border-slate-200">
+        <Card className="border-border">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-semibold text-slate-900">Policy Book</CardTitle>
-              <Badge className="bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-100">{policies.length} policies</Badge>
+              <CardTitle className="text-base font-semibold text-foreground">Policy Book</CardTitle>
+              <Badge className="bg-slate-100 text-muted-foreground border-border hover:bg-secondary">{policies.length} policies</Badge>
             </div>
           </CardHeader>
           <CardContent className="p-0">
             <div className="divide-y divide-slate-100">
               {policies.map((p) => (
-                <div key={p.policy_number} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors">
+                <div key={p.policy_number} className="flex items-center gap-3 px-4 py-3 hover:bg-background transition-colors">
                   <div className="flex-shrink-0">
                     {p.status === 'active' && !p.is_at_risk
                       ? <CheckCircle2 size={15} className="text-emerald-500" />
                       : p.is_at_risk
                       ? <AlertTriangle size={15} className="text-red-500" />
-                      : <Clock size={15} className="text-slate-400" />}
+                      : <Clock size={15} className="text-muted-foreground/70" />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-900">{p.policy_number}</p>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-sm font-medium text-foreground">{p.policy_number}</p>
+                    <p className="text-xs text-muted-foreground/70">
                       {p.product_type} · {p.billing_mode} · {p.draft_count} draft{p.draft_count !== 1 ? 's' : ''}
                       {p.last_contact_date && ` · last contact ${p.last_contact_date}`}
                     </p>
@@ -263,8 +263,8 @@ export function AgentHealthPage() {
                   <div className="text-right flex-shrink-0 flex items-center gap-2">
                     {p.flag_type && <Badge className={`text-xs border hidden sm:inline-flex ${flagColor(p.flag_type)}`}>{flagLabel(p.flag_type)}</Badge>}
                     <div>
-                      <p className="text-sm font-semibold text-slate-800">${p.plan_premium?.toFixed(2)}</p>
-                      <p className="text-xs text-slate-400">/mo</p>
+                      <p className="text-sm font-semibold text-foreground">${p.plan_premium?.toFixed(2)}</p>
+                      <p className="text-xs text-muted-foreground/70">/mo</p>
                     </div>
                   </div>
                 </div>

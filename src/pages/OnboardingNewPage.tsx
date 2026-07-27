@@ -165,7 +165,7 @@ export function OnboardingNewPage() {
                     type="button"
                     onClick={() => setVariant(cfg.key)}
                     className={`text-left rounded-lg border px-4 py-3 transition-all ${
-                      variant === cfg.key ? 'border-blue-500 bg-blue-50' : 'border-border hover:border-foreground/30'
+                      variant === cfg.key ? 'border-blue-500 bg-cyan-500/10' : 'border-border hover:border-foreground/30'
                     }`}
                   >
                     <div className="text-sm font-medium">{cfg.label}</div>
@@ -186,7 +186,7 @@ export function OnboardingNewPage() {
                     type="button"
                     onClick={() => setCompTier(cfg.key)}
                     className={`text-center rounded-lg border px-3 py-2.5 transition-all ${
-                      compTier === cfg.key ? 'border-blue-500 bg-blue-50' : 'border-border hover:border-foreground/30'
+                      compTier === cfg.key ? 'border-blue-500 bg-cyan-500/10' : 'border-border hover:border-foreground/30'
                     }`}
                   >
                     <div className="text-sm font-medium">{cfg.label}</div>
@@ -218,7 +218,7 @@ export function OnboardingNewPage() {
             </div>
 
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800">
+              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-sm text-red-800">
                 {error}
               </div>
             )}

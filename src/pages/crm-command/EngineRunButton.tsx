@@ -44,7 +44,7 @@ export function EngineRunButton({ onRun }: Props) {
     'flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all',
     state === 'running' && 'bg-primary/10 text-primary cursor-not-allowed',
     state === 'done'    && 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20',
-    state === 'error'   && 'bg-red-500/10 text-red-400 hover:bg-red-500/20',
+    state === 'error'   && 'bg-red-500/100/10 text-red-400 hover:bg-red-500/100/20',
     state === 'idle'    && 'bg-secondary/60 hover:bg-secondary text-foreground',
   );
 
@@ -63,7 +63,7 @@ export function EngineRunButton({ onRun }: Props) {
       </div>
       <AnimatePresence>
         {expanded && result && (
-          <motion.div initial={{ opacity: 0, y: -6, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6, scale: 0.97 }} transition={{ duration: 0.15 }} className="w-72 glass rounded-xl p-4 border border-border/50 shadow-lg space-y-3 text-xs">
+          <motion.div initial={{ opacity: 0, y: -6, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6, scale: 0.97 }} transition={{ duration: 0.15 }} className="w-72 glass rounded-xl p-4 border border-border/50 glow-primary space-y-3 text-xs">
             <div className="flex items-center justify-between">
               <span className="font-semibold text-sm">Engine Run Complete</span>
               <span className="text-muted-foreground text-[10px]">{new Date(result.ranAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>

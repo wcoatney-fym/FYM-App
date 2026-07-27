@@ -130,7 +130,7 @@ export const AgencyOnboardingView: React.FC<AgencyOnboardingViewProps> = ({
             </span>
           )}
           {isTest && (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold bg-amber-100 text-amber-700 rounded-full border border-amber-200">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold bg-amber-500/100/10 text-amber-400 rounded-full border border-amber-500/20">
               <FlaskConical className="w-3 h-3" />
               Test Account
             </span>
@@ -214,7 +214,7 @@ const StepperBar: React.FC<{ agency: CrmAgency; currentIdx: number }> = ({ agenc
               <div
                 className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
                   state === 'complete'
-                    ? 'bg-emerald-500 text-white'
+                    ? 'bg-emerald-500/100 text-white'
                     : state === 'awaiting'
                     ? 'bg-amber-400/10 text-amber-400 ring-2 ring-amber-300'
                     : state === 'active'
@@ -236,9 +236,9 @@ const StepperBar: React.FC<{ agency: CrmAgency; currentIdx: number }> = ({ agenc
                 <p
                   className={`text-sm font-semibold ${
                     state === 'complete'
-                      ? 'text-emerald-700'
+                      ? 'text-emerald-400'
                       : state === 'awaiting'
-                      ? 'text-amber-700'
+                      ? 'text-amber-400'
                       : state === 'active'
                       ? 'text-primary'
                       : 'text-muted-foreground/70'
@@ -289,19 +289,19 @@ const CompletedStepCard: React.FC<{
   step: typeof STEPS[number];
   onEdit?: () => void;
 }> = ({ step, onEdit }) => (
-  <div className="bg-emerald-50/50 rounded-xl border border-emerald-200 p-6">
+  <div className="bg-emerald-500/10/50 rounded-xl border border-emerald-500/20 p-6">
     <div className="flex items-center gap-3">
-      <div className="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center">
+      <div className="w-9 h-9 rounded-lg bg-emerald-500/100/10 flex items-center justify-center">
         <CheckCircle2 className="w-5 h-5 text-emerald-600" />
       </div>
       <div className="flex-1">
-        <h3 className="font-semibold text-emerald-800">{step.label}</h3>
+        <h3 className="font-semibold text-emerald-400">{step.label}</h3>
         <p className="text-xs text-emerald-600">Confirmed</p>
       </div>
       {onEdit && (
         <button
           onClick={onEdit}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-card border border-emerald-300 rounded-lg hover:bg-emerald-100 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-400 bg-card border border-emerald-300 rounded-lg hover:bg-emerald-500/100/10 transition-colors"
         >
           <Pencil className="w-3.5 h-3.5" />
           Edit
@@ -327,7 +327,7 @@ const CompletionState: React.FC<{
 
   return (
     <div className="bg-card rounded-xl border border-border p-12 text-center">
-      <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-5">
+      <div className="w-20 h-20 rounded-full bg-emerald-500/100/10 flex items-center justify-center mx-auto mb-5">
         <CheckCircle2 className="w-10 h-10 text-emerald-600" />
       </div>
       <h3 className="text-2xl font-bold text-foreground mb-2">Onboarding Complete</h3>
@@ -345,7 +345,7 @@ const CompletionState: React.FC<{
           <button
             onClick={handleReset}
             disabled={resetting}
-            className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg hover:bg-amber-500/100/20 transition-colors disabled:opacity-50"
           >
             <RotateCcw className="w-4 h-4" />
             {resetting ? 'Resetting...' : 'Reset to Step 1'}
@@ -422,11 +422,11 @@ const TestStepControls: React.FC<{
   const nextStatus = canGoForward ? ONBOARDING_STATUSES[statusIdx + 1] : null;
 
   return (
-    <div className="bg-amber-50 rounded-xl border border-amber-200 p-4">
+    <div className="bg-amber-500/10 rounded-xl border border-amber-500/20 p-4">
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2">
           <FlaskConical className="w-4 h-4 text-amber-600" />
-          <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Test Controls</span>
+          <span className="text-xs font-semibold text-amber-400 uppercase tracking-wide">Test Controls</span>
         </div>
         <span className="text-xs text-amber-600">
           Current: {STATUS_LABELS[agency.onboarding_status] || agency.onboarding_status}
@@ -435,7 +435,7 @@ const TestStepControls: React.FC<{
           <button
             onClick={() => prevStatus && moveToStatus(prevStatus)}
             disabled={moving || !canGoBack}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-amber-700 bg-card border border-amber-300 rounded-lg hover:bg-amber-100 transition-colors disabled:opacity-40"
+            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-amber-400 bg-card border border-amber-300 rounded-lg hover:bg-amber-500/100/20 transition-colors disabled:opacity-40"
           >
             <ChevronLeft className="w-3.5 h-3.5" />
             Back
@@ -443,7 +443,7 @@ const TestStepControls: React.FC<{
           <button
             onClick={() => nextStatus && moveToStatus(nextStatus)}
             disabled={moving || !canGoForward}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-amber-700 bg-card border border-amber-300 rounded-lg hover:bg-amber-100 transition-colors disabled:opacity-40"
+            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-amber-400 bg-card border border-amber-300 rounded-lg hover:bg-amber-500/100/20 transition-colors disabled:opacity-40"
           >
             Forward
             <ChevronRight className="w-3.5 h-3.5" />
@@ -451,7 +451,7 @@ const TestStepControls: React.FC<{
           <button
             onClick={() => moveToStatus('pending_csr_assignment')}
             disabled={moving || statusIdx === 0}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 bg-card border border-red-200 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-40"
+            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-400 bg-card border border-red-500/20 rounded-lg hover:bg-red-500/20 transition-colors disabled:opacity-40"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             Reset All
@@ -523,7 +523,7 @@ const CsrStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
     <>
       <div className="bg-card rounded-xl border border-border p-6">
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-lg bg-cyan-500/10 flex items-center justify-center">
             <UserCheck className="w-5 h-5 text-primary" />
           </div>
           <div>
@@ -610,7 +610,7 @@ const CsrStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
               </div>
               <button
                 onClick={() => setShowConfirm(true)}
-                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-primary bg-blue-50 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors"
+                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-primary bg-cyan-500/10 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 Confirm CSR Assignment
@@ -760,7 +760,7 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
     <>
       <div className="bg-card rounded-xl border border-border p-6">
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-lg bg-cyan-500/10 flex items-center justify-center">
             <Phone className="w-5 h-5 text-primary" />
           </div>
           <div>
@@ -787,7 +787,7 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
                 <button
                   onClick={handleSavePhone}
                   disabled={saving === 'phone'}
-                  className="px-3 py-2.5 text-xs font-medium text-primary bg-blue-50 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+                  className="px-3 py-2.5 text-xs font-medium text-primary bg-cyan-500/10 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
                 >
                   {saving === 'phone' ? 'Saving...' : 'Save'}
                 </button>
@@ -816,7 +816,7 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
                     key={task.key}
                     className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${
                       checked
-                        ? 'bg-emerald-50 border-emerald-200'
+                        ? 'bg-emerald-500/10 border-emerald-500/20'
                         : 'bg-muted border-border hover:border-border'
                     } ${isSaving ? 'opacity-60 pointer-events-none' : ''}`}
                   >
@@ -826,7 +826,7 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
                       onChange={() => handleToggle(task.key)}
                       className="w-4.5 h-4.5 rounded border-border text-primary focus:ring-ring cursor-pointer"
                     />
-                    <span className={`text-sm font-medium flex-1 ${checked ? 'text-emerald-700 line-through' : 'text-foreground/80'}`}>
+                    <span className={`text-sm font-medium flex-1 ${checked ? 'text-emerald-400 line-through' : 'text-foreground/80'}`}>
                       {task.label}
                     </span>
                     {'link' in task && (
@@ -904,7 +904,7 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
                     <button
                       onClick={handleSaveBusinessDetails}
                       disabled={saving === 'business_details'}
-                      className="px-4 py-2 text-xs font-medium text-primary bg-blue-50 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+                      className="px-4 py-2 text-xs font-medium text-primary bg-cyan-500/10 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
                     >
                       {saving === 'business_details'
                         ? 'Saving...'
@@ -970,7 +970,7 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
                     <button
                       onClick={handleSaveCalendarUrl}
                       disabled={saving === 'calendar_url'}
-                      className="px-4 py-2 text-xs font-medium text-primary bg-blue-50 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+                      className="px-4 py-2 text-xs font-medium text-primary bg-cyan-500/10 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
                     >
                       {saving === 'calendar_url' ? 'Saving...' : 'Save Calendar & URL'}
                     </button>
@@ -992,9 +992,9 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Cross-Sell Products</span>
             </div>
             {!crossSellReady ? (
-              <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+              <div className="flex items-start gap-3 p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg">
                 <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-                <p className="text-sm text-amber-800">
+                <p className="text-sm text-amber-400">
                   Save the <span className="font-medium">Agency Phone Number</span> and <span className="font-medium">Calendar & URL Prefix</span> above before configuring cross-sell products.
                 </p>
               </div>
@@ -1002,7 +1002,7 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
               <div
                 className={`rounded-lg border transition-all ${
                   crossSellConfirmed
-                    ? 'bg-emerald-50 border-emerald-200'
+                    ? 'bg-emerald-500/10 border-emerald-500/20'
                     : 'bg-muted border-border'
                 }`}
               >
@@ -1030,7 +1030,7 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
                     }}
                     className="w-4.5 h-4.5 rounded border-border text-primary focus:ring-ring cursor-pointer"
                   />
-                  <span className={`text-sm font-medium flex-1 text-left ${crossSellConfirmed ? 'text-emerald-700 line-through' : 'text-foreground/80'}`}>
+                  <span className={`text-sm font-medium flex-1 text-left ${crossSellConfirmed ? 'text-emerald-400 line-through' : 'text-foreground/80'}`}>
                     Confirm Cross-Sell Products
                   </span>
                   <ChevronDown className={`w-4 h-4 text-muted-foreground/70 transition-transform ${crossSellExpanded ? 'rotate-180' : ''}`} />
@@ -1448,7 +1448,7 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
     <>
       <div className="bg-card rounded-xl border border-border p-6">
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-lg bg-cyan-500/10 flex items-center justify-center">
             <Upload className="w-5 h-5 text-primary" />
           </div>
           <div>
@@ -1460,7 +1460,7 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
         <div className="space-y-4">
           <button
             onClick={downloadRosterTemplate}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary bg-cyan-500/10 rounded-lg hover:bg-blue-100 transition-colors"
           >
             <Download className="w-4 h-4" />
             Download Agent Roster Template
@@ -1476,7 +1476,7 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
               <button
                 onClick={() => fileRef.current?.click()}
                 disabled={uploading}
-                className="w-full flex flex-col items-center justify-center py-8 border-2 border-dashed border-border rounded-lg hover:border-primary/40 hover:bg-blue-50/30 transition-colors cursor-pointer disabled:opacity-50"
+                className="w-full flex flex-col items-center justify-center py-8 border-2 border-dashed border-border rounded-lg hover:border-primary/40 hover:bg-cyan-500/10/30 transition-colors cursor-pointer disabled:opacity-50"
               >
                 <Upload className="w-8 h-8 text-muted-foreground/70 mb-2" />
                 <p className="text-sm font-medium text-muted-foreground">
@@ -1484,7 +1484,7 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
                 </p>
               </button>
             ) : (
-              <div className="flex items-center gap-3 p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+              <div className="flex items-center gap-3 p-4 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
                 <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
                 <div className="flex-1">
                   <p className="text-sm font-medium text-foreground">{uploadedFile.name}</p>
@@ -1499,7 +1499,7 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
                 </button>
               </div>
             )}
-            {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
+            {error && <p className="text-sm text-red-400 mt-2">{error}</p>}
           </div>
 
           {uploadedFile && (
@@ -1519,7 +1519,7 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
                 {!agency.roster_confirmed && (
                   <button
                     onClick={() => setShowConfirm(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-primary bg-blue-50 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors"
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-primary bg-cyan-500/10 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors"
                   >
                     <CheckCircle2 className="w-4 h-4" />
                     Confirm Roster Upload
@@ -1527,7 +1527,7 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
                 )}
                 <button
                   onClick={() => setShowSendBack(true)}
-                  className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg hover:bg-red-500/20 transition-colors"
                 >
                   <Undo2 className="w-4 h-4" />
                   Send Back
@@ -1536,7 +1536,7 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
                   <button
                     onClick={() => { setZapResult(null); setZapConfirmOpen(true); }}
                     disabled={zapSending}
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-amber-500 rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-amber-500/100 rounded-lg hover:bg-amber-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Zap className="w-4 h-4" />
                     {zapSending
@@ -1569,9 +1569,9 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
                     />
                   </div>
                   <div className="flex items-center gap-4 mt-1.5 text-xs text-muted-foreground">
-                    <span className="text-green-600 font-medium">{zapProgress.sent} sent</span>
+                    <span className="text-emerald-400 font-medium">{zapProgress.sent} sent</span>
                     {zapProgress.failed > 0 && (
-                      <span className="text-red-600 font-medium">{zapProgress.failed} failed</span>
+                      <span className="text-red-400 font-medium">{zapProgress.failed} failed</span>
                     )}
                   </div>
                 </div>
@@ -1580,10 +1580,10 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
               {zapResult && (
                 <div className={`mt-4 px-4 py-3 rounded-lg text-sm font-medium ${
                   zapResult.failed === 0 && zapResult.sent > 0
-                    ? 'bg-green-50 text-green-700 border border-green-200'
+                    ? 'bg-emerald-500/100/10 text-emerald-400 border border-green-200'
                     : zapResult.sent === 0
-                    ? 'bg-red-50 text-red-700 border border-red-200'
-                    : 'bg-amber-50 text-amber-700 border border-amber-200'
+                    ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+                    : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                 }`}>
                   {zapResult.sent === 0 && zapResult.failed === 0
                     ? 'Zaps are paused for this agency. No rows were sent.'
@@ -1646,7 +1646,7 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
               <button
                 onClick={handleSendBack}
                 disabled={sendingBack || !sendBackReason.trim()}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                className="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
               >
                 {sendingBack ? 'Sending...' : 'Send Back'}
               </button>
@@ -1677,7 +1677,7 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
               </button>
               <button
                 onClick={handleFireToZap}
-                className="px-4 py-2 text-sm font-medium text-white bg-amber-500 rounded-lg hover:bg-amber-600 transition-colors"
+                className="px-4 py-2 text-sm font-medium text-white bg-amber-500/100 rounded-lg hover:bg-amber-500 transition-colors"
               >
                 Send All
               </button>
@@ -1980,7 +1980,7 @@ const DbaStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
     <>
       <div className="bg-card rounded-xl border border-border p-6">
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-lg bg-cyan-500/10 flex items-center justify-center">
             <Database className="w-5 h-5 text-primary" />
           </div>
           <div>
@@ -2006,7 +2006,7 @@ const DbaStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
                 aria-checked={noDbaRequested}
                 onClick={handleToggleNoDba}
                 disabled={savingNoDba || agency.dba_confirmed}
-                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${noDbaRequested ? 'bg-emerald-500' : 'bg-muted-foreground/30'}`}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${noDbaRequested ? 'bg-emerald-500/100' : 'bg-muted-foreground/30'}`}
               >
                 <span className={`inline-block h-4 w-4 transform rounded-full bg-card transition-transform ${noDbaRequested ? 'translate-x-6' : 'translate-x-1'}`} />
               </button>
@@ -2015,7 +2015,7 @@ const DbaStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
               <button
                 onClick={handleConfirmNoDba}
                 disabled={confirming}
-                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-emerald-500 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 {confirming ? 'Completing...' : 'Approve & Complete Onboarding (No DBA)'}
@@ -2026,7 +2026,7 @@ const DbaStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
           {dbaTemplate && (
             <button
               onClick={() => downloadTemplate(dbaTemplate)}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary bg-cyan-500/10 rounded-lg hover:bg-blue-100 transition-colors"
             >
               <Download className="w-4 h-4" />
               Download DBA Template
@@ -2043,7 +2043,7 @@ const DbaStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
               <button
                 onClick={() => fileRef.current?.click()}
                 disabled={uploading}
-                className="w-full flex flex-col items-center justify-center py-8 border-2 border-dashed border-border rounded-lg hover:border-primary/40 hover:bg-blue-50/30 transition-colors cursor-pointer disabled:opacity-50"
+                className="w-full flex flex-col items-center justify-center py-8 border-2 border-dashed border-border rounded-lg hover:border-primary/40 hover:bg-cyan-500/10/30 transition-colors cursor-pointer disabled:opacity-50"
               >
                 <Upload className="w-8 h-8 text-muted-foreground/70 mb-2" />
                 <p className="text-sm font-medium text-muted-foreground">
@@ -2051,7 +2051,7 @@ const DbaStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
                 </p>
               </button>
             ) : (
-              <div className="flex items-center gap-3 p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+              <div className="flex items-center gap-3 p-4 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
                 <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
                 <div className="flex-1">
                   <p className="text-sm font-medium text-foreground">{uploadedFile.name}</p>
@@ -2066,7 +2066,7 @@ const DbaStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
                 </button>
               </div>
             )}
-            {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
+            {error && <p className="text-sm text-red-400 mt-2">{error}</p>}
           </div>
 
           {uploadedFile && (
@@ -2086,7 +2086,7 @@ const DbaStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
                 {!agency.dba_confirmed && (
                   <button
                     onClick={() => setShowConfirm(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-primary bg-blue-50 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors"
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-primary bg-cyan-500/10 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors"
                   >
                     <CheckCircle2 className="w-4 h-4" />
                     Confirm DBA Upload
@@ -2094,7 +2094,7 @@ const DbaStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
                 )}
                 <button
                   onClick={() => setShowSendBack(true)}
-                  className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg hover:bg-red-500/20 transition-colors"
                 >
                   <Undo2 className="w-4 h-4" />
                   Send Back
@@ -2119,7 +2119,7 @@ const DbaStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
             </p>
           }
           confirmLabel="Confirm & Complete"
-          confirmColor="bg-emerald-600 hover:bg-emerald-700"
+          confirmColor="bg-emerald-500 hover:bg-emerald-700"
           onConfirm={handleConfirm}
           onCancel={() => setShowConfirm(false)}
           loading={confirming}
@@ -2159,7 +2159,7 @@ const DbaStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
               <button
                 onClick={handleSendBack}
                 disabled={sendingBack || !sendBackReason.trim()}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                className="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
               >
                 {sendingBack ? 'Sending...' : 'Send Back'}
               </button>

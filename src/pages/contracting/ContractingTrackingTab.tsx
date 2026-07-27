@@ -179,9 +179,9 @@ export function ContractingTrackingTab() {
     if (sortField !== field)
       return <ArrowUpDown size={12} className="text-slate-300" />;
     return sortDir === 'asc' ? (
-      <ArrowUp size={12} className="text-[#1e3a5f]" />
+      <ArrowUp size={12} className="text-primary" />
     ) : (
-      <ArrowDown size={12} className="text-[#1e3a5f]" />
+      <ArrowDown size={12} className="text-primary" />
     );
   };
 
@@ -310,13 +310,13 @@ export function ContractingTrackingTab() {
 
   if (!portalSupabase) {
     return (
-      <Card className="border-slate-200">
+      <Card className="border-border">
         <CardContent className="p-8 text-center space-y-3">
           <AlertCircle size={28} className="text-amber-500 mx-auto" />
-          <h3 className="text-lg font-semibold text-slate-900">
+          <h3 className="text-lg font-semibold text-foreground">
             Portal Connection Required
           </h3>
-          <p className="text-sm text-slate-500 max-w-md mx-auto">
+          <p className="text-sm text-muted-foreground max-w-md mx-auto">
             Set{' '}
             <code className="bg-slate-100 px-1 py-0.5 rounded text-xs">
               VITE_PORTAL_SUPABASE_URL
@@ -337,19 +337,19 @@ export function ContractingTrackingTab() {
       {/* ── Filters Row ───────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/70" />
           <input
             type="text"
             placeholder="Search name, email, phone, code..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+            className="w-full pl-9 pr-4 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-card"
           />
         </div>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+          className="px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-card"
         >
           <option value="">All Statuses</option>
           <option value="pending">Pending</option>
@@ -361,7 +361,7 @@ export function ContractingTrackingTab() {
         <select
           value={formTypeFilter}
           onChange={(e) => setFormTypeFilter(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+          className="px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-card"
         >
           <option value="">All Form Types</option>
           {uniqueFormTypes.map((ft) => (
@@ -373,7 +373,7 @@ export function ContractingTrackingTab() {
         <select
           value={agencyFilter}
           onChange={(e) => setAgencyFilter(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+          className="px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-card"
         >
           <option value="">All Agencies</option>
           <option value="FYM">FYM</option>
@@ -383,28 +383,28 @@ export function ContractingTrackingTab() {
         <button
           onClick={exportToCSV}
           disabled={exporting || filtered.length === 0}
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-sm font-medium text-foreground/80 hover:bg-background disabled:opacity-50 transition-colors"
         >
           <FileDown size={14} />
           {exporting ? 'Exporting...' : 'CSV'}
         </button>
         <button
           onClick={() => { setLoading(true); loadAgents(); }}
-          className="p-2 rounded-lg hover:bg-slate-100 transition-colors"
+          className="p-2 rounded-lg hover:bg-secondary transition-colors"
           title="Refresh"
         >
-          <RefreshCw size={14} className={loading ? 'animate-spin text-slate-400' : 'text-slate-400'} />
+          <RefreshCw size={14} className={loading ? 'animate-spin text-muted-foreground/70' : 'text-muted-foreground/70'} />
         </button>
       </div>
 
       {/* ── Count ─────────────────────────────────────────────────────── */}
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-muted-foreground/70">
         {filtered.length} of {agents.length} agents
       </p>
 
       {/* ── Error ─────────────────────────────────────────────────────── */}
       {error && (
-        <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+        <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-sm text-red-400">
           <AlertCircle size={14} /> {error}
         </div>
       )}
@@ -417,24 +417,24 @@ export function ContractingTrackingTab() {
           ))}
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
+                <tr className="bg-background border-b border-border">
                   <th
-                    className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase cursor-pointer select-none hover:text-slate-700"
+                    className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase cursor-pointer select-none hover:text-foreground/80"
                     onClick={() => toggleSort('name')}
                   >
                     <span className="inline-flex items-center gap-1">
                       Name <SortIcon field="name" />
                     </span>
                   </th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase">
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">
                     Phone
                   </th>
                   <th
-                    className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase cursor-pointer select-none hover:text-slate-700"
+                    className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase cursor-pointer select-none hover:text-foreground/80"
                     onClick={() => toggleSort('form_type')}
                   >
                     <span className="inline-flex items-center gap-1">
@@ -442,18 +442,18 @@ export function ContractingTrackingTab() {
                     </span>
                   </th>
                   <th
-                    className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase cursor-pointer select-none hover:text-slate-700"
+                    className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase cursor-pointer select-none hover:text-foreground/80"
                     onClick={() => toggleSort('agency')}
                   >
                     <span className="inline-flex items-center gap-1">
                       Agency <SortIcon field="agency" />
                     </span>
                   </th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase">
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">
                     Code
                   </th>
                   <th
-                    className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase cursor-pointer select-none hover:text-slate-700"
+                    className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase cursor-pointer select-none hover:text-foreground/80"
                     onClick={() => toggleSort('status')}
                   >
                     <span className="inline-flex items-center gap-1">
@@ -461,14 +461,14 @@ export function ContractingTrackingTab() {
                     </span>
                   </th>
                   <th
-                    className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase cursor-pointer select-none hover:text-slate-700"
+                    className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase cursor-pointer select-none hover:text-foreground/80"
                     onClick={() => toggleSort('date_sent')}
                   >
                     <span className="inline-flex items-center gap-1">
                       Sent <SortIcon field="date_sent" />
                     </span>
                   </th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-slate-500 uppercase">
+                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">
                     Completed
                   </th>
                 </tr>
@@ -478,7 +478,7 @@ export function ContractingTrackingTab() {
                   <tr>
                     <td
                       colSpan={8}
-                      className="px-4 py-8 text-center text-slate-400"
+                      className="px-4 py-8 text-center text-muted-foreground/70"
                     >
                       No agents match the current filters.
                     </td>
@@ -487,45 +487,45 @@ export function ContractingTrackingTab() {
                   paginated.map((agent) => (
                     <tr
                       key={agent.id}
-                      className="hover:bg-slate-50 transition-colors cursor-pointer"
+                      className="hover:bg-background transition-colors cursor-pointer"
                       onClick={() => openDetailModal(agent)}
                     >
-                      <td className="px-4 py-3 font-medium text-slate-900 whitespace-nowrap">
+                      <td className="px-4 py-3 font-medium text-foreground whitespace-nowrap">
                         <span className="inline-flex items-center gap-1.5">
                           {agent.first_name} {agent.last_name}
                           <Eye size={12} className="text-slate-300" />
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                         {formatPhoneDisplay(agent.phone)}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-foreground/80">
                           {FORM_TYPE_LABELS[agent.form_type] ?? agent.form_type}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                         {agent.agency}
                       </td>
-                      <td className="px-4 py-3 font-mono text-xs text-slate-600 whitespace-nowrap">
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground whitespace-nowrap">
                         {agent.security_code}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span
                           className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
-                            STATUS_COLORS[agent.status] ?? 'bg-slate-100 text-slate-600'
+                            STATUS_COLORS[agent.status] ?? 'bg-slate-100 text-muted-foreground'
                           }`}
                         >
                           {agent.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
+                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                         {new Date(agent.date_sent).toLocaleDateString('en-US', {
                           month: 'short',
                           day: 'numeric',
                         })}
                       </td>
-                      <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
+                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                         {agent.date_completed
                           ? new Date(agent.date_completed).toLocaleDateString(
                               'en-US',
@@ -545,26 +545,26 @@ export function ContractingTrackingTab() {
       {/* ── Pagination ─────────────────────────────────────────────── */}
       {!loading && totalPages > 1 && (
         <div className="flex items-center justify-between pt-2">
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-muted-foreground/70">
             Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
           </p>
           <div className="flex items-center gap-1">
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="p-1.5 rounded-lg hover:bg-slate-100 disabled:opacity-30 transition-colors"
+              className="p-1.5 rounded-lg hover:bg-secondary disabled:opacity-30 transition-colors"
             >
-              <ChevronLeft size={14} className="text-slate-600" />
+              <ChevronLeft size={14} className="text-muted-foreground" />
             </button>
-            <span className="text-xs text-slate-600 px-2">
+            <span className="text-xs text-muted-foreground px-2">
               {page} / {totalPages}
             </span>
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
-              className="p-1.5 rounded-lg hover:bg-slate-100 disabled:opacity-30 transition-colors"
+              className="p-1.5 rounded-lg hover:bg-secondary disabled:opacity-30 transition-colors"
             >
-              <ChevronRight size={14} className="text-slate-600" />
+              <ChevronRight size={14} className="text-muted-foreground" />
             </button>
           </div>
         </div>
@@ -576,15 +576,15 @@ export function ContractingTrackingTab() {
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
           onClick={(e) => { if (e.target === e.currentTarget) closeDetailModal(); }}
         >
-          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-card rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             {/* Header */}
-            <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center rounded-t-xl z-10">
-              <h2 className="text-lg font-bold text-slate-900">Agent Details</h2>
+            <div className="sticky top-0 bg-card border-b border-border px-6 py-4 flex justify-between items-center rounded-t-xl z-10">
+              <h2 className="text-lg font-bold text-foreground">Agent Details</h2>
               <button
                 onClick={closeDetailModal}
-                className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors"
+                className="p-1.5 hover:bg-secondary rounded-lg transition-colors"
               >
-                <X size={18} className="text-slate-400" />
+                <X size={18} className="text-muted-foreground/70" />
               </button>
             </div>
 
@@ -597,108 +597,108 @@ export function ContractingTrackingTab() {
             ) : (
               <div className="p-6 space-y-5">
                 {/* Agent Summary */}
-                <div className="bg-slate-50 rounded-lg p-4">
-                  <h3 className="text-sm font-semibold text-slate-900 mb-3">Agent Summary</h3>
+                <div className="bg-background rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-foreground mb-3">Agent Summary</h3>
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
-                      <span className="text-slate-500">Name</span>
-                      <p className="font-medium text-slate-900">{selectedAgent.first_name} {selectedAgent.last_name}</p>
+                      <span className="text-muted-foreground">Name</span>
+                      <p className="font-medium text-foreground">{selectedAgent.first_name} {selectedAgent.last_name}</p>
                     </div>
                     <div>
-                      <span className="text-slate-500">Phone</span>
-                      <p className="font-medium text-slate-900">{formatPhoneDisplay(selectedAgent.phone)}</p>
+                      <span className="text-muted-foreground">Phone</span>
+                      <p className="font-medium text-foreground">{formatPhoneDisplay(selectedAgent.phone)}</p>
                     </div>
                     <div>
-                      <span className="text-slate-500">Email</span>
-                      <p className="font-medium text-slate-900">{selectedAgent.email}</p>
+                      <span className="text-muted-foreground">Email</span>
+                      <p className="font-medium text-foreground">{selectedAgent.email}</p>
                     </div>
                     <div>
-                      <span className="text-slate-500">Form Type</span>
-                      <p className="font-medium text-slate-900">{FORM_TYPE_LABELS[selectedAgent.form_type] ?? selectedAgent.form_type}</p>
+                      <span className="text-muted-foreground">Form Type</span>
+                      <p className="font-medium text-foreground">{FORM_TYPE_LABELS[selectedAgent.form_type] ?? selectedAgent.form_type}</p>
                     </div>
                     <div>
-                      <span className="text-slate-500">Agency</span>
-                      <p className="font-medium text-slate-900">{selectedAgent.agency}</p>
+                      <span className="text-muted-foreground">Agency</span>
+                      <p className="font-medium text-foreground">{selectedAgent.agency}</p>
                     </div>
                     <div>
-                      <span className="text-slate-500">Security Code</span>
-                      <p className="font-medium font-mono text-slate-900">{selectedAgent.security_code}</p>
+                      <span className="text-muted-foreground">Security Code</span>
+                      <p className="font-medium font-mono text-foreground">{selectedAgent.security_code}</p>
                     </div>
                     <div>
-                      <span className="text-slate-500">Status</span>
+                      <span className="text-muted-foreground">Status</span>
                       <p>
-                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLORS[selectedAgent.status] ?? 'bg-slate-100 text-slate-600'}`}>
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLORS[selectedAgent.status] ?? 'bg-slate-100 text-muted-foreground'}`}>
                           {selectedAgent.status}
                         </span>
                       </p>
                     </div>
                     <div>
-                      <span className="text-slate-500">Sent</span>
-                      <p className="font-medium text-slate-900">{formatDate(selectedAgent.date_sent)}</p>
+                      <span className="text-muted-foreground">Sent</span>
+                      <p className="font-medium text-foreground">{formatDate(selectedAgent.date_sent)}</p>
                     </div>
                   </div>
                 </div>
 
                 {/* Submission Data */}
-                <div className="bg-slate-50 rounded-lg p-4">
-                  <h3 className="text-sm font-semibold text-slate-900 mb-3">Form Submission Data</h3>
+                <div className="bg-background rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-foreground mb-3">Form Submission Data</h3>
                   {submission ? (
                     <div className="grid grid-cols-2 gap-3 text-sm">
                       {submission.agent_type && (
                         <div>
-                          <span className="text-slate-500">Agent Type</span>
-                          <p className="font-medium text-slate-900">{submission.agent_type}</p>
+                          <span className="text-muted-foreground">Agent Type</span>
+                          <p className="font-medium text-foreground">{submission.agent_type}</p>
                         </div>
                       )}
                       <div>
-                        <span className="text-slate-500">Date of Birth</span>
-                        <p className="font-medium text-slate-900">{submission.date_of_birth}</p>
+                        <span className="text-muted-foreground">Date of Birth</span>
+                        <p className="font-medium text-foreground">{submission.date_of_birth}</p>
                       </div>
                       <div>
-                        <span className="text-slate-500">SSN</span>
-                        <p className="font-medium font-mono text-slate-900">
+                        <span className="text-muted-foreground">SSN</span>
+                        <p className="font-medium font-mono text-foreground">
                           {submission.ssn.length >= 9
                             ? `${submission.ssn.slice(0, 3)}-${submission.ssn.slice(3, 5)}-${submission.ssn.slice(5, 9)}`
                             : submission.ssn}
                         </p>
                       </div>
                       <div>
-                        <span className="text-slate-500">NPN</span>
-                        <p className="font-medium text-slate-900">{submission.npn}</p>
+                        <span className="text-muted-foreground">NPN</span>
+                        <p className="font-medium text-foreground">{submission.npn}</p>
                       </div>
                       <div className="col-span-2">
-                        <span className="text-slate-500">Address</span>
-                        <p className="font-medium text-slate-900">
+                        <span className="text-muted-foreground">Address</span>
+                        <p className="font-medium text-foreground">
                           {submission.address}, {submission.city}, {submission.state} {submission.postal_code}
                         </p>
                       </div>
                       <div>
-                        <span className="text-slate-500">Resident License</span>
-                        <p className="font-medium text-slate-900">{submission.resident_license_number}</p>
+                        <span className="text-muted-foreground">Resident License</span>
+                        <p className="font-medium text-foreground">{submission.resident_license_number}</p>
                       </div>
                       <div>
-                        <span className="text-slate-500">Resident State</span>
-                        <p className="font-medium text-slate-900">{submission.resident_state}</p>
+                        <span className="text-muted-foreground">Resident State</span>
+                        <p className="font-medium text-foreground">{submission.resident_state}</p>
                       </div>
                       <div>
-                        <span className="text-slate-500">Release Needed</span>
-                        <p className="font-medium text-slate-900">{submission.release_needed}</p>
+                        <span className="text-muted-foreground">Release Needed</span>
+                        <p className="font-medium text-foreground">{submission.release_needed}</p>
                       </div>
                       {submission.ctm_acknowledgment && (
                         <div>
-                          <span className="text-slate-500">CTM Acknowledgment</span>
-                          <p className="font-medium text-slate-900">{submission.ctm_acknowledgment}</p>
+                          <span className="text-muted-foreground">CTM Acknowledgment</span>
+                          <p className="font-medium text-foreground">{submission.ctm_acknowledgment}</p>
                         </div>
                       )}
                       {submission.gender && (
                         <div>
-                          <span className="text-slate-500">Gender</span>
-                          <p className="font-medium text-slate-900">{submission.gender}</p>
+                          <span className="text-muted-foreground">Gender</span>
+                          <p className="font-medium text-foreground">{submission.gender}</p>
                         </div>
                       )}
                       <div className="col-span-2">
-                        <span className="text-slate-500">State Licenses</span>
-                        <p className="font-medium text-slate-900">
+                        <span className="text-muted-foreground">State Licenses</span>
+                        <p className="font-medium text-foreground">
                           {Array.isArray(submission.state_licenses) && submission.state_licenses.length > 0
                             ? submission.state_licenses.join(', ')
                             : 'None'}
@@ -706,7 +706,7 @@ export function ContractingTrackingTab() {
                       </div>
                     </div>
                   ) : (
-                    <p className="text-sm text-slate-400 text-center py-4">
+                    <p className="text-sm text-muted-foreground/70 text-center py-4">
                       {selectedAgent.status === 'pending' && 'Form not yet submitted'}
                       {selectedAgent.status === 'in-progress' && 'Form in progress — not yet submitted'}
                       {selectedAgent.status === 'expired' && 'Form link expired — no submission received'}
@@ -717,19 +717,19 @@ export function ContractingTrackingTab() {
                 </div>
 
                 {/* Uploaded Files */}
-                <div className="bg-slate-50 rounded-lg p-4">
-                  <h3 className="text-sm font-semibold text-slate-900 mb-3">Uploaded Files</h3>
+                <div className="bg-background rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-foreground mb-3">Uploaded Files</h3>
                   {files.length > 0 ? (
                     <div className="space-y-2">
                       {files.map((file) => (
                         <div
                           key={file.id}
-                          className="flex items-center justify-between p-2.5 bg-white rounded-lg border border-slate-200"
+                          className="flex items-center justify-between p-2.5 bg-card rounded-lg border border-border"
                         >
-                          <span className="text-sm text-slate-700 truncate">{file.file_name}</span>
+                          <span className="text-sm text-foreground/80 truncate">{file.file_name}</span>
                           <button
                             onClick={() => downloadFile(file)}
-                            className="inline-flex items-center gap-1 text-xs font-medium text-[#1e3a5f] hover:text-[#162d4a] transition-colors shrink-0 ml-3"
+                            className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-[#162d4a] transition-colors shrink-0 ml-3"
                           >
                             <Download size={12} /> Download
                           </button>
@@ -737,7 +737,7 @@ export function ContractingTrackingTab() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-slate-400 text-center py-4">No files uploaded</p>
+                    <p className="text-sm text-muted-foreground/70 text-center py-4">No files uploaded</p>
                   )}
                 </div>
               </div>

@@ -323,7 +323,7 @@ export const AgenciesTab: React.FC = () => {
                             )}
                           </div>
                           {agency.is_test && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-700 rounded border border-amber-200">
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold bg-amber-500/100/10 text-amber-400 rounded border border-amber-500/20">
                               <FlaskConical className="w-2.5 h-2.5" />
                               Test
                             </span>
@@ -402,7 +402,7 @@ export const AgenciesTab: React.FC = () => {
                         <button
                           onClick={(e) => toggleActive(agency, e)}
                           className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                            agency.is_active ? 'bg-emerald-500' : 'bg-muted-foreground/40'
+                            agency.is_active ? 'bg-emerald-500/100' : 'bg-muted-foreground/40'
                           }`}
                         >
                           <span
@@ -436,7 +436,7 @@ export const AgenciesTab: React.FC = () => {
           <div className="bg-card rounded-2xl shadow-none w-full max-w-lg border border-border" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-lg bg-cyan-500/10 flex items-center justify-center">
                   <UserCheck className="w-5 h-5 text-primary" />
                 </div>
                 <div>
@@ -534,7 +534,7 @@ export const AgenciesTab: React.FC = () => {
           <div className="bg-card rounded-2xl shadow-none w-full max-w-sm border border-border" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center">
                   <Phone className="w-5 h-5 text-emerald-600" />
                 </div>
                 <div>

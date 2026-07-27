@@ -15,10 +15,10 @@ const skillColors: Record<SkillCategoryKey, string> = {
   recruiting: 'bg-green-400', retention: 'bg-rose-400', ghl: 'bg-violet-400',
 };
 const confidenceStyle: Record<string, string> = {
-  low: 'text-slate-400', medium: 'text-sky-400', high: 'text-emerald-400',
+  low: 'text-muted-foreground/70', medium: 'text-sky-400', high: 'text-emerald-400',
 };
 const statusColors: Record<string, string> = {
-  backlog: 'bg-slate-400/10 text-slate-400', todo: 'bg-sky-400/10 text-sky-400',
+  backlog: 'bg-slate-400/10 text-muted-foreground/70', todo: 'bg-sky-400/10 text-sky-400',
   in_progress: 'bg-amber-400/10 text-amber-400', review: 'bg-purple-400/10 text-purple-400',
   done: 'bg-emerald-400/10 text-emerald-400',
 };

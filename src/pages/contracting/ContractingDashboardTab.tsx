@@ -203,23 +203,23 @@ export function ContractingDashboardTab() {
         count: counts.newHires,
         icon: Users,
         accent: 'text-amber-600',
-        bg: 'bg-amber-50',
-        border: 'border-amber-200',
+        bg: 'bg-amber-500/10',
+        border: 'border-amber-500/20',
       },
       {
         title: 'Pending Verification',
         count: counts.pending,
         icon: Clock,
         accent: 'text-yellow-600',
-        bg: 'bg-yellow-50',
+        bg: 'bg-amber-500/100/10',
         border: 'border-yellow-200',
       },
       {
         title: 'In Progress',
         count: counts.inProgress,
         icon: FileText,
-        accent: 'text-blue-600',
-        bg: 'bg-blue-50',
+        accent: 'text-cyan-400',
+        bg: 'bg-cyan-500/10',
         border: 'border-blue-200',
       },
       {
@@ -227,8 +227,8 @@ export function ContractingDashboardTab() {
         count: counts.completed,
         icon: CheckCircle,
         accent: 'text-emerald-600',
-        bg: 'bg-emerald-50',
-        border: 'border-emerald-200',
+        bg: 'bg-emerald-500/10',
+        border: 'border-emerald-500/20',
       },
     ],
     [counts]
@@ -238,13 +238,13 @@ export function ContractingDashboardTab() {
 
   if (!portalSupabase) {
     return (
-      <Card className="border-slate-200">
+      <Card className="border-border">
         <CardContent className="p-8 text-center space-y-3">
           <AlertCircle size={28} className="text-amber-500 mx-auto" />
-          <h3 className="text-lg font-semibold text-slate-900">
+          <h3 className="text-lg font-semibold text-foreground">
             Portal Connection Required
           </h3>
-          <p className="text-sm text-slate-500 max-w-md mx-auto">
+          <p className="text-sm text-muted-foreground max-w-md mx-auto">
             Set <code className="bg-slate-100 px-1 py-0.5 rounded text-xs">VITE_PORTAL_SUPABASE_URL</code> and{' '}
             <code className="bg-slate-100 px-1 py-0.5 rounded text-xs">VITE_PORTAL_SUPABASE_KEY</code> in
             Netlify to connect the contracting dashboard to the portal database.
@@ -274,16 +274,16 @@ export function ContractingDashboardTab() {
 
   if (error) {
     return (
-      <Card className="border-red-200">
+      <Card className="border-red-500/20">
         <CardContent className="p-8 text-center space-y-3">
           <AlertCircle size={28} className="text-red-500 mx-auto" />
-          <h3 className="text-lg font-semibold text-slate-900">
+          <h3 className="text-lg font-semibold text-foreground">
             Connection Error
           </h3>
-          <p className="text-sm text-slate-500">{error}</p>
+          <p className="text-sm text-muted-foreground">{error}</p>
           <button
             onClick={loadData}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-[#1e3a5f] text-white text-sm font-medium hover:bg-[#162d4a] transition-colors"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-primary text-white text-sm font-medium hover:bg-primary/80 transition-colors"
           >
             <RefreshCw size={14} /> Retry
           </button>
@@ -304,14 +304,14 @@ export function ContractingDashboardTab() {
             </div>
             <button
               onClick={loadData}
-              className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+              className="p-1.5 rounded-lg hover:bg-card/10 transition-colors"
               title="Refresh data"
             >
               <RefreshCw size={14} className="text-white/60" />
             </button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+            <div className="bg-card/10 backdrop-blur-sm rounded-xl p-6 border border-white/10">
               <div className="flex items-center mb-3">
                 <div className="p-2 bg-amber-400/20 rounded-lg mr-3">
                   <UserPlus size={18} className="text-amber-300" />
@@ -327,7 +327,7 @@ export function ContractingDashboardTab() {
                 All-time new hire entries
               </p>
             </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+            <div className="bg-card/10 backdrop-blur-sm rounded-xl p-6 border border-white/10">
               <div className="flex items-center mb-3">
                 <div className="p-2 bg-amber-400/20 rounded-lg mr-3">
                   <Mail size={18} className="text-amber-300" />
@@ -343,7 +343,7 @@ export function ContractingDashboardTab() {
                 Total forms sent to agents
               </p>
             </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+            <div className="bg-card/10 backdrop-blur-sm rounded-xl p-6 border border-white/10">
               <div className="flex items-center mb-3">
                 <div className="p-2 bg-amber-400/20 rounded-lg mr-3">
                   <CheckCircle size={18} className="text-amber-300" />
@@ -368,7 +368,7 @@ export function ContractingDashboardTab() {
         {kpiCards.map((card) => (
           <Card
             key={card.title}
-            className={`${card.border} hover:shadow-md transition-shadow`}
+            className={`${card.border} hover:glow-primary transition-shadow`}
           >
             <CardContent className="p-5">
               <div className="flex items-center justify-between mb-3">
@@ -379,7 +379,7 @@ export function ContractingDashboardTab() {
                   {card.count.toLocaleString()}
                 </span>
               </div>
-              <h3 className="text-slate-600 text-sm font-medium">
+              <h3 className="text-muted-foreground text-sm font-medium">
                 {card.title}
               </h3>
             </CardContent>
@@ -387,7 +387,7 @@ export function ContractingDashboardTab() {
         ))}
       </div>
 
-      <p className="text-xs text-slate-400">
+      <p className="text-xs text-muted-foreground/70">
         Last updated{' '}
         {new Intl.DateTimeFormat('en-US', {
           timeZone: 'America/Chicago',
@@ -399,9 +399,9 @@ export function ContractingDashboardTab() {
       </p>
 
       {/* ── Agency Performance ─────────────────────────────────────────── */}
-      <Card className="border-slate-200">
+      <Card className="border-border">
         <CardContent className="p-6">
-          <h2 className="text-lg font-bold text-slate-900 mb-5">
+          <h2 className="text-lg font-bold text-foreground mb-5">
             Agency Performance
           </h2>
           <div className="space-y-3">
@@ -410,7 +410,7 @@ export function ContractingDashboardTab() {
               return (
                 <div
                   key={agency.value}
-                  className="border border-slate-200 rounded-xl overflow-hidden"
+                  className="border border-border rounded-xl overflow-hidden"
                 >
                   <button
                     onClick={() =>
@@ -418,8 +418,8 @@ export function ContractingDashboardTab() {
                     }
                     className={`w-full flex items-center justify-between px-5 py-4 text-left transition-all duration-200 ${
                       isExpanded
-                        ? 'bg-[#1e3a5f] text-white'
-                        : 'bg-white hover:bg-slate-50 text-slate-900'
+                        ? 'bg-primary text-white'
+                        : 'bg-card hover:bg-background text-foreground'
                     }`}
                   >
                     <span className="text-base font-semibold">
@@ -428,12 +428,12 @@ export function ContractingDashboardTab() {
                     {isExpanded ? (
                       <ChevronUp size={18} />
                     ) : (
-                      <ChevronDown size={18} className="text-slate-400" />
+                      <ChevronDown size={18} className="text-muted-foreground/70" />
                     )}
                   </button>
 
                   {isExpanded && (
-                    <div className="p-5 bg-slate-50 border-t border-slate-200">
+                    <div className="p-5 bg-background border-t border-border">
                       {agencyLoading ? (
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                           {[1, 2, 3, 4].map((i) => (
@@ -445,64 +445,64 @@ export function ContractingDashboardTab() {
                         </div>
                       ) : agencyData ? (
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                          <div className="bg-white rounded-xl p-5 border border-slate-200">
+                          <div className="bg-card rounded-xl p-5 border border-border">
                             <div className="flex items-center mb-3">
-                              <div className="p-2 bg-blue-50 rounded-lg mr-3">
-                                <Mail size={14} className="text-blue-600" />
+                              <div className="p-2 bg-cyan-500/10 rounded-lg mr-3">
+                                <Mail size={14} className="text-cyan-400" />
                               </div>
-                              <span className="text-xs font-medium text-slate-600">
+                              <span className="text-xs font-medium text-muted-foreground">
                                 Forms Sent
                               </span>
                             </div>
-                            <div className="text-2xl font-bold text-slate-900">
+                            <div className="text-2xl font-bold text-foreground">
                               {agencyData.formsSent}
                             </div>
                           </div>
-                          <div className="bg-white rounded-xl p-5 border border-yellow-200">
+                          <div className="bg-card rounded-xl p-5 border border-yellow-200">
                             <div className="flex items-center mb-3">
-                              <div className="p-2 bg-yellow-50 rounded-lg mr-3">
+                              <div className="p-2 bg-amber-500/100/10 rounded-lg mr-3">
                                 <Clock
                                   size={14}
                                   className="text-yellow-600"
                                 />
                               </div>
-                              <span className="text-xs font-medium text-slate-600">
+                              <span className="text-xs font-medium text-muted-foreground">
                                 Pending
                               </span>
                             </div>
-                            <div className="text-2xl font-bold text-yellow-700">
+                            <div className="text-2xl font-bold text-amber-400">
                               {agencyData.pending}
                             </div>
                           </div>
-                          <div className="bg-white rounded-xl p-5 border border-blue-200">
+                          <div className="bg-card rounded-xl p-5 border border-blue-200">
                             <div className="flex items-center mb-3">
-                              <div className="p-2 bg-blue-50 rounded-lg mr-3">
+                              <div className="p-2 bg-cyan-500/10 rounded-lg mr-3">
                                 <FileText
                                   size={14}
-                                  className="text-blue-600"
+                                  className="text-cyan-400"
                                 />
                               </div>
-                              <span className="text-xs font-medium text-slate-600">
+                              <span className="text-xs font-medium text-muted-foreground">
                                 In Progress
                               </span>
                             </div>
-                            <div className="text-2xl font-bold text-blue-700">
+                            <div className="text-2xl font-bold text-cyan-400">
                               {agencyData.inProgress}
                             </div>
                           </div>
-                          <div className="bg-white rounded-xl p-5 border border-emerald-200">
+                          <div className="bg-card rounded-xl p-5 border border-emerald-500/20">
                             <div className="flex items-center mb-3">
-                              <div className="p-2 bg-emerald-50 rounded-lg mr-3">
+                              <div className="p-2 bg-emerald-500/10 rounded-lg mr-3">
                                 <CheckCircle
                                   size={14}
                                   className="text-emerald-600"
                                 />
                               </div>
-                              <span className="text-xs font-medium text-slate-600">
+                              <span className="text-xs font-medium text-muted-foreground">
                                 Completed
                               </span>
                             </div>
-                            <div className="text-2xl font-bold text-emerald-700">
+                            <div className="text-2xl font-bold text-emerald-400">
                               {agencyData.completed}
                             </div>
                             <p className="text-xs text-emerald-600 font-medium mt-1">
@@ -521,9 +521,9 @@ export function ContractingDashboardTab() {
       </Card>
 
       {/* ── Recent Activity ────────────────────────────────────────────── */}
-      <Card className="border-slate-200">
+      <Card className="border-border">
         <CardContent className="p-6">
-          <h2 className="text-base font-bold text-slate-900 mb-4">
+          <h2 className="text-base font-bold text-foreground mb-4">
             Recent Activity
           </h2>
           <div className="space-y-3 max-h-64 overflow-auto">
@@ -531,16 +531,16 @@ export function ContractingDashboardTab() {
               activities.map((activity) => (
                 <div
                   key={activity.id}
-                  className="pb-3 border-b border-slate-100 last:border-0"
+                  className="pb-3 border-b border-border/50 last:border-0"
                 >
-                  <p className="text-sm text-slate-800">{activity.details}</p>
-                  <p className="text-xs text-slate-400 mt-1">
+                  <p className="text-sm text-foreground">{activity.details}</p>
+                  <p className="text-xs text-muted-foreground/70 mt-1">
                     {timeAgo(activity.created_at)}
                   </p>
                 </div>
               ))
             ) : (
-              <p className="text-sm text-slate-400 text-center py-4">
+              <p className="text-sm text-muted-foreground/70 text-center py-4">
                 No recent activity
               </p>
             )}

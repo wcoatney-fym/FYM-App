@@ -61,15 +61,15 @@ interface CancellationRow {
 
 
 const STATUS_COLUMNS: { key: CrmTicket['status']; label: string; color: string; headerBg: string; icon: React.FC<{ className?: string }> }[] = [
-  { key: 'open', label: 'Open', color: 'border-blue-200', headerBg: 'bg-blue-50', icon: AlertCircle },
-  { key: 'in-progress', label: 'In Progress', color: 'border-amber-200', headerBg: 'bg-amber-50', icon: Loader2 },
-  { key: 'resolved', label: 'Resolved', color: 'border-emerald-200', headerBg: 'bg-emerald-50', icon: CheckCircle2 },
+  { key: 'open', label: 'Open', color: 'border-blue-200', headerBg: 'bg-cyan-500/10', icon: AlertCircle },
+  { key: 'in-progress', label: 'In Progress', color: 'border-amber-500/20', headerBg: 'bg-amber-500/10', icon: Loader2 },
+  { key: 'resolved', label: 'Resolved', color: 'border-emerald-500/20', headerBg: 'bg-emerald-500/10', icon: CheckCircle2 },
 ];
 
 const PRIORITY_CONFIG: Record<string, { label: string; dot: string }> = {
   low: { label: 'Low', dot: 'bg-muted-foreground' },
-  normal: { label: 'Normal', dot: 'bg-blue-500' },
-  high: { label: 'High', dot: 'bg-red-500' },
+  normal: { label: 'Normal', dot: 'bg-cyan-500/100' },
+  high: { label: 'High', dot: 'bg-red-500/100' },
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -323,7 +323,7 @@ const SpecialistChangeRequestsSection: React.FC = () => {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
                   <span className="text-sm font-medium text-foreground">{req.agency_name}</span>
-                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                  <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
                     Product #{req.product_number}
                   </span>
                 </div>
@@ -341,7 +341,7 @@ const SpecialistChangeRequestsSection: React.FC = () => {
                   <button
                     onClick={() => handleCalendarAdded(req)}
                     disabled={processing === req.id}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-cyan-400 bg-cyan-500/10 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
                   >
                     <Calendar className="w-3.5 h-3.5" />
                     Calendar Added
@@ -351,7 +351,7 @@ const SpecialistChangeRequestsSection: React.FC = () => {
                   <button
                     onClick={() => handleConfirm(req)}
                     disabled={processing === req.id}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-emerald-500 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50"
                   >
                     <UserCheck className="w-3.5 h-3.5" />
                     Confirm Change
@@ -490,7 +490,7 @@ const CancellationApprovalsSection: React.FC = () => {
       >
         <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`} />
         <h3 className="text-sm font-bold text-muted-foreground">Cancellation Uploads Pending Approval</h3>
-        <span className="ml-2 px-2.5 py-0.5 text-[11px] font-bold bg-amber-100 text-amber-700 rounded-full">
+        <span className="ml-2 px-2.5 py-0.5 text-[11px] font-bold bg-amber-500/100/10 text-amber-400 rounded-full">
           {pending.length}
         </span>
       </button>
@@ -528,7 +528,7 @@ const CancellationApprovalsSection: React.FC = () => {
               <button
                 onClick={handleReject}
                 disabled={submittingReject || !rejectReason.trim()}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                className="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
               >
                 {submittingReject ? 'Rejecting...' : 'Reject Upload'}
               </button>
@@ -540,7 +540,7 @@ const CancellationApprovalsSection: React.FC = () => {
       {expanded && (
         <div className="space-y-3">
           {pending.map(upload => (
-            <div key={upload.id} className="bg-card rounded-xl border border-amber-200 shadow-none overflow-hidden hover:shadow-none transition-shadow duration-200">
+            <div key={upload.id} className="bg-card rounded-xl border border-amber-500/20 shadow-none overflow-hidden hover:shadow-none transition-shadow duration-200">
               <div className="px-4 py-3 flex items-center gap-3">
                 <FileText className="w-5 h-5 text-amber-600 shrink-0" />
                 <div className="flex-1 min-w-0">
@@ -566,7 +566,7 @@ const CancellationApprovalsSection: React.FC = () => {
                   <button
                     onClick={() => setRejectingUpload(upload)}
                     disabled={processingId === upload.id}
-                    className="px-2.5 py-1.5 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition-colors disabled:opacity-50"
+                    className="px-2.5 py-1.5 text-xs font-medium text-red-400 bg-red-500/10 border border-red-500/20 rounded-md hover:bg-red-500/20 transition-colors disabled:opacity-50"
                   >
                     <XCircle className="w-3.5 h-3.5 inline -mt-0.5 mr-1" />
                     Reject
@@ -574,7 +574,7 @@ const CancellationApprovalsSection: React.FC = () => {
                   <button
                     onClick={() => handleConfirm(upload)}
                     disabled={processingId === upload.id}
-                    className="px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                    className="px-3 py-1.5 text-xs font-medium text-white bg-emerald-500 rounded-md hover:bg-emerald-700 transition-colors disabled:opacity-50"
                   >
                     {processingId === upload.id ? (
                       <Loader2 className="w-3.5 h-3.5 animate-spin inline" />
@@ -589,7 +589,7 @@ const CancellationApprovalsSection: React.FC = () => {
               </div>
 
               {previewUploadId === upload.id && (
-                <div className="border-t border-amber-100 bg-amber-50/30 px-4 py-3">
+                <div className="border-t border-amber-100 bg-amber-500/10/30 px-4 py-3">
                   {loadingPreview ? (
                     <div className="text-center py-3">
                       <Loader2 className="w-4 h-4 animate-spin text-muted-foreground mx-auto" />
@@ -599,7 +599,7 @@ const CancellationApprovalsSection: React.FC = () => {
                   ) : (
                     <table className="w-full text-xs">
                       <thead>
-                        <tr className="border-b border-amber-200">
+                        <tr className="border-b border-amber-500/20">
                           <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">First Name</th>
                           <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Last Name</th>
                           <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Phone</th>
@@ -741,7 +741,7 @@ const TicketCard: React.FC<{
             {CATEGORY_LABELS[ticket.category] || ticket.category}
           </span>
           {isRosterEdit && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md">
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md">
               <Zap className="w-2.5 h-2.5" />
               Roster Edit
             </span>
@@ -755,12 +755,12 @@ const TicketCard: React.FC<{
               disabled={zapSending}
               className={`w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
                 zapResult === 'success'
-                  ? 'text-green-700 bg-green-50 border border-green-200'
+                  ? 'text-emerald-400 bg-emerald-500/100/10 border border-green-200'
                   : zapResult === 'failed'
-                  ? 'text-red-700 bg-red-50 border border-red-200'
+                  ? 'text-red-400 bg-red-500/10 border border-red-500/20'
                   : zapResult === 'paused'
                   ? 'text-muted-foreground bg-muted border border-border'
-                  : 'text-white bg-amber-500 hover:bg-amber-600'
+                  : 'text-white bg-amber-500/100 hover:bg-amber-500'
               }`}
             >
               <Zap className={`w-3.5 h-3.5 ${zapSending ? 'animate-pulse' : ''}`} />

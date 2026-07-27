@@ -31,9 +31,9 @@ interface AgencyContactsTabProps {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.FC<{ className?: string }> }> = {
-  active: { label: 'Active', color: 'bg-emerald-50 text-emerald-700 border border-emerald-200', icon: CheckCircle2 },
-  at_risk: { label: 'At Risk', color: 'bg-amber-50 text-amber-700 border border-amber-200', icon: AlertTriangle },
-  terminated: { label: 'Terminated', color: 'bg-red-50 text-red-700 border border-red-200', icon: XCircle },
+  active: { label: 'Active', color: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20', icon: CheckCircle2 },
+  at_risk: { label: 'At Risk', color: 'bg-amber-500/10 text-amber-400 border border-amber-500/20', icon: AlertTriangle },
+  terminated: { label: 'Terminated', color: 'bg-red-500/10 text-red-400 border border-red-500/20', icon: XCircle },
   lapsed: { label: 'Lapsed', color: 'bg-secondary text-muted-foreground border border-border', icon: Clock },
 };
 
@@ -221,7 +221,7 @@ export const AgencyContactsTab: React.FC<AgencyContactsTabProps> = ({ agencyId, 
           <p className="text-xs text-muted-foreground mt-0.5">Total (API)</p>
         </div>
         <div className="bg-card rounded-xl border border-border p-4 text-center">
-          <p className="text-2xl font-bold text-emerald-700">{counts.active}</p>
+          <p className="text-2xl font-bold text-emerald-400">{counts.active}</p>
           <p className="text-xs text-muted-foreground mt-0.5">Active</p>
         </div>
         <div className="bg-card rounded-xl border border-border p-4 text-center">
@@ -229,7 +229,7 @@ export const AgencyContactsTab: React.FC<AgencyContactsTabProps> = ({ agencyId, 
           <p className="text-xs text-muted-foreground mt-0.5">At Risk</p>
         </div>
         <div className="bg-card rounded-xl border border-border p-4 text-center">
-          <p className="text-2xl font-bold text-red-600">{counts.terminated}</p>
+          <p className="text-2xl font-bold text-red-400">{counts.terminated}</p>
           <p className="text-xs text-muted-foreground mt-0.5">Terminated</p>
         </div>
         <div className="bg-card rounded-xl border border-border p-4 text-center">

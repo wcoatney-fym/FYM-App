@@ -36,7 +36,7 @@ export function ContractingPage() {
       <Header title="Contracting" />
       <div className="p-6 space-y-6">
         {/* Portal bridge banner — visible during parallel-run period */}
-        <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5">
+        <div className="flex items-center justify-between bg-cyan-500/10 border border-blue-200 rounded-lg px-4 py-2.5">
           <p className="text-sm text-blue-800">
             <span className="font-medium">Parallel run:</span> These tabs read
             from the CRM Portal database. The original portal is still live at{' '}
@@ -54,7 +54,7 @@ export function ContractingPage() {
             href="https://contracting.teamfym.com"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1 text-xs text-blue-700 hover:text-blue-900 font-medium whitespace-nowrap ml-4"
+            className="flex items-center gap-1 text-xs text-cyan-400 hover:text-blue-900 font-medium whitespace-nowrap ml-4"
           >
             Open Portal <ExternalLink size={12} />
           </a>

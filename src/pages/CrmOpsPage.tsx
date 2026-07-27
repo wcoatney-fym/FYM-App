@@ -83,7 +83,7 @@ export function CrmOpsPage() {
     return (
       <div>
         <Header title="CRM Ops" />
-        <div className="text-center py-12 text-gray-500">
+        <div className="text-center py-12 text-muted-foreground">
           <Database className="w-12 h-12 mx-auto mb-3 text-gray-300" />
           <p className="font-medium">Portal connection not configured</p>
           <p className="text-sm mt-1">
@@ -101,7 +101,7 @@ export function CrmOpsPage() {
         <Header title="CRM Ops" />
         <div className="flex items-center justify-center py-16">
           <Loader2 className="w-6 h-6 animate-spin text-navy-600 mr-2" />
-          <span className="text-gray-600">Connecting to CRM…</span>
+          <span className="text-muted-foreground">Connecting to CRM…</span>
         </div>
       </div>
     );
@@ -175,8 +175,8 @@ export function CrmOpsPage() {
                   onClick={() => setWorkQueueMode('tickets')}
                   className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
                     workQueueMode === 'tickets'
-                      ? 'bg-white shadow-sm text-slate-900'
-                      : 'text-slate-500 hover:text-slate-700'
+                      ? 'bg-card glow-sm text-foreground'
+                      : 'text-muted-foreground hover:text-foreground/80'
                   }`}
                 >
                   Tickets
@@ -185,8 +185,8 @@ export function CrmOpsPage() {
                   onClick={() => setWorkQueueMode('onboarding')}
                   className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
                     workQueueMode === 'onboarding'
-                      ? 'bg-white shadow-sm text-slate-900'
-                      : 'text-slate-500 hover:text-slate-700'
+                      ? 'bg-card glow-sm text-foreground'
+                      : 'text-muted-foreground hover:text-foreground/80'
                   }`}
                 >
                   Onboarding

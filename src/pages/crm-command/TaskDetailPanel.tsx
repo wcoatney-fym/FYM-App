@@ -10,7 +10,7 @@ const priorityColors: Record<Priority, string> = {
   P1: 'bg-red-400/10 text-red-400 border-red-400/20',
   P2: 'bg-amber-400/10 text-amber-400 border-amber-400/20',
   P3: 'bg-sky-400/10 text-sky-400 border-sky-400/20',
-  P4: 'bg-slate-400/10 text-slate-400 border-slate-400/20',
+  P4: 'bg-slate-400/10 text-muted-foreground/70 border-slate-400/20',
 };
 
 const statusOptions: { id: TaskStatus; label: string; color: string }[] = [
@@ -139,9 +139,9 @@ export function TaskDetailPanel({ task, members, onClose, onUpdate, onDelete }: 
               <>
                 <button onClick={() => setEditing(true)} className="flex-1 py-2 rounded-lg bg-secondary/60 hover:bg-secondary text-xs font-medium transition-colors">Edit</button>
                 {confirmDelete ? (
-                  <button onClick={() => { onDelete(task.id); onClose(); }} className="flex-1 py-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 text-xs font-medium transition-colors">Confirm Delete</button>
+                  <button onClick={() => { onDelete(task.id); onClose(); }} className="flex-1 py-2 rounded-lg bg-red-500/100/20 hover:bg-red-500/100/30 text-red-400 text-xs font-medium transition-colors">Confirm Delete</button>
                 ) : (
-                  <button onClick={() => setConfirmDelete(true)} className="px-3 py-2 rounded-lg bg-secondary/60 hover:bg-red-500/10 text-muted-foreground hover:text-red-400 text-xs transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                  <button onClick={() => setConfirmDelete(true)} className="px-3 py-2 rounded-lg bg-secondary/60 hover:bg-red-500/100/10 text-muted-foreground hover:text-red-400 text-xs transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
                 )}
               </>
             ) : (

@@ -177,7 +177,7 @@ export function OnboardingListPage() {
                             title="Copy partner URL"
                           >
                             {copied === a.slug ? (
-                              <Check className="w-3.5 h-3.5 text-green-600" />
+                              <Check className="w-3.5 h-3.5 text-emerald-400" />
                             ) : (
                               <Copy className="w-3.5 h-3.5" />
                             )}
@@ -191,7 +191,7 @@ export function OnboardingListPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <span className={`text-xs ${stale ? 'text-red-600 font-medium' : 'text-muted-foreground'}`}>
+                        <span className={`text-xs ${stale ? 'text-red-400 font-medium' : 'text-muted-foreground'}`}>
                           {relativeTime(a.last_visited_at)}
                         </span>
                       </TableCell>
@@ -236,7 +236,7 @@ function StatCard({ label, value, accent }: { label: string; value: number; acce
     <Card>
       <CardContent className="p-5">
         <div className="text-xs text-muted-foreground uppercase tracking-wider">{label}</div>
-        <div className={`text-3xl font-bold mt-2 ${accent ? 'text-red-600' : ''}`}>{value}</div>
+        <div className={`text-3xl font-bold mt-2 ${accent ? 'text-red-400' : ''}`}>{value}</div>
       </CardContent>
     </Card>
   );
