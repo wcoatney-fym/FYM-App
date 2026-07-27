@@ -124,7 +124,7 @@ export function AgentHealthPage() {
       <div>
         <Header title="Agent Book Health" />
         <div className="p-6 space-y-4">
-          {[1, 2, 3].map((i) => <div key={i} className="h-24 rounded-lg bg-slate-100 animate-pulse" />)}
+          {[1, 2, 3].map((i) => <div key={i} className="h-24 rounded-lg shimmer " />)}
         </div>
       </div>
     );
@@ -200,7 +200,7 @@ export function AgentHealthPage() {
                     <span className={`flex items-center gap-1.5 text-sm font-medium ${colors.text}`}>{icon} {label}</span>
                     <span className={`text-sm font-bold ${colors.text}`}>{score} <span className="text-muted-foreground/70 font-normal">/ {max}</span></span>
                   </div>
-                  <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
+                  <div className="h-2 w-full rounded-full shimmer overflow-hidden">
                     <div className={`h-full rounded-full transition-all ${colors.bar}`} style={{ width: `${(score / max) * 100}%` }} />
                   </div>
                   <p className="text-xs text-muted-foreground/70 mt-1">{detail}</p>
@@ -219,7 +219,7 @@ export function AgentHealthPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-border/30">
                 {atRiskPolicies.map((p) => (
                   <div key={p.policy_number} className="flex items-center gap-3 px-4 py-3">
                     <div className="flex-1 min-w-0">
@@ -239,11 +239,11 @@ export function AgentHealthPage() {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base font-semibold text-foreground">Policy Book</CardTitle>
-              <Badge className="bg-slate-100 text-muted-foreground border-border hover:bg-secondary">{policies.length} policies</Badge>
+              <Badge className="shimmer text-muted-foreground border-border hover:bg-secondary">{policies.length} policies</Badge>
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-border/30">
               {policies.map((p) => (
                 <div key={p.policy_number} className="flex items-center gap-3 px-4 py-3 hover:bg-background transition-colors">
                   <div className="flex-shrink-0">

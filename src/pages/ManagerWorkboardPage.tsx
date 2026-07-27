@@ -45,10 +45,10 @@ function urgencyLevel(days: number): 'critical' | 'high' | 'medium' {
 
 
 function taskBadge(status: string | null) {
-  if (!status) return 'bg-slate-100 text-muted-foreground border-border';
+  if (!status) return 'shimmer text-muted-foreground border-border';
   if (status === 'open') return 'bg-blue-100 text-cyan-400 border-blue-200';
   if (status === 'resolved') return 'bg-emerald-500/100/10 text-emerald-400 border-emerald-500/20';
-  return 'bg-slate-100 text-muted-foreground border-border';
+  return 'shimmer text-muted-foreground border-border';
 }
 
 function retentionColor(pct: number | null) {
@@ -185,7 +185,7 @@ export function ManagerWorkboardPage() {
       <div>
         <Header title="Manager Workboard" />
         <div className="p-6 space-y-4">
-          {[1,2,3].map(i => <div key={i} className="h-28 rounded-lg bg-slate-100 animate-pulse" />)}
+          {[1,2,3].map(i => <div key={i} className="h-28 rounded-lg shimmer " />)}
         </div>
       </div>
     );
@@ -229,7 +229,7 @@ export function ManagerWorkboardPage() {
               <p className="text-xs text-muted-foreground/70 mt-0.5">Agencies sorted by 90-day retention (worst first). Below 90% = coaching needed.</p>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-border/30">
                 <div className="grid grid-cols-6 gap-2 px-4 py-2 bg-background text-xs font-semibold text-muted-foreground">
                   <span className="col-span-2">Agency</span>
                   <span className="text-right">Active</span>
@@ -304,7 +304,7 @@ export function ManagerWorkboardPage() {
               <span className="col-span-2 text-center">Action</span>
             </div>
 
-            <div className="divide-y divide-slate-100 max-h-[520px] overflow-y-auto">
+            <div className="divide-y divide-border/30 max-h-[520px] overflow-y-auto">
               {displayRows.length === 0 && (
                 <div className="py-10 text-center text-muted-foreground/70 text-sm">No policies match your filters.</div>
               )}
@@ -318,7 +318,7 @@ export function ManagerWorkboardPage() {
                       urgency === 'critical' ? 'border-l-2 border-l-red-400' : urgency === 'high' ? 'border-l-2 border-l-amber-400' : ''
                     }`}
                   >
-                    <span className="col-span-2 font-mono text-xs text-foreground/80 truncate">{row.policy_number}</span>
+                    <span className="col-span-2 font-data text-xs text-foreground/80 truncate">{row.policy_number}</span>
                     <span className="col-span-2 text-muted-foreground text-xs truncate" title={row.agency_id}>{row.agency_id}</span>
                     <span className="text-center">
                       <Badge className={`text-[10px] px-1.5 py-0 ${row.product_type === 'HHC' ? 'bg-sky-50 text-sky-700 border-sky-200' : 'bg-violet-50 text-violet-700 border-violet-200'} border`}>
