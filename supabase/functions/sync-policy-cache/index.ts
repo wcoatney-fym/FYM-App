@@ -316,7 +316,9 @@ Deno.serve(async (req) => {
           return {
             policy_number: p.policy_number,
             agent_id: agentId,
-            agency_id: p.agency_id ?? p.agency ?? 'unknown',
+            // Only use real agency UUID — never fall back to person-name strings
+            // from the agency column, which are individual agent names
+            agency_id: p.agency_id ?? 'unknown',
             product_type: p.product_type,
             status: p.status,
             plan_premium: p.plan_premium,
