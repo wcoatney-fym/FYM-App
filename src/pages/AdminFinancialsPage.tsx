@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
+import { scopeToAgency } from '@/lib/query-helpers';
+import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar,
@@ -66,6 +68,7 @@ function fmtMonth(iso: string) {
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function AdminFinancialsPage() {
+  const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
   const [cohorts, setCohorts] = useState<CohortRow[]>([]);
   const [concentration, setConcentration] = useState<ConcentrationRow[]>([]);
   const [agencySummaries, setAgencySummaries] = useState<AgencySummaryRow[]>([]);
@@ -76,9 +79,14 @@ export function AdminFinancialsPage() {
 
     async function load() {
       // Agency names map
-      const { data: agencyNames } = await (supabase as any)
-        .from('agencies')
-        .select('tracker_id, name');
+      const { data: agencyNames } = await scopeToAgency(
+        (supabase as any)
+          .from('agencies')
+          .select('tracker_id, name'),
+        isOrgWide,
+        effectiveAgencyId,
+        'tracker_id'
+      );
       const nameMap = new Map<string, string>();
       if (agencyNames) {
         for (const a of agencyNames as any[]) {
@@ -87,9 +95,13 @@ export function AdminFinancialsPage() {
       }
 
       // Agency retention summary (aggregate KPIs)
-      const { data: summaryData } = await supabase!
-        .from('agency_retention_summary')
-        .select('agency_id, active_policies, active_premium, at_risk_count, retained_90d, eligible_90d, retention_pct');
+      const { data: summaryData } = await scopeToAgency(
+        supabase!
+          .from('agency_retention_summary')
+          .select('agency_id, active_policies, active_premium, at_risk_count, retained_90d, eligible_90d, retention_pct'),
+        isOrgWide,
+        effectiveAgencyId
+      );
       if (summaryData) {
         setAgencySummaries(
           (summaryData as any[]).map(r => ({
@@ -105,6 +117,7 @@ export function AdminFinancialsPage() {
       }
 
       // Cohort retention view
+      // Note: view does not have agency_id — org-wide only
       const { data: cohortData } = await supabase!
         .from('cohort_retention')
         .select('*')
@@ -113,11 +126,15 @@ export function AdminFinancialsPage() {
       if (cohortData) setCohorts(cohortData as unknown as CohortRow[]);
 
       // Concentration view — enriched with names
-      const { data: concData } = await supabase!
-        .from('agency_concentration')
-        .select('*')
-        .order('active_premium', { ascending: false })
-        .limit(20);
+      const { data: concData } = await scopeToAgency(
+        supabase!
+          .from('agency_concentration')
+          .select('*')
+          .order('active_premium', { ascending: false })
+          .limit(20),
+        isOrgWide,
+        effectiveAgencyId
+      );
       if (concData) {
         setConcentration(
           (concData as any[]).map(r => ({
@@ -134,7 +151,7 @@ export function AdminFinancialsPage() {
       setLoading(false);
     }
     load();
-  }, []);
+  }, [effectiveAgencyId, isOrgWide]);
 
   // ── Derived stats from pre-computed views ────────────────────────────────
   const stats = useMemo(() => {

@@ -9,6 +9,8 @@ import { formatDistanceToNow } from 'date-fns';
 import { useDashboardStats } from '@/lib/command-center/use-dashboard-stats';
 import { supabase } from '@/lib/supabase';
 import { portalSupabase } from '@/lib/portal-supabase';
+import { scopeToAgency } from '@/lib/query-helpers';
+import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 
 const container = {
   hidden: { opacity: 0 },
@@ -36,6 +38,7 @@ const RECRUITING_STAGES = ['hip_broker', 'hip_career', 'iaa', 'signed_iaa'];
 const ACTIVE_LEAD_EXCLUDED_STAGES = ['terminated', 'rts', 'actively_selling'];
 
 export function CcDashboardTab() {
+  const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
   const tasks = useTasksStore((s) => s.tasks);
   const loadLiveTasks = useTasksStore((s) => s.loadLive);
   const tasksSource = useTasksStore((s) => s.source);
@@ -60,14 +63,22 @@ export function CcDashboardTab() {
       if (!portalSupabase) return;
       try {
         const [{ count: activeCount }, { count: recruitCount }] = await Promise.all([
-          portalSupabase
-            .from('agent_pipeline')
-            .select('id', { count: 'exact', head: true })
-            .not('stage', 'in', `(${ACTIVE_LEAD_EXCLUDED_STAGES.join(',')})`),
-          portalSupabase
-            .from('agent_pipeline')
-            .select('id', { count: 'exact', head: true })
-            .in('stage', RECRUITING_STAGES),
+          scopeToAgency(
+            portalSupabase
+              .from('agent_pipeline')
+              .select('id', { count: 'exact', head: true })
+              .not('stage', 'in', `(${ACTIVE_LEAD_EXCLUDED_STAGES.join(',')})`),
+            isOrgWide,
+            effectiveAgencyId
+          ),
+          scopeToAgency(
+            portalSupabase
+              .from('agent_pipeline')
+              .select('id', { count: 'exact', head: true })
+              .in('stage', RECRUITING_STAGES),
+            isOrgWide,
+            effectiveAgencyId
+          ),
         ]);
         setActiveLeads(activeCount ?? 0);
         setRecruitingCount(recruitCount ?? 0);
@@ -76,7 +87,7 @@ export function CcDashboardTab() {
         setRecruitingCount(0);
       }
     })();
-  }, []);
+  }, [isOrgWide, effectiveAgencyId]);
 
   useEffect(() => {
     (async () => {
@@ -87,41 +98,61 @@ export function CcDashboardTab() {
         const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
         // Placements MTD — policies with effective date in current month
-        const { count: placedCount } = await (supabase as any)
-          .from('policy_cache')
-          .select('policy_number', { count: 'exact', head: true })
-          .gte('policy_effective_date', monthStart);
+        const { count: placedCount } = await scopeToAgency(
+          (supabase as any)
+            .from('policy_cache')
+            .select('policy_number', { count: 'exact', head: true })
+            .gte('policy_effective_date', monthStart),
+          isOrgWide,
+          effectiveAgencyId
+        );
         setPlacementsMTD(placedCount ?? 0);
 
         // Revenue MTD from monthly_production (current month, all agencies)
         const monthKey = monthStart.slice(0, 7);
-        const { data: monthRows } = await (supabase as any)
-          .from('monthly_production')
-          .select('month, annual_premium')
-          .eq('month', monthKey);
+        const { data: monthRows } = await scopeToAgency(
+          (supabase as any)
+            .from('monthly_production')
+            .select('month, annual_premium')
+            .eq('month', monthKey),
+          isOrgWide,
+          effectiveAgencyId
+        );
         const revenue = (monthRows || []).reduce((s: number, r: any) => s + (Number(r.annual_premium) || 0), 0);
         setRevenueMTD(revenue);
 
         // Cancel rate — last 90 days
-        const { count: totalRecent } = await (supabase as any)
-          .from('policy_cache')
-          .select('policy_number', { count: 'exact', head: true })
-          .gte('policy_effective_date', ninetyDaysAgo);
-        const { count: terminatedRecent } = await (supabase as any)
-          .from('policy_cache')
-          .select('policy_number', { count: 'exact', head: true })
-          .eq('status', 'terminated')
-          .gte('policy_effective_date', ninetyDaysAgo);
+        const { count: totalRecent } = await scopeToAgency(
+          (supabase as any)
+            .from('policy_cache')
+            .select('policy_number', { count: 'exact', head: true })
+            .gte('policy_effective_date', ninetyDaysAgo),
+          isOrgWide,
+          effectiveAgencyId
+        );
+        const { count: terminatedRecent } = await scopeToAgency(
+          (supabase as any)
+            .from('policy_cache')
+            .select('policy_number', { count: 'exact', head: true })
+            .eq('status', 'terminated')
+            .gte('policy_effective_date', ninetyDaysAgo),
+          isOrgWide,
+          effectiveAgencyId
+        );
         const total = totalRecent ?? 0;
         const term = terminatedRecent ?? 0;
         setCancelRate(total > 0 ? ((term / total) * 100).toFixed(1) : '0');
 
         // Insights — top agencies by at-risk count
-        const { data: retentionRows } = await (supabase as any)
-          .from('agency_retention_overview')
-          .select('agency_id, agency_name, at_risk_count, retention_pct')
-          .order('at_risk_count', { ascending: false })
-          .limit(3);
+        const { data: retentionRows } = await scopeToAgency(
+          (supabase as any)
+            .from('agency_retention_overview')
+            .select('agency_id, agency_name, at_risk_count, retention_pct')
+            .order('at_risk_count', { ascending: false })
+            .limit(3),
+          isOrgWide,
+          effectiveAgencyId
+        );
         setInsights(
           (retentionRows || []).map((r: any) => ({
             agencyName: r.agency_name || 'Unknown Agency',
@@ -135,7 +166,7 @@ export function CcDashboardTab() {
         setCancelRate('0');
       }
     })();
-  }, []);
+  }, [isOrgWide, effectiveAgencyId]);
 
   useEffect(() => {
     (async () => {

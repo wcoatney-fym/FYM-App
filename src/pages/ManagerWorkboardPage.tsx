@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
+import { scopeToAgency } from '@/lib/query-helpers';
+import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import {
   AlertTriangle, Clock, CheckCircle2, Search,
   TrendingDown, TrendingUp, ChevronDown, ChevronUp,
@@ -70,6 +72,7 @@ type SortDir = 'asc' | 'desc';
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function ManagerWorkboardPage() {
+  const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
   const [rows, setRows] = useState<AtRiskRow[]>([]);
   const [agencies, setAgencies] = useState<AgencyRetention[]>([]);
   const [loading, setLoading] = useState(true);
@@ -82,25 +85,33 @@ export function ManagerWorkboardPage() {
   async function load() {
     if (!supabase) { setLoading(false); return; }
 
-    const { data: boardData } = await supabase
-      .from('manager_at_risk_board')
-      .select('*')
-      .order('days_since_draft', { ascending: false });
+    const { data: boardData } = await scopeToAgency(
+      supabase
+        .from('manager_at_risk_board')
+        .select('*')
+        .order('days_since_draft', { ascending: false }),
+      isOrgWide,
+      effectiveAgencyId
+    );
 
     if (boardData) setRows(boardData as AtRiskRow[]);
 
-    const { data: agencyData } = await supabase
-      .from('agency_retention_summary')
-      .select('*')
-      .order('retention_pct', { ascending: true })
-      .limit(20);
+    const { data: agencyData } = await scopeToAgency(
+      supabase
+        .from('agency_retention_summary')
+        .select('*')
+        .order('retention_pct', { ascending: true })
+        .limit(20),
+      isOrgWide,
+      effectiveAgencyId
+    );
 
     if (agencyData) setAgencies(agencyData as AgencyRetention[]);
 
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [effectiveAgencyId, isOrgWide]);
 
   // Open a task on a policy (upsert into atrisk_tasks)
   async function openTask(policy_number: string, agency_id: string) {

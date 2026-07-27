@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/lib/supabase';
+import { scopeToAgency } from '@/lib/query-helpers';
+import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { Search, Activity, UserPlus } from 'lucide-react';
 
 interface AgentRow {
@@ -30,6 +32,7 @@ function roleBadge(role: string) {
 
 export function AgentsPage() {
   const navigate = useNavigate();
+  const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
   const [agents, setAgents] = useState<AgentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -38,17 +41,25 @@ export function AgentsPage() {
     if (!supabase) { setLoading(false); return; }
     async function load() {
       // Load profiles
-      const { data: profiles } = await supabase!
-        .from('profiles')
-        .select('id, full_name, writing_number, npn, agency_id, role')
-        .order('full_name', { ascending: true });
+      const { data: profiles } = await scopeToAgency(
+        supabase!
+          .from('profiles')
+          .select('id, full_name, writing_number, npn, agency_id, role')
+          .order('full_name', { ascending: true }),
+        isOrgWide,
+        effectiveAgencyId
+      );
 
       if (!profiles) { setLoading(false); return; }
 
       // Load per-agency retention summary to enrich agent rows
-      const { data: agencyStatsRaw } = await (supabase as any)
-        .from('agency_retention_summary')
-        .select('agency_id, active_policies, at_risk_count, retention_pct');
+      const { data: agencyStatsRaw } = await scopeToAgency(
+        (supabase as any)
+          .from('agency_retention_summary')
+          .select('agency_id, active_policies, at_risk_count, retention_pct'),
+        isOrgWide,
+        effectiveAgencyId
+      );
 
       const statsMap = new Map<string, { at_risk_count: number; retention_pct: number | null }>();
       if (agencyStatsRaw) {
@@ -56,10 +67,14 @@ export function AgentsPage() {
       }
 
       // Load per-agent policy counts from policy_cache
-      const { data: agentPolicyCounts } = await (supabase as any)
-        .from('policy_cache')
-        .select('agent_id')
-        .eq('status', 'active');
+      const { data: agentPolicyCounts } = await scopeToAgency(
+        (supabase as any)
+          .from('policy_cache')
+          .select('agent_id')
+          .eq('status', 'active'),
+        isOrgWide,
+        effectiveAgencyId
+      );
 
       const agentCountMap = new Map<string, number>();
       if (agentPolicyCounts) {
@@ -87,7 +102,7 @@ export function AgentsPage() {
       setLoading(false);
     }
     load();
-  }, []);
+  }, [effectiveAgencyId, isOrgWide]);
 
   const filtered = useMemo(() => {
     if (!search) return agents;

@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import {
   AlertTriangle, Clock, Search, ChevronDown, ChevronUp,
   CheckCircle2, TrendingDown,
@@ -53,6 +54,7 @@ type SortDir = 'asc' | 'desc';
 
 export function AtRiskPage() {
   const { role, profile } = useAuth();
+  const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
   const [rows, setRows] = useState<AtRiskRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -76,9 +78,11 @@ export function AtRiskPage() {
           .order('days_since_draft', { ascending: false })
           .range(offset, offset + PAGE_SIZE - 1);
 
-        // Agents see only their agency's policies
-        if (role === 'agent' && profile?.agency_id) {
-          query = query.eq('agency_id', profile.agency_id);
+        // Agents see only their agency's policies; agency admins (non org-wide) are scoped too
+        if (role === 'agent' && effectiveAgencyId) {
+          query = query.eq('agency_id', effectiveAgencyId);
+        } else if (!isOrgWide && effectiveAgencyId) {
+          query = query.eq('agency_id', effectiveAgencyId);
         }
 
         const { data, error } = await query;
@@ -96,7 +100,7 @@ export function AtRiskPage() {
     }
 
     load();
-  }, [role, profile]);
+  }, [role, profile, effectiveAgencyId, isOrgWide]);
 
   async function openTask(policy_number: string, agency_id: string) {
     if (!supabase) return;
