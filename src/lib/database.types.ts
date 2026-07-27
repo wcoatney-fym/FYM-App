@@ -3,6 +3,11 @@ export type AtRiskStatus = 'new' | 'assigned' | 'contacted' | 'saved' | 'lost';
 export type FlagType = 'payment_failed' | 'no_contact' | 'rate_action' | null;
 export type AgencyVariant = 'brent_melanie' | 'fym_direct';
 export type CompTier = '60' | '65' | '70' | '75';
+export type BattleType = 'agent_vs_agent' | 'agency_vs_agency';
+export type GamificationMetric = 'policies' | 'ap' | 'retention';
+export type BattleStatus = 'upcoming' | 'active' | 'completed';
+export type ChallengeType = 'org_wide' | 'agency';
+export type ParticipantType = 'agent' | 'agency';
 
 export interface Database {
   public: {
@@ -132,6 +137,118 @@ export interface Database {
           last_visited_at?: string | null;
         };
         Update: Partial<Database['public']['Tables']['onboarding_agencies']['Insert']>;
+        Relationships: [];
+      };
+      battles: {
+        Row: {
+          id: string;
+          title: string;
+          description: string | null;
+          battle_type: BattleType;
+          metric: GamificationMetric;
+          start_date: string;
+          end_date: string;
+          status: BattleStatus;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          title: string;
+          description?: string | null;
+          battle_type?: BattleType;
+          metric?: GamificationMetric;
+          start_date: string;
+          end_date: string;
+          status?: BattleStatus;
+          created_by?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['battles']['Insert']>;
+        Relationships: [];
+      };
+      battle_participants: {
+        Row: {
+          id: string;
+          battle_id: string;
+          participant_type: ParticipantType;
+          agent_id: string | null;
+          agency_id: string | null;
+          display_name: string;
+          starting_value: number;
+          current_value: number;
+          is_winner: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          battle_id: string;
+          participant_type?: ParticipantType;
+          agent_id?: string | null;
+          agency_id?: string | null;
+          display_name: string;
+          starting_value?: number;
+          current_value?: number;
+          is_winner?: boolean;
+        };
+        Update: Partial<Database['public']['Tables']['battle_participants']['Insert']>;
+        Relationships: [];
+      };
+      challenges: {
+        Row: {
+          id: string;
+          title: string;
+          description: string | null;
+          challenge_type: ChallengeType;
+          target_agency_id: string | null;
+          metric: GamificationMetric;
+          goal_value: number;
+          current_value: number;
+          start_date: string;
+          end_date: string;
+          status: BattleStatus;
+          is_achieved: boolean;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          title: string;
+          description?: string | null;
+          challenge_type?: ChallengeType;
+          target_agency_id?: string | null;
+          metric?: GamificationMetric;
+          goal_value: number;
+          current_value?: number;
+          start_date: string;
+          end_date: string;
+          status?: BattleStatus;
+          is_achieved?: boolean;
+          created_by?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['challenges']['Insert']>;
+        Relationships: [];
+      };
+      challenge_participants: {
+        Row: {
+          id: string;
+          challenge_id: string;
+          agent_id: string | null;
+          agency_id: string | null;
+          display_name: string;
+          contribution: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          challenge_id: string;
+          agent_id?: string | null;
+          agency_id?: string | null;
+          display_name: string;
+          contribution?: number;
+        };
+        Update: Partial<Database['public']['Tables']['challenge_participants']['Insert']>;
         Relationships: [];
       };
     };

@@ -109,6 +109,9 @@ export function LeaderboardPage() {
   // Cache period data
   const [periodData, setPeriodData] = useState<Map<string, { policies: number; ap: number }>>(new Map());
 
+  // Battle wins per agency (trophy count badge)
+  const [agencyBattleWins, setAgencyBattleWins] = useState<Map<string, number>>(new Map());
+
   const loadPeriodData = useCallback(async (p: Period) => {
     if (!supabase) return;
     const start = periodStart(p);
@@ -195,6 +198,28 @@ export function LeaderboardPage() {
       ranked.forEach((r, i) => { r.rank = i + 1; });
       setRows(ranked);
       setLoading(false);
+
+      // Battle wins per agency — light-touch trophy badge
+      const PAGE = 100;
+      let offset = 0;
+      let done = false;
+      const winMap = new Map<string, number>();
+      while (!done) {
+        const { data: winData } = await (supabase as any)
+          .from('battle_participants')
+          .select('agency_id')
+          .eq('is_winner', true)
+          .not('agency_id', 'is', null)
+          .range(offset, offset + PAGE - 1);
+        if (!winData || winData.length === 0) { done = true; break; }
+        for (const w of winData as any[]) {
+          if (!w.agency_id) continue;
+          winMap.set(w.agency_id, (winMap.get(w.agency_id) || 0) + 1);
+        }
+        if (winData.length < PAGE) done = true;
+        else offset += PAGE;
+      }
+      setAgencyBattleWins(winMap);
     }
 
     load();
@@ -441,8 +466,15 @@ export function LeaderboardPage() {
                       } ${r.rank <= 3 ? 'bg-amber-500/10/20' : ''}`}
                     >
                       <span className="col-span-1 text-center">{rankBadge(r.rank)}</span>
-                      <span className={`font-medium text-foreground truncate ${period !== 'all' ? 'col-span-2' : 'col-span-3'}`}>
-                        {r.name ?? <span className="font-data text-xs text-muted-foreground/70">{r.agency_id.slice(0, 12)}…</span>}
+                      <span className={`font-medium text-foreground truncate flex items-center gap-1.5 ${period !== 'all' ? 'col-span-2' : 'col-span-3'}`}>
+                        <span className="truncate">
+                          {r.name ?? <span className="font-data text-xs text-muted-foreground/70">{r.agency_id.slice(0, 12)}…</span>}
+                        </span>
+                        {(agencyBattleWins.get(r.agency_id) || 0) > 0 && (
+                          <span className="text-[10px] font-data text-amber-400 whitespace-nowrap" title="Battle wins">
+                            🏆 x{agencyBattleWins.get(r.agency_id)}
+                          </span>
+                        )}
                       </span>
                       <span className="col-span-2 text-center">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${retentionBg(r.retention_pct)} ${retentionColor(r.retention_pct)}`}>
