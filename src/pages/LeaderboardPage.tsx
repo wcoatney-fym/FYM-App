@@ -1,10 +1,20 @@
-import { useEffect, useState, useMemo } from 'react';
+/**
+ * Agency Leaderboard — Enhanced
+ *
+ * Period toggles: All Time, This Year, This Month, This Week, Today
+ * Metric toggle: Policies ↔ Annual Premium
+ * Sortable columns, retention filter, drill-down to agency production.
+ */
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent } from '@/components/ui/card';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
-import { Trophy, TrendingUp, ShieldCheck, AlertTriangle, ChevronRight } from 'lucide-react';
+import {
+  Trophy, TrendingUp, ShieldCheck, AlertTriangle, ChevronRight,
+  ChevronDown, ChevronUp, Calendar, DollarSign, FileText,
+} from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface AgencyLeaderRow {
@@ -17,14 +27,19 @@ interface AgencyLeaderRow {
   eligible_90d: number;
   retention_pct: number | null;
   rank: number;
+  // Period-specific
+  period_policies: number;
+  period_ap: number;
 }
 
-type SortKey = 'rank' | 'retention' | 'policies' | 'premium' | 'at_risk';
+type SortKey = 'rank' | 'retention' | 'policies' | 'premium' | 'at_risk' | 'period_policies' | 'period_ap';
+type Period = 'all' | 'year' | 'month' | 'week' | 'today';
+type Metric = 'policies' | 'premium';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function fmt$(n: number) {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${Math.round(n / 1_000)}K`;
+  if (n >= 1_000) return `$${Math.round(n / 1_000).toLocaleString()}K`;
   return `$${Math.round(n).toLocaleString()}`;
 }
 
@@ -49,6 +64,38 @@ function rankBadge(rank: number) {
   return <span className="text-sm font-bold text-muted-foreground/70 tabular-nums">#{rank}</span>;
 }
 
+function periodLabel(p: Period) {
+  switch (p) {
+    case 'all': return 'All Time';
+    case 'year': return 'This Year';
+    case 'month': return 'This Month';
+    case 'week': return 'This Week';
+    case 'today': return 'Today';
+  }
+}
+
+function periodStart(p: Period): string | null {
+  if (p === 'all') return null;
+  const now = new Date();
+  const ct = new Date(now.toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+
+  switch (p) {
+    case 'year':
+      return `${ct.getFullYear()}-01-01`;
+    case 'month':
+      return `${ct.getFullYear()}-${String(ct.getMonth() + 1).padStart(2, '0')}-01`;
+    case 'week': {
+      const day = ct.getDay();
+      const diff = ct.getDate() - day + (day === 0 ? -6 : 1); // Monday
+      const monday = new Date(ct);
+      monday.setDate(diff);
+      return `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+    }
+    case 'today':
+      return `${ct.getFullYear()}-${String(ct.getMonth() + 1).padStart(2, '0')}-${String(ct.getDate()).padStart(2, '0')}`;
+  }
+}
+
 // ── Component ──────────────────────────────────────────────────────────────
 export function LeaderboardPage() {
   const [rows, setRows] = useState<AgencyLeaderRow[]>([]);
@@ -56,6 +103,50 @@ export function LeaderboardPage() {
   const [sortKey, setSortKey] = useState<SortKey>('rank');
   const [sortAsc, setSortAsc] = useState(true);
   const [filter, setFilter] = useState<'all' | 'above' | 'below'>('all');
+  const [period, setPeriod] = useState<Period>('all');
+  const [metric, setMetric] = useState<Metric>('policies');
+
+  // Cache period data
+  const [periodData, setPeriodData] = useState<Map<string, { policies: number; ap: number }>>(new Map());
+
+  const loadPeriodData = useCallback(async (p: Period) => {
+    if (!supabase) return;
+    const start = periodStart(p);
+    if (!start) {
+      setPeriodData(new Map());
+      return;
+    }
+
+    // Query policy_cache for the period
+    const PAGE = 1000;
+    let offset = 0;
+    let done = false;
+    const agMap = new Map<string, { policies: number; ap: number }>();
+
+    while (!done) {
+      const { data } = await supabase
+        .from('policy_cache')
+        .select('agency_id, plan_premium')
+        .gte('policy_effective_date', start)
+        .in('product_type', ['HI', 'HHC'])
+        .range(offset, offset + PAGE - 1);
+
+      if (!data || data.length === 0) { done = true; break; }
+
+      data.forEach((r: any) => {
+        const aid = r.agency_id || 'unknown';
+        const existing = agMap.get(aid) || { policies: 0, ap: 0 };
+        existing.policies += 1;
+        existing.ap += (Number(r.plan_premium) || 0) * 12;
+        agMap.set(aid, existing);
+      });
+
+      if (data.length < PAGE) done = true;
+      else offset += PAGE;
+    }
+
+    setPeriodData(agMap);
+  }, []);
 
   useEffect(() => {
     if (!supabase) { setLoading(false); return; }
@@ -79,7 +170,7 @@ export function LeaderboardPage() {
         }
       }
 
-      // Build ranked rows — rank by retention descending, then by active premium descending as tiebreak
+      // Build ranked rows
       const ranked = (summaryData as any[])
         .map(r => ({
           agency_id: r.agency_id as string,
@@ -91,6 +182,8 @@ export function LeaderboardPage() {
           eligible_90d: Number(r.eligible_90d) || 0,
           retention_pct: r.retention_pct !== null ? Number(r.retention_pct) : null,
           rank: 0,
+          period_policies: 0,
+          period_ap: 0,
         }))
         .sort((a, b) => {
           const retA = a.retention_pct ?? -1;
@@ -107,19 +200,38 @@ export function LeaderboardPage() {
     load();
   }, []);
 
+  // Load period data when period changes
+  useEffect(() => {
+    loadPeriodData(period);
+  }, [period, loadPeriodData]);
+
+  // Merge period data into rows
+  const enrichedRows = useMemo(() => {
+    if (period === 'all') return rows;
+    return rows.map(r => ({
+      ...r,
+      period_policies: periodData.get(r.agency_id)?.policies || 0,
+      period_ap: periodData.get(r.agency_id)?.ap || 0,
+    }));
+  }, [rows, period, periodData]);
+
   // Stats
   const stats = useMemo(() => {
-    const total = rows.length;
-    const above = rows.filter(r => r.retention_pct !== null && r.retention_pct >= 90).length;
+    const total = enrichedRows.length;
+    const above = enrichedRows.filter(r => r.retention_pct !== null && r.retention_pct >= 90).length;
     const below = total - above;
-    const totalPolicies = rows.reduce((s, r) => s + r.active_policies, 0);
-    const totalPremium = rows.reduce((s, r) => s + r.active_premium, 0);
+    const totalPolicies = period === 'all'
+      ? enrichedRows.reduce((s, r) => s + r.active_policies, 0)
+      : enrichedRows.reduce((s, r) => s + r.period_policies, 0);
+    const totalPremium = period === 'all'
+      ? enrichedRows.reduce((s, r) => s + r.active_premium, 0)
+      : enrichedRows.reduce((s, r) => s + r.period_ap, 0);
     return { total, above, below, totalPolicies, totalPremium };
-  }, [rows]);
+  }, [enrichedRows, period]);
 
   // Sort + filter
   const displayed = useMemo(() => {
-    let filtered = [...rows];
+    let filtered = [...enrichedRows];
     if (filter === 'above') filtered = filtered.filter(r => r.retention_pct !== null && r.retention_pct >= 90);
     if (filter === 'below') filtered = filtered.filter(r => r.retention_pct === null || r.retention_pct < 90);
 
@@ -131,11 +243,13 @@ export function LeaderboardPage() {
         case 'policies': return dir * (a.active_policies - b.active_policies);
         case 'premium': return dir * (a.active_premium - b.active_premium);
         case 'at_risk': return dir * (a.at_risk_count - b.at_risk_count);
+        case 'period_policies': return dir * (a.period_policies - b.period_policies);
+        case 'period_ap': return dir * (a.period_ap - b.period_ap);
         default: return 0;
       }
     });
     return filtered;
-  }, [rows, sortKey, sortAsc, filter]);
+  }, [enrichedRows, sortKey, sortAsc, filter]);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortAsc(p => !p);
@@ -144,7 +258,9 @@ export function LeaderboardPage() {
 
   function SortArrow({ k }: { k: SortKey }) {
     if (sortKey !== k) return null;
-    return <span className="ml-0.5 text-[10px]">{sortAsc ? '▲' : '▼'}</span>;
+    return sortAsc
+      ? <ChevronUp size={10} className="inline ml-0.5" />
+      : <ChevronDown size={10} className="inline ml-0.5" />;
   }
 
   return (
@@ -152,13 +268,75 @@ export function LeaderboardPage() {
       <Header title="Agency Leaderboard" />
       <div className="p-6 space-y-6">
 
+        {/* Period + Metric Toggles */}
+        <div className="flex flex-wrap items-center gap-4">
+          {/* Period */}
+          <div className="flex items-center gap-1 bg-secondary/50 rounded-lg p-0.5">
+            {(['all', 'year', 'month', 'week', 'today'] as Period[]).map(p => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  period === p
+                    ? 'gradient-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {periodLabel(p)}
+              </button>
+            ))}
+          </div>
+
+          {/* Metric toggle — only shows for period views */}
+          {period !== 'all' && (
+            <div className="flex items-center gap-1 bg-secondary/50 rounded-lg p-0.5">
+              <button
+                onClick={() => setMetric('policies')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1 ${
+                  metric === 'policies'
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <FileText size={12} /> Policies
+              </button>
+              <button
+                onClick={() => setMetric('premium')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1 ${
+                  metric === 'premium'
+                    ? 'bg-card text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <DollarSign size={12} /> Premium
+              </button>
+            </div>
+          )}
+
+          {period !== 'all' && (
+            <span className="text-xs text-muted-foreground/60 ml-auto">
+              <Calendar size={12} className="inline mr-1" />
+              {periodLabel(period)} — new business effective dates
+            </span>
+          )}
+        </div>
+
         {/* Stats strip */}
         <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             { title: 'Total Agencies', end: stats.total, icon: Trophy, color: 'text-primary', bg: 'bg-cyan-500/10' },
             { title: 'Above 90% Target', end: stats.above, icon: ShieldCheck, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
             { title: 'Below 90% Target', end: stats.below, icon: AlertTriangle, color: stats.below > 0 ? 'text-red-400' : 'text-muted-foreground/70', bg: stats.below > 0 ? 'bg-red-500/10' : 'bg-secondary' },
-            { title: 'Total Active Premium', end: stats.totalPremium, icon: TrendingUp, color: 'text-foreground/80', bg: 'bg-secondary', fmt: (n: number) => fmt$(n) + '/mo' },
+            {
+              title: period === 'all' ? 'Total Active Premium' : `${periodLabel(period)} Production`,
+              end: metric === 'premium' || period === 'all' ? stats.totalPremium : stats.totalPolicies,
+              icon: TrendingUp,
+              color: 'text-foreground/80',
+              bg: 'bg-secondary',
+              fmt: metric === 'premium' || period === 'all'
+                ? (n: number) => fmt$(n) + (period === 'all' ? '/mo' : '')
+                : (n: number) => `${n.toLocaleString()} policies`,
+            },
           ].map(card => (
             <StaggerItem key={card.title}>
               <Card className="border-border">
@@ -219,12 +397,14 @@ export function LeaderboardPage() {
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-background text-xs font-semibold text-muted-foreground border-b border-border/50">
+                <div className={`grid gap-2 px-4 py-2.5 bg-background text-xs font-semibold text-muted-foreground border-b border-border/50 ${
+                  period !== 'all' ? 'grid-cols-13' : 'grid-cols-12'
+                }`}>
                   <span
                     className="col-span-1 cursor-pointer hover:text-foreground"
                     onClick={() => toggleSort('rank')}
                   >Rank <SortArrow k="rank" /></span>
-                  <span className="col-span-3">Agency</span>
+                  <span className={period !== 'all' ? 'col-span-2' : 'col-span-3'}>Agency</span>
                   <span
                     className="col-span-2 text-center cursor-pointer hover:text-foreground"
                     onClick={() => toggleSort('retention')}
@@ -237,6 +417,15 @@ export function LeaderboardPage() {
                     className="col-span-2 text-right cursor-pointer hover:text-foreground"
                     onClick={() => toggleSort('premium')}
                   >Premium/mo <SortArrow k="premium" /></span>
+                  {period !== 'all' && (
+                    <span
+                      className="col-span-2 text-right cursor-pointer hover:text-foreground"
+                      onClick={() => toggleSort(metric === 'policies' ? 'period_policies' : 'period_ap')}
+                    >
+                      {periodLabel(period)} {metric === 'policies' ? 'Policies' : 'AP'}
+                      <SortArrow k={metric === 'policies' ? 'period_policies' : 'period_ap'} />
+                    </span>
+                  )}
                   <span
                     className="col-span-1 text-center cursor-pointer hover:text-foreground"
                     onClick={() => toggleSort('at_risk')}
@@ -247,12 +436,12 @@ export function LeaderboardPage() {
                   {displayed.map((r) => (
                     <div
                       key={r.agency_id}
-                      className={`grid grid-cols-12 gap-2 px-4 py-3 items-center text-sm hover:bg-background/80 transition-colors ${
-                        r.rank <= 3 ? 'bg-amber-500/10/20' : ''
-                      }`}
+                      className={`grid gap-2 px-4 py-3 items-center text-sm hover:bg-background/80 transition-colors ${
+                        period !== 'all' ? 'grid-cols-13' : 'grid-cols-12'
+                      } ${r.rank <= 3 ? 'bg-amber-500/10/20' : ''}`}
                     >
                       <span className="col-span-1 text-center">{rankBadge(r.rank)}</span>
-                      <span className="col-span-3 font-medium text-foreground truncate">
+                      <span className={`font-medium text-foreground truncate ${period !== 'all' ? 'col-span-2' : 'col-span-3'}`}>
                         {r.name ?? <span className="font-data text-xs text-muted-foreground/70">{r.agency_id.slice(0, 12)}…</span>}
                       </span>
                       <span className="col-span-2 text-center">
@@ -266,11 +455,23 @@ export function LeaderboardPage() {
                       <span className="col-span-2 text-right text-foreground/80 font-data">
                         {fmt$(r.active_premium)}
                       </span>
+                      {period !== 'all' && (
+                        <span className={`col-span-2 text-right font-data font-medium ${
+                          (metric === 'policies' ? r.period_policies : r.period_ap) > 0
+                            ? 'text-primary'
+                            : 'text-muted-foreground/40'
+                        }`}>
+                          {metric === 'policies'
+                            ? (r.period_policies > 0 ? r.period_policies.toLocaleString() : '—')
+                            : (r.period_ap > 0 ? fmt$(r.period_ap) : '—')
+                          }
+                        </span>
+                      )}
                       <span className={`col-span-1 text-center font-medium font-data ${r.at_risk_count > 0 ? 'text-red-400' : 'text-muted-foreground/40'}`}>
                         {r.at_risk_count || '—'}
                       </span>
                       <span className="col-span-1 text-center">
-                        <Link to={`/agencies/${r.agency_id}`}>
+                        <Link to={`/production/${r.agency_id}`}>
                           <ChevronRight size={16} className="text-muted-foreground/40 hover:text-primary transition-colors" />
                         </Link>
                       </span>

@@ -22,6 +22,7 @@ import { ActivationPage } from '@/pages/ActivationPage';
 import { AgencyDetailPage } from '@/pages/AgencyDetailPage';
 import { ProductionPage } from '@/pages/ProductionPage';
 import { AgencyProductionPage } from '@/pages/AgencyProductionPage';
+import { AgentProductionPage } from '@/pages/AgentProductionPage';
 import { BookOfBusinessPage } from '@/pages/BookOfBusinessPage';
 
 function App() {
@@ -51,6 +52,7 @@ function App() {
             <Route path="/financials" element={<AdminFinancialsPage />} />
             <Route path="/production" element={<ProductionPage />} />
             <Route path="/production/:agencyId" element={<AgencyProductionPage />} />
+            <Route path="/production/:agencyId/agent/:agentId" element={<AgentProductionPage />} />
             <Route path="/book" element={<BookOfBusinessPage />} />
             <Route path="/workboard" element={<ManagerWorkboardPage />} />
             <Route path="/onboarding" element={<OnboardingListPage />} />
