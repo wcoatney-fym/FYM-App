@@ -1,3 +1,13 @@
+/**
+ * engine-run.ts — unified Command Center task engine runner.
+ *
+ * Fires all task-generation pipelines in parallel and returns a consolidated
+ * summary. Call this on app init or on a manual "refresh" trigger.
+ *
+ * Current pipelines:
+ *   1. reconciliation — detects intake ⇄ production drift (carrier mismatch, etc.)
+ *   2. activation-aging — flags agencies stuck post-onboarding or on CSR bottleneck
+ */
 import { runReconciliation, type ReconRunResult } from './reconciliation-run';
 import { runActivationAging, type ActivationRunResult } from './activation-aging';
 
