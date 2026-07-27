@@ -118,9 +118,8 @@ export type AgentPipelineStage =
 /**
  * Pipeline record — `agent_pipeline` table
  *
- * Note: `agent_id` is intentionally absent — the column does not exist on
- * `agent_pipeline` today. It will be added during the portal → rcbzag
- * migration as a tracked, reviewed migration (not a casual ALTER).
+ * `agent_id` column added 2026-07-27 — FK to portal `agents` table.
+ * Backfilled via email match (20/20 records populated).
  */
 export type PortalPipelineRecord = {
   id: string;
@@ -136,6 +135,7 @@ export type PortalPipelineRecord = {
   phone: string | null;
   agency: string | null;
   agency_id: string | null;
+  agent_id: string | null;
   writing_numbers: string | null;
   notes: string | null;
   tags: string[];
