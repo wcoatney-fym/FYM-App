@@ -20,6 +20,7 @@ import {
   BookOpen,
   Activity,
   HeartPulse,
+  Swords,
 } from 'lucide-react';
 import { useAppStore } from '@/store/app-store';
 import { useAuth } from '@/contexts/AuthContext';
@@ -35,6 +36,7 @@ const agentNav: NavItem[] = [
   { to: '/my-health', label: 'My Book Health', icon: ShieldCheck },
   { to: '/at-risk', label: 'At-Risk', icon: AlertTriangle },
   { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
+  { to: '/compete', label: 'Compete', icon: Swords },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -44,6 +46,7 @@ const managerNav: NavItem[] = [
   { to: '/workboard', label: 'Workboard', icon: ClipboardList },
   { to: '/retention', label: 'Retention', icon: Activity },
   { to: '/coaching', label: 'Coaching', icon: HeartPulse },
+  { to: '/compete', label: 'Compete', icon: Swords },
   { to: '/agents', label: 'Agents', icon: Users },
   { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { to: '/settings', label: 'Settings', icon: Settings },
@@ -63,6 +66,7 @@ const adminNav: NavItem[] = [
   { to: '/financials', label: 'Financials', icon: BarChart3 },
   { to: '/retention', label: 'Retention', icon: Activity },
   { to: '/coaching', label: 'Coaching', icon: HeartPulse },
+  { to: '/compete', label: 'Compete', icon: Swords },
   { to: '/onboarding', label: 'Onboarding', icon: Rocket },
   { to: '/provision', label: 'Provision Agents', icon: UserPlus },
   { to: '/settings', label: 'Settings', icon: Settings },

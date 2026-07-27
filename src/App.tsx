@@ -26,6 +26,7 @@ import { AgentProductionPage } from '@/pages/AgentProductionPage';
 import { BookOfBusinessPage } from '@/pages/BookOfBusinessPage';
 import { RetentionPage } from '@/pages/RetentionPage';
 import { CoachingPage } from '@/pages/CoachingPage';
+import { GamificationPage } from '@/pages/GamificationPage';
 
 function App() {
   return (
@@ -54,6 +55,7 @@ function App() {
             <Route path="/financials" element={<AdminFinancialsPage />} />
             <Route path="/retention" element={<RetentionPage />} />
             <Route path="/coaching" element={<CoachingPage />} />
+            <Route path="/compete" element={<GamificationPage />} />
             <Route path="/production" element={<ProductionPage />} />
             <Route path="/production/:agencyId" element={<AgencyProductionPage />} />
             <Route path="/production/:agencyId/agent/:agentId" element={<AgentProductionPage />} />
