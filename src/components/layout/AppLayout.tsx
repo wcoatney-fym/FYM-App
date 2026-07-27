@@ -1,5 +1,6 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
+import { StatusBar } from './StatusBar';
 import { useAppStore } from '@/store/app-store';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -27,6 +28,7 @@ export function AppLayout() {
           sidebarCollapsed ? 'ml-16' : 'ml-56'
         )}
       >
+        <StatusBar />
         <Outlet />
       </main>
     </div>

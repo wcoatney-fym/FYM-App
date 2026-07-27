@@ -199,7 +199,7 @@ export function AgencyDetailPage() {
       <div>
         <Header title="Agency Detail" />
         <div className="p-6 space-y-4">
-          {[1, 2, 3].map(i => <div key={i} className="h-28 rounded-lg bg-slate-100 animate-pulse" />)}
+          {[1, 2, 3].map(i => <div key={i} className="h-28 rounded-lg shimmer " />)}
         </div>
       </div>
     );
@@ -244,7 +244,7 @@ export function AgencyDetailPage() {
               title: 'Avg Premium',
               value: s && s.active_policies > 0 ? fmt$(s.active_premium / s.active_policies) : '—',
               sub: 'per active policy',
-              icon: DollarSign, color: 'text-foreground/80', bg: 'bg-slate-100',
+              icon: DollarSign, color: 'text-foreground/80', bg: 'shimmer',
             },
           ].map(card => (
             <Card key={card.title} className="border-border">
@@ -271,7 +271,7 @@ export function AgencyDetailPage() {
               <CardTitle className="text-base font-semibold text-foreground">Product Mix</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-border/30">
                 <div className="grid grid-cols-4 gap-2 px-4 py-2 bg-background text-xs font-semibold text-muted-foreground">
                   <span>Product</span>
                   <span className="text-right">Active</span>
@@ -318,9 +318,9 @@ export function AgencyDetailPage() {
                       <div key={status}>
                         <div className="flex items-center justify-between text-sm mb-1">
                           <span className="capitalize text-foreground/80 font-medium">{status}</span>
-                          <span className="text-muted-foreground tabular-nums">{count} ({pct}%)</span>
+                          <span className="text-muted-foreground font-data">{count} ({pct}%)</span>
                         </div>
-                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-2 shimmer rounded-full overflow-hidden">
                           <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
                         </div>
                       </div>
@@ -361,7 +361,7 @@ export function AgencyDetailPage() {
                   <span className="text-center">Flag</span>
                   <span className="text-center">Action</span>
                 </div>
-                <div className="divide-y divide-slate-100 max-h-[400px] overflow-y-auto">
+                <div className="divide-y divide-border/30 max-h-[400px] overflow-y-auto">
                   {atRiskPolicies.map(p => {
                     const daysIdle = p.paid_to_date
                       ? Math.floor((Date.now() - new Date(p.paid_to_date).getTime()) / 86400000)
@@ -374,15 +374,15 @@ export function AgencyDetailPage() {
                           daysIdle >= 30 ? 'border-l-2 border-l-red-400' : daysIdle >= 14 ? 'border-l-2 border-l-amber-400' : ''
                         }`}
                       >
-                        <span className="col-span-2 font-mono text-xs text-foreground/80 truncate">{p.policy_number}</span>
+                        <span className="col-span-2 font-data text-xs text-foreground/80 truncate">{p.policy_number}</span>
                         <span>
                           <Badge className={`text-[10px] px-1.5 py-0 border ${
                             p.product_type === 'HHC' ? 'bg-sky-50 text-sky-700 border-sky-200' : 'bg-violet-50 text-violet-700 border-violet-200'
                           }`}>{p.product_type}</Badge>
                         </span>
-                        <span className="text-right text-foreground/80 font-medium tabular-nums">${(Number(p.plan_premium) || 0).toFixed(0)}</span>
-                        <span className="text-center text-muted-foreground tabular-nums">{p.draft_count ?? 0}</span>
-                        <span className={`text-right font-semibold tabular-nums ${daysIdle >= 30 ? 'text-red-400' : daysIdle >= 14 ? 'text-amber-400' : 'text-muted-foreground'}`}>
+                        <span className="text-right text-foreground/80 font-medium font-data">${(Number(p.plan_premium) || 0).toFixed(0)}</span>
+                        <span className="text-center text-muted-foreground font-data">{p.draft_count ?? 0}</span>
+                        <span className={`text-right font-semibold font-data ${daysIdle >= 30 ? 'text-red-400' : daysIdle >= 14 ? 'text-amber-400' : 'text-muted-foreground'}`}>
                           {daysIdle}d
                         </span>
                         <span className="text-center">
@@ -398,7 +398,7 @@ export function AgencyDetailPage() {
                             variant="outline"
                             disabled={isBusy}
                             onClick={() => openTask(p.policy_number)}
-                            className="h-6 px-2 text-[11px] border-border hover:border-[#1e3a5f] hover:text-primary"
+                            className="h-6 px-2 text-[11px] border-border hover:border-primary/50 hover:text-primary"
                           >
                             {isBusy ? '…' : 'Task'}
                           </Button>

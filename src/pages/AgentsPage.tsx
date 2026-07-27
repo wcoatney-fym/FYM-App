@@ -150,7 +150,7 @@ export function AgentsPage() {
           <CardContent className="p-0">
             {loading ? (
               <div className="p-6 space-y-2">
-                {[1,2,3,4,5].map(i => <div key={i} className="h-10 rounded bg-slate-100 animate-pulse" />)}
+                {[1,2,3,4,5].map(i => <div key={i} className="h-10 rounded shimmer " />)}
               </div>
             ) : (
               <Table>
@@ -172,21 +172,21 @@ export function AgentsPage() {
                       <TableCell>
                         <Badge className={`text-[10px] px-1.5 py-0 border ${roleBadge(a.role)}`}>{a.role}</Badge>
                       </TableCell>
-                      <TableCell className={`font-mono text-sm ${a.writing_number ? 'text-foreground/80' : 'text-slate-300 italic'}`}>
+                      <TableCell className={`font-data text-sm ${a.writing_number ? 'text-foreground/80' : 'text-muted-foreground/40 italic'}`}>
                         {a.writing_number ?? 'not set'}
                       </TableCell>
-                      <TableCell className={`font-mono text-sm ${a.npn ? 'text-foreground/80' : 'text-slate-300'}`}>
+                      <TableCell className={`font-data text-sm ${a.npn ? 'text-foreground/80' : 'text-muted-foreground/40'}`}>
                         {a.npn ?? '—'}
                       </TableCell>
                       <TableCell className="text-right font-medium text-foreground/80">
-                        {a.active_policies ? a.active_policies.toLocaleString() : <span className="text-slate-300">—</span>}
+                        {a.active_policies ? a.active_policies.toLocaleString() : <span className="text-muted-foreground/40">—</span>}
                       </TableCell>
                       <TableCell className="text-right">
                         {a.retention_pct != null ? (
                           <span className={`font-semibold text-sm ${a.retention_pct >= 90 ? 'text-emerald-400' : a.retention_pct >= 85 ? 'text-amber-400' : 'text-red-400'}`}>
                             {a.retention_pct}%
                           </span>
-                        ) : <span className="text-slate-300 text-sm">—</span>}
+                        ) : <span className="text-muted-foreground/40 text-sm">—</span>}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button

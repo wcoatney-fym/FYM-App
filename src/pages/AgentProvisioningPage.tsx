@@ -176,7 +176,7 @@ export function AgentProvisioningPage() {
                       placeholder="e.g. WA12345"
                       value={writingNumber}
                       onChange={e => setWritingNumber(e.target.value)}
-                      className="bg-card font-mono"
+                      className="bg-card font-data"
                     />
                   </div>
                   <div>
@@ -185,7 +185,7 @@ export function AgentProvisioningPage() {
                       placeholder="12345678"
                       value={npn}
                       onChange={e => setNpn(e.target.value)}
-                      className="bg-card font-mono"
+                      className="bg-card font-data"
                     />
                   </div>
                   <div className="col-span-2">
@@ -194,7 +194,7 @@ export function AgentProvisioningPage() {
                       placeholder="Agency UUID or slug"
                       value={agencyId}
                       onChange={e => setAgencyId(e.target.value)}
-                      className="bg-card font-mono text-sm"
+                      className="bg-card font-data text-sm"
                     />
                   </div>
                   <div className="col-span-2">
@@ -207,8 +207,8 @@ export function AgentProvisioningPage() {
                           onClick={() => setRole(r)}
                           className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
                             role === r
-                              ? 'bg-primary text-white border-[#1e3a5f]'
-                              : 'bg-card text-muted-foreground border-border hover:border-slate-400'
+                              ? 'gradient-primary text-primary-foreground border-primary/30'
+                              : 'bg-secondary text-muted-foreground border-border hover:border-primary/30'
                           }`}
                         >
                           {r.charAt(0).toUpperCase() + r.slice(1)}
@@ -239,7 +239,7 @@ export function AgentProvisioningPage() {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-emerald-800">{result.full_name} provisioned!</p>
                       <p className="text-xs text-emerald-400 mt-1">Writing # {result.writing_number} · {result.role}</p>
-                      <div className="mt-2 p-2.5 rounded bg-card border border-emerald-500/20 font-mono text-xs text-foreground/80 space-y-0.5">
+                      <div className="mt-2 p-2.5 rounded bg-card border border-emerald-500/20 font-data text-xs text-foreground/80 space-y-0.5">
                         <div>Email: {result.email}</div>
                         <div>Temp PW: {result.temp_password}</div>
                       </div>
@@ -284,10 +284,10 @@ export function AgentProvisioningPage() {
             <CardContent className="p-0">
               {loadingAgents ? (
                 <div className="p-4 space-y-2">
-                  {[1,2,3].map(i => <div key={i} className="h-10 rounded bg-slate-100 animate-pulse" />)}
+                  {[1,2,3].map(i => <div key={i} className="h-10 rounded shimmer " />)}
                 </div>
               ) : (
-                <div className="divide-y divide-slate-100 max-h-[480px] overflow-y-auto">
+                <div className="divide-y divide-border/30 max-h-[480px] overflow-y-auto">
                   <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-background text-xs font-semibold text-muted-foreground">
                     <span className="col-span-4">Name</span>
                     <span className="col-span-3">Writing #</span>
@@ -297,10 +297,10 @@ export function AgentProvisioningPage() {
                   {agents.map(a => (
                     <div key={a.id} className="grid grid-cols-12 gap-2 px-4 py-2.5 text-sm items-center">
                       <span className="col-span-4 font-medium text-foreground truncate">{a.full_name ?? '—'}</span>
-                      <span className={`col-span-3 font-mono text-xs ${a.writing_number ? 'text-foreground/80' : 'text-slate-300'}`}>
+                      <span className={`col-span-3 font-data text-xs ${a.writing_number ? 'text-foreground/80' : 'text-muted-foreground/40'}`}>
                         {a.writing_number ?? 'not set'}
                       </span>
-                      <span className={`col-span-3 font-mono text-xs ${a.npn ? 'text-foreground/80' : 'text-slate-300'}`}>
+                      <span className={`col-span-3 font-data text-xs ${a.npn ? 'text-foreground/80' : 'text-muted-foreground/40'}`}>
                         {a.npn ?? '—'}
                       </span>
                       <span className="col-span-2 text-right">

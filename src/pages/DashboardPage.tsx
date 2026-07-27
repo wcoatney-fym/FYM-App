@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { HudFrame } from '@/components/ui/hud-frame';
+import { StaggerContainer, StaggerItem, FadeIn, CountUp, RadialGauge } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
 import { Link } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { ShieldCheck, TrendingUp, AlertTriangle, Building2, ChevronRight } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Building2, ChevronRight } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface DashStats {
@@ -181,175 +183,254 @@ export function DashboardPage() {
 
   const s = stats;
 
-  const kpiCards = [
-    {
-      title: 'Active Policies',
-      value: s ? s.active_policies.toLocaleString() : '—',
-      sub: s ? `${fmt$(s.active_premium)}/mo premium` : '',
-      icon: ShieldCheck, color: 'text-primary', bg: 'bg-cyan-500/10',
-    },
-    {
-      title: '90-Day Retention',
-      value: s && s.retention_pct !== null ? `${s.retention_pct}%` : '—',
-      sub: s && s.retention_pct !== null ? (s.retention_pct >= 90 ? 'On target ≥ 90%' : 'Below 90% target') : '',
-      icon: TrendingUp,
-      color: s && s.retention_pct !== null && s.retention_pct >= 90 ? 'text-emerald-400' : 'text-amber-400',
-      bg: s && s.retention_pct !== null && s.retention_pct >= 90 ? 'bg-emerald-500/10' : 'bg-amber-500/10',
-    },
-    {
-      title: 'At-Risk Policies',
-      value: s ? s.at_risk_count.toString() : '—',
-      sub: s && s.at_risk_premium > 0 ? `${fmt$(s.at_risk_premium)}/mo exposed` : '',
-      icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/10',
-    },
-    {
-      title: 'Agencies Below 90%',
-      value: s ? `${s.agencies_below_target}` : '—',
-      sub: s ? `of ${s.total_agencies} total` : '',
-      icon: Building2,
-      color: s && s.agencies_below_target > 0 ? 'text-red-400' : 'text-emerald-400',
-      bg: s && s.agencies_below_target > 0 ? 'bg-red-500/10' : 'bg-emerald-500/10',
-    },
-  ];
-
   return (
     <div>
       <Header title="Dashboard" />
       <div className="p-6 space-y-6">
 
-        {/* KPI strip */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {kpiCards.map((card) => (
-            <Card key={card.title} className="border-border">
-              <CardContent className="p-5">
-                {loading ? (
-                  <div className="h-14 rounded bg-slate-100 animate-pulse" />
-                ) : (
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">{card.title}</p>
-                      <p className="text-2xl font-bold text-foreground mt-1">{card.value}</p>
-                      {card.sub && <p className="text-xs text-muted-foreground/70 mt-0.5">{card.sub}</p>}
+        {/* ── KPI strip with HUD frames + animations ── */}
+        <StaggerContainer className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Active Policies */}
+          <StaggerItem>
+            <HudFrame>
+              <Card className="border-border">
+                <CardContent className="p-5">
+                  {loading ? (
+                    <div className="h-14 rounded shimmer" />
+                  ) : (
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">Active Policies</p>
+                        <CountUp
+                          end={s?.active_policies ?? 0}
+                          className="text-2xl font-bold text-foreground mt-1 block"
+                        />
+                        {s && <p className="text-xs text-muted-foreground/70 mt-0.5 font-data">{fmt$(s.active_premium)}/mo premium</p>}
+                      </div>
+                      <div className="p-2.5 rounded-lg bg-cyan-500/10">
+                        <ShieldCheck size={20} className="text-primary" />
+                      </div>
                     </div>
-                    <div className={`p-2.5 rounded-lg ${card.bg}`}>
-                      <card.icon size={20} className={card.color} />
+                  )}
+                </CardContent>
+              </Card>
+            </HudFrame>
+          </StaggerItem>
+
+          {/* 90-Day Retention — radial gauge */}
+          <StaggerItem>
+            <HudFrame accentColor={
+              s?.retention_pct !== null && (s?.retention_pct ?? 0) >= 90
+                ? 'hsl(142 71% 45% / 0.5)'
+                : 'hsl(38 92% 50% / 0.5)'
+            }>
+              <Card className="border-border">
+                <CardContent className="p-5">
+                  {loading ? (
+                    <div className="h-14 rounded shimmer" />
+                  ) : (
+                    <div className="flex items-center gap-4">
+                      <RadialGauge
+                        value={s?.retention_pct ?? 0}
+                        label="90-day"
+                        size={90}
+                        strokeWidth={8}
+                      />
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">90-Day Retention</p>
+                        <p className={`text-xs mt-1 ${s?.retention_pct !== null && (s?.retention_pct ?? 0) >= 90 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                          {s?.retention_pct !== null && (s?.retention_pct ?? 0) >= 90 ? 'On target ≥ 90%' : 'Below 90% target'}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                  )}
+                </CardContent>
+              </Card>
+            </HudFrame>
+          </StaggerItem>
 
-        {/* Retention trend chart */}
-        <Card className="border-border">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base font-semibold text-foreground">90-Day Retention by Cohort</CardTitle>
-                <p className="text-xs text-muted-foreground/70 mt-0.5">
-                  Monthly cohorts · HI + HHC combined and by product
-                </p>
-              </div>
-              <div className="flex items-center gap-4 text-xs">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-3 h-0.5 bg-primary rounded" /> Combined
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-3 h-0.5 bg-violet-500 rounded" /> HI
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-3 h-0.5 bg-sky-500 rounded" /> HHC
-                </span>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="h-72 rounded bg-slate-100 animate-pulse" />
-            ) : (
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={trend} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="month" stroke="#64748b" fontSize={12} />
-                    <YAxis domain={[70, 105]} stroke="#64748b" fontSize={12} tickFormatter={v => `${v}%`} />
-                    <Tooltip
-                      formatter={(v: number, name: string) => [
-                        v !== null ? `${v}%` : '—',
-                        name === 'combined' ? 'Combined' : name === 'hi' ? 'HI' : 'HHC',
-                      ]}
-                      contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: 12 }}
-                    />
-                    <Line type="monotone" dataKey="combined" stroke="#1e3a5f" strokeWidth={2.5}
-                      dot={{ fill: '#1e3a5f', r: 4 }} activeDot={{ r: 6 }} connectNulls />
-                    <Line type="monotone" dataKey="hi" stroke="#8b5cf6" strokeWidth={1.5}
-                      strokeDasharray="4 3" dot={false} connectNulls />
-                    <Line type="monotone" dataKey="hhc" stroke="#0ea5e9" strokeWidth={1.5}
-                      strokeDasharray="4 3" dot={false} connectNulls />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          {/* At-Risk Policies */}
+          <StaggerItem>
+            <HudFrame accentColor="hsl(0 84% 60% / 0.5)">
+              <Card className="border-border">
+                <CardContent className="p-5">
+                  {loading ? (
+                    <div className="h-14 rounded shimmer" />
+                  ) : (
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">At-Risk Policies</p>
+                        <CountUp
+                          end={s?.at_risk_count ?? 0}
+                          className="text-2xl font-bold text-foreground mt-1 block"
+                        />
+                        {s && s.at_risk_premium > 0 && (
+                          <p className="text-xs text-muted-foreground/70 mt-0.5 font-data">{fmt$(s.at_risk_premium)}/mo exposed</p>
+                        )}
+                      </div>
+                      <div className="p-2.5 rounded-lg bg-red-500/10">
+                        <AlertTriangle size={20} className="text-red-400" />
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </HudFrame>
+          </StaggerItem>
 
-        {/* Bottom agencies coaching panel */}
-        {!loading && bottomAgencies.length > 0 && (
+          {/* Agencies Below 90% */}
+          <StaggerItem>
+            <HudFrame accentColor={
+              s && s.agencies_below_target > 0
+                ? 'hsl(0 84% 60% / 0.5)'
+                : 'hsl(142 71% 45% / 0.5)'
+            }>
+              <Card className="border-border">
+                <CardContent className="p-5">
+                  {loading ? (
+                    <div className="h-14 rounded shimmer" />
+                  ) : (
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">Agencies Below 90%</p>
+                        <CountUp
+                          end={s?.agencies_below_target ?? 0}
+                          className="text-2xl font-bold text-foreground mt-1 block"
+                        />
+                        {s && <p className="text-xs text-muted-foreground/70 mt-0.5">of {s.total_agencies} total</p>}
+                      </div>
+                      <div className={`p-2.5 rounded-lg ${s && s.agencies_below_target > 0 ? 'bg-red-500/10' : 'bg-emerald-500/10'}`}>
+                        <Building2 size={20} className={s && s.agencies_below_target > 0 ? 'text-red-400' : 'text-emerald-400'} />
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </HudFrame>
+          </StaggerItem>
+        </StaggerContainer>
+
+        {/* ── Retention trend chart ── */}
+        <FadeIn delay={0.4}>
           <Card className="border-border">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-base font-semibold text-foreground">Agency Coaching Signals</CardTitle>
+                  <CardTitle className="text-base font-semibold text-foreground">90-Day Retention by Cohort</CardTitle>
                   <p className="text-xs text-muted-foreground/70 mt-0.5">
-                    Lowest retention agencies — sorted worst first. Below 90% = coaching needed.
+                    Monthly cohorts · HI + HHC combined and by product
                   </p>
                 </div>
-                {stats && stats.agencies_below_target > 0 && (
-                  <Badge className="bg-red-500/10 text-red-400 border-red-500/20 border">
-                    {stats.agencies_below_target} below target
-                  </Badge>
-                )}
+                <div className="flex items-center gap-4 text-xs">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3 h-0.5 bg-primary rounded" /> Combined
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3 h-0.5 bg-violet-500 rounded" /> HI
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3 h-0.5 bg-sky-500 rounded" /> HHC
+                  </span>
+                </div>
               </div>
             </CardHeader>
-            <CardContent className="p-0">
-              <div className="divide-y divide-slate-100">
-                <div className="grid grid-cols-7 gap-2 px-4 py-2 bg-background text-xs font-semibold text-muted-foreground">
-                  <span className="col-span-2">Agency</span>
-                  <span className="text-right">Active</span>
-                  <span className="text-right">Premium/mo</span>
-                  <span className="text-right">At-Risk</span>
-                  <span className="text-right">Retention</span>
-                  <span />
+            <CardContent>
+              {loading ? (
+                <div className="h-72 rounded shimmer" />
+              ) : (
+                <div className="h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={trend} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 33% 17%)" />
+                      <XAxis dataKey="month" stroke="hsl(215 20% 55%)" fontSize={12} />
+                      <YAxis domain={[70, 105]} stroke="hsl(215 20% 55%)" fontSize={12} tickFormatter={v => `${v}%`} />
+                      <Tooltip
+                        formatter={(v: number, name: string) => [
+                          v !== null ? `${v}%` : '—',
+                          name === 'combined' ? 'Combined' : name === 'hi' ? 'HI' : 'HHC',
+                        ]}
+                        contentStyle={{
+                          borderRadius: '8px',
+                          border: '1px solid hsl(217 33% 20%)',
+                          background: 'hsl(222 47% 9%)',
+                          color: 'hsl(210 40% 98%)',
+                          fontSize: 12,
+                        }}
+                      />
+                      <Line type="monotone" dataKey="combined" stroke="hsl(199 89% 48%)" strokeWidth={2.5}
+                        dot={{ fill: 'hsl(199 89% 48%)', r: 4, stroke: 'hsl(199 89% 48%)', strokeWidth: 0 }}
+                        activeDot={{ r: 6, stroke: 'hsl(199 89% 48%)', strokeWidth: 2, fill: 'hsl(222 47% 8%)' }}
+                        connectNulls />
+                      <Line type="monotone" dataKey="hi" stroke="#8b5cf6" strokeWidth={1.5}
+                        strokeDasharray="4 3" dot={false} connectNulls />
+                      <Line type="monotone" dataKey="hhc" stroke="#0ea5e9" strokeWidth={1.5}
+                        strokeDasharray="4 3" dot={false} connectNulls />
+                    </LineChart>
+                  </ResponsiveContainer>
                 </div>
-                {bottomAgencies.map((a) => (
-                  <div
-                    key={a.agency_id}
-                    className={`grid grid-cols-7 gap-2 px-4 py-2.5 text-sm items-center ${
-                      a.retention_pct !== null && a.retention_pct < 90 ? 'bg-red-500/10/30' : ''
-                    }`}
-                  >
-                    <span className="col-span-2 font-medium text-foreground truncate">
-                      {a.name ?? <span className="font-mono text-xs text-muted-foreground/70">{a.agency_id.slice(0, 8)}…</span>}
-                    </span>
-                    <span className="text-right text-muted-foreground">{a.active_policies.toLocaleString()}</span>
-                    <span className="text-right text-muted-foreground">{fmt$(a.active_premium)}</span>
-                    <span className={`text-right font-medium ${a.at_risk_count > 0 ? 'text-red-400' : 'text-muted-foreground/70'}`}>
-                      {a.at_risk_count || '—'}
-                    </span>
-                    <span className={`text-right font-semibold ${retentionColor(a.retention_pct)}`}>
-                      {a.retention_pct !== null ? `${a.retention_pct}%` : '—'}
-                    </span>
-                    <span className="text-center">
-                      <Link to={`/agencies/${a.agency_id}`}>
-                        <ChevronRight size={14} className="text-slate-300 hover:text-primary transition-colors" />
-                      </Link>
-                    </span>
-                  </div>
-                ))}
-              </div>
+              )}
             </CardContent>
           </Card>
+        </FadeIn>
+
+        {/* ── Bottom agencies coaching panel ── */}
+        {!loading && bottomAgencies.length > 0 && (
+          <FadeIn delay={0.6}>
+            <Card className="border-border">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base font-semibold text-foreground">Agency Coaching Signals</CardTitle>
+                    <p className="text-xs text-muted-foreground/70 mt-0.5">
+                      Lowest retention agencies — sorted worst first. Below 90% = coaching needed.
+                    </p>
+                  </div>
+                  {stats && stats.agencies_below_target > 0 && (
+                    <Badge className="bg-red-500/10 text-red-400 border-red-500/20 border">
+                      {stats.agencies_below_target} below target
+                    </Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="divide-y divide-border/30">
+                  <div className="grid grid-cols-7 gap-2 px-4 py-2 bg-secondary/30 text-xs font-semibold text-muted-foreground font-data">
+                    <span className="col-span-2">Agency</span>
+                    <span className="text-right">Active</span>
+                    <span className="text-right">Premium/mo</span>
+                    <span className="text-right">At-Risk</span>
+                    <span className="text-right">Retention</span>
+                    <span />
+                  </div>
+                  {bottomAgencies.map((a) => (
+                    <div
+                      key={a.agency_id}
+                      className={`grid grid-cols-7 gap-2 px-4 py-2.5 text-sm items-center row-hover ${
+                        a.retention_pct !== null && a.retention_pct < 90 ? 'bg-red-500/5' : ''
+                      }`}
+                    >
+                      <span className="col-span-2 font-medium text-foreground truncate">
+                        {a.name ?? <span className="font-data text-xs text-muted-foreground/70">{a.agency_id.slice(0, 8)}…</span>}
+                      </span>
+                      <span className="text-right text-muted-foreground font-data">{a.active_policies.toLocaleString()}</span>
+                      <span className="text-right text-muted-foreground font-data">{fmt$(a.active_premium)}</span>
+                      <span className={`text-right font-medium font-data ${a.at_risk_count > 0 ? 'text-red-400' : 'text-muted-foreground/70'}`}>
+                        {a.at_risk_count || '—'}
+                      </span>
+                      <span className={`text-right font-semibold font-data ${retentionColor(a.retention_pct)}`}>
+                        {a.retention_pct !== null ? `${a.retention_pct}%` : '—'}
+                      </span>
+                      <span className="text-center">
+                        <Link to={`/agencies/${a.agency_id}`}>
+                          <ChevronRight size={14} className="text-muted-foreground/40 hover:text-primary transition-colors" />
+                        </Link>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </FadeIn>
         )}
       </div>
     </div>
