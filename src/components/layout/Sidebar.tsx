@@ -18,6 +18,7 @@ import {
   Command,
   TrendingUp,
   BookOpen,
+  Activity,
 } from 'lucide-react';
 import { useAppStore } from '@/store/app-store';
 import { useAuth } from '@/contexts/AuthContext';
@@ -40,6 +41,7 @@ const managerNav: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/production', label: 'Production', icon: TrendingUp },
   { to: '/workboard', label: 'Workboard', icon: ClipboardList },
+  { to: '/retention', label: 'Retention', icon: Activity },
   { to: '/agents', label: 'Agents', icon: Users },
   { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { to: '/settings', label: 'Settings', icon: Settings },
@@ -57,6 +59,7 @@ const adminNav: NavItem[] = [
   { to: '/production', label: 'Production', icon: TrendingUp },
   { to: '/book', label: 'Book of Business', icon: BookOpen },
   { to: '/financials', label: 'Financials', icon: BarChart3 },
+  { to: '/retention', label: 'Retention', icon: Activity },
   { to: '/onboarding', label: 'Onboarding', icon: Rocket },
   { to: '/provision', label: 'Provision Agents', icon: UserPlus },
   { to: '/settings', label: 'Settings', icon: Settings },
