@@ -14,6 +14,7 @@ import {
 interface AtRiskRow {
   policy_number: string;
   agency_id: string;
+  agency_name: string;
   agent_id: string | null;
   product_type: string;
   plan_premium: number;
@@ -28,6 +29,7 @@ interface AtRiskRow {
 
 interface AgencyRetention {
   agency_id: string;
+  agency_name: string;
   active_policies: number;
   active_premium: number;
   at_risk_count: number;
@@ -146,7 +148,7 @@ export function ManagerWorkboardPage() {
       const q = search.toLowerCase();
       r = r.filter(row =>
         row.policy_number.toLowerCase().includes(q) ||
-        (row.agency_id || '').toLowerCase().includes(q)
+        (row.agency_name || row.agency_id || '').toLowerCase().includes(q)
       );
     }
 
@@ -159,7 +161,7 @@ export function ManagerWorkboardPage() {
       if (sortKey === 'days')    return dir * (a.days_since_draft - b.days_since_draft);
       if (sortKey === 'premium') return dir * (a.plan_premium - b.plan_premium);
       if (sortKey === 'drafts')  return dir * (a.draft_count - b.draft_count);
-      if (sortKey === 'agency')  return dir * (a.agency_id || '').localeCompare(b.agency_id || '');
+      if (sortKey === 'agency')  return dir * (a.agency_name || a.agency_id || '').localeCompare(b.agency_name || b.agency_id || '');
       return 0;
     });
   }, [rows, search, filterStatus, sortKey, sortDir]);
@@ -239,7 +241,7 @@ export function ManagerWorkboardPage() {
                 </div>
                 {agencies.slice(0, 10).map((a, i) => (
                   <div key={i} className={`grid grid-cols-6 gap-2 px-4 py-2.5 text-sm ${a.retention_pct !== null && a.retention_pct < 90 ? 'bg-red-500/30' : ''}`}>
-                    <span className="col-span-2 font-medium text-foreground truncate" title={a.agency_id}>{a.agency_id}</span>
+                    <span className="col-span-2 font-medium text-foreground truncate" title={a.agency_name}>{a.agency_name}</span>
                     <span className="text-right text-muted-foreground">{a.active_policies}</span>
                     <span className={`text-right font-medium ${a.at_risk_count > 0 ? 'text-red-400' : 'text-muted-foreground'}`}>{a.at_risk_count}</span>
                     <span className="text-right text-muted-foreground">{a.eligible_90d}</span>
@@ -319,7 +321,7 @@ export function ManagerWorkboardPage() {
                     }`}
                   >
                     <span className="col-span-2 font-data text-xs text-foreground/80 truncate">{row.policy_number}</span>
-                    <span className="col-span-2 text-muted-foreground text-xs truncate" title={row.agency_id}>{row.agency_id}</span>
+                    <span className="col-span-2 text-muted-foreground text-xs truncate" title={row.agency_name}>{row.agency_name}</span>
                     <span className="text-center">
                       <Badge className={`text-[10px] px-1.5 py-0 ${row.product_type === 'HHC' ? 'bg-sky-500/10 text-sky-400 border-sky-500/20' : 'bg-violet-500/10 text-violet-400 border-violet-500/20'} border`}>
                         {row.product_type}
