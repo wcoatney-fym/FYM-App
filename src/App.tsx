@@ -6,7 +6,6 @@ import { DashboardPage } from '@/pages/DashboardPage';
 import { AgenciesPage } from '@/pages/AgenciesPage';
 import { AgentsPage } from '@/pages/AgentsPage';
 import { ContractingPage } from '@/pages/contracting';
-import { Navigate } from 'react-router-dom';
 import { CrmOpsPage } from '@/pages/CrmOpsPage';
 import { CrmCommandPage } from '@/pages/CrmCommandPage';
 import { SettingsPage } from '@/pages/SettingsPage';
@@ -26,6 +25,7 @@ import { AgentProductionPage } from '@/pages/AgentProductionPage';
 import { BookOfBusinessPage } from '@/pages/BookOfBusinessPage';
 import { RetentionPage } from '@/pages/RetentionPage';
 import { CoachingPage } from '@/pages/CoachingPage';
+import { AtRiskPage } from '@/pages/AtRiskPage';
 import { GamificationPage } from '@/pages/GamificationPage';
 
 function App() {
@@ -44,7 +44,7 @@ function App() {
             <Route path="/agencies/:agencyId" element={<AgencyDetailPage />} />
             <Route path="/agents" element={<AgentsPage />} />
             <Route path="/contracting" element={<ContractingPage />} />
-            <Route path="/at-risk" element={<Navigate to="/coaching" replace />} />
+            <Route path="/at-risk" element={<AtRiskPage />} />
             <Route path="/crm-ops" element={<CrmOpsPage />} />
             <Route path="/crm-command" element={<CrmCommandPage />} />
             <Route path="/settings" element={<SettingsPage />} />

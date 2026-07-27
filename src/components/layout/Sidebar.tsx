@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   Building2,
   Users,
+  AlertTriangle,
   FileText,
   Settings,
   ChevronLeft,
@@ -33,6 +34,7 @@ interface NavItem {
 
 const agentNav: NavItem[] = [
   { to: '/my-health', label: 'My Book Health', icon: ShieldCheck },
+  { to: '/at-risk', label: 'At-Risk', icon: AlertTriangle },
   { to: '/coaching', label: 'Coaching', icon: HeartPulse },
   { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { to: '/compete', label: 'Compete', icon: Swords },
@@ -44,6 +46,7 @@ const managerNav: NavItem[] = [
   { to: '/production', label: 'Production', icon: TrendingUp },
   { to: '/workboard', label: 'Workboard', icon: ClipboardList },
   { to: '/retention', label: 'Retention', icon: Activity },
+  { to: '/at-risk', label: 'At-Risk', icon: AlertTriangle },
   { to: '/coaching', label: 'Coaching', icon: HeartPulse },
   { to: '/compete', label: 'Compete', icon: Swords },
   { to: '/agents', label: 'Agents', icon: Users },
@@ -55,6 +58,7 @@ const adminNav: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/agencies', label: 'Agencies', icon: Building2 },
   { to: '/agents', label: 'Agents', icon: Users },
+  { to: '/at-risk', label: 'At-Risk', icon: AlertTriangle },
   { to: '/coaching', label: 'Coaching', icon: HeartPulse },
   { to: '/workboard', label: 'Workboard', icon: ClipboardList },
   { to: '/contracting', label: 'Contracting', icon: FileText },
