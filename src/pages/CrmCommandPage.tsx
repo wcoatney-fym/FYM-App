@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import {
-  LayoutDashboard, MessageSquare, KanbanSquare, GitBranch,
+  LayoutDashboard, ScrollText, KanbanSquare, GitBranch,
   Workflow, BarChart3, Target, Users, Headphones, Settings
 } from 'lucide-react';
 
@@ -31,7 +31,7 @@ type CrmCommandTab =
 
 const tabs: { id: CrmCommandTab; label: string; icon: React.ElementType }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'chat', label: 'ClawdBot', icon: MessageSquare },
+  { id: 'chat', label: 'Command Log', icon: ScrollText },
   { id: 'tasks', label: 'Task Board', icon: KanbanSquare },
   { id: 'pipelines', label: 'Pipelines', icon: GitBranch },
   { id: 'workflows', label: 'Workflows', icon: Workflow },

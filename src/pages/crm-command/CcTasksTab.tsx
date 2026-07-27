@@ -118,6 +118,14 @@ export function CcTasksTab() {
         )}
       </div>
 
+      {tasks.length === 0 && (
+        <div className="glass rounded-xl p-8 text-center">
+          <p className="text-sm text-muted-foreground">
+            No tasks yet. Create one or run the engines to auto-generate tasks from reconciliation issues.
+          </p>
+        </div>
+      )}
+
       {view === 'kanban' ? (
         <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-thin">
           {columns.map((col) => {
