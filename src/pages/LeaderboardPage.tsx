@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent } from '@/components/ui/card';
+import { StaggerContainer, StaggerItem, FadeIn, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
 import { Trophy, TrendingUp, ShieldCheck, AlertTriangle, ChevronRight } from 'lucide-react';
 
@@ -35,7 +36,7 @@ function retentionColor(pct: number | null) {
 }
 
 function retentionBg(pct: number | null) {
-  if (pct === null) return 'bg-slate-100';
+  if (pct === null) return 'bg-secondary';
   if (pct >= 90) return 'bg-emerald-500/10';
   if (pct >= 85) return 'bg-amber-500/10';
   return 'bg-red-500/10';
@@ -152,32 +153,38 @@ export function LeaderboardPage() {
       <div className="p-6 space-y-6">
 
         {/* Stats strip */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { title: 'Total Agencies', value: stats.total.toString(), icon: Trophy, color: 'text-primary', bg: 'bg-cyan-500/10' },
-            { title: 'Above 90% Target', value: stats.above.toString(), icon: ShieldCheck, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-            { title: 'Below 90% Target', value: stats.below.toString(), icon: AlertTriangle, color: stats.below > 0 ? 'text-red-400' : 'text-muted-foreground/70', bg: stats.below > 0 ? 'bg-red-500/10' : 'bg-background' },
-            { title: 'Total Active Premium', value: fmt$(stats.totalPremium) + '/mo', icon: TrendingUp, color: 'text-foreground/80', bg: 'bg-slate-100' },
+            { title: 'Total Agencies', end: stats.total, icon: Trophy, color: 'text-primary', bg: 'bg-cyan-500/10' },
+            { title: 'Above 90% Target', end: stats.above, icon: ShieldCheck, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+            { title: 'Below 90% Target', end: stats.below, icon: AlertTriangle, color: stats.below > 0 ? 'text-red-400' : 'text-muted-foreground/70', bg: stats.below > 0 ? 'bg-red-500/10' : 'bg-secondary' },
+            { title: 'Total Active Premium', end: stats.totalPremium, icon: TrendingUp, color: 'text-foreground/80', bg: 'bg-secondary', fmt: (n: number) => fmt$(n) + '/mo' },
           ].map(card => (
-            <Card key={card.title} className="border-border">
-              <CardContent className="p-4">
-                {loading ? (
-                  <div className="h-12 rounded bg-slate-100 animate-pulse" />
-                ) : (
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground">{card.title}</p>
-                      <p className="text-xl font-bold text-foreground mt-0.5">{card.value}</p>
+            <StaggerItem key={card.title}>
+              <Card className="border-border">
+                <CardContent className="p-4">
+                  {loading ? (
+                    <div className="h-12 rounded shimmer" />
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground">{card.title}</p>
+                        <CountUp
+                          end={card.end}
+                          format={card.fmt}
+                          className="text-xl font-bold text-foreground mt-0.5 block"
+                        />
+                      </div>
+                      <div className={`p-2 rounded-lg ${card.bg}`}>
+                        <card.icon size={18} className={card.color} />
+                      </div>
                     </div>
-                    <div className={`p-2 rounded-lg ${card.bg}`}>
-                      <card.icon size={18} className={card.color} />
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                  )}
+                </CardContent>
+              </Card>
+            </StaggerItem>
           ))}
-        </div>
+        </StaggerContainer>
 
         {/* Filter tabs */}
         <div className="flex items-center gap-2">
@@ -187,8 +194,8 @@ export function LeaderboardPage() {
               onClick={() => setFilter(key)}
               className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                 filter === key
-                  ? 'bg-primary text-white'
-                  : 'bg-slate-100 text-muted-foreground hover:bg-slate-200'
+                  ? 'gradient-primary text-primary-foreground'
+                  : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
               }`}
             >
               {label}
@@ -204,7 +211,7 @@ export function LeaderboardPage() {
           <CardContent className="p-0">
             {loading ? (
               <div className="p-6 space-y-3">
-                {[1, 2, 3, 4, 5].map(i => <div key={i} className="h-12 rounded bg-slate-100 animate-pulse" />)}
+                {[1, 2, 3, 4, 5].map(i => <div key={i} className="h-12 rounded shimmer" />)}
               </div>
             ) : displayed.length === 0 ? (
               <div className="py-16 text-center text-muted-foreground/70">
@@ -236,7 +243,7 @@ export function LeaderboardPage() {
                   >At-Risk <SortArrow k="at_risk" /></span>
                   <span className="col-span-1" />
                 </div>
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-border/30">
                   {displayed.map((r) => (
                     <div
                       key={r.agency_id}
@@ -246,25 +253,25 @@ export function LeaderboardPage() {
                     >
                       <span className="col-span-1 text-center">{rankBadge(r.rank)}</span>
                       <span className="col-span-3 font-medium text-foreground truncate">
-                        {r.name ?? <span className="font-mono text-xs text-muted-foreground/70">{r.agency_id.slice(0, 12)}…</span>}
+                        {r.name ?? <span className="font-data text-xs text-muted-foreground/70">{r.agency_id.slice(0, 12)}…</span>}
                       </span>
                       <span className="col-span-2 text-center">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${retentionBg(r.retention_pct)} ${retentionColor(r.retention_pct)}`}>
                           {r.retention_pct !== null ? `${r.retention_pct}%` : '—'}
                         </span>
                       </span>
-                      <span className="col-span-2 text-right text-foreground/80 tabular-nums">
+                      <span className="col-span-2 text-right text-foreground/80 font-data">
                         {r.active_policies.toLocaleString()}
                       </span>
-                      <span className="col-span-2 text-right text-foreground/80 tabular-nums">
+                      <span className="col-span-2 text-right text-foreground/80 font-data">
                         {fmt$(r.active_premium)}
                       </span>
-                      <span className={`col-span-1 text-center font-medium tabular-nums ${r.at_risk_count > 0 ? 'text-red-400' : 'text-slate-300'}`}>
+                      <span className={`col-span-1 text-center font-medium font-data ${r.at_risk_count > 0 ? 'text-red-400' : 'text-muted-foreground/40'}`}>
                         {r.at_risk_count || '—'}
                       </span>
                       <span className="col-span-1 text-center">
                         <Link to={`/agencies/${r.agency_id}`}>
-                          <ChevronRight size={16} className="text-slate-300 hover:text-primary transition-colors" />
+                          <ChevronRight size={16} className="text-muted-foreground/40 hover:text-primary transition-colors" />
                         </Link>
                       </span>
                     </div>

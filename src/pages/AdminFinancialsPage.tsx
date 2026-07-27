@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { StaggerContainer, StaggerItem, FadeIn, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -199,7 +200,7 @@ export function AdminFinancialsPage() {
       <div>
         <Header title="Financials" />
         <div className="p-6 space-y-4">
-          {[1, 2, 3, 4].map(i => <div key={i} className="h-32 rounded-lg bg-slate-100 animate-pulse" />)}
+          {[1, 2, 3, 4].map(i => <div key={i} className="h-32 rounded-lg shimmer" />)}
         </div>
       </div>
     );
@@ -211,25 +212,28 @@ export function AdminFinancialsPage() {
       <div className="p-6 space-y-6">
 
         {/* KPI strip */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             {
               title: 'Active Premium',
-              value: fmt$(stats.totalPremium) + '/mo',
+              end: stats.totalPremium,
+              fmt: (n: number) => fmt$(n) + '/mo',
               sub: `${stats.totalActive.toLocaleString()} policies`,
               icon: DollarSign, color: 'text-primary', bg: 'bg-cyan-500/10',
             },
             {
               title: 'At-Risk Premium',
-              value: fmt$(stats.totalAtRiskPremium),
+              end: stats.totalAtRiskPremium,
+              fmt: (n: number) => fmt$(n),
               sub: `${stats.totalAtRisk} policies flagged`,
               icon: ShieldAlert,
               color: stats.totalAtRisk > 0 ? 'text-red-400' : 'text-muted-foreground/70',
-              bg: stats.totalAtRisk > 0 ? 'bg-red-500/10' : 'bg-background',
+              bg: stats.totalAtRisk > 0 ? 'bg-red-500/10' : 'bg-secondary',
             },
             {
               title: 'Blended Retention',
-              value: stats.blendedRetention !== null ? `${stats.blendedRetention}%` : '—',
+              end: stats.blendedRetention ?? 0,
+              fmt: (n: number) => stats.blendedRetention !== null ? `${n.toFixed(1)}%` : '—',
               sub: '90-day, all products',
               icon: TrendingDown,
               color: stats.blendedRetention !== null ? retentionColor(stats.blendedRetention) : 'text-muted-foreground/70',
@@ -237,29 +241,35 @@ export function AdminFinancialsPage() {
             },
             {
               title: 'Concentration Risk',
-              value: stats.flaggedConcentration.length.toString(),
+              end: stats.flaggedConcentration.length,
               sub: 'agencies >10% of premium',
               icon: AlertTriangle,
-              color: stats.flaggedConcentration.length > 0 ? 'text-amber-600' : 'text-muted-foreground/70',
-              bg: stats.flaggedConcentration.length > 0 ? 'bg-amber-500/10' : 'bg-background',
+              color: stats.flaggedConcentration.length > 0 ? 'text-amber-400' : 'text-muted-foreground/70',
+              bg: stats.flaggedConcentration.length > 0 ? 'bg-amber-500/10' : 'bg-secondary',
             },
           ].map(card => (
-            <Card key={card.title} className="border-border">
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">{card.title}</p>
-                    <p className="text-2xl font-bold text-foreground mt-1">{card.value}</p>
-                    <p className="text-xs text-muted-foreground/70 mt-0.5">{card.sub}</p>
+            <StaggerItem key={card.title}>
+              <Card className="border-border">
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">{card.title}</p>
+                      <CountUp
+                        end={card.end}
+                        format={card.fmt}
+                        className="text-2xl font-bold text-foreground mt-1 block"
+                      />
+                      <p className="text-xs text-muted-foreground/70 mt-0.5">{card.sub}</p>
+                    </div>
+                    <div className={`p-2.5 rounded-lg ${card.bg}`}>
+                      <card.icon size={20} className={card.color} />
+                    </div>
                   </div>
-                  <div className={`p-2.5 rounded-lg ${card.bg}`}>
-                    <card.icon size={20} className={card.color} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </StaggerItem>
           ))}
-        </div>
+        </StaggerContainer>
 
         {/* Product breakdown cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -313,17 +323,17 @@ export function AdminFinancialsPage() {
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={retentionChartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="month" stroke="#64748b" fontSize={11} />
-                    <YAxis domain={[70, 105]} stroke="#64748b" fontSize={11} tickFormatter={v => `${v}%`} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 33% 17%)" />
+                    <XAxis dataKey="month" stroke="hsl(215 20% 55%)" fontSize={11} />
+                    <YAxis domain={[70, 105]} stroke="hsl(215 20% 55%)" fontSize={11} tickFormatter={v => `${v}%`} />
                     <Tooltip
                       formatter={(v: number, name: string) => [
                         v !== null ? `${v}%` : '—',
                         name === 'target' ? '90% Target' : name,
                       ]}
-                      contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: 12 }}
+                      contentStyle={{ borderRadius: '8px', border: '1px solid hsl(217 33% 20%)', background: 'hsl(222 47% 9%)', color: 'hsl(210 40% 98%)', fontSize: 12 }}
                     />
-                    <Line type="monotone" dataKey="HI" stroke="#1e3a5f" strokeWidth={2.5} dot={{ r: 3, fill: '#1e3a5f' }} connectNulls />
+                    <Line type="monotone" dataKey="HI" stroke="hsl(199 89% 48%)" strokeWidth={2.5} dot={{ r: 3, fill: 'hsl(199 89% 48%)' }} connectNulls />
                     <Line type="monotone" dataKey="HHC" stroke="#0ea5e9" strokeWidth={2.5} dot={{ r: 3, fill: '#0ea5e9' }} connectNulls />
                     <Line type="monotone" dataKey="target" stroke="#ef4444" strokeDasharray="4 3" strokeWidth={1.5} dot={false} />
                   </LineChart>
@@ -340,8 +350,8 @@ export function AdminFinancialsPage() {
               <CardTitle className="text-base font-semibold text-foreground">Cohort Detail</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="divide-y divide-slate-100">
-                <div className="grid grid-cols-7 gap-2 px-4 py-2 bg-background text-xs font-semibold text-muted-foreground">
+              <div className="divide-y divide-border/30">
+                <div className="grid grid-cols-7 gap-2 px-4 py-2 bg-secondary/30 text-xs font-semibold text-muted-foreground font-data">
                   <span className="col-span-2">Cohort</span>
                   <span className="text-right">Size</span>
                   <span className="text-right">Drafted</span>
@@ -350,18 +360,18 @@ export function AdminFinancialsPage() {
                   <span className="text-right">Premium</span>
                 </div>
                 {cohorts.slice(0, 20).map((c, i) => (
-                  <div key={i} className={`grid grid-cols-7 gap-2 px-4 py-2.5 text-sm ${Number(c.retention_pct) < 90 ? 'bg-red-500/10/40' : ''}`}>
+                  <div key={i} className={`grid grid-cols-7 gap-2 px-4 py-2.5 text-sm row-hover ${Number(c.retention_pct) < 90 ? 'bg-red-500/5' : ''}`}>
                     <span className="col-span-2 font-medium text-foreground">
                       {fmtMonth(c.cohort_month)}{' '}
                       <Badge className={`text-[10px] px-1.5 py-0 border ${
-                        c.product_type === 'HHC' ? 'bg-sky-50 text-sky-700 border-sky-200' : 'bg-violet-50 text-violet-700 border-violet-200'
+                        c.product_type === 'HHC' ? 'bg-sky-500/10 text-sky-400 border-sky-500/20' : 'bg-violet-500/10 text-violet-400 border-violet-500/20'
                       }`}>{c.product_type}</Badge>
                     </span>
-                    <span className="text-right text-muted-foreground">{c.cohort_size.toLocaleString()}</span>
-                    <span className="text-right text-muted-foreground">{c.drafted_first.toLocaleString()}</span>
-                    <span className="text-right text-muted-foreground">{c.retained.toLocaleString()}</span>
-                    <span className={`text-right font-semibold ${retentionColor(Number(c.retention_pct))}`}>{c.retention_pct}%</span>
-                    <span className="text-right text-muted-foreground">{fmt$(Number(c.active_premium))}</span>
+                    <span className="text-right text-muted-foreground font-data">{c.cohort_size.toLocaleString()}</span>
+                    <span className="text-right text-muted-foreground font-data">{c.drafted_first.toLocaleString()}</span>
+                    <span className="text-right text-muted-foreground font-data">{c.retained.toLocaleString()}</span>
+                    <span className={`text-right font-semibold font-data ${retentionColor(Number(c.retention_pct))}`}>{c.retention_pct}%</span>
+                    <span className="text-right text-muted-foreground font-data">{fmt$(Number(c.active_premium))}</span>
                   </div>
                 ))}
               </div>
@@ -378,7 +388,7 @@ export function AdminFinancialsPage() {
                   <CardTitle className="text-base font-semibold text-foreground">Premium Concentration</CardTitle>
                   <p className="text-xs text-muted-foreground/70 mt-0.5">Top agencies by active premium — click to drill in</p>
                 </div>
-                <Badge className="bg-slate-100 text-muted-foreground border-border border">
+                <Badge className="bg-secondary text-muted-foreground border-border border">
                   Top {concentration.length}
                 </Badge>
               </div>
@@ -387,25 +397,25 @@ export function AdminFinancialsPage() {
               <div className="h-64 mb-4">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={concChartData} margin={{ top: 5, right: 10, left: 10, bottom: 40 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="name" stroke="#64748b" fontSize={10} angle={-35} textAnchor="end" interval={0} height={60} />
-                    <YAxis stroke="#64748b" fontSize={11} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 33% 17%)" />
+                    <XAxis dataKey="name" stroke="hsl(215 20% 55%)" fontSize={10} angle={-35} textAnchor="end" interval={0} height={60} />
+                    <YAxis stroke="hsl(215 20% 55%)" fontSize={11} tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} />
                     <Tooltip
                       formatter={(v: number, name: string) => [
                         fmt$(Math.round(v)),
                         name === 'active_premium' ? 'Active' : 'At-risk',
                       ]}
-                      contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: 12 }}
+                      contentStyle={{ borderRadius: '8px', border: '1px solid hsl(217 33% 20%)', background: 'hsl(222 47% 9%)', color: 'hsl(210 40% 98%)', fontSize: 12 }}
                     />
-                    <Bar dataKey="active_premium" fill="#1e3a5f" radius={[3, 3, 0, 0]} name="active_premium" />
-                    <Bar dataKey="at_risk_premium" fill="#ef4444" radius={[3, 3, 0, 0]} name="at_risk_premium" />
+                    <Bar dataKey="active_premium" fill="hsl(199 89% 48%)" radius={[3, 3, 0, 0]} name="active_premium" />
+                    <Bar dataKey="at_risk_premium" fill="hsl(0 84% 60%)" radius={[3, 3, 0, 0]} name="at_risk_premium" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
 
               {/* Concentration table with links */}
-              <div className="divide-y divide-slate-100 border-t border-border/50">
-                <div className="grid grid-cols-7 gap-2 px-4 py-2 bg-background text-xs font-semibold text-muted-foreground">
+              <div className="divide-y divide-border/30 border-t border-border/50">
+                <div className="grid grid-cols-7 gap-2 px-4 py-2 bg-secondary/30 text-xs font-semibold text-muted-foreground font-data">
                   <span className="col-span-2">Agency</span>
                   <span className="text-right">Active</span>
                   <span className="text-right">Premium</span>
@@ -416,19 +426,19 @@ export function AdminFinancialsPage() {
                 {concentration.map(c => (
                   <div key={c.agency_id} className={`grid grid-cols-7 gap-2 px-4 py-2.5 text-sm items-center ${c.premium_concentration_pct >= 10 ? 'bg-amber-500/10/30' : ''}`}>
                     <span className="col-span-2 font-medium text-foreground truncate">
-                      {c.name ?? <span className="font-mono text-xs text-muted-foreground/70">{c.agency_id.slice(0, 12)}…</span>}
+                      {c.name ?? <span className="font-data text-xs text-muted-foreground/70">{c.agency_id.slice(0, 12)}…</span>}
                     </span>
-                    <span className="text-right text-muted-foreground tabular-nums">{c.active_count}</span>
-                    <span className="text-right text-foreground/80 font-medium tabular-nums">{fmt$(c.active_premium)}</span>
-                    <span className={`text-right font-medium tabular-nums ${c.at_risk_count > 0 ? 'text-red-400' : 'text-slate-300'}`}>
+                    <span className="text-right text-muted-foreground font-data">{c.active_count}</span>
+                    <span className="text-right text-foreground/80 font-medium font-data">{fmt$(c.active_premium)}</span>
+                    <span className={`text-right font-medium font-data ${c.at_risk_count > 0 ? 'text-red-400' : 'text-muted-foreground/40'}`}>
                       {c.at_risk_count || '—'}
                     </span>
-                    <span className={`text-right font-semibold tabular-nums ${c.premium_concentration_pct >= 10 ? 'text-amber-400' : 'text-muted-foreground'}`}>
+                    <span className={`text-right font-semibold font-data ${c.premium_concentration_pct >= 10 ? 'text-amber-400' : 'text-muted-foreground'}`}>
                       {c.premium_concentration_pct}%
                     </span>
                     <span className="text-center">
                       <Link to={`/agencies/${c.agency_id}`}>
-                        <ChevronRight size={14} className="text-slate-300 hover:text-primary transition-colors" />
+                        <ChevronRight size={14} className="text-muted-foreground/40 hover:text-primary transition-colors" />
                       </Link>
                     </span>
                   </div>

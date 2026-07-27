@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { StaggerContainer, StaggerItem, FadeIn, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
 import { Search, Building2, ChevronRight } from 'lucide-react';
 
@@ -104,29 +105,35 @@ export function AgenciesPage() {
       <div className="p-6 space-y-4">
 
         {/* stats strip */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { label: 'Total Agencies', value: rows.length, sub: 'writing active policies' },
-            { label: 'Active Premium', value: fmt$(totalPremium), sub: '/mo across all agencies' },
-            { label: 'On Target (≥90%)', value: onTarget, sub: 'retention ≥ 90%', color: 'text-emerald-400' },
-            { label: 'Below Target', value: belowTarget, sub: 'need coaching', color: belowTarget > 0 ? 'text-red-400' : 'text-foreground' },
+            { label: 'Total Agencies', end: rows.length, sub: 'writing active policies' },
+            { label: 'Active Premium', end: totalPremium, sub: '/mo across all agencies', fmt: (n: number) => fmt$(n) },
+            { label: 'On Target (≥90%)', end: onTarget, sub: 'retention ≥ 90%', color: 'text-emerald-400' },
+            { label: 'Below Target', end: belowTarget, sub: 'need coaching', color: belowTarget > 0 ? 'text-red-400' : 'text-foreground' },
           ].map(c => (
-            <Card key={c.label} className="border-border">
-              <CardContent className="py-4 px-5">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground">{c.label}</p>
-                    <p className={`text-2xl font-bold mt-0.5 ${c.color ?? 'text-foreground'}`}>{c.value}</p>
-                    <p className="text-xs text-muted-foreground/70 mt-0.5">{c.sub}</p>
+            <StaggerItem key={c.label}>
+              <Card className="border-border">
+                <CardContent className="py-4 px-5">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground">{c.label}</p>
+                      <CountUp
+                        end={c.end}
+                        format={c.fmt}
+                        className={`text-2xl font-bold mt-0.5 block ${c.color ?? 'text-foreground'}`}
+                      />
+                      <p className="text-xs text-muted-foreground/70 mt-0.5">{c.sub}</p>
+                    </div>
+                    <div className="p-2 rounded-lg bg-cyan-500/10">
+                      <Building2 size={18} className="text-primary" />
+                    </div>
                   </div>
-                  <div className="p-2 rounded-lg bg-cyan-500/10">
-                    <Building2 size={18} className="text-primary" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </StaggerItem>
           ))}
-        </div>
+        </StaggerContainer>
 
         <Card className="border-border">
           <CardHeader className="pb-3">
@@ -146,7 +153,7 @@ export function AgenciesPage() {
           <CardContent className="p-0">
             {loading ? (
               <div className="p-6 space-y-2">
-                {[1,2,3,4,5].map(i => <div key={i} className="h-10 rounded bg-slate-100 animate-pulse" />)}
+                {[1,2,3,4,5].map(i => <div key={i} className="h-10 rounded shimmer" />)}
               </div>
             ) : (
               <Table>
@@ -170,14 +177,14 @@ export function AgenciesPage() {
                     >
                       <TableCell>
                         <div className="font-medium text-foreground">
-                          {r.name ?? <span className="font-mono text-xs text-muted-foreground/70">{r.agency_id.slice(0, 8)}…</span>}
+                          {r.name ?? <span className="font-data text-xs text-muted-foreground/70">{r.agency_id.slice(0, 8)}…</span>}
                         </div>
                         {r.slug && <div className="text-xs text-muted-foreground/70">{r.slug}</div>}
                       </TableCell>
-                      <TableCell className="text-right font-medium text-foreground/80">
+                      <TableCell className="text-right font-medium text-foreground/80 font-data">
                         {r.active_policies.toLocaleString()}
                       </TableCell>
-                      <TableCell className="text-right text-foreground/80">
+                      <TableCell className="text-right text-foreground/80 font-data">
                         {fmt$(r.active_premium)}
                       </TableCell>
                       <TableCell className="text-right">
@@ -186,7 +193,7 @@ export function AgenciesPage() {
                         </span>
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground">
-                        {r.eligible_90d > 0 ? r.eligible_90d.toLocaleString() : <span className="text-slate-300">—</span>}
+                        {r.eligible_90d > 0 ? r.eligible_90d.toLocaleString() : <span className="text-muted-foreground/40">—</span>}
                       </TableCell>
                       <TableCell className={`text-right ${retentionColor(r.retention_pct)}`}>
                         {r.retention_pct !== null ? `${r.retention_pct}%` : '—'}

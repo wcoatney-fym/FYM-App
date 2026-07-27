@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -35,9 +36,9 @@ function urgencyLevel(days: number): 'critical' | 'high' | 'medium' {
 
 function urgencyBadge(days: number) {
   const u = urgencyLevel(days);
-  if (u === 'critical') return 'bg-red-100 text-red-800 border-red-500/20';
-  if (u === 'high') return 'bg-amber-500/100/10 text-amber-800 border-amber-500/20';
-  return 'bg-slate-100 text-foreground/80 border-border';
+  if (u === 'critical') return 'bg-red-500/10 text-red-400 border-red-500/20';
+  if (u === 'high') return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+  return 'bg-secondary text-foreground/80 border-border';
 }
 
 function urgencyLabel(days: number) {
@@ -179,7 +180,7 @@ export function AtRiskPage() {
       <div>
         <Header title="At-Risk Policies" />
         <div className="p-6 space-y-4">
-          {[1,2,3].map(i => <div key={i} className="h-28 rounded-lg bg-slate-100 animate-pulse" />)}
+          {[1,2,3].map(i => <div key={i} className="h-28 rounded-lg shimmer" />)}
         </div>
       </div>
     );
@@ -191,29 +192,35 @@ export function AtRiskPage() {
       <div className="p-6 space-y-6">
 
         {/* KPI strip */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { label: 'Total At-Risk', value: rows.length.toString(), sub: `${untasked} need attention`, icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/10' },
-            { label: 'Critical (30+ days)', value: critical.toString(), sub: 'no draft in 30+ days', icon: Clock, color: 'text-red-400', bg: 'bg-red-500/10' },
-            { label: 'Urgent (14-29 days)', value: high.toString(), sub: 'approaching critical', icon: Clock, color: 'text-amber-400', bg: 'bg-amber-500/10' },
-            { label: 'At-Risk Premium', value: `$${Math.round(totalPremium).toLocaleString()}`, sub: 'monthly premium exposed', icon: TrendingDown, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+            { label: 'Total At-Risk', end: rows.length, sub: `${untasked} need attention`, icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/10' },
+            { label: 'Critical (30+ days)', end: critical, sub: 'no draft in 30+ days', icon: Clock, color: 'text-red-400', bg: 'bg-red-500/10' },
+            { label: 'Urgent (14-29 days)', end: high, sub: 'approaching critical', icon: Clock, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+            { label: 'At-Risk Premium', end: totalPremium, sub: 'monthly premium exposed', icon: TrendingDown, color: 'text-amber-400', bg: 'bg-amber-500/10', fmt: (n: number) => `$${Math.round(n).toLocaleString()}` },
           ].map(card => (
-            <Card key={card.label} className="border-border">
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">{card.label}</p>
-                    <p className="text-2xl font-bold text-foreground mt-1">{card.value}</p>
-                    <p className="text-xs text-muted-foreground/70 mt-0.5">{card.sub}</p>
+            <StaggerItem key={card.label}>
+              <Card className="border-border">
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">{card.label}</p>
+                      <CountUp
+                        end={card.end}
+                        format={card.fmt}
+                        className="text-2xl font-bold text-foreground mt-1 block"
+                      />
+                      <p className="text-xs text-muted-foreground/70 mt-0.5">{card.sub}</p>
+                    </div>
+                    <div className={`p-2.5 rounded-lg ${card.bg}`}>
+                      <card.icon size={20} className={card.color} />
+                    </div>
                   </div>
-                  <div className={`p-2.5 rounded-lg ${card.bg}`}>
-                    <card.icon size={20} className={card.color} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </StaggerItem>
           ))}
-        </div>
+        </StaggerContainer>
 
         {/* Policy table */}
         <Card className="border-border">
@@ -230,8 +237,8 @@ export function AtRiskPage() {
                     onClick={() => setFilterUrgency(f)}
                     className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
                       filterUrgency === f
-                        ? 'bg-primary text-white border-[#1e3a5f]'
-                        : 'bg-card text-muted-foreground border-border hover:border-slate-400'
+                        ? 'gradient-primary text-primary-foreground border-primary/30'
+                        : 'bg-secondary text-muted-foreground border-border hover:border-primary/30'
                     }`}
                   >
                     {f === 'all' ? `All (${rows.length})` :
@@ -264,7 +271,7 @@ export function AtRiskPage() {
               <span className="col-span-2 text-center">Action</span>
             </div>
 
-            <div className="divide-y divide-slate-100 max-h-[560px] overflow-y-auto">
+            <div className="divide-y divide-border/30 max-h-[560px] overflow-y-auto scrollbar-thin">
               {displayRows.length === 0 && (
                 <div className="py-10 text-center text-muted-foreground/70 text-sm">
                   {rows.length === 0 ? 'No at-risk policies found.' : 'No policies match your filters.'}
@@ -281,19 +288,19 @@ export function AtRiskPage() {
                       urgency === 'high' ? 'border-l-2 border-l-amber-400' : ''
                     }`}
                   >
-                    <span className="col-span-2 font-mono text-xs text-foreground/80 truncate">{row.policy_number}</span>
+                    <span className="col-span-2 font-data text-xs text-foreground/80 truncate">{row.policy_number}</span>
                     <span className="col-span-2">
                       <Badge className={`text-[10px] px-1.5 py-0 border ${
-                        row.product_type === 'HHC' ? 'bg-sky-50 text-sky-700 border-sky-200' : 'bg-violet-50 text-violet-700 border-violet-200'
+                        row.product_type === 'HHC' ? 'bg-sky-500/10 text-sky-400 border-sky-500/20' : 'bg-violet-500/10 text-violet-400 border-violet-500/20'
                       }`}>
                         {row.product_type}
                       </Badge>
                     </span>
-                    <span className="col-span-2 text-right text-foreground/80 font-medium tabular-nums">
+                    <span className="col-span-2 text-right text-foreground/80 font-medium font-data">
                       ${Number(row.plan_premium).toFixed(0)}
                     </span>
-                    <span className="text-center text-muted-foreground tabular-nums">{row.draft_count}</span>
-                    <span className={`col-span-2 text-right font-semibold tabular-nums ${
+                    <span className="text-center text-muted-foreground font-data">{row.draft_count}</span>
+                    <span className={`col-span-2 text-right font-semibold font-data ${
                       urgency === 'critical' ? 'text-red-400' : urgency === 'high' ? 'text-amber-400' : 'text-muted-foreground'
                     }`}>
                       {row.days_since_draft}d
@@ -310,7 +317,7 @@ export function AtRiskPage() {
                           variant="outline"
                           disabled={isBusy}
                           onClick={() => openTask(row.policy_number, row.agency_id)}
-                          className="h-6 px-2 text-[11px] border-border hover:border-[#1e3a5f] hover:text-primary"
+                          className="h-6 px-2 text-[11px] border-border hover:border-primary/50 hover:text-primary"
                         >
                           {isBusy ? '…' : 'Open Task'}
                         </Button>
@@ -319,12 +326,12 @@ export function AtRiskPage() {
                           size="sm"
                           disabled={isBusy}
                           onClick={() => resolveTask(row.task_id!, row.policy_number)}
-                          className="h-6 px-2 text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white"
+                          className="h-6 px-2 text-[11px] bg-emerald-500 hover:bg-emerald-600 text-white"
                         >
                           {isBusy ? '…' : <><CheckCircle2 size={11} className="mr-1 inline" />Resolve</>}
                         </Button>
                       ) : (
-                        <span className="text-xs text-emerald-600 font-medium">✓ Done</span>
+                        <span className="text-xs text-emerald-400 font-medium">✓ Done</span>
                       )}
                     </span>
                   </div>
