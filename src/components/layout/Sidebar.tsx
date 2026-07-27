@@ -16,6 +16,8 @@ import {
   UserPlus,
   Rocket,
   Command,
+  TrendingUp,
+  BookOpen,
 } from 'lucide-react';
 import { useAppStore } from '@/store/app-store';
 import { useAuth } from '@/contexts/AuthContext';
@@ -36,6 +38,7 @@ const agentNav: NavItem[] = [
 
 const managerNav: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/production', label: 'Production', icon: TrendingUp },
   { to: '/workboard', label: 'Workboard', icon: ClipboardList },
   { to: '/agents', label: 'Agents', icon: Users },
   { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
@@ -51,6 +54,8 @@ const adminNav: NavItem[] = [
   { to: '/contracting', label: 'Contracting', icon: FileText },
   { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { to: '/crm-command', label: 'CRM Command', icon: Command },
+  { to: '/production', label: 'Production', icon: TrendingUp },
+  { to: '/book', label: 'Book of Business', icon: BookOpen },
   { to: '/financials', label: 'Financials', icon: BarChart3 },
   { to: '/onboarding', label: 'Onboarding', icon: Rocket },
   { to: '/provision', label: 'Provision Agents', icon: UserPlus },

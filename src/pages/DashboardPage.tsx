@@ -7,9 +7,17 @@ import { StaggerContainer, StaggerItem, FadeIn, CountUp, RadialGauge } from '@/c
 import { supabase } from '@/lib/supabase';
 import { Link } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { ShieldCheck, AlertTriangle, Building2, ChevronRight } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Building2, ChevronRight, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────
+interface ProductionSnap {
+  policiesThisMonth: number;
+  apThisMonth: number;
+  policiesLastMonth: number;
+  apLastMonth: number;
+  trend: { month: string; policies: number; ap: number }[];
+}
+
 interface DashStats {
   active_policies: number;
   active_premium: number;
@@ -59,6 +67,7 @@ export function DashboardPage() {
   const [stats, setStats] = useState<DashStats | null>(null);
   const [trend, setTrend] = useState<CohortPoint[]>([]);
   const [bottomAgencies, setBottomAgencies] = useState<AgencyRisk[]>([]);
+  const [production, setProduction] = useState<ProductionSnap | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -173,6 +182,42 @@ export function DashboardPage() {
             };
           });
         setTrend(trendPoints);
+      }
+
+      // ── 3. Production snapshot from monthly_production ──
+      const { data: monthProd } = await supabase!
+        .from('monthly_production')
+        .select('month, policies, annual_premium');
+
+      if (monthProd) {
+        const byMonth = new Map<string, { policies: number; ap: number }>();
+        for (const r of monthProd as any[]) {
+          const existing = byMonth.get(r.month) || { policies: 0, ap: 0 };
+          existing.policies += Number(r.policies);
+          existing.ap += Number(r.annual_premium);
+          byMonth.set(r.month, existing);
+        }
+
+        const now = new Date();
+        const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const lastMonthKey = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`;
+
+        const thisM = byMonth.get(thisMonthKey) || { policies: 0, ap: 0 };
+        const lastM = byMonth.get(lastMonthKey) || { policies: 0, ap: 0 };
+
+        const trendArr = Array.from(byMonth.entries())
+          .map(([month, v]) => ({ month, ...v }))
+          .sort((a, b) => a.month.localeCompare(b.month))
+          .slice(-6);
+
+        setProduction({
+          policiesThisMonth: thisM.policies,
+          apThisMonth: thisM.ap,
+          policiesLastMonth: lastM.policies,
+          apLastMonth: lastM.ap,
+          trend: trendArr,
+        });
       }
 
       setLoading(false);
@@ -309,6 +354,75 @@ export function DashboardPage() {
             </HudFrame>
           </StaggerItem>
         </StaggerContainer>
+
+        {/* ── Production Snapshot ── */}
+        {production && (
+          <FadeIn delay={0.35}>
+            <Card className="border-border">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base font-semibold text-foreground">Production Snapshot</CardTitle>
+                    <p className="text-xs text-muted-foreground/70 mt-0.5">This month vs last month</p>
+                  </div>
+                  <Link
+                    to="/production"
+                    className="text-xs text-primary hover:underline flex items-center gap-1"
+                  >
+                    Full production view <ChevronRight size={12} />
+                  </Link>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Policies This Month</p>
+                    <p className="text-2xl font-bold text-foreground font-data">{production.policiesThisMonth.toLocaleString()}</p>
+                    <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${production.policiesThisMonth >= production.policiesLastMonth ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {production.policiesThisMonth >= production.policiesLastMonth ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+                      {production.policiesLastMonth > 0 ? Math.abs(Math.round(((production.policiesThisMonth - production.policiesLastMonth) / production.policiesLastMonth) * 100)) : 100}% vs last month
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">AP This Month</p>
+                    <p className="text-2xl font-bold text-foreground font-data">{fmt$(production.apThisMonth)}</p>
+                    <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${production.apThisMonth >= production.apLastMonth ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {production.apThisMonth >= production.apLastMonth ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+                      {production.apLastMonth > 0 ? Math.abs(Math.round(((production.apThisMonth - production.apLastMonth) / production.apLastMonth) * 100)) : 100}% vs last month
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Policies Last Month</p>
+                    <p className="text-xl font-semibold text-muted-foreground font-data">{production.policiesLastMonth.toLocaleString()}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">AP Last Month</p>
+                    <p className="text-xl font-semibold text-muted-foreground font-data">{fmt$(production.apLastMonth)}</p>
+                  </div>
+                </div>
+                {/* Mini 6-month trend */}
+                <div className="mt-4 h-24">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={production.trend}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 33% 17%)" />
+                      <XAxis
+                        dataKey="month"
+                        tickFormatter={(m: string) => { const [,mo] = m.split('-'); const ms = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; return ms[parseInt(mo) - 1] || m; }}
+                        stroke="hsl(215 20% 55%)"
+                        fontSize={10}
+                      />
+                      <Tooltip
+                        contentStyle={{ borderRadius: '8px', border: '1px solid hsl(217 33% 20%)', background: 'hsl(222 47% 9%)', color: 'hsl(210 40% 98%)', fontSize: 11 }}
+                        formatter={(v: number, name: string) => [name === 'policies' ? v.toLocaleString() : fmt$(v), name === 'policies' ? 'Policies' : 'AP']}
+                      />
+                      <Line type="monotone" dataKey="policies" stroke="hsl(142 71% 45%)" strokeWidth={2} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </FadeIn>
+        )}
 
         {/* ── Retention trend chart ── */}
         <FadeIn delay={0.4}>

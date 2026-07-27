@@ -202,6 +202,86 @@ export interface Database {
         };
         Relationships: [];
       };
+      monthly_production: {
+        Row: {
+          month: string;
+          agency_id: string;
+          product_type: string;
+          policies: number;
+          monthly_premium: number;
+          annual_premium: number;
+          active_count: number;
+          terminated_count: number;
+          pending_count: number;
+        };
+        Relationships: [];
+      };
+      agency_production: {
+        Row: {
+          agency_id: string;
+          agency_name: string | null;
+          total_policies: number;
+          active_policies: number;
+          terminated_policies: number;
+          pending_policies: number;
+          at_risk_policies: number;
+          active_monthly_premium: number;
+          active_annual_premium: number;
+          avg_annual_premium: number;
+          policies_this_month: number;
+          ap_this_month: number;
+          policies_last_month: number;
+          ap_last_month: number;
+        };
+        Relationships: [];
+      };
+      agent_production: {
+        Row: {
+          agent_id: string | null;
+          agent_name: string | null;
+          writing_number: string | null;
+          agency_id: string;
+          agency_name: string | null;
+          total_policies: number;
+          active_policies: number;
+          terminated_policies: number;
+          pending_policies: number;
+          at_risk_policies: number;
+          active_monthly_premium: number;
+          active_annual_premium: number;
+          avg_annual_premium: number;
+          policies_this_month: number;
+          ap_this_month: number;
+          retained_policies: number;
+          ever_drafted: number;
+          retention_pct: number | null;
+        };
+        Relationships: [];
+      };
+      book_of_business: {
+        Row: {
+          policy_number: string;
+          agent_id: string | null;
+          agent_name: string | null;
+          writing_number: string | null;
+          agency_id: string;
+          agency_name: string | null;
+          product_type: string;
+          status: string;
+          monthly_premium: number;
+          annual_premium: number;
+          billing_mode: string | null;
+          policy_effective_date: string | null;
+          paid_to_date: string | null;
+          draft_count: number | null;
+          is_at_risk: boolean;
+          flag_type: string | null;
+          last_contact_date: string | null;
+          synced_at: string | null;
+          days_since_paid: number | null;
+        };
+        Relationships: [];
+      };
       manager_at_risk_board: {
         Row: {
           policy_number: string | null;
