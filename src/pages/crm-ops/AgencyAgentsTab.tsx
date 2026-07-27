@@ -9,7 +9,7 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Search } from 'lucide-react';
 import { supabase } from '@/lib/crm/portal-client';
-import type { Agent } from '@/lib/crm/types';
+import type { CrmAgent as Agent } from '@/lib/crm/types';
 
 interface AgencyAgentsTabProps {
   agencyName: string;

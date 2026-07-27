@@ -43,7 +43,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { supabase } from '@/lib/crm/portal-client';
-import type { Agent, FormSubmission } from '@/lib/crm/types';
+import type { CrmAgent as Agent, CrmFormSubmission as FormSubmission } from '@/lib/crm/types';
 import { formatPhoneDisplay } from '@/lib/crm/helpers';
 
 type PipelineRecord = {

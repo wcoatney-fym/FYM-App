@@ -28,11 +28,9 @@ import {
   Loader2,
 } from 'lucide-react';
 import {
-  supabase,
   ensurePortalAuth,
   portalConfigured,
 } from '@/lib/crm/portal-client';
-import type { CrmAgency } from '@/lib/crm/types';
 
 // Tab components
 import { KpiDashboardTab } from './crm-ops/KpiDashboardTab';
@@ -59,7 +57,7 @@ type CrmView =
 
 export function CrmOpsPage() {
   const [activeTab, setActiveTab] = useState<CrmView>('dashboard');
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [refreshKey, _setRefreshKey] = useState(0);
   const [loading, setLoading] = useState(true);
   const [workQueueMode, setWorkQueueMode] = useState<
     'tickets' | 'onboarding'
