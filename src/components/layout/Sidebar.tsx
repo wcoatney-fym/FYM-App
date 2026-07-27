@@ -8,7 +8,6 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  Headphones,
   Trophy,
   ShieldCheck,
   LogOut,
