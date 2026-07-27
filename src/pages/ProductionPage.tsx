@@ -1,0 +1,437 @@
+import { useEffect, useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
+import { Header } from '@/components/layout/Header';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
+import { HudFrame } from '@/components/ui/hud-frame';
+import { supabase } from '@/lib/supabase';
+import {
+  Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, ComposedChart, Legend,
+} from 'recharts';
+import {
+  TrendingUp, DollarSign, FileText, Building2,
+  ArrowUpRight, ArrowDownRight,
+} from 'lucide-react';
+
+// ── Types ──────────────────────────────────────────────────────────────────
+interface OrgStats {
+  totalPolicies: number;
+  activePolicies: number;
+  terminatedPolicies: number;
+  pendingPolicies: number;
+  atRiskPolicies: number;
+  activeMonthlyPremium: number;
+  activeAnnualPremium: number;
+  policiesThisMonth: number;
+  apThisMonth: number;
+  policiesLastMonth: number;
+  apLastMonth: number;
+  activeAgencies: number;
+}
+
+interface AgencyRow {
+  agency_id: string;
+  agency_name: string | null;
+  active_policies: number;
+  active_annual_premium: number;
+  avg_annual_premium: number;
+  policies_this_month: number;
+  ap_this_month: number;
+  policies_last_month: number;
+  ap_last_month: number;
+  at_risk_policies: number;
+}
+
+interface MonthlyPoint {
+  month: string;
+  policies: number;
+  ap: number;
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function fmt$(n: number) {
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `$${Math.round(n / 1_000).toLocaleString()}K`;
+  return `$${Math.round(n).toLocaleString()}`;
+}
+
+function fmtNum(n: number) {
+  return n.toLocaleString();
+}
+
+function delta(current: number, previous: number): { pct: number; dir: 'up' | 'down' | 'flat' } {
+  if (previous === 0) return { pct: current > 0 ? 100 : 0, dir: current > 0 ? 'up' : 'flat' };
+  const pct = Math.round(((current - previous) / previous) * 100);
+  return { pct: Math.abs(pct), dir: pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat' };
+}
+
+function DeltaBadge({ current, previous }: { current: number; previous: number }) {
+  const d = delta(current, previous);
+  if (d.dir === 'flat') return <span className="text-xs text-muted-foreground/50">—</span>;
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${
+      d.dir === 'up' ? 'text-emerald-400' : 'text-red-400'
+    }`}>
+      {d.dir === 'up' ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+      {d.pct}%
+    </span>
+  );
+}
+
+function fmtMonth(iso: string) {
+  const [y, m] = iso.split('-');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${months[parseInt(m) - 1]} '${y.slice(2)}`;
+}
+
+// ── Component ──────────────────────────────────────────────────────────────
+export function ProductionPage() {
+  const [stats, setStats] = useState<OrgStats | null>(null);
+  const [agencies, setAgencies] = useState<AgencyRow[]>([]);
+  const [trend, setTrend] = useState<MonthlyPoint[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sortBy, setSortBy] = useState<'ap' | 'policies' | 'growth'>('ap');
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+        if (!supabase) { setLoading(false); return; }
+      try {
+        // Fetch agency production (paginated)
+        let allAgencies: AgencyRow[] = [];
+        let offset = 0;
+        const PAGE = 500;
+        while (true) {
+          const { data, error } = await supabase!
+            .from('agency_production')
+            .select('*')
+            .range(offset, offset + PAGE - 1);
+          if (error) throw error;
+          allAgencies = [...allAgencies, ...((data || []) as unknown as AgencyRow[])];
+          if (!data || data.length < PAGE) break;
+          offset += PAGE;
+        }
+        setAgencies(allAgencies);
+
+        // Compute org-wide stats from agencies
+        const org: OrgStats = {
+          totalPolicies: allAgencies.reduce((s, a) => s + (a.active_policies || 0) + (a.at_risk_policies || 0), 0),
+          activePolicies: allAgencies.reduce((s, a) => s + (a.active_policies || 0), 0),
+          terminatedPolicies: 0,
+          pendingPolicies: 0,
+          atRiskPolicies: allAgencies.reduce((s, a) => s + (a.at_risk_policies || 0), 0),
+          activeMonthlyPremium: allAgencies.reduce((s, a) => s + Number(a.active_annual_premium || 0) / 12, 0),
+          activeAnnualPremium: allAgencies.reduce((s, a) => s + Number(a.active_annual_premium || 0), 0),
+          policiesThisMonth: allAgencies.reduce((s, a) => s + (a.policies_this_month || 0), 0),
+          apThisMonth: allAgencies.reduce((s, a) => s + Number(a.ap_this_month || 0), 0),
+          policiesLastMonth: allAgencies.reduce((s, a) => s + (a.policies_last_month || 0), 0),
+          apLastMonth: allAgencies.reduce((s, a) => s + Number(a.ap_last_month || 0), 0),
+          activeAgencies: allAgencies.filter(a => a.active_policies > 0).length,
+        };
+        setStats(org);
+
+        // Fetch monthly trend (aggregate by month)
+        const { data: monthData, error: mErr } = await supabase!
+          .from('monthly_production')
+          .select('month, policies, annual_premium');
+        if (mErr) throw mErr;
+
+        // Aggregate by month (view has per-agency per-product rows)
+        const byMonth = new Map<string, { policies: number; ap: number }>();
+        ((monthData || []) as unknown as { month: string; policies: number; annual_premium: number }[]).forEach((r) => {
+          const existing = byMonth.get(r.month) || { policies: 0, ap: 0 };
+          existing.policies += Number(r.policies);
+          existing.ap += Number(r.annual_premium);
+          byMonth.set(r.month, existing);
+        });
+
+        const trendArr = Array.from(byMonth.entries())
+          .map(([month, v]) => ({ month, ...v }))
+          .sort((a, b) => a.month.localeCompare(b.month))
+          .slice(-12); // Last 12 months
+
+        setTrend(trendArr);
+      } catch (err) {
+        console.error('Production load error:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
+
+  // Sort agencies
+  const sortedAgencies = useMemo(() => {
+    const arr = [...agencies];
+    switch (sortBy) {
+      case 'ap': return arr.sort((a, b) => Number(b.active_annual_premium) - Number(a.active_annual_premium));
+      case 'policies': return arr.sort((a, b) => b.policies_this_month - a.policies_this_month);
+      case 'growth': return arr.sort((a, b) => {
+        const gA = a.policies_last_month > 0 ? (a.policies_this_month - a.policies_last_month) / a.policies_last_month : a.policies_this_month > 0 ? 1 : 0;
+        const gB = b.policies_last_month > 0 ? (b.policies_this_month - b.policies_last_month) / b.policies_last_month : b.policies_this_month > 0 ? 1 : 0;
+        return gB - gA;
+      });
+      default: return arr;
+    }
+  }, [agencies, sortBy]);
+
+  if (loading) {
+    return (
+      <>
+        <Header title="Production" />
+        <div className="p-6 grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map(i => <div key={i} className="h-32 rounded-lg shimmer" />)}
+        </div>
+      </>
+    );
+  }
+
+  if (!stats) return null;
+
+  return (
+    <>
+      <Header title="Production" />
+      <div className="p-6 space-y-6 max-w-screen-xl mx-auto">
+        {/* Hero KPI Cards */}
+        <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            {
+              title: 'Active Policies',
+              end: stats.activePolicies,
+              fmt: fmtNum,
+              sub: `${fmtNum(stats.policiesThisMonth)} this month`,
+              icon: FileText,
+              color: 'text-primary',
+              bg: 'bg-cyan-500/10',
+              accent: 'hsl(199 89% 48%)',
+            },
+            {
+              title: 'Annual Premium',
+              end: stats.activeAnnualPremium,
+              fmt: fmt$,
+              sub: `${fmt$(stats.apThisMonth)} this month`,
+              icon: DollarSign,
+              color: 'text-emerald-400',
+              bg: 'bg-emerald-500/10',
+              accent: 'hsl(142 71% 45%)',
+            },
+            {
+              title: 'This Month',
+              end: stats.policiesThisMonth,
+              fmt: (n: number) => `${fmtNum(n)} policies`,
+              delta: stats.policiesLastMonth,
+              icon: TrendingUp,
+              color: 'text-amber-400',
+              bg: 'bg-amber-500/10',
+              accent: 'hsl(38 92% 50%)',
+            },
+            {
+              title: 'Active Agencies',
+              end: stats.activeAgencies,
+              fmt: fmtNum,
+              sub: `${fmtNum(stats.atRiskPolicies)} at-risk policies`,
+              icon: Building2,
+              color: 'text-violet-400',
+              bg: 'bg-violet-500/10',
+              accent: 'hsl(263 70% 50%)',
+            },
+          ].map(card => (
+            <StaggerItem key={card.title}>
+              <HudFrame accentColor={card.accent}>
+                <Card className="border-border h-full">
+                  <CardContent className="p-5">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">{card.title}</p>
+                        <CountUp
+                          end={card.end}
+                          format={card.fmt}
+                          className="text-2xl font-bold text-foreground mt-1 block font-data"
+                        />
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {card.sub && (
+                            <p className="text-xs text-muted-foreground/70">{card.sub}</p>
+                          )}
+                          {'delta' in card && card.delta !== undefined && (
+                            <DeltaBadge current={card.end} previous={card.delta} />
+                          )}
+                        </div>
+                      </div>
+                      <div className={`p-2.5 rounded-lg ${card.bg}`}>
+                        <card.icon size={20} className={card.color} />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </HudFrame>
+            </StaggerItem>
+          ))}
+        </StaggerContainer>
+
+        {/* Book of Business Status Strip */}
+        <Card className="border-border">
+          <CardContent className="p-4">
+            <div className="grid grid-cols-5 gap-4 text-center">
+              {[
+                { label: 'Active', value: stats.activePolicies, color: 'text-emerald-400' },
+                { label: 'Pending', value: stats.pendingPolicies, color: 'text-amber-400' },
+                { label: 'At Risk', value: stats.atRiskPolicies, color: 'text-red-400' },
+                { label: 'Terminated', value: stats.terminatedPolicies, color: 'text-muted-foreground/70' },
+                { label: 'Total', value: stats.totalPolicies, color: 'text-foreground' },
+              ].map(s => (
+                <div key={s.label}>
+                  <p className="text-xs text-muted-foreground">{s.label}</p>
+                  <p className={`text-lg font-bold font-data ${s.color}`}>{fmtNum(s.value)}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Monthly Production Trend Chart */}
+        <Card className="border-border">
+          <CardHeader>
+            <CardTitle className="text-base text-foreground">Monthly Production — Last 12 Months</CardTitle>
+          </CardHeader>
+          <CardContent className="pb-2">
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={trend}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 33% 17%)" />
+                  <XAxis
+                    dataKey="month"
+                    tickFormatter={fmtMonth}
+                    stroke="hsl(215 20% 55%)"
+                    fontSize={11}
+                  />
+                  <YAxis
+                    yAxisId="ap"
+                    orientation="left"
+                    stroke="hsl(215 20% 55%)"
+                    fontSize={11}
+                    tickFormatter={v => fmt$(v)}
+                  />
+                  <YAxis
+                    yAxisId="policies"
+                    orientation="right"
+                    stroke="hsl(215 20% 55%)"
+                    fontSize={11}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: '8px',
+                      border: '1px solid hsl(217 33% 20%)',
+                      background: 'hsl(222 47% 9%)',
+                      color: 'hsl(210 40% 98%)',
+                      fontSize: 12,
+                    }}
+                    formatter={(value: number, name: string) => [
+                      name === 'ap' ? fmt$(value) : fmtNum(value),
+                      name === 'ap' ? 'Annual Premium' : 'Policies',
+                    ]}
+                    labelFormatter={fmtMonth}
+                  />
+                  <Legend
+                    formatter={(value: string) => value === 'ap' ? 'Annual Premium' : 'Policies'}
+                    wrapperStyle={{ color: 'hsl(215 20% 65%)' }}
+                  />
+                  <Bar
+                    yAxisId="ap"
+                    dataKey="ap"
+                    fill="hsl(199 89% 48%)"
+                    fillOpacity={0.3}
+                    stroke="hsl(199 89% 48%)"
+                    radius={[3, 3, 0, 0]}
+                  />
+                  <Line
+                    yAxisId="policies"
+                    type="monotone"
+                    dataKey="policies"
+                    stroke="hsl(142 71% 45%)"
+                    strokeWidth={2.5}
+                    dot={{ r: 3, fill: 'hsl(142 71% 45%)' }}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Agency Breakdown Table */}
+        <Card className="border-border">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-base text-foreground">Agency Breakdown</CardTitle>
+            <div className="flex gap-1">
+              {[
+                { key: 'ap' as const, label: 'By AP' },
+                { key: 'policies' as const, label: 'By Volume' },
+                { key: 'growth' as const, label: 'By Growth' },
+              ].map(btn => (
+                <button
+                  key={btn.key}
+                  onClick={() => setSortBy(btn.key)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    sortBy === btn.key
+                      ? 'gradient-primary text-primary-foreground'
+                      : 'bg-secondary text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {btn.label}
+                </button>
+              ))}
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-border/30">
+              <div className="grid grid-cols-8 gap-2 px-4 py-2 bg-secondary/30 text-xs font-semibold text-muted-foreground font-data">
+                <span className="col-span-2">Agency</span>
+                <span className="text-right">Active</span>
+                <span className="text-right">Annual Premium</span>
+                <span className="text-right">Avg AP</span>
+                <span className="text-right">This Month</span>
+                <span className="text-right">vs Last</span>
+                <span className="text-right">At Risk</span>
+              </div>
+              {sortedAgencies.filter(a => a.active_policies > 0).map(agency => (
+                <Link
+                  key={agency.agency_id}
+                  to={`/production/${agency.agency_id}`}
+                  className="grid grid-cols-8 gap-2 px-4 py-3 text-sm row-hover cursor-pointer group"
+                >
+                  <span className="col-span-2 font-medium text-foreground truncate group-hover:text-primary transition-colors">
+                    {agency.agency_name || agency.agency_id.slice(0, 12) + '…'}
+                  </span>
+                  <span className="text-right text-muted-foreground font-data">
+                    {fmtNum(agency.active_policies)}
+                  </span>
+                  <span className="text-right text-foreground/80 font-medium font-data">
+                    {fmt$(Number(agency.active_annual_premium))}
+                  </span>
+                  <span className="text-right text-muted-foreground font-data">
+                    {fmt$(Number(agency.avg_annual_premium))}
+                  </span>
+                  <span className="text-right text-foreground font-data font-medium">
+                    {fmtNum(agency.policies_this_month)}
+                  </span>
+                  <span className="text-right">
+                    <DeltaBadge
+                      current={agency.policies_this_month}
+                      previous={agency.policies_last_month}
+                    />
+                  </span>
+                  <span className={`text-right font-data ${
+                    agency.at_risk_policies > 0 ? 'text-red-400 font-medium' : 'text-muted-foreground/40'
+                  }`}>
+                    {agency.at_risk_policies || '—'}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </>
+  );
+}

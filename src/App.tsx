@@ -20,6 +20,9 @@ import { OnboardingDetailPage } from '@/pages/OnboardingDetailPage';
 import { OnboardingNewPage } from '@/pages/OnboardingNewPage';
 import { ActivationPage } from '@/pages/ActivationPage';
 import { AgencyDetailPage } from '@/pages/AgencyDetailPage';
+import { ProductionPage } from '@/pages/ProductionPage';
+import { AgencyProductionPage } from '@/pages/AgencyProductionPage';
+import { BookOfBusinessPage } from '@/pages/BookOfBusinessPage';
 
 function App() {
   return (
@@ -46,6 +49,9 @@ function App() {
             <Route path="/my-health" element={<AgentHealthPage />} />
             <Route path="/provision" element={<AgentProvisioningPage />} />
             <Route path="/financials" element={<AdminFinancialsPage />} />
+            <Route path="/production" element={<ProductionPage />} />
+            <Route path="/production/:agencyId" element={<AgencyProductionPage />} />
+            <Route path="/book" element={<BookOfBusinessPage />} />
             <Route path="/workboard" element={<ManagerWorkboardPage />} />
             <Route path="/onboarding" element={<OnboardingListPage />} />
             <Route path="/onboarding/new" element={<OnboardingNewPage />} />
