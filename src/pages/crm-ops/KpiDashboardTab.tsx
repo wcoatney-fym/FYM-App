@@ -51,7 +51,7 @@ interface ActionCount {
 }
 
 const NOTIFICATION_COLORS: Record<string, string> = {
-  agency_added: 'bg-blue-100 text-primary',
+  agency_added: 'bg-blue-500/10 text-primary',
   csr_confirmed: 'bg-teal-400/10 text-teal-400',
   roster_uploaded: 'bg-amber-400/10 text-amber-400',
   roster_confirmed: 'bg-emerald-400/10 text-emerald-400',
@@ -319,15 +319,15 @@ export const KpiDashboardTab: React.FC<KpiDashboardTabProps> = ({ onNavigate }) 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard icon={Contact} label="Total Contacts" value={totalContacts.toLocaleString()} color="text-primary" accentColor="border-blue-400" bgColor="bg-cyan-500/10" />
-        <KpiCard icon={CalendarDays} label="Avg / Week" value={contactsWeek.toLocaleString()} color="text-cyan-700" accentColor="border-cyan-400" bgColor="bg-cyan-50" />
-        <KpiCard icon={CalendarRange} label="Avg / Month" value={contactsMonth.toLocaleString()} color="text-sky-700" accentColor="border-sky-400" bgColor="bg-sky-50" />
+        <KpiCard icon={CalendarDays} label="Avg / Week" value={contactsWeek.toLocaleString()} color="text-cyan-400" accentColor="border-cyan-400" bgColor="bg-cyan-500/10" />
+        <KpiCard icon={CalendarRange} label="Avg / Month" value={contactsMonth.toLocaleString()} color="text-sky-400" accentColor="border-sky-400" bgColor="bg-sky-500/10" />
         <KpiCard icon={Repeat2} label="Cross-Sell Opps" value={crossSellOpps.toLocaleString()} color="text-amber-400" accentColor="border-amber-400" bgColor="bg-amber-500/10" />
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard icon={ShieldCheck} label="Saved Policies" value={savedPolicies.toLocaleString()} color="text-emerald-400" accentColor="border-emerald-400" bgColor="bg-emerald-500/10" />
         <KpiCard icon={XCircle} label="Cancellations" value={cancellations.toLocaleString()} color="text-red-400" accentColor="border-red-400" bgColor="bg-red-500/10" />
-        <KpiCard icon={UserPlus} label="Agents Onboarded" value={totalOnboarded.toLocaleString()} color="text-teal-700" accentColor="border-teal-400" bgColor="bg-teal-50" />
+        <KpiCard icon={UserPlus} label="Agents Onboarded" value={totalOnboarded.toLocaleString()} color="text-teal-400" accentColor="border-teal-400" bgColor="bg-teal-500/10" />
         <KpiCard icon={GitBranchPlus} label="Agents In Pipeline" value={totalInPipeline.toLocaleString()} color="text-primary" accentColor="border-primary" bgColor="bg-primary/5" />
       </div>
 
@@ -386,13 +386,13 @@ export const KpiDashboardTab: React.FC<KpiDashboardTabProps> = ({ onNavigate }) 
                     <td className="px-4 py-3.5 text-right text-sm text-muted-foreground">
                       {kpi ? kpi.cross_sell_opportunities.toLocaleString() : '--'}
                     </td>
-                    <td className="px-4 py-3.5 text-right text-sm text-emerald-600 font-medium">
+                    <td className="px-4 py-3.5 text-right text-sm text-emerald-400 font-medium">
                       {kpi ? kpi.saved_policies.toLocaleString() : '--'}
                     </td>
                     <td className="px-4 py-3.5 text-right text-sm text-red-400 font-medium">
                       {kpi ? kpi.cancellations.toLocaleString() : '--'}
                     </td>
-                    <td className="px-4 py-3.5 text-center text-sm font-semibold text-teal-600">
+                    <td className="px-4 py-3.5 text-center text-sm font-semibold text-teal-400">
                       {counts.onboarded}
                     </td>
                     <td className="px-4 py-3.5 text-center text-sm font-semibold text-primary">

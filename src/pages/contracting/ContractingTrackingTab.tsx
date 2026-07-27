@@ -318,11 +318,11 @@ export function ContractingTrackingTab() {
           </h3>
           <p className="text-sm text-muted-foreground max-w-md mx-auto">
             Set{' '}
-            <code className="bg-slate-100 px-1 py-0.5 rounded text-xs">
+            <code className="bg-secondary/40 px-1 py-0.5 rounded text-xs">
               VITE_PORTAL_SUPABASE_URL
             </code>{' '}
             and{' '}
-            <code className="bg-slate-100 px-1 py-0.5 rounded text-xs">
+            <code className="bg-secondary/40 px-1 py-0.5 rounded text-xs">
               VITE_PORTAL_SUPABASE_KEY
             </code>{' '}
             to connect.
@@ -413,7 +413,7 @@ export function ContractingTrackingTab() {
       {loading ? (
         <div className="space-y-2">
           {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="h-12 rounded-lg bg-slate-100 animate-pulse" />
+            <div key={i} className="h-12 rounded-lg bg-secondary/30 animate-pulse" />
           ))}
         </div>
       ) : (
@@ -500,7 +500,7 @@ export function ContractingTrackingTab() {
                         {formatPhoneDisplay(agent.phone)}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-foreground/80">
+                        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-secondary/40 text-foreground/80">
                           {FORM_TYPE_LABELS[agent.form_type] ?? agent.form_type}
                         </span>
                       </td>
@@ -513,7 +513,7 @@ export function ContractingTrackingTab() {
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span
                           className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
-                            STATUS_COLORS[agent.status] ?? 'bg-slate-100 text-muted-foreground'
+                            STATUS_COLORS[agent.status] ?? 'bg-secondary/40 text-muted-foreground'
                           }`}
                         >
                           {agent.status}
@@ -591,7 +591,7 @@ export function ContractingTrackingTab() {
             {modalLoading ? (
               <div className="p-6 space-y-4">
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-24 rounded-lg bg-slate-100 animate-pulse" />
+                  <div key={i} className="h-24 rounded-lg bg-secondary/30 animate-pulse" />
                 ))}
               </div>
             ) : (
@@ -627,7 +627,7 @@ export function ContractingTrackingTab() {
                     <div>
                       <span className="text-muted-foreground">Status</span>
                       <p>
-                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLORS[selectedAgent.status] ?? 'bg-slate-100 text-muted-foreground'}`}>
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLORS[selectedAgent.status] ?? 'bg-secondary/40 text-muted-foreground'}`}>
                           {selectedAgent.status}
                         </span>
                       </p>

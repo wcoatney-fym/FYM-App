@@ -191,11 +191,11 @@ export function WritingNumberReviewPanel({
     <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 overflow-hidden">
       <button
         onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-amber-500/100/10/60 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-amber-500/60 transition-colors"
       >
         <div className="flex items-center gap-2">
-          <PenLine className="w-4 h-4 text-amber-600" />
-          <span className="text-sm font-bold text-amber-800">
+          <PenLine className="w-4 h-4 text-amber-400" />
+          <span className="text-sm font-bold text-amber-300">
             Writing Number Review
           </span>
           {pendingSubs.length > 0 && (
@@ -205,9 +205,9 @@ export function WritingNumberReviewPanel({
           )}
         </div>
         {expanded ? (
-          <ChevronUp className="w-4 h-4 text-amber-600" />
+          <ChevronUp className="w-4 h-4 text-amber-400" />
         ) : (
-          <ChevronDown className="w-4 h-4 text-amber-600" />
+          <ChevronDown className="w-4 h-4 text-amber-400" />
         )}
       </button>
 
@@ -220,7 +220,7 @@ export function WritingNumberReviewPanel({
           )}
 
           {error && (
-            <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 border border-red-100 rounded-lg px-3 py-2">
+            <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" /> {error}
             </div>
           )}
@@ -233,7 +233,7 @@ export function WritingNumberReviewPanel({
               {pendingSubs.map((sub) => (
                 <div
                   key={sub.id}
-                  className="bg-card rounded-lg border border-amber-100 glow-sm overflow-hidden"
+                  className="bg-card rounded-lg border border-amber-500/20 glow-sm overflow-hidden"
                 >
                   <div className="flex items-center justify-between px-3 py-2.5">
                     <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -293,7 +293,7 @@ export function WritingNumberReviewPanel({
                               setError('');
                             }}
                             disabled={!!actionLoading}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold hover:bg-red-100 disabled:opacity-50 transition-colors"
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold hover:bg-red-500/10 disabled:opacity-50 transition-colors"
                           >
                             <XCircle className="w-3.5 h-3.5" /> Reject
                           </button>
@@ -303,7 +303,7 @@ export function WritingNumberReviewPanel({
                   </div>
 
                   {reviewingId === sub.id && (
-                    <div className="px-3 pb-3 pt-0 border-t border-amber-100 bg-red-500/10/50 space-y-2">
+                    <div className="px-3 pb-3 pt-0 border-t border-amber-500/20 bg-red-500/50 space-y-2">
                       <p className="text-xs text-red-400 font-medium pt-2">
                         Rejection reason (sent to agent):
                       </p>
@@ -370,7 +370,7 @@ export function WritingNumberReviewPanel({
                   <span
                     className={`ml-auto font-semibold ${
                       sub.status === 'verified'
-                        ? 'text-emerald-600'
+                        ? 'text-emerald-400'
                         : 'text-red-500'
                     }`}
                   >

@@ -463,7 +463,7 @@ export function LeaderboardPage() {
                       key={r.agency_id}
                       className={`grid gap-2 px-4 py-3 items-center text-sm hover:bg-background/80 transition-colors ${
                         period !== 'all' ? 'grid-cols-13' : 'grid-cols-12'
-                      } ${r.rank <= 3 ? 'bg-amber-500/10/20' : ''}`}
+                      } ${r.rank <= 3 ? 'bg-amber-500/10' : ''}`}
                     >
                       <span className="col-span-1 text-center">{rankBadge(r.rank)}</span>
                       <span className={`font-medium text-foreground truncate flex items-center gap-1.5 ${period !== 'all' ? 'col-span-2' : 'col-span-3'}`}>

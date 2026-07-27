@@ -656,7 +656,7 @@ export const RosterTab: React.FC = () => {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-card rounded-xl shadow-none max-w-md w-full animate-in fade-in">
             <div className="px-6 py-4 border-b border-border">
-              <h2 className="text-lg font-bold text-orange-600">Undo CRM Seat</h2>
+              <h2 className="text-lg font-bold text-orange-400">Undo CRM Seat</h2>
             </div>
             <div className="px-6 py-5">
               <p className="text-foreground/80">
@@ -1136,7 +1136,7 @@ const RosterTableView: React.FC<RosterTableViewProps> = ({
       {zapResult && (
         <div className={`mb-4 px-4 py-3 rounded-lg text-sm font-medium ${
           zapResult.failed === 0 && zapResult.sent > 0
-            ? 'bg-emerald-500/100/10 text-emerald-400 border border-green-200'
+            ? 'bg-emerald-500/10 text-emerald-400 border border-green-500/20'
             : zapResult.sent === 0
             ? 'bg-red-500/10 text-red-400 border border-red-500/20'
             : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
@@ -1152,7 +1152,7 @@ const RosterTableView: React.FC<RosterTableViewProps> = ({
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-card rounded-xl shadow-none max-w-md w-full animate-in fade-in">
             <div className="px-6 py-4 border-b border-border">
-              <h2 className="text-lg font-bold text-amber-600">Send Roster to Zap</h2>
+              <h2 className="text-lg font-bold text-amber-400">Send Roster to Zap</h2>
             </div>
             <div className="px-6 py-5">
               <p className="text-foreground/80">
@@ -1230,7 +1230,7 @@ const RosterTableView: React.FC<RosterTableViewProps> = ({
                 </tr>
               ) : (
                 rows.map((row, idx) => (
-                  <tr key={row.id} className={`transition-colors ${row.row_data['CSR Placeholder'] === 'true' ? 'bg-amber-500/10 hover:bg-amber-500/100/20' : 'hover:bg-muted'}`}>
+                  <tr key={row.id} className={`transition-colors ${row.row_data['CSR Placeholder'] === 'true' ? 'bg-amber-500/10 hover:bg-amber-500/20' : 'hover:bg-muted'}`}>
                     <td className="px-4 py-3 text-sm text-muted-foreground/70 whitespace-nowrap">
                       {page * PAGE_SIZE + idx + 1}
                     </td>
@@ -1243,7 +1243,7 @@ const RosterTableView: React.FC<RosterTableViewProps> = ({
                         {header === 'First Name' && row.row_data['CSR Placeholder'] === 'true' ? (
                           <span className="flex items-center gap-1.5">
                             {row.row_data[header] || ''}
-                            <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-amber-200 text-amber-400 rounded">
+                            <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-amber-500/20 text-amber-400 rounded">
                               CSR
                             </span>
                           </span>
@@ -1261,7 +1261,7 @@ const RosterTableView: React.FC<RosterTableViewProps> = ({
                               disabled={rowZapSending === row.id || zapSending}
                               className={`p-1.5 rounded transition-colors ${
                                 rowZapResults[row.id] === 'success'
-                                  ? 'text-green-500 bg-emerald-500/100/10'
+                                  ? 'text-green-500 bg-emerald-500/10'
                                   : rowZapResults[row.id] === 'failed'
                                   ? 'text-red-500 bg-red-500/10'
                                   : rowZapResults[row.id] === 'paused'
@@ -1272,7 +1272,7 @@ const RosterTableView: React.FC<RosterTableViewProps> = ({
                             >
                               <Zap className={`w-4 h-4 ${rowZapSending === row.id ? 'animate-pulse' : ''}`} />
                             </button>
-                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs font-medium text-white bg-gray-800 rounded whitespace-nowrap opacity-0 group-hover/zap:opacity-100 transition-opacity pointer-events-none">
+                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs font-medium text-white bg-popover rounded whitespace-nowrap opacity-0 group-hover/zap:opacity-100 transition-opacity pointer-events-none">
                               {rowZapResults[row.id] === 'success' ? 'Sent' : rowZapResults[row.id] === 'failed' ? 'Failed - Click to retry' : rowZapResults[row.id] === 'paused' ? 'Zaps paused' : 'Send to Zap'}
                               <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
                             </span>
@@ -1283,12 +1283,12 @@ const RosterTableView: React.FC<RosterTableViewProps> = ({
                           <div className="relative group/undo">
                             <button
                               onClick={() => onUndo(row)}
-                              className="p-1.5 text-orange-500 hover:bg-amber-500/100/20 rounded transition-colors"
+                              className="p-1.5 text-orange-500 hover:bg-amber-500/20 rounded transition-colors"
                               aria-label="Undo CRM seat"
                             >
                               <Undo2 className="w-4 h-4" />
                             </button>
-                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs font-medium text-white bg-gray-800 rounded whitespace-nowrap opacity-0 group-hover/undo:opacity-100 transition-opacity pointer-events-none">
+                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs font-medium text-white bg-popover rounded whitespace-nowrap opacity-0 group-hover/undo:opacity-100 transition-opacity pointer-events-none">
                               Undo CRM (Test Only)
                               <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
                             </span>
@@ -1303,7 +1303,7 @@ const RosterTableView: React.FC<RosterTableViewProps> = ({
                             >
                               <UserX className="w-4 h-4" />
                             </button>
-                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs font-medium text-white bg-gray-800 rounded whitespace-nowrap opacity-0 group-hover/terminate:opacity-100 transition-opacity pointer-events-none">
+                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs font-medium text-white bg-popover rounded whitespace-nowrap opacity-0 group-hover/terminate:opacity-100 transition-opacity pointer-events-none">
                               Terminate Agent
                               <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
                             </span>

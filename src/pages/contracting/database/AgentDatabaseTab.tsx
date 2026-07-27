@@ -306,7 +306,7 @@ export function AgentDatabaseTab() {
   if (!portalSupabase) {
     return (
       <div className="text-center py-12 text-muted-foreground">
-        <Database className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+        <Database className="w-12 h-12 mx-auto mb-3 text-muted-foreground/50" />
         <p className="font-medium">Portal connection not configured</p>
         <p className="text-sm mt-1">
           Set VITE_PORTAL_SUPABASE_URL and VITE_PORTAL_SUPABASE_KEY to
@@ -493,7 +493,7 @@ export function AgentDatabaseTab() {
                             >
                               <Pencil className="w-4 h-4" />
                             </button>
-                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs font-medium text-white bg-gray-800 rounded whitespace-nowrap opacity-0 group-hover/edit:opacity-100 transition-opacity pointer-events-none">
+                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs font-medium text-white bg-popover rounded whitespace-nowrap opacity-0 group-hover/edit:opacity-100 transition-opacity pointer-events-none">
                               Edit Agent
                               <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
                             </span>
@@ -508,7 +508,7 @@ export function AgentDatabaseTab() {
                             >
                               <Eye className="w-4 h-4" />
                             </button>
-                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs font-medium text-white bg-gray-800 rounded whitespace-nowrap opacity-0 group-hover/view:opacity-100 transition-opacity pointer-events-none">
+                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs font-medium text-white bg-popover rounded whitespace-nowrap opacity-0 group-hover/view:opacity-100 transition-opacity pointer-events-none">
                               View Details
                               <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
                             </span>
@@ -518,7 +518,7 @@ export function AgentDatabaseTab() {
                           <div className="relative group/crm">
                             {agent.crm_onboarded ? (
                               <span
-                                className="p-1.5 inline-flex text-emerald-600 cursor-default"
+                                className="p-1.5 inline-flex text-emerald-400 cursor-default"
                                 aria-label={`CRM submitted for ${agent.first_name} ${agent.last_name}`}
                               >
                                 <CheckCircle className="w-4 h-4" />
@@ -532,7 +532,7 @@ export function AgentDatabaseTab() {
                                 <UserPlus className="w-4 h-4" />
                               </button>
                             )}
-                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs font-medium text-white bg-gray-800 rounded whitespace-nowrap opacity-0 group-hover/crm:opacity-100 transition-opacity pointer-events-none">
+                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs font-medium text-white bg-popover rounded whitespace-nowrap opacity-0 group-hover/crm:opacity-100 transition-opacity pointer-events-none">
                               {agent.crm_onboarded
                                 ? 'CRM Submitted'
                                 : 'CRM Onboarding'}
@@ -548,12 +548,12 @@ export function AgentDatabaseTab() {
                                   setUndoError('');
                                   setUndoAgent(agent);
                                 }}
-                                className="p-1.5 text-orange-500 hover:bg-amber-500/100/10 rounded transition-colors"
+                                className="p-1.5 text-orange-500 hover:bg-amber-500/10 rounded transition-colors"
                                 aria-label={`Undo CRM for ${agent.first_name} ${agent.last_name}`}
                               >
                                 <Undo2 className="w-4 h-4" />
                               </button>
-                              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs font-medium text-white bg-gray-800 rounded whitespace-nowrap opacity-0 group-hover/undo:opacity-100 transition-opacity pointer-events-none">
+                              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs font-medium text-white bg-popover rounded whitespace-nowrap opacity-0 group-hover/undo:opacity-100 transition-opacity pointer-events-none">
                                 Undo CRM (Test Only)
                                 <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
                               </span>
@@ -570,7 +570,7 @@ export function AgentDatabaseTab() {
                               >
                                 <UserX className="w-4 h-4" />
                               </button>
-                              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs font-medium text-white bg-gray-800 rounded whitespace-nowrap opacity-0 group-hover/terminate:opacity-100 transition-opacity pointer-events-none">
+                              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs font-medium text-white bg-popover rounded whitespace-nowrap opacity-0 group-hover/terminate:opacity-100 transition-opacity pointer-events-none">
                                 Terminate Agent
                                 <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
                               </span>
@@ -627,7 +627,7 @@ export function AgentDatabaseTab() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-card rounded-lg shadow-xl max-w-md w-full">
             <div className="px-6 py-4 border-b border-border">
-              <h2 className="text-lg font-bold text-orange-600">
+              <h2 className="text-lg font-bold text-orange-400">
                 Undo CRM Onboarding
               </h2>
             </div>

@@ -134,7 +134,7 @@ export function OnboardingDetailPage() {
               {agency.principal_email && (
                 <a
                   href={`mailto:${agency.principal_email}`}
-                  className="inline-flex items-center gap-1.5 mt-1 text-xs text-cyan-400 hover:text-blue-800"
+                  className="inline-flex items-center gap-1.5 mt-1 text-xs text-cyan-400 hover:text-blue-300"
                 >
                   <Mail className="w-3 h-3" />
                   {agency.principal_email}
@@ -234,7 +234,7 @@ export function OnboardingDetailPage() {
 
       {/* Incomplete tasks */}
       {stats.incomplete.length > 0 && (
-        <Card className="bg-slate-900 text-white border-0">
+        <Card className="bg-card text-white border-0">
           <CardContent className="p-6">
             <h3 className="text-xs uppercase tracking-wider text-blue-400 mb-1">Incomplete Tasks</h3>
             <p className="text-lg font-semibold mb-4">What they're stuck on.</p>
@@ -412,7 +412,7 @@ function EditAgencyForm({
             </div>
 
             {error && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-sm text-red-800">
+              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-sm text-red-300">
                 {error}
               </div>
             )}

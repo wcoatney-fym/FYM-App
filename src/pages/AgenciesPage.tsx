@@ -173,7 +173,7 @@ export function AgenciesPage() {
                   {filtered.map(r => (
                     <TableRow
                       key={r.agency_id}
-                      className={`hover:bg-background transition-colors cursor-pointer ${r.retention_pct !== null && r.retention_pct < 90 ? 'bg-red-500/10/20' : ''}`}
+                      className={`hover:bg-background transition-colors cursor-pointer ${r.retention_pct !== null && r.retention_pct < 90 ? 'bg-red-500/10' : ''}`}
                     >
                       <TableCell>
                         <div className="font-medium text-foreground">

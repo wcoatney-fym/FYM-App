@@ -44,7 +44,7 @@ export function EngineRunButton({ onRun }: Props) {
     'flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all',
     state === 'running' && 'bg-primary/10 text-primary cursor-not-allowed',
     state === 'done'    && 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20',
-    state === 'error'   && 'bg-red-500/100/10 text-red-400 hover:bg-red-500/100/20',
+    state === 'error'   && 'bg-red-500/10 text-red-400 hover:bg-red-500/20',
     state === 'idle'    && 'bg-secondary/60 hover:bg-secondary text-foreground',
   );
 

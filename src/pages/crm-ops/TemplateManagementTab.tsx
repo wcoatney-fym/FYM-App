@@ -199,7 +199,7 @@ const CrossSellTemplateCard: React.FC<{
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
-            <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
+            <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
           </div>
           <div>
             <h4 className="font-semibold text-foreground text-sm">{template.name}</h4>
@@ -238,7 +238,7 @@ const CrossSellTemplateCard: React.FC<{
         <div className="flex items-center gap-2">
           <button
             onClick={onDownload}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary bg-cyan-500/10 rounded-lg hover:bg-blue-100 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary bg-cyan-500/10 rounded-lg hover:bg-blue-500/10 transition-colors"
           >
             <Download className="w-3.5 h-3.5" />
             Download
@@ -301,7 +301,7 @@ const TemplateCard: React.FC<{
       <div className="flex items-center gap-1">
         <button
           onClick={onDownload}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary bg-cyan-500/10 rounded-lg hover:bg-blue-100 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary bg-cyan-500/10 rounded-lg hover:bg-blue-500/10 transition-colors"
         >
           <Download className="w-3.5 h-3.5" />
           Download
@@ -604,14 +604,14 @@ const UploadTemplateModal: React.FC<{
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className="w-full flex flex-col items-center justify-center py-8 border-2 border-dashed border-border rounded-lg hover:border-primary/40 hover:bg-cyan-500/10/30 transition-colors cursor-pointer"
+                className="w-full flex flex-col items-center justify-center py-8 border-2 border-dashed border-border rounded-lg hover:border-primary/40 hover:bg-cyan-500/30 transition-colors cursor-pointer"
               >
                 <Upload className="w-8 h-8 text-muted-foreground/70 mb-2" />
                 <p className="text-sm font-medium text-muted-foreground">Click to select a CSV file</p>
                 <p className="text-xs text-muted-foreground/70 mt-1">The headers will be used as template columns</p>
               </button>
             ) : (
-              <div className="flex items-center gap-3 p-3 bg-cyan-500/10 rounded-lg border border-blue-200">
+              <div className="flex items-center gap-3 p-3 bg-cyan-500/10 rounded-lg border border-blue-500/20">
                 <FileSpreadsheet className="w-5 h-5 text-primary" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground truncate">{file.name}</p>
@@ -620,7 +620,7 @@ const UploadTemplateModal: React.FC<{
                 <button
                   type="button"
                   onClick={() => { setFile(null); setParsedHeaders([]); setParsedSampleRows([]); if (fileRef.current) fileRef.current.value = ''; }}
-                  className="p-1 hover:bg-blue-100 rounded transition-colors"
+                  className="p-1 hover:bg-blue-500/10 rounded transition-colors"
                 >
                   <X className="w-4 h-4 text-muted-foreground" />
                 </button>

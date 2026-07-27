@@ -23,8 +23,8 @@ interface AgentRow {
 }
 
 function roleBadge(role: string) {
-  if (role === 'admin')   return 'bg-violet-50 text-violet-700 border-violet-200';
-  if (role === 'manager') return 'bg-cyan-500/10 text-cyan-400 border-blue-200';
+  if (role === 'admin')   return 'bg-violet-500/10 text-violet-400 border-violet-500/20';
+  if (role === 'manager') return 'bg-cyan-500/10 text-cyan-400 border-blue-500/20';
   return 'bg-background text-muted-foreground border-border';
 }
 
@@ -192,7 +192,7 @@ export function AgentsPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="text-cyan-400 hover:text-blue-800 hover:bg-cyan-500/10 h-7 px-2"
+                          className="text-cyan-400 hover:text-blue-300 hover:bg-cyan-500/10 h-7 px-2"
                           onClick={() => navigate(`/agents/${a.id}/health`)}
                           disabled={!a.writing_number}
                         >

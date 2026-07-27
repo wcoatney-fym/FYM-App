@@ -44,7 +44,7 @@ const TYPE_STYLES: Record<HistoryEvent['type'], { bg: string; text: string; icon
   notification: { bg: 'bg-cyan-500/10', text: 'text-cyan-400', icon: Bell },
   roster_upload: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', icon: Upload },
   dba_upload: { bg: 'bg-amber-500/10', text: 'text-amber-400', icon: FileText },
-  cancellation_upload: { bg: 'bg-rose-50', text: 'text-rose-700', icon: FileText },
+  cancellation_upload: { bg: 'bg-rose-500/10', text: 'text-rose-400', icon: FileText },
 };
 
 const PAGE_SIZE = 50;

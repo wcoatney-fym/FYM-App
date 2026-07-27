@@ -279,11 +279,11 @@ export function ContractingIntakeTab() {
           </h3>
           <p className="text-sm text-muted-foreground max-w-md mx-auto">
             Set{' '}
-            <code className="bg-slate-100 px-1 py-0.5 rounded text-xs">
+            <code className="bg-secondary/40 px-1 py-0.5 rounded text-xs">
               VITE_PORTAL_SUPABASE_URL
             </code>{' '}
             and{' '}
-            <code className="bg-slate-100 px-1 py-0.5 rounded text-xs">
+            <code className="bg-secondary/40 px-1 py-0.5 rounded text-xs">
               VITE_PORTAL_SUPABASE_KEY
             </code>{' '}
             to connect.
@@ -301,9 +301,9 @@ export function ContractingIntakeTab() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-2">
               <div className="p-2 bg-amber-500/10 rounded-lg">
-                <Users size={18} className="text-amber-600" />
+                <Users size={18} className="text-amber-400" />
               </div>
-              <span className="text-2xl font-bold text-amber-600">
+              <span className="text-2xl font-bold text-amber-400">
                 {newHires.length}
               </span>
             </div>
@@ -316,16 +316,16 @@ export function ContractingIntakeTab() {
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-2">
               <div className="p-2 bg-emerald-500/10 rounded-lg">
-                <CheckCircle size={18} className="text-emerald-600" />
+                <CheckCircle size={18} className="text-emerald-400" />
               </div>
-              <span className="text-2xl font-bold text-emerald-600">
+              <span className="text-2xl font-bold text-emerald-400">
                 {processedCount}
               </span>
             </div>
             <h3 className="text-muted-foreground text-sm font-medium">Processed</h3>
           </CardContent>
         </Card>
-        <Card className="border-blue-200 cursor-pointer hover:glow-primary transition-shadow"
+        <Card className="border-blue-500/20 cursor-pointer hover:glow-primary transition-shadow"
           onClick={() => { setShowFormGen(!showFormGen); setSendResult(null); }}>
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-2">
@@ -347,7 +347,7 @@ export function ContractingIntakeTab() {
 
       {/* ── Form Generator ─────────────────────────────────────────────── */}
       {showFormGen && (
-        <Card className="border-blue-200">
+        <Card className="border-blue-500/20">
           <CardContent className="p-6">
             <h3 className="text-base font-bold text-foreground mb-4 flex items-center gap-2">
               <Send size={16} className="text-cyan-400" />
@@ -479,7 +479,7 @@ export function ContractingIntakeTab() {
               >
                 {sendResult.success ? (
                   <div className="space-y-3">
-                    <p className="text-sm font-medium text-emerald-800 flex items-center gap-1.5">
+                    <p className="text-sm font-medium text-emerald-300 flex items-center gap-1.5">
                       <CheckCircle size={14} /> Form sent successfully
                     </p>
                     <div className="space-y-2">
@@ -494,13 +494,13 @@ export function ContractingIntakeTab() {
                           onClick={() =>
                             copyToClipboard(sendResult.url!, 'url')
                           }
-                          className="p-1 hover:bg-emerald-500/100/10 rounded transition-colors"
+                          className="p-1 hover:bg-emerald-500/10 rounded transition-colors"
                           title="Copy URL"
                         >
                           {copiedField === 'url' ? (
-                            <Check size={14} className="text-emerald-600" />
+                            <Check size={14} className="text-emerald-400" />
                           ) : (
-                            <Copy size={14} className="text-emerald-600" />
+                            <Copy size={14} className="text-emerald-400" />
                           )}
                         </button>
                       </div>
@@ -515,13 +515,13 @@ export function ContractingIntakeTab() {
                           onClick={() =>
                             copyToClipboard(sendResult.code!, 'code')
                           }
-                          className="p-1 hover:bg-emerald-500/100/10 rounded transition-colors"
+                          className="p-1 hover:bg-emerald-500/10 rounded transition-colors"
                           title="Copy code"
                         >
                           {copiedField === 'code' ? (
-                            <Check size={14} className="text-emerald-600" />
+                            <Check size={14} className="text-emerald-400" />
                           ) : (
-                            <Copy size={14} className="text-emerald-600" />
+                            <Copy size={14} className="text-emerald-400" />
                           )}
                         </button>
                       </div>
@@ -570,7 +570,7 @@ export function ContractingIntakeTab() {
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
-                className="h-20 rounded-xl bg-slate-100 animate-pulse"
+                className="h-20 rounded-xl bg-secondary/30 animate-pulse"
               />
             ))}
           </div>
@@ -593,7 +593,7 @@ export function ContractingIntakeTab() {
             {filteredHires.map((hire) => (
               <Card
                 key={hire.id}
-                className="border-border hover:border-blue-300 hover:glow-sm transition-all"
+                className="border-border hover:border-blue-500/30 hover:glow-sm transition-all"
               >
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">

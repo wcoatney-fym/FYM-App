@@ -56,7 +56,7 @@ export function SettingsPage() {
                 Save Connection
               </Button>
               {saved && (
-                <span className="text-sm text-emerald-600 font-medium animate-in fade-in">
+                <span className="text-sm text-emerald-400 font-medium animate-in fade-in">
                   Saved successfully
                 </span>
               )}

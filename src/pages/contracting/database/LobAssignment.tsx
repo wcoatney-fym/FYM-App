@@ -324,7 +324,7 @@ export function LobAssignment({
 
           {success && (
             <div className="flex items-center gap-2 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-              <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+              <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
               <p className="text-sm text-emerald-400 font-medium">
                 Lines of business saved.
               </p>

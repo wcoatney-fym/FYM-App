@@ -139,9 +139,9 @@ export function TaskDetailPanel({ task, members, onClose, onUpdate, onDelete }: 
               <>
                 <button onClick={() => setEditing(true)} className="flex-1 py-2 rounded-lg bg-secondary/60 hover:bg-secondary text-xs font-medium transition-colors">Edit</button>
                 {confirmDelete ? (
-                  <button onClick={() => { onDelete(task.id); onClose(); }} className="flex-1 py-2 rounded-lg bg-red-500/100/20 hover:bg-red-500/100/30 text-red-400 text-xs font-medium transition-colors">Confirm Delete</button>
+                  <button onClick={() => { onDelete(task.id); onClose(); }} className="flex-1 py-2 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-400 text-xs font-medium transition-colors">Confirm Delete</button>
                 ) : (
-                  <button onClick={() => setConfirmDelete(true)} className="px-3 py-2 rounded-lg bg-secondary/60 hover:bg-red-500/100/10 text-muted-foreground hover:text-red-400 text-xs transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                  <button onClick={() => setConfirmDelete(true)} className="px-3 py-2 rounded-lg bg-secondary/60 hover:bg-red-500/10 text-muted-foreground hover:text-red-400 text-xs transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
                 )}
               </>
             ) : (

@@ -104,9 +104,9 @@ const STAGES = [
 ] as const;
 
 const STAGE_COLORS: Record<string, { bg: string; border: string; text: string; dot: string; badge: string }> = {
-  processing: { bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-700', dot: 'bg-teal-400', badge: 'bg-teal-400/10 text-teal-400' },
-  sunfire_workflows: { bg: 'bg-amber-500/100/10', border: 'border-orange-200', text: 'text-amber-400', dot: 'bg-orange-400', badge: 'bg-orange-100 text-orange-800' },
-  agency_workflows: { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700', dot: 'bg-rose-400', badge: 'bg-rose-100 text-rose-800' },
+  processing: { bg: 'bg-teal-500/10', border: 'border-teal-500/20', text: 'text-teal-400', dot: 'bg-teal-400', badge: 'bg-teal-400/10 text-teal-400' },
+  sunfire_workflows: { bg: 'bg-amber-500/10', border: 'border-orange-500/20', text: 'text-amber-400', dot: 'bg-orange-400', badge: 'bg-orange-500/10 text-orange-300' },
+  agency_workflows: { bg: 'bg-rose-500/10', border: 'border-rose-500/20', text: 'text-rose-400', dot: 'bg-rose-400', badge: 'bg-rose-500/10 text-rose-300' },
   completed: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', text: 'text-emerald-400', dot: 'bg-emerald-400', badge: 'bg-emerald-400/10 text-emerald-400' },
 };
 
@@ -452,8 +452,8 @@ export const PipelineTab: React.FC = () => {
 
       <div className={`grid grid-cols-2 ${terminatedRecords.length > 0 ? 'sm:grid-cols-5' : 'sm:grid-cols-4'} gap-4 mb-6`}>
         <StatCard label="In Pipeline" value={filtered.filter((r) => r.stage !== 'completed').length} color="text-primary" />
-        <StatCard label="Awaiting Manual" value={manualTasks.length} color="text-orange-600" />
-        <StatCard label="Completed (7d)" value={completedRecent.length} color="text-emerald-600" />
+        <StatCard label="Awaiting Manual" value={manualTasks.length} color="text-orange-400" />
+        <StatCard label="Completed (7d)" value={completedRecent.length} color="text-emerald-400" />
         {terminatedRecords.length > 0 && (
           <StatCard label="Terminated" value={terminatedRecords.length} color="text-red-400" />
         )}
@@ -983,9 +983,9 @@ const TaskSection: React.FC<TaskSectionProps> = ({
   processing,
 }) => {
   const colorMap: Record<string, { bg: string; border: string; text: string; button: string }> = {
-    teal: { bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-700', button: 'bg-teal-500 hover:bg-teal-600' },
-    orange: { bg: 'bg-amber-500/100/10', border: 'border-orange-200', text: 'text-amber-400', button: 'bg-amber-500/100/100 hover:bg-orange-600' },
-    rose: { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700', button: 'bg-rose-500 hover:bg-rose-600' },
+    teal: { bg: 'bg-teal-500/10', border: 'border-teal-500/20', text: 'text-teal-400', button: 'bg-teal-500 hover:bg-teal-600' },
+    orange: { bg: 'bg-amber-500/10', border: 'border-orange-500/20', text: 'text-amber-400', button: 'bg-amber-500/100/100 hover:bg-orange-600' },
+    rose: { bg: 'bg-rose-500/10', border: 'border-rose-500/20', text: 'text-rose-400', button: 'bg-rose-500 hover:bg-rose-600' },
     emerald: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', text: 'text-emerald-400', button: 'bg-emerald-500/100 hover:bg-emerald-500' },
   };
   const colors = colorMap[color] || colorMap.teal;
@@ -1166,7 +1166,7 @@ const CountdownBadge: React.FC<{ record: PipelineRecord; compact?: boolean }> = 
 
   if (!countdown) {
     return (
-      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 font-medium animate-pulse ${compact ? 'text-[9px]' : 'text-[10px]'}`}>
+      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-400 font-medium animate-pulse ${compact ? 'text-[9px]' : 'text-[10px]'}`}>
         <Loader2 className="w-3 h-3 animate-spin" />
         Moving...
       </span>
@@ -1174,7 +1174,7 @@ const CountdownBadge: React.FC<{ record: PipelineRecord; compact?: boolean }> = 
   }
 
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 font-medium ${compact ? 'text-[9px]' : 'text-[10px]'}`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-400 font-medium ${compact ? 'text-[9px]' : 'text-[10px]'}`}>
       <Timer className="w-3 h-3" />
       {countdown}
     </span>
@@ -1470,8 +1470,8 @@ const TerminationLogView: React.FC<{
 const AgencyBadge: React.FC<{ agency: string }> = ({ agency }) => {
   const colors: Record<string, string> = {
     FYM: 'bg-primary/5 text-primary',
-    Wisechoice: 'bg-emerald-500/100/10 text-emerald-400',
-    Aspire: 'bg-amber-500/100/10 text-amber-400',
+    Wisechoice: 'bg-emerald-500/10 text-emerald-400',
+    Aspire: 'bg-amber-500/10 text-amber-400',
   };
   return (
     <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded ${colors[agency] || 'bg-secondary text-muted-foreground'}`}>

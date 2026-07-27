@@ -136,12 +136,12 @@ export function PipelineDetailModal({
               <span
                 className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${
                   record.stage === 'terminated'
-                    ? 'bg-red-100 text-red-400'
+                    ? 'bg-red-500/10 text-red-400'
                     : record.stage === 'actively_selling'
-                      ? 'bg-amber-500/100/10 text-amber-400'
+                      ? 'bg-amber-500/10 text-amber-400'
                       : record.stage.includes('ready')
-                        ? 'bg-green-100 text-emerald-400'
-                        : 'bg-blue-100 text-primary'
+                        ? 'bg-green-500/10 text-emerald-400'
+                        : 'bg-blue-500/10 text-primary'
                 }`}
               >
                 {stageLabel}
@@ -195,13 +195,13 @@ export function PipelineDetailModal({
                 </h3>
                 <span
                   className={`text-xs font-semibold ${
-                    progress.allComplete ? 'text-emerald-600' : 'text-muted-foreground'
+                    progress.allComplete ? 'text-emerald-400' : 'text-muted-foreground'
                   }`}
                 >
                   {progress.completedCount}/{progress.total} complete
                 </span>
               </div>
-              <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+              <div className="h-1.5 w-full bg-secondary/40 rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all duration-500 ${
                     progress.allComplete ? 'bg-emerald-500/100' : 'bg-primary'
@@ -219,7 +219,7 @@ export function PipelineDetailModal({
                       disabled={togglingStep === step.id}
                       className={`w-full flex items-center gap-3 p-2.5 rounded-lg border text-left transition-colors ${
                         doneAt
-                          ? 'bg-emerald-500/10 border-emerald-100'
+                          ? 'bg-emerald-500/10 border-emerald-500/20'
                           : 'bg-card border-border hover:bg-background'
                       }`}
                     >
@@ -268,7 +268,7 @@ export function PipelineDetailModal({
                 {record.tags.map((tag) => (
                   <span
                     key={tag}
-                    className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-cyan-500/10 text-primary border border-blue-100"
+                    className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-cyan-500/10 text-primary border border-blue-500/20"
                   >
                     {tag}
                   </span>
@@ -393,7 +393,7 @@ export function PipelineDetailModal({
           {/* Save */}
           <div className="flex items-center justify-end gap-3">
             {saved && (
-              <span className="text-sm text-emerald-600 font-medium">
+              <span className="text-sm text-emerald-400 font-medium">
                 Saved!
               </span>
             )}
