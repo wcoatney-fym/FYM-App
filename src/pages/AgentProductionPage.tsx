@@ -19,7 +19,6 @@ import {
 import {
   ArrowLeft, FileText, DollarSign, TrendingUp, ShieldCheck,
   AlertTriangle, Search, Download, ChevronDown, ChevronUp,
-  Calendar, User,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 
