@@ -233,22 +233,22 @@ export function AgentProvisioningPage() {
 
               {/* Success */}
               {result && (
-                <div className="mt-4 p-4 rounded-lg bg-emerald-50 border border-emerald-200">
+                <div className="mt-4 p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                   <div className="flex items-start gap-2">
                     <CheckCircle2 size={18} className="text-emerald-600 mt-0.5 shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-emerald-800">{result.full_name} provisioned!</p>
-                      <p className="text-xs text-emerald-700 mt-1">Writing # {result.writing_number} · {result.role}</p>
-                      <div className="mt-2 p-2.5 rounded bg-card border border-emerald-200 font-mono text-xs text-foreground/80 space-y-0.5">
+                      <p className="text-xs text-emerald-400 mt-1">Writing # {result.writing_number} · {result.role}</p>
+                      <div className="mt-2 p-2.5 rounded bg-card border border-emerald-500/20 font-mono text-xs text-foreground/80 space-y-0.5">
                         <div>Email: {result.email}</div>
                         <div>Temp PW: {result.temp_password}</div>
                       </div>
                       {result.policies_will_link > 0 ? (
-                        <p className="text-xs text-emerald-700 mt-2">
+                        <p className="text-xs text-emerald-400 mt-2">
                           🔗 {result.policies_will_link} policies will link on next sync.
                         </p>
                       ) : (
-                        <p className="text-xs text-emerald-700 mt-2">
+                        <p className="text-xs text-emerald-400 mt-2">
                           Policies link automatically on next nightly sync (4 AM CT) once writing number matches.
                         </p>
                       )}
@@ -256,7 +256,7 @@ export function AgentProvisioningPage() {
                         size="sm"
                         variant="outline"
                         onClick={copyCredentials}
-                        className="mt-2 h-7 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                        className="mt-2 h-7 text-xs border-emerald-300 text-emerald-400 hover:bg-emerald-500/10"
                       >
                         <Copy size={12} className="mr-1.5" />
                         {copied ? 'Copied!' : 'Copy credentials'}
@@ -270,7 +270,7 @@ export function AgentProvisioningPage() {
               {error && (
                 <div className="mt-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 flex items-start gap-2">
                   <AlertCircle size={16} className="text-red-400 mt-0.5 shrink-0" />
-                  <p className="text-sm text-red-700">{error}</p>
+                  <p className="text-sm text-red-400">{error}</p>
                 </div>
               )}
             </CardContent>

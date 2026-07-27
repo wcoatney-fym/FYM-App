@@ -139,9 +139,9 @@ export function PipelineDetailModal({
               <span
                 className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${
                   record.stage === 'terminated'
-                    ? 'bg-red-100 text-red-700'
+                    ? 'bg-red-100 text-red-400'
                     : record.stage === 'actively_selling'
-                      ? 'bg-amber-100 text-amber-700'
+                      ? 'bg-amber-500/100/10 text-amber-400'
                       : record.stage.includes('ready')
                         ? 'bg-green-100 text-emerald-400'
                         : 'bg-blue-100 text-primary'
@@ -207,7 +207,7 @@ export function PipelineDetailModal({
               <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all duration-500 ${
-                    progress.allComplete ? 'bg-emerald-500' : 'bg-primary'
+                    progress.allComplete ? 'bg-emerald-500/100' : 'bg-primary'
                   }`}
                   style={{ width: `${Math.round(progress.fraction * 100)}%` }}
                 />
@@ -222,14 +222,14 @@ export function PipelineDetailModal({
                       disabled={togglingStep === step.id}
                       className={`w-full flex items-center gap-3 p-2.5 rounded-lg border text-left transition-colors ${
                         doneAt
-                          ? 'bg-emerald-50 border-emerald-100'
+                          ? 'bg-emerald-500/10 border-emerald-100'
                           : 'bg-card border-border hover:bg-background'
                       }`}
                     >
                       <span
                         className={`w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 border ${
                           doneAt
-                            ? 'bg-emerald-500 border-emerald-500'
+                            ? 'bg-emerald-500/100 border-emerald-500'
                             : 'border-border'
                         }`}
                       >

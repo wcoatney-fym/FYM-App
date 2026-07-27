@@ -644,7 +644,7 @@ export const RosterTab: React.FC = () => {
               <button
                 onClick={handleDelete}
                 disabled={deleting}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                className="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
               >
                 {deleting ? 'Deleting...' : 'Delete'}
               </button>
@@ -680,7 +680,7 @@ export const RosterTab: React.FC = () => {
               <button
                 onClick={handleRosterUndo}
                 disabled={undoSubmitting}
-                className="px-4 py-2 text-sm font-medium text-white bg-amber-500/100 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50"
+                className="px-4 py-2 text-sm font-medium text-white bg-amber-500/100/100 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50"
               >
                 {undoSubmitting ? 'Clearing...' : 'Confirm'}
               </button>
@@ -718,7 +718,7 @@ export const RosterTab: React.FC = () => {
               <button
                 onClick={handleRosterTerminate}
                 disabled={terminateSubmitting}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                className="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
               >
                 {terminateSubmitting ? 'Terminating...' : 'Terminate'}
               </button>
@@ -933,7 +933,7 @@ const AddAgentModal: React.FC<AddAgentModalProps> = ({ upload, onClose, onSaved 
         </div>
         <div className="px-6 py-4 bg-muted rounded-b-xl flex justify-end gap-3">
           <button onClick={onClose} disabled={submitting} className="px-4 py-2 text-sm font-medium text-foreground/80 glass rounded-lg hover:bg-muted transition-colors disabled:opacity-50">Cancel</button>
-          <button onClick={handleSubmit} disabled={submitting} className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center gap-2">
+          <button onClick={handleSubmit} disabled={submitting} className="px-4 py-2 text-sm font-medium text-white bg-emerald-500 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center gap-2">
             {submitting ? (
               <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Adding...</>
             ) : (
@@ -993,8 +993,8 @@ const RosterTableView: React.FC<RosterTableViewProps> = ({
 
   const AGENCY_COLORS: Record<string, string> = {
     FYM: 'text-primary',
-    Wisechoice: 'text-emerald-700',
-    Aspire: 'text-amber-700',
+    Wisechoice: 'text-emerald-400',
+    Aspire: 'text-amber-400',
   };
 
   const populatedRows = allRows.filter((row) => row.row_data['First Name']?.trim());
@@ -1079,7 +1079,7 @@ const RosterTableView: React.FC<RosterTableViewProps> = ({
         <div className="flex items-center gap-3">
           <button
             onClick={onAddAgent}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-emerald-500 rounded-lg hover:bg-emerald-700 transition-colors"
           >
             <UserPlus className="w-4 h-4" />
             Add Agent
@@ -1087,7 +1087,7 @@ const RosterTableView: React.FC<RosterTableViewProps> = ({
           <button
             onClick={() => { setZapResult(null); setZapConfirmOpen(true); }}
             disabled={zapSending || populatedRows.length === 0}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-amber-500 rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-amber-500/100 rounded-lg hover:bg-amber-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Zap className="w-4 h-4" />
             {zapSending
@@ -1136,10 +1136,10 @@ const RosterTableView: React.FC<RosterTableViewProps> = ({
       {zapResult && (
         <div className={`mb-4 px-4 py-3 rounded-lg text-sm font-medium ${
           zapResult.failed === 0 && zapResult.sent > 0
-            ? 'bg-emerald-500/10 text-emerald-400 border border-green-200'
+            ? 'bg-emerald-500/100/10 text-emerald-400 border border-green-200'
             : zapResult.sent === 0
-            ? 'bg-red-500/10 text-red-700 border border-red-500/20'
-            : 'bg-amber-50 text-amber-700 border border-amber-200'
+            ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+            : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
         }`}>
           {zapResult.sent === 0 && zapResult.failed === 0
             ? 'Zaps are paused for this agency. No rows were sent.'
@@ -1170,7 +1170,7 @@ const RosterTableView: React.FC<RosterTableViewProps> = ({
               </button>
               <button
                 onClick={handleFireToZap}
-                className="px-4 py-2 text-sm font-medium text-white bg-amber-500 rounded-lg hover:bg-amber-600 transition-colors"
+                className="px-4 py-2 text-sm font-medium text-white bg-amber-500/100 rounded-lg hover:bg-amber-500 transition-colors"
               >
                 Send All
               </button>
@@ -1230,7 +1230,7 @@ const RosterTableView: React.FC<RosterTableViewProps> = ({
                 </tr>
               ) : (
                 rows.map((row, idx) => (
-                  <tr key={row.id} className={`transition-colors ${row.row_data['CSR Placeholder'] === 'true' ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-muted'}`}>
+                  <tr key={row.id} className={`transition-colors ${row.row_data['CSR Placeholder'] === 'true' ? 'bg-amber-500/10 hover:bg-amber-500/100/20' : 'hover:bg-muted'}`}>
                     <td className="px-4 py-3 text-sm text-muted-foreground/70 whitespace-nowrap">
                       {page * PAGE_SIZE + idx + 1}
                     </td>
@@ -1243,7 +1243,7 @@ const RosterTableView: React.FC<RosterTableViewProps> = ({
                         {header === 'First Name' && row.row_data['CSR Placeholder'] === 'true' ? (
                           <span className="flex items-center gap-1.5">
                             {row.row_data[header] || ''}
-                            <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-amber-200 text-amber-800 rounded">
+                            <span className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide bg-amber-200 text-amber-400 rounded">
                               CSR
                             </span>
                           </span>
@@ -1261,12 +1261,12 @@ const RosterTableView: React.FC<RosterTableViewProps> = ({
                               disabled={rowZapSending === row.id || zapSending}
                               className={`p-1.5 rounded transition-colors ${
                                 rowZapResults[row.id] === 'success'
-                                  ? 'text-green-500 bg-emerald-500/10'
+                                  ? 'text-green-500 bg-emerald-500/100/10'
                                   : rowZapResults[row.id] === 'failed'
                                   ? 'text-red-500 bg-red-500/10'
                                   : rowZapResults[row.id] === 'paused'
                                   ? 'text-muted-foreground/70 bg-muted'
-                                  : 'text-amber-500 hover:bg-amber-50'
+                                  : 'text-amber-500 hover:bg-amber-500/10'
                               } disabled:opacity-50 disabled:cursor-not-allowed`}
                               aria-label="Send row to Zap"
                             >
@@ -1283,7 +1283,7 @@ const RosterTableView: React.FC<RosterTableViewProps> = ({
                           <div className="relative group/undo">
                             <button
                               onClick={() => onUndo(row)}
-                              className="p-1.5 text-orange-500 hover:bg-amber-500/10 rounded transition-colors"
+                              className="p-1.5 text-orange-500 hover:bg-amber-500/100/20 rounded transition-colors"
                               aria-label="Undo CRM seat"
                             >
                               <Undo2 className="w-4 h-4" />
@@ -1298,7 +1298,7 @@ const RosterTableView: React.FC<RosterTableViewProps> = ({
                           <div className="relative group/terminate">
                             <button
                               onClick={() => onTerminate(row)}
-                              className="p-1.5 text-red-500 hover:bg-red-500/10 rounded transition-colors"
+                              className="p-1.5 text-red-500 hover:bg-red-500/20 rounded transition-colors"
                               aria-label="Terminate agent"
                             >
                               <UserX className="w-4 h-4" />

@@ -27,8 +27,8 @@ interface AgencyGhlTabProps {
 }
 
 const STATUS_DISPLAY: Record<string, { label: string; icon: React.FC<{ className?: string }>; color: string; bg: string }> = {
-  connected: { label: 'Connected', icon: Wifi, color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
-  error: { label: 'Error', icon: AlertTriangle, color: 'text-red-700', bg: 'bg-red-500/10 border-red-500/20' },
+  connected: { label: 'Connected', icon: Wifi, color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
+  error: { label: 'Error', icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20' },
   disconnected: { label: 'Disconnected', icon: WifiOff, color: 'text-muted-foreground', bg: 'bg-muted border-border' },
 };
 
@@ -222,8 +222,8 @@ export const AgencyGhlTab: React.FC<AgencyGhlTabProps> = ({ agencyId, config, on
           )}
         </div>
         {config?.last_error && status === 'error' && (
-          <div className="mt-3 p-3 bg-red-100/50 rounded-lg">
-            <p className="text-xs text-red-700">{config.last_error}</p>
+          <div className="mt-3 p-3 bg-red-500/10/50 rounded-lg">
+            <p className="text-xs text-red-400">{config.last_error}</p>
           </div>
         )}
       </div>
@@ -302,7 +302,7 @@ export const AgencyGhlTab: React.FC<AgencyGhlTabProps> = ({ agencyId, config, on
           </div>
 
           {testResult && (
-            <div className={`flex items-center gap-2 p-3 rounded-lg ${testResult.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-500/10 text-red-700'}`}>
+            <div className={`flex items-center gap-2 p-3 rounded-lg ${testResult.ok ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
               {testResult.ok ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
               <p className="text-sm">{testResult.message}</p>
             </div>

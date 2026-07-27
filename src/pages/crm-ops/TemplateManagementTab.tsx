@@ -177,7 +177,7 @@ export const TemplateManagementTab: React.FC = () => {
             </p>
           }
           confirmLabel="Delete"
-          confirmColor="bg-red-600 hover:bg-red-700"
+          confirmColor="bg-red-500 hover:bg-red-700"
           onConfirm={handleDelete}
           onCancel={() => setDeleteTarget(null)}
           loading={deleting}
@@ -198,7 +198,7 @@ const CrossSellTemplateCard: React.FC<{
     <div className="glass rounded-xl p-5 hover:border-border transition-colors">
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
+          <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
             <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
           </div>
           <div>
@@ -209,7 +209,7 @@ const CrossSellTemplateCard: React.FC<{
           </div>
         </div>
         {isUploaded && (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-full">
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-500/10 text-emerald-400 text-xs font-medium rounded-full">
             <CheckCircle2 className="w-3.5 h-3.5" />
             Defaults Applied
           </span>
@@ -246,7 +246,7 @@ const CrossSellTemplateCard: React.FC<{
           {!isUploaded && (
             <button
               onClick={onUpload}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-emerald-500 rounded-lg hover:bg-emerald-700 transition-colors"
             >
               <Upload className="w-3.5 h-3.5" />
               Upload Defaults
@@ -308,7 +308,7 @@ const TemplateCard: React.FC<{
         </button>
         <button
           onClick={onDelete}
-          className="p-1.5 text-muted-foreground/70 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+          className="p-1.5 text-muted-foreground/70 hover:text-red-500 hover:bg-red-500/20 rounded-lg transition-colors"
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>
@@ -409,8 +409,8 @@ const CrossSellUploadModal: React.FC<{
             This is a one-time upload that will apply to all current and future agencies.
           </p>
 
-          <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-            <p className="text-xs font-medium text-amber-800">
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-3">
+            <p className="text-xs font-medium text-amber-400">
               This action cannot be undone. All current agencies will have their cross-sell products updated with these defaults (specialist info will be preserved).
             </p>
           </div>
@@ -443,7 +443,7 @@ const CrossSellUploadModal: React.FC<{
 
           {error && <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</p>}
           {result && (
-            <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+            <div className="flex items-center gap-2 text-sm text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2">
               <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
               <span className="font-medium">{result}</span>
             </div>

@@ -526,7 +526,7 @@ export function AgentDatabaseTab() {
                             ) : (
                               <button
                                 onClick={() => setCrmAgent(agent)}
-                                className="p-1.5 text-amber-500 hover:bg-amber-50 rounded transition-colors"
+                                className="p-1.5 text-amber-500 hover:bg-amber-500/10 rounded transition-colors"
                                 aria-label={`Start CRM onboarding for ${agent.first_name} ${agent.last_name}`}
                               >
                                 <UserPlus className="w-4 h-4" />
@@ -548,7 +548,7 @@ export function AgentDatabaseTab() {
                                   setUndoError('');
                                   setUndoAgent(agent);
                                 }}
-                                className="p-1.5 text-orange-500 hover:bg-amber-500/10 rounded transition-colors"
+                                className="p-1.5 text-orange-500 hover:bg-amber-500/100/10 rounded transition-colors"
                                 aria-label={`Undo CRM for ${agent.first_name} ${agent.last_name}`}
                               >
                                 <Undo2 className="w-4 h-4" />
@@ -662,7 +662,7 @@ export function AgentDatabaseTab() {
               <button
                 onClick={handleCrmUndo}
                 disabled={undoSubmitting}
-                className="px-4 py-2 text-sm font-medium text-white bg-amber-500/100 rounded-md hover:bg-orange-600 transition-colors disabled:opacity-50"
+                className="px-4 py-2 text-sm font-medium text-white bg-amber-500/100/100 rounded-md hover:bg-orange-600 transition-colors disabled:opacity-50"
               >
                 {undoSubmitting ? 'Clearing...' : 'Confirm'}
               </button>

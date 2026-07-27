@@ -292,7 +292,7 @@ export const KpiDashboardTab: React.FC<KpiDashboardTabProps> = ({ onNavigate }) 
                   selectedAgencyId === a.id ? 'gradient-primary text-background shadow-none' : 'text-muted-foreground hover:bg-secondary'
                 }`}
               >
-                {hasGhl && <span className={`inline-block w-1.5 h-1.5 rounded-full ${selectedAgencyId === a.id ? 'bg-emerald-300' : 'bg-emerald-500'}`} />}
+                {hasGhl && <span className={`inline-block w-1.5 h-1.5 rounded-full ${selectedAgencyId === a.id ? 'bg-emerald-300' : 'bg-emerald-500/100'}`} />}
                 {a.name}
               </button>
             );
@@ -309,7 +309,7 @@ export const KpiDashboardTab: React.FC<KpiDashboardTabProps> = ({ onNavigate }) 
       </div>
 
       {syncResult && (
-        <div className={`flex items-center gap-2 p-3 rounded-xl text-sm ${syncResult.ok ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+        <div className={`flex items-center gap-2 p-3 rounded-xl text-sm ${syncResult.ok ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>
           {syncResult.ok ? <RefreshCw className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
           {syncResult.message}
           <button onClick={() => setSyncResult(null)} className="ml-auto text-xs underline opacity-70 hover:opacity-100">Dismiss</button>
@@ -321,12 +321,12 @@ export const KpiDashboardTab: React.FC<KpiDashboardTabProps> = ({ onNavigate }) 
         <KpiCard icon={Contact} label="Total Contacts" value={totalContacts.toLocaleString()} color="text-primary" accentColor="border-blue-400" bgColor="bg-cyan-500/10" />
         <KpiCard icon={CalendarDays} label="Avg / Week" value={contactsWeek.toLocaleString()} color="text-cyan-700" accentColor="border-cyan-400" bgColor="bg-cyan-50" />
         <KpiCard icon={CalendarRange} label="Avg / Month" value={contactsMonth.toLocaleString()} color="text-sky-700" accentColor="border-sky-400" bgColor="bg-sky-50" />
-        <KpiCard icon={Repeat2} label="Cross-Sell Opps" value={crossSellOpps.toLocaleString()} color="text-amber-700" accentColor="border-amber-400" bgColor="bg-amber-50" />
+        <KpiCard icon={Repeat2} label="Cross-Sell Opps" value={crossSellOpps.toLocaleString()} color="text-amber-400" accentColor="border-amber-400" bgColor="bg-amber-500/10" />
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard icon={ShieldCheck} label="Saved Policies" value={savedPolicies.toLocaleString()} color="text-emerald-700" accentColor="border-emerald-400" bgColor="bg-emerald-50" />
-        <KpiCard icon={XCircle} label="Cancellations" value={cancellations.toLocaleString()} color="text-red-700" accentColor="border-red-400" bgColor="bg-red-500/10" />
+        <KpiCard icon={ShieldCheck} label="Saved Policies" value={savedPolicies.toLocaleString()} color="text-emerald-400" accentColor="border-emerald-400" bgColor="bg-emerald-500/10" />
+        <KpiCard icon={XCircle} label="Cancellations" value={cancellations.toLocaleString()} color="text-red-400" accentColor="border-red-400" bgColor="bg-red-500/10" />
         <KpiCard icon={UserPlus} label="Agents Onboarded" value={totalOnboarded.toLocaleString()} color="text-teal-700" accentColor="border-teal-400" bgColor="bg-teal-50" />
         <KpiCard icon={GitBranchPlus} label="Agents In Pipeline" value={totalInPipeline.toLocaleString()} color="text-primary" accentColor="border-primary" bgColor="bg-primary/5" />
       </div>
@@ -399,7 +399,7 @@ export const KpiDashboardTab: React.FC<KpiDashboardTabProps> = ({ onNavigate }) 
                       {counts.inPipeline}
                     </td>
                     <td className="px-4 py-3.5 text-center">
-                      <span className={`inline-flex w-2.5 h-2.5 rounded-full ${agency.is_active ? 'bg-emerald-500' : 'bg-muted-foreground/30'}`} />
+                      <span className={`inline-flex w-2.5 h-2.5 rounded-full ${agency.is_active ? 'bg-emerald-500/100' : 'bg-muted-foreground/30'}`} />
                     </td>
                   </tr>
                 );

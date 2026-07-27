@@ -36,7 +36,7 @@ function urgencyLevel(days: number): 'critical' | 'high' | 'medium' {
 function urgencyBadge(days: number) {
   const u = urgencyLevel(days);
   if (u === 'critical') return 'bg-red-100 text-red-800 border-red-500/20';
-  if (u === 'high') return 'bg-amber-100 text-amber-800 border-amber-200';
+  if (u === 'high') return 'bg-amber-500/100/10 text-amber-800 border-amber-500/20';
   return 'bg-slate-100 text-foreground/80 border-border';
 }
 
@@ -194,9 +194,9 @@ export function AtRiskPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             { label: 'Total At-Risk', value: rows.length.toString(), sub: `${untasked} need attention`, icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/10' },
-            { label: 'Critical (30+ days)', value: critical.toString(), sub: 'no draft in 30+ days', icon: Clock, color: 'text-red-700', bg: 'bg-red-500/10' },
-            { label: 'Urgent (14-29 days)', value: high.toString(), sub: 'approaching critical', icon: Clock, color: 'text-amber-700', bg: 'bg-amber-50' },
-            { label: 'At-Risk Premium', value: `$${Math.round(totalPremium).toLocaleString()}`, sub: 'monthly premium exposed', icon: TrendingDown, color: 'text-amber-700', bg: 'bg-amber-50' },
+            { label: 'Critical (30+ days)', value: critical.toString(), sub: 'no draft in 30+ days', icon: Clock, color: 'text-red-400', bg: 'bg-red-500/10' },
+            { label: 'Urgent (14-29 days)', value: high.toString(), sub: 'approaching critical', icon: Clock, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+            { label: 'At-Risk Premium', value: `$${Math.round(totalPremium).toLocaleString()}`, sub: 'monthly premium exposed', icon: TrendingDown, color: 'text-amber-400', bg: 'bg-amber-500/10' },
           ].map(card => (
             <Card key={card.label} className="border-border">
               <CardContent className="p-5">
@@ -294,7 +294,7 @@ export function AtRiskPage() {
                     </span>
                     <span className="text-center text-muted-foreground tabular-nums">{row.draft_count}</span>
                     <span className={`col-span-2 text-right font-semibold tabular-nums ${
-                      urgency === 'critical' ? 'text-red-700' : urgency === 'high' ? 'text-amber-700' : 'text-muted-foreground'
+                      urgency === 'critical' ? 'text-red-400' : urgency === 'high' ? 'text-amber-400' : 'text-muted-foreground'
                     }`}>
                       {row.days_since_draft}d
                     </span>

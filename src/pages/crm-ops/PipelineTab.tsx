@@ -105,9 +105,9 @@ const STAGES = [
 
 const STAGE_COLORS: Record<string, { bg: string; border: string; text: string; dot: string; badge: string }> = {
   processing: { bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-700', dot: 'bg-teal-400', badge: 'bg-teal-400/10 text-teal-400' },
-  sunfire_workflows: { bg: 'bg-amber-500/10', border: 'border-orange-200', text: 'text-amber-400', dot: 'bg-orange-400', badge: 'bg-orange-100 text-orange-800' },
+  sunfire_workflows: { bg: 'bg-amber-500/100/10', border: 'border-orange-200', text: 'text-amber-400', dot: 'bg-orange-400', badge: 'bg-orange-100 text-orange-800' },
   agency_workflows: { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700', dot: 'bg-rose-400', badge: 'bg-rose-100 text-rose-800' },
-  completed: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', dot: 'bg-emerald-400', badge: 'bg-emerald-400/10 text-emerald-400' },
+  completed: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', text: 'text-emerald-400', dot: 'bg-emerald-400', badge: 'bg-emerald-400/10 text-emerald-400' },
 };
 
 const formatCountdown = (ms: number) => {
@@ -553,10 +553,10 @@ export const PipelineTab: React.FC = () => {
           <div className="px-5 py-4 flex items-center gap-3 border-b border-red-500/20">
             <AlertTriangle className="w-5 h-5 text-red-400" />
             <div>
-              <h3 className="font-semibold text-red-700">Terminated Agents</h3>
+              <h3 className="font-semibold text-red-400">Terminated Agents</h3>
               <p className="text-xs text-muted-foreground">Records auto-remove 7 days after termination</p>
             </div>
-            <span className="ml-auto text-sm font-bold text-red-700">{terminatedRecords.length}</span>
+            <span className="ml-auto text-sm font-bold text-red-400">{terminatedRecords.length}</span>
           </div>
           <div className="px-3 pb-3 pt-2 space-y-2">
             {terminatedRecords.map((record) => {
@@ -565,7 +565,7 @@ export const PipelineTab: React.FC = () => {
                 : 0;
               return (
                 <div key={record.id} className="bg-card rounded-xl border border-border p-4 flex items-center gap-4 shadow-none">
-                  <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center flex-shrink-0">
+                  <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center flex-shrink-0">
                     <UserX className="w-4 h-4 text-red-400" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -581,7 +581,7 @@ export const PipelineTab: React.FC = () => {
                     </div>
                   </div>
                   <span className={`text-xs font-medium px-2.5 py-1 rounded-full flex-shrink-0 ${
-                    daysRemaining <= 1 ? 'bg-red-100 text-red-700' : 'bg-secondary text-muted-foreground'
+                    daysRemaining <= 1 ? 'bg-red-500/10 text-red-400' : 'bg-secondary text-muted-foreground'
                   }`}>
                     Removes in {daysRemaining}d
                   </span>
@@ -659,7 +659,7 @@ export const PipelineTab: React.FC = () => {
               <button
                 onClick={deleteRecord}
                 disabled={deleting}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                className="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
               >
                 {deleting ? 'Deleting...' : 'Delete'}
               </button>
@@ -984,9 +984,9 @@ const TaskSection: React.FC<TaskSectionProps> = ({
 }) => {
   const colorMap: Record<string, { bg: string; border: string; text: string; button: string }> = {
     teal: { bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-700', button: 'bg-teal-500 hover:bg-teal-600' },
-    orange: { bg: 'bg-amber-500/10', border: 'border-orange-200', text: 'text-amber-400', button: 'bg-amber-500/100 hover:bg-orange-600' },
+    orange: { bg: 'bg-amber-500/100/10', border: 'border-orange-200', text: 'text-amber-400', button: 'bg-amber-500/100/100 hover:bg-orange-600' },
     rose: { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700', button: 'bg-rose-500 hover:bg-rose-600' },
-    emerald: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', button: 'bg-emerald-500 hover:bg-emerald-600' },
+    emerald: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', text: 'text-emerald-400', button: 'bg-emerald-500/100 hover:bg-emerald-500' },
   };
   const colors = colorMap[color] || colorMap.teal;
 
@@ -1040,7 +1040,7 @@ const TaskSection: React.FC<TaskSectionProps> = ({
                 </button>
                 <button
                   onClick={() => onDelete(record)}
-                  className="p-2 text-muted-foreground/70 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                  className="p-2 text-muted-foreground/70 hover:text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"
                   title="Delete"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -1143,7 +1143,7 @@ const PipelineCard: React.FC<PipelineCardProps> = ({ record, onAdvance, onRegres
             <button
               onClick={onAdvance}
               className={`flex-1 flex items-center justify-center gap-1 py-1.5 text-white rounded-md transition-colors ${compact ? 'text-[10px]' : 'text-xs'} font-medium ${
-                STAGE_COLORS[record.stage]?.text.includes('orange') ? 'bg-amber-500/100 hover:bg-orange-600' :
+                STAGE_COLORS[record.stage]?.text.includes('orange') ? 'bg-amber-500/100/100 hover:bg-orange-600' :
                 STAGE_COLORS[record.stage]?.text.includes('rose') ? 'bg-rose-500 hover:bg-rose-600' :
                 'bg-muted hover:bg-secondary'
               }`}
@@ -1470,8 +1470,8 @@ const TerminationLogView: React.FC<{
 const AgencyBadge: React.FC<{ agency: string }> = ({ agency }) => {
   const colors: Record<string, string> = {
     FYM: 'bg-primary/5 text-primary',
-    Wisechoice: 'bg-emerald-100 text-emerald-700',
-    Aspire: 'bg-amber-100 text-amber-700',
+    Wisechoice: 'bg-emerald-500/100/10 text-emerald-400',
+    Aspire: 'bg-amber-500/100/10 text-amber-400',
   };
   return (
     <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded ${colors[agency] || 'bg-secondary text-muted-foreground'}`}>

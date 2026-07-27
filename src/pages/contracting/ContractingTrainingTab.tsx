@@ -76,7 +76,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   'Products & Benefits': 'bg-blue-100 text-blue-800',
   'Prescription & Claims': 'bg-green-100 text-green-800',
   'Applications & Forms': 'bg-purple-100 text-purple-800',
-  'Training Videos': 'bg-amber-100 text-amber-800',
+  'Training Videos': 'bg-amber-500/100/10 text-amber-800',
 };
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -238,7 +238,7 @@ export function ContractingTrainingTab() {
       <Card className="border-red-500/20 bg-red-500/10">
         <CardContent className="p-6 text-center space-y-2">
           <AlertCircle className="w-6 h-6 text-red-500 mx-auto" />
-          <p className="text-sm text-red-700">{error}</p>
+          <p className="text-sm text-red-400">{error}</p>
           <button
             onClick={loadData}
             className="text-sm text-red-400 hover:text-red-800 underline"
@@ -453,9 +453,9 @@ function KpiCard({
 }) {
   const colorMap = {
     blue: { bg: 'bg-cyan-500/10', icon: 'text-cyan-400', ring: 'ring-blue-100' },
-    green: { bg: 'bg-emerald-50', icon: 'text-emerald-600', ring: 'ring-emerald-100' },
+    green: { bg: 'bg-emerald-500/10', icon: 'text-emerald-600', ring: 'ring-emerald-100' },
     purple: { bg: 'bg-purple-50', icon: 'text-purple-600', ring: 'ring-purple-100' },
-    amber: { bg: 'bg-amber-50', icon: 'text-amber-600', ring: 'ring-amber-100' },
+    amber: { bg: 'bg-amber-500/10', icon: 'text-amber-600', ring: 'ring-amber-100' },
   };
   const c = colorMap[color];
 

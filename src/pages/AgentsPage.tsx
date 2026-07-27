@@ -116,7 +116,7 @@ export function AgentsPage() {
             <Card key={c.label} className="border-border">
               <CardContent className="py-4 px-5">
                 <p className="text-xs font-medium text-muted-foreground">{c.label}</p>
-                <p className={`text-2xl font-bold mt-0.5 ${c.warn && agents.length - withWritingNumber > 0 ? 'text-amber-700' : 'text-foreground'}`}>{c.value}</p>
+                <p className={`text-2xl font-bold mt-0.5 ${c.warn && agents.length - withWritingNumber > 0 ? 'text-amber-400' : 'text-foreground'}`}>{c.value}</p>
                 <p className="text-xs text-muted-foreground/70 mt-0.5">{c.sub}</p>
               </CardContent>
             </Card>
@@ -183,7 +183,7 @@ export function AgentsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         {a.retention_pct != null ? (
-                          <span className={`font-semibold text-sm ${a.retention_pct >= 90 ? 'text-emerald-700' : a.retention_pct >= 85 ? 'text-amber-700' : 'text-red-700'}`}>
+                          <span className={`font-semibold text-sm ${a.retention_pct >= 90 ? 'text-emerald-400' : a.retention_pct >= 85 ? 'text-amber-400' : 'text-red-400'}`}>
                             {a.retention_pct}%
                           </span>
                         ) : <span className="text-slate-300 text-sm">—</span>}

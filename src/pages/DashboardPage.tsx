@@ -47,9 +47,9 @@ function fmt$(n: number) {
 
 function retentionColor(pct: number | null) {
   if (pct === null) return 'text-muted-foreground/70';
-  if (pct >= 90) return 'text-emerald-700';
-  if (pct >= 85) return 'text-amber-700';
-  return 'text-red-700';
+  if (pct >= 90) return 'text-emerald-400';
+  if (pct >= 85) return 'text-amber-400';
+  return 'text-red-400';
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
@@ -193,8 +193,8 @@ export function DashboardPage() {
       value: s && s.retention_pct !== null ? `${s.retention_pct}%` : '—',
       sub: s && s.retention_pct !== null ? (s.retention_pct >= 90 ? 'On target ≥ 90%' : 'Below 90% target') : '',
       icon: TrendingUp,
-      color: s && s.retention_pct !== null && s.retention_pct >= 90 ? 'text-emerald-700' : 'text-amber-700',
-      bg: s && s.retention_pct !== null && s.retention_pct >= 90 ? 'bg-emerald-50' : 'bg-amber-50',
+      color: s && s.retention_pct !== null && s.retention_pct >= 90 ? 'text-emerald-400' : 'text-amber-400',
+      bg: s && s.retention_pct !== null && s.retention_pct >= 90 ? 'bg-emerald-500/10' : 'bg-amber-500/10',
     },
     {
       title: 'At-Risk Policies',
@@ -207,8 +207,8 @@ export function DashboardPage() {
       value: s ? `${s.agencies_below_target}` : '—',
       sub: s ? `of ${s.total_agencies} total` : '',
       icon: Building2,
-      color: s && s.agencies_below_target > 0 ? 'text-red-700' : 'text-emerald-700',
-      bg: s && s.agencies_below_target > 0 ? 'bg-red-500/10' : 'bg-emerald-50',
+      color: s && s.agencies_below_target > 0 ? 'text-red-400' : 'text-emerald-400',
+      bg: s && s.agencies_below_target > 0 ? 'bg-red-500/10' : 'bg-emerald-500/10',
     },
   ];
 
@@ -306,7 +306,7 @@ export function DashboardPage() {
                   </p>
                 </div>
                 {stats && stats.agencies_below_target > 0 && (
-                  <Badge className="bg-red-500/10 text-red-700 border-red-500/20 border">
+                  <Badge className="bg-red-500/10 text-red-400 border-red-500/20 border">
                     {stats.agencies_below_target} below target
                   </Badge>
                 )}
@@ -334,7 +334,7 @@ export function DashboardPage() {
                     </span>
                     <span className="text-right text-muted-foreground">{a.active_policies.toLocaleString()}</span>
                     <span className="text-right text-muted-foreground">{fmt$(a.active_premium)}</span>
-                    <span className={`text-right font-medium ${a.at_risk_count > 0 ? 'text-red-700' : 'text-muted-foreground/70'}`}>
+                    <span className={`text-right font-medium ${a.at_risk_count > 0 ? 'text-red-400' : 'text-muted-foreground/70'}`}>
                       {a.at_risk_count || '—'}
                     </span>
                     <span className={`text-right font-semibold ${retentionColor(a.retention_pct)}`}>

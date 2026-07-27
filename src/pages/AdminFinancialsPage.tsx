@@ -45,14 +45,14 @@ interface AgencySummaryRow {
 // ── Helpers ────────────────────────────────────────────────────────────────
 function retentionColor(pct: number | null) {
   if (pct === null) return 'text-muted-foreground/70';
-  if (pct >= 90) return 'text-emerald-700';
+  if (pct >= 90) return 'text-emerald-400';
   if (pct >= 85) return 'text-amber-600';
   return 'text-red-400';
 }
 function retentionBadgeClass(pct: number) {
-  if (pct >= 90) return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-  if (pct >= 85) return 'bg-amber-50 text-amber-700 border-amber-200';
-  return 'bg-red-500/10 text-red-700 border-red-500/20';
+  if (pct >= 90) return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+  if (pct >= 85) return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+  return 'bg-red-500/10 text-red-400 border-red-500/20';
 }
 function fmt$(n: number) {
   if (n >= 1_000_000) return '$' + (n / 1_000_000).toFixed(1) + 'M';
@@ -233,7 +233,7 @@ export function AdminFinancialsPage() {
               sub: '90-day, all products',
               icon: TrendingDown,
               color: stats.blendedRetention !== null ? retentionColor(stats.blendedRetention) : 'text-muted-foreground/70',
-              bg: stats.blendedRetention !== null && stats.blendedRetention >= 90 ? 'bg-emerald-50' : 'bg-amber-50',
+              bg: stats.blendedRetention !== null && stats.blendedRetention >= 90 ? 'bg-emerald-500/10' : 'bg-amber-500/10',
             },
             {
               title: 'Concentration Risk',
@@ -241,7 +241,7 @@ export function AdminFinancialsPage() {
               sub: 'agencies >10% of premium',
               icon: AlertTriangle,
               color: stats.flaggedConcentration.length > 0 ? 'text-amber-600' : 'text-muted-foreground/70',
-              bg: stats.flaggedConcentration.length > 0 ? 'bg-amber-50' : 'bg-background',
+              bg: stats.flaggedConcentration.length > 0 ? 'bg-amber-500/10' : 'bg-background',
             },
           ].map(card => (
             <Card key={card.title} className="border-border">
@@ -414,16 +414,16 @@ export function AdminFinancialsPage() {
                   <span />
                 </div>
                 {concentration.map(c => (
-                  <div key={c.agency_id} className={`grid grid-cols-7 gap-2 px-4 py-2.5 text-sm items-center ${c.premium_concentration_pct >= 10 ? 'bg-amber-50/30' : ''}`}>
+                  <div key={c.agency_id} className={`grid grid-cols-7 gap-2 px-4 py-2.5 text-sm items-center ${c.premium_concentration_pct >= 10 ? 'bg-amber-500/10/30' : ''}`}>
                     <span className="col-span-2 font-medium text-foreground truncate">
                       {c.name ?? <span className="font-mono text-xs text-muted-foreground/70">{c.agency_id.slice(0, 12)}…</span>}
                     </span>
                     <span className="text-right text-muted-foreground tabular-nums">{c.active_count}</span>
                     <span className="text-right text-foreground/80 font-medium tabular-nums">{fmt$(c.active_premium)}</span>
-                    <span className={`text-right font-medium tabular-nums ${c.at_risk_count > 0 ? 'text-red-700' : 'text-slate-300'}`}>
+                    <span className={`text-right font-medium tabular-nums ${c.at_risk_count > 0 ? 'text-red-400' : 'text-slate-300'}`}>
                       {c.at_risk_count || '—'}
                     </span>
-                    <span className={`text-right font-semibold tabular-nums ${c.premium_concentration_pct >= 10 ? 'text-amber-700' : 'text-muted-foreground'}`}>
+                    <span className={`text-right font-semibold tabular-nums ${c.premium_concentration_pct >= 10 ? 'text-amber-400' : 'text-muted-foreground'}`}>
                       {c.premium_concentration_pct}%
                     </span>
                     <span className="text-center">
@@ -436,7 +436,7 @@ export function AdminFinancialsPage() {
               </div>
 
               {stats.flaggedConcentration.length > 0 && (
-                <div className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                <div className="mt-3 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded px-3 py-2">
                   ⚠ Concentration flag: {stats.flaggedConcentration.map(c => c.name ?? c.agency_id.slice(0, 10)).join(', ')} — each holds &gt;10% of total premium
                 </div>
               )}

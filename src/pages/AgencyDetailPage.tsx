@@ -54,15 +54,15 @@ function fmt$(n: number) {
 
 function retentionColor(pct: number | null) {
   if (pct === null) return 'text-muted-foreground/70';
-  if (pct >= 90) return 'text-emerald-700';
-  if (pct >= 85) return 'text-amber-700';
-  return 'text-red-700';
+  if (pct >= 90) return 'text-emerald-400';
+  if (pct >= 85) return 'text-amber-400';
+  return 'text-red-400';
 }
 
 function retentionBg(pct: number | null) {
   if (pct === null) return 'bg-background';
-  if (pct >= 90) return 'bg-emerald-50';
-  if (pct >= 85) return 'bg-amber-50';
+  if (pct >= 90) return 'bg-emerald-500/10';
+  if (pct >= 85) return 'bg-amber-500/10';
   return 'bg-red-500/10';
 }
 
@@ -289,7 +289,7 @@ export function AgencyDetailPage() {
                     </span>
                     <span className="text-right text-foreground/80 font-medium">{p.count}</span>
                     <span className="text-right text-foreground/80">{fmt$(p.premium)}</span>
-                    <span className={`text-right font-medium ${p.atRisk > 0 ? 'text-red-700' : 'text-muted-foreground/70'}`}>
+                    <span className={`text-right font-medium ${p.atRisk > 0 ? 'text-red-400' : 'text-muted-foreground/70'}`}>
                       {p.atRisk || '—'}
                     </span>
                   </div>
@@ -310,7 +310,7 @@ export function AgencyDetailPage() {
                     const total = policies.length || 1;
                     const pct = Math.round((count / total) * 100);
                     const barColor =
-                      status === 'active' ? 'bg-emerald-500' :
+                      status === 'active' ? 'bg-emerald-500/100' :
                       status === 'lapsed' ? 'bg-red-400' :
                       status === 'terminated' ? 'bg-slate-400' :
                       'bg-amber-400';
@@ -343,7 +343,7 @@ export function AgencyDetailPage() {
                   <CardTitle className="text-base font-semibold text-foreground">
                     At-Risk Policies
                   </CardTitle>
-                  <Badge className="bg-red-500/10 text-red-700 border-red-500/20 border">
+                  <Badge className="bg-red-500/10 text-red-400 border-red-500/20 border">
                     {atRiskPolicies.length}
                   </Badge>
                 </div>
@@ -382,13 +382,13 @@ export function AgencyDetailPage() {
                         </span>
                         <span className="text-right text-foreground/80 font-medium tabular-nums">${(Number(p.plan_premium) || 0).toFixed(0)}</span>
                         <span className="text-center text-muted-foreground tabular-nums">{p.draft_count ?? 0}</span>
-                        <span className={`text-right font-semibold tabular-nums ${daysIdle >= 30 ? 'text-red-700' : daysIdle >= 14 ? 'text-amber-700' : 'text-muted-foreground'}`}>
+                        <span className={`text-right font-semibold tabular-nums ${daysIdle >= 30 ? 'text-red-400' : daysIdle >= 14 ? 'text-amber-400' : 'text-muted-foreground'}`}>
                           {daysIdle}d
                         </span>
                         <span className="text-center">
                           <Badge className={`text-[10px] px-1.5 py-0 border ${
-                            p.flag_type === 'at_risk' ? 'bg-red-500/10 text-red-700 border-red-500/20' :
-                            p.flag_type === 'payment_failed' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                            p.flag_type === 'at_risk' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                            p.flag_type === 'payment_failed' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
                             'bg-background text-muted-foreground border-border'
                           }`}>{p.flag_type ?? '—'}</Badge>
                         </span>

@@ -115,7 +115,7 @@ export function PipelineSummaryBar({ records, stageSteps }: PipelineSummaryBarPr
         </div>
         <div className="flex items-center gap-3">
           {totalPendingReviews > 0 && (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-bold">
               <Bell className="w-3 h-3" />
               {totalPendingReviews} pending review
               {totalPendingReviews !== 1 ? 's' : ''}
@@ -193,7 +193,7 @@ export function PipelineSummaryBar({ records, stageSteps }: PipelineSummaryBarPr
                         return (
                           <span
                             key={rev.key}
-                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-700 text-[9px] font-bold"
+                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[9px] font-bold"
                             title={`${rev.count} ${rev.label} — pending approval`}
                           >
                             <Icon className="w-2.5 h-2.5" />
@@ -203,7 +203,7 @@ export function PipelineSummaryBar({ records, stageSteps }: PipelineSummaryBarPr
                       })}
                       {stageWn > 0 && (
                         <span
-                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-700 text-[9px] font-bold"
+                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[9px] font-bold"
                           title={`${stageWn} agent(s) with writing numbers pending review`}
                         >
                           <PenLine className="w-2.5 h-2.5" />
@@ -224,9 +224,9 @@ export function PipelineSummaryBar({ records, stageSteps }: PipelineSummaryBarPr
                 return (
                   <div
                     key={rev.key}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200"
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20"
                   >
-                    <div className="w-6 h-6 rounded-md bg-amber-100 flex items-center justify-center">
+                    <div className="w-6 h-6 rounded-md bg-amber-500/100/10 flex items-center justify-center">
                       <Icon className="w-3.5 h-3.5 text-amber-600" />
                     </div>
                     <div>

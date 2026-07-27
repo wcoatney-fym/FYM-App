@@ -44,23 +44,23 @@ const MOCK_POLICIES: PolicyRow[] = [
 
 function scoreColor(score: number, max: number) {
   const pct = (score / max) * 100;
-  if (pct >= 90) return { bar: 'bg-emerald-500', text: 'text-emerald-700' };
+  if (pct >= 90) return { bar: 'bg-emerald-500/100', text: 'text-emerald-400' };
   if (pct >= 75) return { bar: 'bg-cyan-500/100',    text: 'text-cyan-400' };
-  if (pct >= 60) return { bar: 'bg-amber-400',   text: 'text-amber-700' };
-  return { bar: 'bg-red-400', text: 'text-red-700' };
+  if (pct >= 60) return { bar: 'bg-amber-400',   text: 'text-amber-400' };
+  return { bar: 'bg-red-400', text: 'text-red-400' };
 }
 
 function totalScoreColor(score: number) {
-  if (score >= 90) return 'text-emerald-700';
+  if (score >= 90) return 'text-emerald-400';
   if (score >= 80) return 'text-cyan-400';
-  if (score >= 70) return 'text-amber-700';
-  return 'text-red-700';
+  if (score >= 70) return 'text-amber-400';
+  return 'text-red-400';
 }
 
 function totalScoreBg(score: number) {
-  if (score >= 90) return 'bg-emerald-50 border-emerald-200';
+  if (score >= 90) return 'bg-emerald-500/10 border-emerald-500/20';
   if (score >= 80) return 'bg-cyan-500/10 border-blue-200';
-  if (score >= 70) return 'bg-amber-50 border-amber-200';
+  if (score >= 70) return 'bg-amber-500/10 border-amber-500/20';
   return 'bg-red-500/10 border-red-500/20';
 }
 
@@ -72,8 +72,8 @@ function flagLabel(flag: string | null) {
 
 function flagColor(flag: string | null) {
   if (!flag) return '';
-  if (flag === 'payment_failed') return 'bg-red-100 text-red-700 border-red-500/20';
-  if (flag === 'no_contact') return 'bg-amber-100 text-amber-700 border-amber-200';
+  if (flag === 'payment_failed') return 'bg-red-100 text-red-400 border-red-500/20';
+  if (flag === 'no_contact') return 'bg-amber-500/100/10 text-amber-400 border-amber-500/20';
   return 'bg-orange-100 text-amber-400 border-orange-200';
 }
 
@@ -154,7 +154,7 @@ export function AgentHealthPage() {
         )}
 
         {usingMock && (
-          <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+          <div className="text-xs text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded px-3 py-2">
             ⚠ Policy cache not yet populated — showing demo data. Run the sync edge function to populate live data.
           </div>
         )}
@@ -214,7 +214,7 @@ export function AgentHealthPage() {
         {atRiskPolicies.length > 0 && (
           <Card className="border-red-500/20">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base font-semibold text-red-700 flex items-center gap-2">
+              <CardTitle className="text-base font-semibold text-red-400 flex items-center gap-2">
                 <AlertTriangle size={16} /> At-Risk Policies
               </CardTitle>
             </CardHeader>

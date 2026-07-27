@@ -47,15 +47,15 @@ function urgencyLevel(days: number): 'critical' | 'high' | 'medium' {
 function taskBadge(status: string | null) {
   if (!status) return 'bg-slate-100 text-muted-foreground border-border';
   if (status === 'open') return 'bg-blue-100 text-cyan-400 border-blue-200';
-  if (status === 'resolved') return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+  if (status === 'resolved') return 'bg-emerald-500/100/10 text-emerald-400 border-emerald-500/20';
   return 'bg-slate-100 text-muted-foreground border-border';
 }
 
 function retentionColor(pct: number | null) {
   if (pct === null) return 'text-muted-foreground/70';
-  if (pct >= 90) return 'text-emerald-700 font-semibold';
-  if (pct >= 85) return 'text-amber-700 font-semibold';
-  return 'text-red-700 font-bold';
+  if (pct >= 90) return 'text-emerald-400 font-semibold';
+  if (pct >= 85) return 'text-amber-400 font-semibold';
+  return 'text-red-400 font-bold';
 }
 
 function fmt$(n: number) {
@@ -200,8 +200,8 @@ export function ManagerWorkboardPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             { label: 'At-Risk Policies', value: rows.length, sub: `${untasked} untasked`, icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/10' },
-            { label: 'Critical (30+ days)', value: critical, sub: 'no draft in 30+ days', icon: Clock, color: 'text-red-700', bg: 'bg-red-500/10' },
-            { label: 'At-Risk Premium', value: fmt$(Math.round(atRiskPremium)), sub: 'recoverable', icon: TrendingDown, color: 'text-amber-700', bg: 'bg-amber-50' },
+            { label: 'Critical (30+ days)', value: critical, sub: 'no draft in 30+ days', icon: Clock, color: 'text-red-400', bg: 'bg-red-500/10' },
+            { label: 'At-Risk Premium', value: fmt$(Math.round(atRiskPremium)), sub: 'recoverable', icon: TrendingDown, color: 'text-amber-400', bg: 'bg-amber-500/10' },
             { label: 'Agencies Below 90%', value: belowTarget, sub: 'need coaching', icon: TrendingUp, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
           ].map(card => (
             <Card key={card.label} className="border-border">
@@ -241,7 +241,7 @@ export function ManagerWorkboardPage() {
                   <div key={i} className={`grid grid-cols-6 gap-2 px-4 py-2.5 text-sm ${a.retention_pct !== null && a.retention_pct < 90 ? 'bg-red-500/10/30' : ''}`}>
                     <span className="col-span-2 font-medium text-foreground truncate" title={a.agency_id}>{a.agency_id}</span>
                     <span className="text-right text-muted-foreground">{a.active_policies}</span>
-                    <span className={`text-right font-medium ${a.at_risk_count > 0 ? 'text-red-700' : 'text-muted-foreground'}`}>{a.at_risk_count}</span>
+                    <span className={`text-right font-medium ${a.at_risk_count > 0 ? 'text-red-400' : 'text-muted-foreground'}`}>{a.at_risk_count}</span>
                     <span className="text-right text-muted-foreground">{a.eligible_90d}</span>
                     <span className={`text-right ${retentionColor(a.retention_pct)}`}>
                       {a.retention_pct !== null ? `${a.retention_pct}%` : '—'}
@@ -327,7 +327,7 @@ export function ManagerWorkboardPage() {
                     </span>
                     <span className="text-right text-foreground/80 font-medium">${row.plan_premium.toFixed(0)}</span>
                     <span className="text-right text-muted-foreground">{row.draft_count}</span>
-                    <span className={`text-right col-span-2 font-semibold ${urgency === 'critical' ? 'text-red-700' : urgency === 'high' ? 'text-amber-700' : 'text-muted-foreground'}`}>
+                    <span className={`text-right col-span-2 font-semibold ${urgency === 'critical' ? 'text-red-400' : urgency === 'high' ? 'text-amber-400' : 'text-muted-foreground'}`}>
                       {row.days_since_draft}d
                       {urgency === 'critical' && <span className="ml-1 text-[10px] text-red-500">⚠</span>}
                     </span>

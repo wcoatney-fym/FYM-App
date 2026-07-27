@@ -29,15 +29,15 @@ function fmt$(n: number) {
 
 function retentionColor(pct: number | null) {
   if (pct === null) return 'text-muted-foreground/70';
-  if (pct >= 90) return 'text-emerald-700';
-  if (pct >= 85) return 'text-amber-700';
-  return 'text-red-700';
+  if (pct >= 90) return 'text-emerald-400';
+  if (pct >= 85) return 'text-amber-400';
+  return 'text-red-400';
 }
 
 function retentionBg(pct: number | null) {
   if (pct === null) return 'bg-slate-100';
-  if (pct >= 90) return 'bg-emerald-50';
-  if (pct >= 85) return 'bg-amber-50';
+  if (pct >= 90) return 'bg-emerald-500/10';
+  if (pct >= 85) return 'bg-amber-500/10';
   return 'bg-red-500/10';
 }
 
@@ -155,7 +155,7 @@ export function LeaderboardPage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             { title: 'Total Agencies', value: stats.total.toString(), icon: Trophy, color: 'text-primary', bg: 'bg-cyan-500/10' },
-            { title: 'Above 90% Target', value: stats.above.toString(), icon: ShieldCheck, color: 'text-emerald-700', bg: 'bg-emerald-50' },
+            { title: 'Above 90% Target', value: stats.above.toString(), icon: ShieldCheck, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
             { title: 'Below 90% Target', value: stats.below.toString(), icon: AlertTriangle, color: stats.below > 0 ? 'text-red-400' : 'text-muted-foreground/70', bg: stats.below > 0 ? 'bg-red-500/10' : 'bg-background' },
             { title: 'Total Active Premium', value: fmt$(stats.totalPremium) + '/mo', icon: TrendingUp, color: 'text-foreground/80', bg: 'bg-slate-100' },
           ].map(card => (
@@ -241,7 +241,7 @@ export function LeaderboardPage() {
                     <div
                       key={r.agency_id}
                       className={`grid grid-cols-12 gap-2 px-4 py-3 items-center text-sm hover:bg-background/80 transition-colors ${
-                        r.rank <= 3 ? 'bg-amber-50/20' : ''
+                        r.rank <= 3 ? 'bg-amber-500/10/20' : ''
                       }`}
                     >
                       <span className="col-span-1 text-center">{rankBadge(r.rank)}</span>
@@ -259,7 +259,7 @@ export function LeaderboardPage() {
                       <span className="col-span-2 text-right text-foreground/80 tabular-nums">
                         {fmt$(r.active_premium)}
                       </span>
-                      <span className={`col-span-1 text-center font-medium tabular-nums ${r.at_risk_count > 0 ? 'text-red-700' : 'text-slate-300'}`}>
+                      <span className={`col-span-1 text-center font-medium tabular-nums ${r.at_risk_count > 0 ? 'text-red-400' : 'text-slate-300'}`}>
                         {r.at_risk_count || '—'}
                       </span>
                       <span className="col-span-1 text-center">

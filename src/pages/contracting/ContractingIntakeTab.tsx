@@ -297,10 +297,10 @@ export function ContractingIntakeTab() {
     <div className="space-y-6">
       {/* ── Stats Row ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="border-amber-200">
+        <Card className="border-amber-500/20">
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-2">
-              <div className="p-2 bg-amber-50 rounded-lg">
+              <div className="p-2 bg-amber-500/10 rounded-lg">
                 <Users size={18} className="text-amber-600" />
               </div>
               <span className="text-2xl font-bold text-amber-600">
@@ -312,10 +312,10 @@ export function ContractingIntakeTab() {
             </h3>
           </CardContent>
         </Card>
-        <Card className="border-emerald-200">
+        <Card className="border-emerald-500/20">
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-2">
-              <div className="p-2 bg-emerald-50 rounded-lg">
+              <div className="p-2 bg-emerald-500/10 rounded-lg">
                 <CheckCircle size={18} className="text-emerald-600" />
               </div>
               <span className="text-2xl font-bold text-emerald-600">
@@ -473,7 +473,7 @@ export function ContractingIntakeTab() {
               <div
                 className={`mt-4 p-4 rounded-lg border ${
                   sendResult.success
-                    ? 'bg-emerald-50 border-emerald-200'
+                    ? 'bg-emerald-500/10 border-emerald-500/20'
                     : 'bg-red-500/10 border-red-500/20'
                 }`}
               >
@@ -484,17 +484,17 @@ export function ContractingIntakeTab() {
                     </p>
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-emerald-700 font-medium w-20">
+                        <span className="text-xs text-emerald-400 font-medium w-20">
                           URL:
                         </span>
-                        <code className="text-xs bg-card px-2 py-1 rounded border border-emerald-200 flex-1 truncate">
+                        <code className="text-xs bg-card px-2 py-1 rounded border border-emerald-500/20 flex-1 truncate">
                           {sendResult.url}
                         </code>
                         <button
                           onClick={() =>
                             copyToClipboard(sendResult.url!, 'url')
                           }
-                          className="p-1 hover:bg-emerald-100 rounded transition-colors"
+                          className="p-1 hover:bg-emerald-500/100/10 rounded transition-colors"
                           title="Copy URL"
                         >
                           {copiedField === 'url' ? (
@@ -505,17 +505,17 @@ export function ContractingIntakeTab() {
                         </button>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-emerald-700 font-medium w-20">
+                        <span className="text-xs text-emerald-400 font-medium w-20">
                           Code:
                         </span>
-                        <code className="text-xs bg-card px-2 py-1 rounded border border-emerald-200 font-mono font-bold tracking-wider">
+                        <code className="text-xs bg-card px-2 py-1 rounded border border-emerald-500/20 font-mono font-bold tracking-wider">
                           {sendResult.code}
                         </code>
                         <button
                           onClick={() =>
                             copyToClipboard(sendResult.code!, 'code')
                           }
-                          className="p-1 hover:bg-emerald-100 rounded transition-colors"
+                          className="p-1 hover:bg-emerald-500/100/10 rounded transition-colors"
                           title="Copy code"
                         >
                           {copiedField === 'code' ? (
@@ -528,7 +528,7 @@ export function ContractingIntakeTab() {
                     </div>
                   </div>
                 ) : (
-                  <p className="text-sm text-red-700 flex items-center gap-1.5">
+                  <p className="text-sm text-red-400 flex items-center gap-1.5">
                     <AlertCircle size={14} /> {sendResult.message}
                   </p>
                 )}
@@ -598,8 +598,8 @@ export function ContractingIntakeTab() {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4 min-w-0">
-                      <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center shrink-0">
-                        <span className="text-sm font-bold text-amber-700">
+                      <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0">
+                        <span className="text-sm font-bold text-amber-400">
                           {(hire.first_name[0] ?? '').toUpperCase()}
                           {(hire.last_name[0] ?? '').toUpperCase()}
                         </span>

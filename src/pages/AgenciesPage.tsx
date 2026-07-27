@@ -24,16 +24,16 @@ interface AgencyRow {
 
 function retentionColor(pct: number | null) {
   if (pct === null) return 'text-muted-foreground/70';
-  if (pct >= 90) return 'text-emerald-700 font-semibold';
-  if (pct >= 85) return 'text-amber-700 font-semibold';
-  return 'text-red-700 font-bold';
+  if (pct >= 90) return 'text-emerald-400 font-semibold';
+  if (pct >= 85) return 'text-amber-400 font-semibold';
+  return 'text-red-400 font-bold';
 }
 
 function retentionBadge(pct: number | null) {
   if (pct === null) return null;
-  if (pct >= 90) return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 border text-[10px] px-1.5 py-0">On target</Badge>;
-  if (pct >= 85) return <Badge className="bg-amber-50 text-amber-700 border-amber-200 border text-[10px] px-1.5 py-0">At risk</Badge>;
-  return <Badge className="bg-red-500/10 text-red-700 border-red-500/20 border text-[10px] px-1.5 py-0">Below target</Badge>;
+  if (pct >= 90) return <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 border text-[10px] px-1.5 py-0">On target</Badge>;
+  if (pct >= 85) return <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20 border text-[10px] px-1.5 py-0">At risk</Badge>;
+  return <Badge className="bg-red-500/10 text-red-400 border-red-500/20 border text-[10px] px-1.5 py-0">Below target</Badge>;
 }
 
 function fmt$(n: number) {
@@ -108,8 +108,8 @@ export function AgenciesPage() {
           {[
             { label: 'Total Agencies', value: rows.length, sub: 'writing active policies' },
             { label: 'Active Premium', value: fmt$(totalPremium), sub: '/mo across all agencies' },
-            { label: 'On Target (≥90%)', value: onTarget, sub: 'retention ≥ 90%', color: 'text-emerald-700' },
-            { label: 'Below Target', value: belowTarget, sub: 'need coaching', color: belowTarget > 0 ? 'text-red-700' : 'text-foreground' },
+            { label: 'On Target (≥90%)', value: onTarget, sub: 'retention ≥ 90%', color: 'text-emerald-400' },
+            { label: 'Below Target', value: belowTarget, sub: 'need coaching', color: belowTarget > 0 ? 'text-red-400' : 'text-foreground' },
           ].map(c => (
             <Card key={c.label} className="border-border">
               <CardContent className="py-4 px-5">
@@ -181,7 +181,7 @@ export function AgenciesPage() {
                         {fmt$(r.active_premium)}
                       </TableCell>
                       <TableCell className="text-right">
-                        <span className={r.at_risk_count > 0 ? 'text-red-700 font-semibold' : 'text-muted-foreground/70'}>
+                        <span className={r.at_risk_count > 0 ? 'text-red-400 font-semibold' : 'text-muted-foreground/70'}>
                           {r.at_risk_count || '—'}
                         </span>
                       </TableCell>

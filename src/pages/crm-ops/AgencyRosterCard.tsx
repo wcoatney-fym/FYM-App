@@ -39,17 +39,17 @@ const AGENCY_CONFIG: Record<string, { label: string; accent: string; bg: string;
   },
   Wisechoice: {
     label: 'Wisechoice CRM Roster',
-    accent: 'text-emerald-700',
-    bg: 'bg-emerald-50',
-    border: 'border-emerald-200',
-    icon: 'bg-emerald-600',
+    accent: 'text-emerald-400',
+    bg: 'bg-emerald-500/10',
+    border: 'border-emerald-500/20',
+    icon: 'bg-emerald-500',
   },
   Aspire: {
     label: 'Aspire CRM Roster',
-    accent: 'text-amber-700',
-    bg: 'bg-amber-50',
-    border: 'border-amber-200',
-    icon: 'bg-amber-600',
+    accent: 'text-amber-400',
+    bg: 'bg-amber-500/10',
+    border: 'border-amber-500/20',
+    icon: 'bg-amber-500',
   },
 };
 
@@ -131,7 +131,7 @@ export const AgencyRosterCard: React.FC<AgencyRosterCardProps> = ({
             {onAddAgent && (
               <button
                 onClick={onAddAgent}
-                className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium text-sm"
+                className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-emerald-500 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium text-sm"
               >
                 <UserPlus className="w-4 h-4" />
                 Add Agent
@@ -148,7 +148,7 @@ export const AgencyRosterCard: React.FC<AgencyRosterCardProps> = ({
               </button>
               <button
                 onClick={() => onDelete(upload)}
-                className="flex items-center justify-center gap-2 px-4 py-2 border border-red-500/20 text-red-400 rounded-lg hover:bg-red-500/10 transition-colors text-sm font-medium"
+                className="flex items-center justify-center gap-2 px-4 py-2 border border-red-500/20 text-red-400 rounded-lg hover:bg-red-500/20 transition-colors text-sm font-medium"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>

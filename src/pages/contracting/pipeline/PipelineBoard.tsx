@@ -44,11 +44,11 @@ export const STAGES: { key: AgentPipelineStage; label: string; color: string }[]
   { key: 'signed_iaa', label: 'Signed IAA', color: 'bg-purple-50 border-purple-200' },
   { key: 'bill_com', label: 'Bill.com', color: 'bg-fuchsia-50 border-fuchsia-200' },
   { key: 'in_contracting', label: 'In Contracting', color: 'bg-teal-50 border-teal-200' },
-  { key: 'rts', label: 'RTS', color: 'bg-emerald-50 border-emerald-200' },
+  { key: 'rts', label: 'RTS', color: 'bg-emerald-500/10 border-emerald-500/20' },
   { key: 'crm', label: 'CRM Onboarding', color: 'bg-cyan-50 border-cyan-200' },
-  { key: 'hip_broker_ready', label: 'HIP Broker READY', color: 'bg-emerald-500/10 border-green-200' },
+  { key: 'hip_broker_ready', label: 'HIP Broker READY', color: 'bg-emerald-500/100/10 border-green-200' },
   { key: 'hip_career_ready', label: 'HIP Career READY', color: 'bg-lime-50 border-lime-200' },
-  { key: 'actively_selling', label: 'Actively Selling', color: 'bg-amber-50 border-amber-200' },
+  { key: 'actively_selling', label: 'Actively Selling', color: 'bg-amber-500/10 border-amber-500/20' },
   { key: 'terminated', label: 'Terminated', color: 'bg-red-500/10 border-red-500/20' },
 ];
 
@@ -369,7 +369,7 @@ export function PipelineBoard() {
         {/* GHL Status */}
         <div className="flex items-center gap-2">
           {ghlConnected ? (
-            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">
               <Wifi className="w-3 h-3" /> GHL Synced
             </span>
           ) : (
@@ -431,7 +431,7 @@ export function PipelineBoard() {
                   <span
                     className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
                       col.key === 'terminated'
-                        ? 'bg-red-200 text-red-700'
+                        ? 'bg-red-200 text-red-400'
                         : 'bg-card/80 text-muted-foreground border border-border'
                     }`}
                   >
@@ -439,7 +439,7 @@ export function PipelineBoard() {
                   </span>
                 </div>
                 {col.readyCount > 0 && (
-                  <div className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700">
+                  <div className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-400">
                     <CheckCircle2 className="w-3 h-3" /> {col.readyCount} ready
                   </div>
                 )}
@@ -484,7 +484,7 @@ export function PipelineBoard() {
                       </div>
                       {progress.total > 0 &&
                         (progress.allComplete ? (
-                          <div className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 rounded px-1.5 py-0.5">
+                          <div className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-100 rounded px-1.5 py-0.5">
                             <CheckCircle2 className="w-3 h-3" /> Ready to advance
                           </div>
                         ) : progress.nextStep ? (
@@ -534,7 +534,7 @@ export function PipelineBoard() {
                                   : record.updated_by_source === 'contracting_portal'
                                     ? 'bg-cyan-500/10 text-cyan-400 border-blue-200'
                                     : record.updated_by_source === 'ghl_webhook'
-                                      ? 'bg-amber-500/10 text-amber-400 border-orange-200'
+                                      ? 'bg-amber-500/100/10 text-amber-400 border-orange-200'
                                       : 'bg-secondary text-muted-foreground border-border'
                               }`}
                             >
@@ -551,9 +551,9 @@ export function PipelineBoard() {
                         {pushingIds.has(record.id) ? (
                           <Loader2 className="w-3 h-3 text-primary animate-spin" />
                         ) : record.wn_pending_review ? (
-                          <div className="flex items-center gap-1 bg-amber-100 border border-amber-200 rounded px-1.5 py-0.5">
+                          <div className="flex items-center gap-1 bg-amber-500/100/10 border border-amber-500/20 rounded px-1.5 py-0.5">
                             <FileCheck className="w-3 h-3 text-amber-600" />
-                            <span className="text-[10px] text-amber-700 font-bold">
+                            <span className="text-[10px] text-amber-400 font-bold">
                               {record.wn_pending_count > 0
                                 ? `${record.wn_pending_count} WN`
                                 : 'WN'}
@@ -589,7 +589,7 @@ export function PipelineBoard() {
         <div
           className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-lg glow-primary text-sm font-medium transition-all ${
             toastMsg.type === 'success'
-              ? 'bg-emerald-600 text-white'
+              ? 'bg-emerald-500 text-white'
               : 'bg-red-600 text-white'
           }`}
         >

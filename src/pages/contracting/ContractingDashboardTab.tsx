@@ -203,15 +203,15 @@ export function ContractingDashboardTab() {
         count: counts.newHires,
         icon: Users,
         accent: 'text-amber-600',
-        bg: 'bg-amber-50',
-        border: 'border-amber-200',
+        bg: 'bg-amber-500/10',
+        border: 'border-amber-500/20',
       },
       {
         title: 'Pending Verification',
         count: counts.pending,
         icon: Clock,
         accent: 'text-yellow-600',
-        bg: 'bg-amber-500/10',
+        bg: 'bg-amber-500/100/10',
         border: 'border-yellow-200',
       },
       {
@@ -227,8 +227,8 @@ export function ContractingDashboardTab() {
         count: counts.completed,
         icon: CheckCircle,
         accent: 'text-emerald-600',
-        bg: 'bg-emerald-50',
-        border: 'border-emerald-200',
+        bg: 'bg-emerald-500/10',
+        border: 'border-emerald-500/20',
       },
     ],
     [counts]
@@ -460,7 +460,7 @@ export function ContractingDashboardTab() {
                           </div>
                           <div className="bg-card rounded-xl p-5 border border-yellow-200">
                             <div className="flex items-center mb-3">
-                              <div className="p-2 bg-amber-500/10 rounded-lg mr-3">
+                              <div className="p-2 bg-amber-500/100/10 rounded-lg mr-3">
                                 <Clock
                                   size={14}
                                   className="text-yellow-600"
@@ -490,9 +490,9 @@ export function ContractingDashboardTab() {
                               {agencyData.inProgress}
                             </div>
                           </div>
-                          <div className="bg-card rounded-xl p-5 border border-emerald-200">
+                          <div className="bg-card rounded-xl p-5 border border-emerald-500/20">
                             <div className="flex items-center mb-3">
-                              <div className="p-2 bg-emerald-50 rounded-lg mr-3">
+                              <div className="p-2 bg-emerald-500/10 rounded-lg mr-3">
                                 <CheckCircle
                                   size={14}
                                   className="text-emerald-600"
@@ -502,7 +502,7 @@ export function ContractingDashboardTab() {
                                 Completed
                               </span>
                             </div>
-                            <div className="text-2xl font-bold text-emerald-700">
+                            <div className="text-2xl font-bold text-emerald-400">
                               {agencyData.completed}
                             </div>
                             <p className="text-xs text-emerald-600 font-medium mt-1">

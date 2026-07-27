@@ -314,7 +314,7 @@ export function LobAssignment({
           {errors.length > 0 && (
             <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
               <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
-              <div className="text-sm text-red-700 space-y-1">
+              <div className="text-sm text-red-400 space-y-1">
                 {errors.map((err, i) => (
                   <p key={i}>{err}</p>
                 ))}
@@ -323,18 +323,18 @@ export function LobAssignment({
           )}
 
           {success && (
-            <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+            <div className="flex items-center gap-2 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
               <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-              <p className="text-sm text-emerald-700 font-medium">
+              <p className="text-sm text-emerald-400 font-medium">
                 Lines of business saved.
               </p>
             </div>
           )}
 
           {npnWarning && (
-            <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="flex items-start gap-2 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
               <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
-              <p className="text-sm text-amber-700">
+              <p className="text-sm text-amber-400">
                 Saved, but the HIP writing-number sync was skipped: no NPN on
                 file for this agent. Add the agent&apos;s NPN, then re-save to
                 trigger the sync.

@@ -81,12 +81,12 @@ export const TaskboardOnboardingTab: React.FC = () => {
   return (
     <div className="space-y-6">
       {pendingActionCount > 0 && (
-        <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl shadow-none">
-          <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+        <div className="flex items-center gap-3 p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl shadow-none">
+          <div className="w-9 h-9 rounded-xl bg-amber-500/100/10 flex items-center justify-center flex-shrink-0">
             <AlertTriangle className="w-5 h-5 text-amber-600" />
           </div>
           <div className="flex-1">
-            <p className="text-sm font-medium text-amber-800">
+            <p className="text-sm font-medium text-amber-400">
               {pendingActionCount} pending confirmation{pendingActionCount !== 1 ? 's' : ''} require your attention
             </p>
             <p className="text-xs text-amber-600 mt-0.5">Roster or DBA uploads awaiting review</p>
@@ -166,7 +166,7 @@ export const TaskboardOnboardingTab: React.FC = () => {
                             <div
                               className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all ${
                                 isCompleted
-                                  ? 'bg-emerald-500 text-white shadow-none'
+                                  ? 'bg-emerald-500/100 text-white shadow-none'
                                   : isActive
                                   ? 'gradient-primary text-background ring-2 ring-primary/20 shadow-none'
                                   : 'bg-secondary/80 text-muted-foreground'
