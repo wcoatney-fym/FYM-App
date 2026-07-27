@@ -61,7 +61,7 @@ export const AgencyDealsTab: React.FC<AgencyDealsTabProps> = ({ agencyId, deals,
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <SummaryCard icon={Briefcase} label="Total Deals" value={deals.length.toString()} color="text-primary" bg="bg-blue-50" />
+        <SummaryCard icon={Briefcase} label="Total Deals" value={deals.length.toString()} color="text-primary" bg="bg-cyan-500/10" />
         <SummaryCard icon={DollarSign} label="Revenue" value={`$${totalRevenue.toLocaleString()}`} color="text-emerald-600" bg="bg-emerald-50" />
         <SummaryCard icon={Target} label="Won / Lost" value={`${wonDeals.length} / ${lostDeals.length}`} color="text-amber-600" bg="bg-amber-50" />
         <SummaryCard icon={Percent} label="Win Rate" value={`${winRate}%`} color="text-teal-600" bg="bg-teal-50" />

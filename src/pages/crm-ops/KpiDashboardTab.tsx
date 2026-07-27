@@ -318,7 +318,7 @@ export const KpiDashboardTab: React.FC<KpiDashboardTabProps> = ({ onNavigate }) 
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard icon={Contact} label="Total Contacts" value={totalContacts.toLocaleString()} color="text-primary" accentColor="border-blue-400" bgColor="bg-blue-50" />
+        <KpiCard icon={Contact} label="Total Contacts" value={totalContacts.toLocaleString()} color="text-primary" accentColor="border-blue-400" bgColor="bg-cyan-500/10" />
         <KpiCard icon={CalendarDays} label="Avg / Week" value={contactsWeek.toLocaleString()} color="text-cyan-700" accentColor="border-cyan-400" bgColor="bg-cyan-50" />
         <KpiCard icon={CalendarRange} label="Avg / Month" value={contactsMonth.toLocaleString()} color="text-sky-700" accentColor="border-sky-400" bgColor="bg-sky-50" />
         <KpiCard icon={Repeat2} label="Cross-Sell Opps" value={crossSellOpps.toLocaleString()} color="text-amber-700" accentColor="border-amber-400" bgColor="bg-amber-50" />
@@ -326,7 +326,7 @@ export const KpiDashboardTab: React.FC<KpiDashboardTabProps> = ({ onNavigate }) 
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard icon={ShieldCheck} label="Saved Policies" value={savedPolicies.toLocaleString()} color="text-emerald-700" accentColor="border-emerald-400" bgColor="bg-emerald-50" />
-        <KpiCard icon={XCircle} label="Cancellations" value={cancellations.toLocaleString()} color="text-red-700" accentColor="border-red-400" bgColor="bg-red-50" />
+        <KpiCard icon={XCircle} label="Cancellations" value={cancellations.toLocaleString()} color="text-red-700" accentColor="border-red-400" bgColor="bg-red-500/10" />
         <KpiCard icon={UserPlus} label="Agents Onboarded" value={totalOnboarded.toLocaleString()} color="text-teal-700" accentColor="border-teal-400" bgColor="bg-teal-50" />
         <KpiCard icon={GitBranchPlus} label="Agents In Pipeline" value={totalInPipeline.toLocaleString()} color="text-primary" accentColor="border-primary" bgColor="bg-primary/5" />
       </div>
@@ -389,7 +389,7 @@ export const KpiDashboardTab: React.FC<KpiDashboardTabProps> = ({ onNavigate }) 
                     <td className="px-4 py-3.5 text-right text-sm text-emerald-600 font-medium">
                       {kpi ? kpi.saved_policies.toLocaleString() : '--'}
                     </td>
-                    <td className="px-4 py-3.5 text-right text-sm text-red-600 font-medium">
+                    <td className="px-4 py-3.5 text-right text-sm text-red-400 font-medium">
                       {kpi ? kpi.cancellations.toLocaleString() : '--'}
                     </td>
                     <td className="px-4 py-3.5 text-center text-sm font-semibold text-teal-600">

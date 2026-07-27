@@ -702,9 +702,9 @@ const SyncBusinessInfoModal: React.FC<{
                     />
                   </div>
                   <div className="flex items-center gap-4 mt-1.5 text-xs">
-                    <span className="text-green-600 font-medium">{progress.sent} sent</span>
+                    <span className="text-emerald-400 font-medium">{progress.sent} sent</span>
                     {progress.failed > 0 && (
-                      <span className="text-red-600 font-medium">{progress.failed} failed</span>
+                      <span className="text-red-400 font-medium">{progress.failed} failed</span>
                     )}
                   </div>
                 </div>
@@ -720,9 +720,9 @@ const SyncBusinessInfoModal: React.FC<{
                       <span
                         className={
                           r.status === 'success'
-                            ? 'text-green-600 font-medium'
+                            ? 'text-emerald-400 font-medium'
                             : r.status === 'failed'
-                            ? 'text-red-600 font-medium'
+                            ? 'text-red-400 font-medium'
                             : 'text-muted-foreground/70'
                         }
                       >
@@ -743,7 +743,7 @@ const SyncBusinessInfoModal: React.FC<{
           )}
 
           {errorText && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">{errorText}</p>
+            <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-md px-3 py-2">{errorText}</p>
           )}
         </div>
 
@@ -849,16 +849,16 @@ const OverviewTab: React.FC<{
     <div className="space-y-6">
       <MissingFieldsBanner agency={agency} />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <OverviewKpiCard icon={Contact} label="Total Contacts" value={fmt(kpi?.total_contacts)} color="text-primary" bgColor="bg-blue-50" />
+        <OverviewKpiCard icon={Contact} label="Total Contacts" value={fmt(kpi?.total_contacts)} color="text-primary" bgColor="bg-cyan-500/10" />
         <OverviewKpiCard icon={CalendarDays} label="Avg Contacts / Week" value={fmt(kpi ? avgContactsPerWeek(kpi.total_contacts, agency.date_created, agency.dba_client_count) : 0)} color="text-cyan-600" bgColor="bg-cyan-50" />
         <OverviewKpiCard icon={CalendarRange} label="Avg Contacts / Month" value={fmt(kpi ? avgContactsPerMonth(kpi.total_contacts, agency.date_created, agency.dba_client_count) : 0)} color="text-sky-600" bgColor="bg-sky-50" />
         <OverviewKpiCard icon={Repeat2} label="Cross-Sell Opps" value={fmt(kpi?.cross_sell_opportunities)} color="text-amber-600" bgColor="bg-amber-50" />
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <OverviewKpiCard icon={ShieldCheck} label="Saved Policies" value={fmt(kpi?.saved_policies)} color="text-emerald-600" bgColor="bg-emerald-50" />
-        <OverviewKpiCard icon={XCircle} label="Cancellations" value={fmt(kpi?.cancellations)} color="text-red-600" bgColor="bg-red-50" />
+        <OverviewKpiCard icon={XCircle} label="Cancellations" value={fmt(kpi?.cancellations)} color="text-red-400" bgColor="bg-red-500/10" />
         <OverviewKpiCard icon={UserPlus} label="Agents Onboarded" value={agentsOnboarded.toLocaleString()} color="text-teal-600" bgColor="bg-teal-50" />
-        <OverviewKpiCard icon={GitBranchPlus} label="Agents In Pipeline" value={agentsInPipeline.toLocaleString()} color="text-primary" bgColor="bg-blue-50" />
+        <OverviewKpiCard icon={GitBranchPlus} label="Agents In Pipeline" value={agentsInPipeline.toLocaleString()} color="text-primary" bgColor="bg-cyan-500/10" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1738,8 +1738,8 @@ const TICKET_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
 
 const TICKET_PRIORITY_CONFIG: Record<string, { label: string; color: string }> = {
   low: { label: 'Low', color: 'bg-secondary text-muted-foreground' },
-  normal: { label: 'Normal', color: 'bg-blue-50 text-blue-700' },
-  high: { label: 'High', color: 'bg-red-50 text-red-700' },
+  normal: { label: 'Normal', color: 'bg-cyan-500/10 text-cyan-400' },
+  high: { label: 'High', color: 'bg-red-500/10 text-red-700' },
 };
 
 const TICKET_CATEGORY_LABELS: Record<string, string> = {
@@ -1973,7 +1973,7 @@ const AdminTicketDetail: React.FC<{
             messages.map((msg) => {
               const isAdmin = msg.sender_type === 'admin';
               return (
-                <div key={msg.id} className={`px-6 py-4 ${isAdmin ? 'bg-blue-50/40' : ''}`}>
+                <div key={msg.id} className={`px-6 py-4 ${isAdmin ? 'bg-cyan-500/10/40' : ''}`}>
                   <div className="flex items-center gap-2 mb-1.5">
                     <div className={`w-6 h-6 rounded-full flex items-center justify-center ${isAdmin ? 'bg-primary/5' : 'bg-secondary'}`}>
                       {isAdmin ? <ShieldCheck className="w-3 h-3 text-primary" /> : <User className="w-3 h-3 text-muted-foreground" />}

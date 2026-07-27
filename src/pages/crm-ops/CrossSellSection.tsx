@@ -389,7 +389,7 @@ export const CrossSellSection: React.FC<CrossSellSectionProps> = ({ agencyId, ag
           </div>
           <button
             onClick={() => setShowUploadModal(true)}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-primary bg-blue-50 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-primary bg-cyan-500/10 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors"
           >
             <Upload className="w-3.5 h-3.5" />
             Upload Defaults
@@ -660,7 +660,7 @@ const UploadDefaultsModal: React.FC<{ onClose: () => void; onUploaded: () => voi
             </button>
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-red-400">{error}</p>}
           {result && <p className="text-sm text-emerald-600 font-medium">{result}</p>}
         </div>
         <div className="px-6 py-4 bg-muted rounded-b-2xl flex justify-end">

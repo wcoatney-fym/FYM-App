@@ -108,40 +108,40 @@ export function AgentEditModal({ agent, onClose, onSaved }: AgentEditModalProps)
 
   const inputClass = (field: string) =>
     `w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-navy-500 focus:border-transparent transition-colors ${
-      errors[field] ? 'border-red-400 bg-red-50' : 'border-gray-300'
+      errors[field] ? 'border-red-400 bg-red-500/10' : 'border-border'
     }`;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg">
+      <div className="bg-card rounded-xl shadow-xl w-full max-w-lg">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div>
             <h2 className="text-lg font-bold text-navy-600">Edit Agent</h2>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5">
               {agent.first_name} {agent.last_name}
             </p>
           </div>
           <button
             onClick={onClose}
             disabled={saving}
-            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-1.5 hover:bg-secondary rounded-lg transition-colors"
           >
-            <X className="w-5 h-5 text-gray-500" />
+            <X className="w-5 h-5 text-muted-foreground" />
           </button>
         </div>
 
         {/* Body */}
         <div className="px-6 py-5 space-y-4">
           {errors._form && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
               {errors._form}
             </p>
           )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
+              <label className="block text-xs font-medium text-foreground/80 mb-1">
                 First Name <span className="text-red-500">*</span>
               </label>
               <input
@@ -157,7 +157,7 @@ export function AgentEditModal({ agent, onClose, onSaved }: AgentEditModalProps)
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
+              <label className="block text-xs font-medium text-foreground/80 mb-1">
                 Last Name <span className="text-red-500">*</span>
               </label>
               <input
@@ -173,7 +173,7 @@ export function AgentEditModal({ agent, onClose, onSaved }: AgentEditModalProps)
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
+            <label className="block text-xs font-medium text-foreground/80 mb-1">
               Email <span className="text-red-500">*</span>
             </label>
             <input
@@ -188,7 +188,7 @@ export function AgentEditModal({ agent, onClose, onSaved }: AgentEditModalProps)
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
+            <label className="block text-xs font-medium text-foreground/80 mb-1">
               Phone <span className="text-red-500">*</span>
             </label>
             <input
@@ -205,13 +205,13 @@ export function AgentEditModal({ agent, onClose, onSaved }: AgentEditModalProps)
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
+              <label className="block text-xs font-medium text-foreground/80 mb-1">
                 Form Type <span className="text-red-500">*</span>
               </label>
               <select
                 value={draft.form_type}
                 onChange={(e) => setField('form_type', e.target.value)}
-                className={`${inputClass('form_type')} bg-white`}
+                className={`${inputClass('form_type')} bg-card`}
               >
                 {FORM_TYPE_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -225,13 +225,13 @@ export function AgentEditModal({ agent, onClose, onSaved }: AgentEditModalProps)
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
+              <label className="block text-xs font-medium text-foreground/80 mb-1">
                 Agency <span className="text-red-500">*</span>
               </label>
               <select
                 value={draft.agency}
                 onChange={(e) => setField('agency', e.target.value)}
-                className={`${inputClass('agency')} bg-white`}
+                className={`${inputClass('agency')} bg-card`}
               >
                 {AGENCY_OPTIONS.map((a) => (
                   <option key={a} value={a}>
@@ -247,12 +247,12 @@ export function AgentEditModal({ agent, onClose, onSaved }: AgentEditModalProps)
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 bg-gray-50 rounded-b-xl border-t border-gray-200 flex justify-end gap-3">
+        <div className="px-6 py-4 bg-secondary rounded-b-xl border-t border-border flex justify-end gap-3">
           <button
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            className="px-4 py-2 text-sm font-medium text-foreground/80 bg-card border border-border rounded-lg hover:bg-secondary transition-colors"
           >
             Cancel
           </button>

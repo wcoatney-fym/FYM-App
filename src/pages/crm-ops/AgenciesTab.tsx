@@ -436,7 +436,7 @@ export const AgenciesTab: React.FC = () => {
           <div className="bg-card rounded-2xl shadow-none w-full max-w-lg border border-border" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-lg bg-cyan-500/10 flex items-center justify-center">
                   <UserCheck className="w-5 h-5 text-primary" />
                 </div>
                 <div>

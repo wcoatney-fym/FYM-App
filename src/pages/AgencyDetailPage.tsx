@@ -53,17 +53,17 @@ function fmt$(n: number) {
 }
 
 function retentionColor(pct: number | null) {
-  if (pct === null) return 'text-slate-400';
+  if (pct === null) return 'text-muted-foreground/70';
   if (pct >= 90) return 'text-emerald-700';
   if (pct >= 85) return 'text-amber-700';
   return 'text-red-700';
 }
 
 function retentionBg(pct: number | null) {
-  if (pct === null) return 'bg-slate-50';
+  if (pct === null) return 'bg-background';
   if (pct >= 90) return 'bg-emerald-50';
   if (pct >= 85) return 'bg-amber-50';
-  return 'bg-red-50';
+  return 'bg-red-500/10';
 }
 
 type SortKey = 'premium' | 'days' | 'product' | 'status';
@@ -211,7 +211,7 @@ export function AgencyDetailPage() {
       <div className="p-6 space-y-6">
 
         {/* Back link */}
-        <Link to="/agencies" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-[#1e3a5f] transition-colors">
+        <Link to="/agencies" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors">
           <ArrowLeft size={14} /> All Agencies
         </Link>
 
@@ -222,38 +222,38 @@ export function AgencyDetailPage() {
               title: 'Active Policies',
               value: s ? s.active_policies.toLocaleString() : '—',
               sub: s ? fmt$(s.active_premium) + '/mo' : '',
-              icon: ShieldCheck, color: 'text-[#1e3a5f]', bg: 'bg-blue-50',
+              icon: ShieldCheck, color: 'text-primary', bg: 'bg-cyan-500/10',
             },
             {
               title: '90-Day Retention',
               value: s?.retention_pct !== null && s?.retention_pct !== undefined ? `${s.retention_pct}%` : '—',
               sub: s ? `${s.retained_90d} of ${s.eligible_90d} eligible` : '',
               icon: TrendingUp,
-              color: s ? retentionColor(s.retention_pct) : 'text-slate-400',
-              bg: s ? retentionBg(s.retention_pct) : 'bg-slate-50',
+              color: s ? retentionColor(s.retention_pct) : 'text-muted-foreground/70',
+              bg: s ? retentionBg(s.retention_pct) : 'bg-background',
             },
             {
               title: 'At-Risk',
               value: s ? s.at_risk_count.toString() : '—',
               sub: 'flagged policies',
               icon: AlertTriangle,
-              color: s && s.at_risk_count > 0 ? 'text-red-600' : 'text-slate-400',
-              bg: s && s.at_risk_count > 0 ? 'bg-red-50' : 'bg-slate-50',
+              color: s && s.at_risk_count > 0 ? 'text-red-400' : 'text-muted-foreground/70',
+              bg: s && s.at_risk_count > 0 ? 'bg-red-500/10' : 'bg-background',
             },
             {
               title: 'Avg Premium',
               value: s && s.active_policies > 0 ? fmt$(s.active_premium / s.active_policies) : '—',
               sub: 'per active policy',
-              icon: DollarSign, color: 'text-slate-700', bg: 'bg-slate-100',
+              icon: DollarSign, color: 'text-foreground/80', bg: 'bg-slate-100',
             },
           ].map(card => (
-            <Card key={card.title} className="border-slate-200">
+            <Card key={card.title} className="border-border">
               <CardContent className="p-5">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-sm font-medium text-slate-500">{card.title}</p>
-                    <p className="text-2xl font-bold text-slate-900 mt-1">{card.value}</p>
-                    {card.sub && <p className="text-xs text-slate-400 mt-0.5">{card.sub}</p>}
+                    <p className="text-sm font-medium text-muted-foreground">{card.title}</p>
+                    <p className="text-2xl font-bold text-foreground mt-1">{card.value}</p>
+                    {card.sub && <p className="text-xs text-muted-foreground/70 mt-0.5">{card.sub}</p>}
                   </div>
                   <div className={`p-2.5 rounded-lg ${card.bg}`}>
                     <card.icon size={20} className={card.color} />
@@ -266,13 +266,13 @@ export function AgencyDetailPage() {
 
         {/* Product breakdown + status */}
         <div className="grid lg:grid-cols-2 gap-6">
-          <Card className="border-slate-200">
+          <Card className="border-border">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base font-semibold text-slate-900">Product Mix</CardTitle>
+              <CardTitle className="text-base font-semibold text-foreground">Product Mix</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-slate-100">
-                <div className="grid grid-cols-4 gap-2 px-4 py-2 bg-slate-50 text-xs font-semibold text-slate-500">
+                <div className="grid grid-cols-4 gap-2 px-4 py-2 bg-background text-xs font-semibold text-muted-foreground">
                   <span>Product</span>
                   <span className="text-right">Active</span>
                   <span className="text-right">Premium/mo</span>
@@ -284,12 +284,12 @@ export function AgencyDetailPage() {
                       <Badge className={`text-[10px] px-1.5 py-0 border ${
                         p.product === 'HHC' ? 'bg-sky-50 text-sky-700 border-sky-200' :
                         p.product === 'HI' ? 'bg-violet-50 text-violet-700 border-violet-200' :
-                        'bg-slate-50 text-slate-600 border-slate-200'
+                        'bg-background text-muted-foreground border-border'
                       }`}>{p.product}</Badge>
                     </span>
-                    <span className="text-right text-slate-700 font-medium">{p.count}</span>
-                    <span className="text-right text-slate-700">{fmt$(p.premium)}</span>
-                    <span className={`text-right font-medium ${p.atRisk > 0 ? 'text-red-700' : 'text-slate-400'}`}>
+                    <span className="text-right text-foreground/80 font-medium">{p.count}</span>
+                    <span className="text-right text-foreground/80">{fmt$(p.premium)}</span>
+                    <span className={`text-right font-medium ${p.atRisk > 0 ? 'text-red-700' : 'text-muted-foreground/70'}`}>
                       {p.atRisk || '—'}
                     </span>
                   </div>
@@ -298,9 +298,9 @@ export function AgencyDetailPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-slate-200">
+          <Card className="border-border">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base font-semibold text-slate-900">Policy Status</CardTitle>
+              <CardTitle className="text-base font-semibold text-foreground">Policy Status</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
@@ -317,8 +317,8 @@ export function AgencyDetailPage() {
                     return (
                       <div key={status}>
                         <div className="flex items-center justify-between text-sm mb-1">
-                          <span className="capitalize text-slate-700 font-medium">{status}</span>
-                          <span className="text-slate-500 tabular-nums">{count} ({pct}%)</span>
+                          <span className="capitalize text-foreground/80 font-medium">{status}</span>
+                          <span className="text-muted-foreground tabular-nums">{count} ({pct}%)</span>
                         </div>
                         <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                           <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
@@ -333,31 +333,31 @@ export function AgencyDetailPage() {
 
         {/* At-risk policies expandable section */}
         {atRiskPolicies.length > 0 && (
-          <Card className="border-slate-200">
+          <Card className="border-border">
             <CardHeader className="pb-3">
               <button
                 onClick={() => setShowAtRisk(!showAtRisk)}
                 className="w-full flex items-center justify-between"
               >
                 <div className="flex items-center gap-2">
-                  <CardTitle className="text-base font-semibold text-slate-900">
+                  <CardTitle className="text-base font-semibold text-foreground">
                     At-Risk Policies
                   </CardTitle>
-                  <Badge className="bg-red-50 text-red-700 border-red-200 border">
+                  <Badge className="bg-red-500/10 text-red-700 border-red-500/20 border">
                     {atRiskPolicies.length}
                   </Badge>
                 </div>
-                {showAtRisk ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
+                {showAtRisk ? <ChevronUp size={18} className="text-muted-foreground/70" /> : <ChevronDown size={18} className="text-muted-foreground/70" />}
               </button>
             </CardHeader>
             {showAtRisk && (
-              <CardContent className="p-0 border-t border-slate-100">
-                <div className="grid grid-cols-8 gap-2 px-4 py-2 bg-slate-50 text-xs font-semibold text-slate-500">
+              <CardContent className="p-0 border-t border-border/50">
+                <div className="grid grid-cols-8 gap-2 px-4 py-2 bg-background text-xs font-semibold text-muted-foreground">
                   <span className="col-span-2">Policy #</span>
-                  <span className="cursor-pointer hover:text-slate-800" onClick={() => toggleSort('product')}>Product <SortIcon k="product" /></span>
-                  <span className="text-right cursor-pointer hover:text-slate-800" onClick={() => toggleSort('premium')}>Premium <SortIcon k="premium" /></span>
+                  <span className="cursor-pointer hover:text-foreground" onClick={() => toggleSort('product')}>Product <SortIcon k="product" /></span>
+                  <span className="text-right cursor-pointer hover:text-foreground" onClick={() => toggleSort('premium')}>Premium <SortIcon k="premium" /></span>
                   <span className="text-center">Drafts</span>
-                  <span className="text-right cursor-pointer hover:text-slate-800" onClick={() => toggleSort('days')}>Days Idle <SortIcon k="days" /></span>
+                  <span className="text-right cursor-pointer hover:text-foreground" onClick={() => toggleSort('days')}>Days Idle <SortIcon k="days" /></span>
                   <span className="text-center">Flag</span>
                   <span className="text-center">Action</span>
                 </div>
@@ -370,26 +370,26 @@ export function AgencyDetailPage() {
                     return (
                       <div
                         key={p.policy_number}
-                        className={`grid grid-cols-8 gap-2 px-4 py-2.5 text-sm items-center hover:bg-slate-50 ${
+                        className={`grid grid-cols-8 gap-2 px-4 py-2.5 text-sm items-center hover:bg-background ${
                           daysIdle >= 30 ? 'border-l-2 border-l-red-400' : daysIdle >= 14 ? 'border-l-2 border-l-amber-400' : ''
                         }`}
                       >
-                        <span className="col-span-2 font-mono text-xs text-slate-700 truncate">{p.policy_number}</span>
+                        <span className="col-span-2 font-mono text-xs text-foreground/80 truncate">{p.policy_number}</span>
                         <span>
                           <Badge className={`text-[10px] px-1.5 py-0 border ${
                             p.product_type === 'HHC' ? 'bg-sky-50 text-sky-700 border-sky-200' : 'bg-violet-50 text-violet-700 border-violet-200'
                           }`}>{p.product_type}</Badge>
                         </span>
-                        <span className="text-right text-slate-700 font-medium tabular-nums">${(Number(p.plan_premium) || 0).toFixed(0)}</span>
-                        <span className="text-center text-slate-600 tabular-nums">{p.draft_count ?? 0}</span>
-                        <span className={`text-right font-semibold tabular-nums ${daysIdle >= 30 ? 'text-red-700' : daysIdle >= 14 ? 'text-amber-700' : 'text-slate-600'}`}>
+                        <span className="text-right text-foreground/80 font-medium tabular-nums">${(Number(p.plan_premium) || 0).toFixed(0)}</span>
+                        <span className="text-center text-muted-foreground tabular-nums">{p.draft_count ?? 0}</span>
+                        <span className={`text-right font-semibold tabular-nums ${daysIdle >= 30 ? 'text-red-700' : daysIdle >= 14 ? 'text-amber-700' : 'text-muted-foreground'}`}>
                           {daysIdle}d
                         </span>
                         <span className="text-center">
                           <Badge className={`text-[10px] px-1.5 py-0 border ${
-                            p.flag_type === 'at_risk' ? 'bg-red-50 text-red-700 border-red-200' :
+                            p.flag_type === 'at_risk' ? 'bg-red-500/10 text-red-700 border-red-500/20' :
                             p.flag_type === 'payment_failed' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                            'bg-slate-50 text-slate-600 border-slate-200'
+                            'bg-background text-muted-foreground border-border'
                           }`}>{p.flag_type ?? '—'}</Badge>
                         </span>
                         <span className="text-center">
@@ -398,7 +398,7 @@ export function AgencyDetailPage() {
                             variant="outline"
                             disabled={isBusy}
                             onClick={() => openTask(p.policy_number)}
-                            className="h-6 px-2 text-[11px] border-slate-300 hover:border-[#1e3a5f] hover:text-[#1e3a5f]"
+                            className="h-6 px-2 text-[11px] border-border hover:border-[#1e3a5f] hover:text-primary"
                           >
                             {isBusy ? '…' : 'Task'}
                           </Button>

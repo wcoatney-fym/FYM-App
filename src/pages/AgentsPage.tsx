@@ -24,8 +24,8 @@ interface AgentRow {
 
 function roleBadge(role: string) {
   if (role === 'admin')   return 'bg-violet-50 text-violet-700 border-violet-200';
-  if (role === 'manager') return 'bg-blue-50 text-blue-700 border-blue-200';
-  return 'bg-slate-50 text-slate-600 border-slate-200';
+  if (role === 'manager') return 'bg-cyan-500/10 text-cyan-400 border-blue-200';
+  return 'bg-background text-muted-foreground border-border';
 }
 
 export function AgentsPage() {
@@ -113,34 +113,34 @@ export function AgentsPage() {
             { label: 'Writing # Set', value: withWritingNumber, sub: 'policies linked' },
             { label: 'No Writing #', value: agents.length - withWritingNumber, sub: 'health view unavailable', warn: true },
           ].map(c => (
-            <Card key={c.label} className="border-slate-200">
+            <Card key={c.label} className="border-border">
               <CardContent className="py-4 px-5">
-                <p className="text-xs font-medium text-slate-500">{c.label}</p>
-                <p className={`text-2xl font-bold mt-0.5 ${c.warn && agents.length - withWritingNumber > 0 ? 'text-amber-700' : 'text-slate-900'}`}>{c.value}</p>
-                <p className="text-xs text-slate-400 mt-0.5">{c.sub}</p>
+                <p className="text-xs font-medium text-muted-foreground">{c.label}</p>
+                <p className={`text-2xl font-bold mt-0.5 ${c.warn && agents.length - withWritingNumber > 0 ? 'text-amber-700' : 'text-foreground'}`}>{c.value}</p>
+                <p className="text-xs text-muted-foreground/70 mt-0.5">{c.sub}</p>
               </CardContent>
             </Card>
           ))}
         </div>
 
-        <Card className="border-slate-200">
+        <Card className="border-border">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-4 flex-wrap">
-              <CardTitle className="text-base font-semibold text-slate-900">Agent Directory</CardTitle>
+              <CardTitle className="text-base font-semibold text-foreground">Agent Directory</CardTitle>
               <div className="flex items-center gap-2">
                 <div className="relative w-full sm:w-64">
-                  <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/70" />
                   <Input
                     placeholder="Name, NPN, writing #…"
                     value={search}
                     onChange={e => setSearch(e.target.value)}
-                    className="pl-8 bg-white h-8 text-sm"
+                    className="pl-8 bg-card h-8 text-sm"
                   />
                 </div>
                 <Button
                   size="sm"
                   onClick={() => navigate('/provision')}
-                  className="h-8 bg-[#1e3a5f] hover:bg-[#162d4a] text-white text-xs gap-1.5"
+                  className="h-8 bg-primary hover:bg-primary/80 text-white text-xs gap-1.5"
                 >
                   <UserPlus size={13} /> Add Agent
                 </Button>
@@ -155,30 +155,30 @@ export function AgentsPage() {
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-slate-50">
-                    <TableHead className="font-semibold text-slate-600">Name</TableHead>
-                    <TableHead className="font-semibold text-slate-600">Role</TableHead>
-                    <TableHead className="font-semibold text-slate-600">Writing #</TableHead>
-                    <TableHead className="font-semibold text-slate-600">NPN</TableHead>
-                    <TableHead className="font-semibold text-slate-600 text-right">Active Policies</TableHead>
-                    <TableHead className="font-semibold text-slate-600 text-right">Retention</TableHead>
-                    <TableHead className="font-semibold text-slate-600 text-right">Health</TableHead>
+                  <TableRow className="bg-background">
+                    <TableHead className="font-semibold text-muted-foreground">Name</TableHead>
+                    <TableHead className="font-semibold text-muted-foreground">Role</TableHead>
+                    <TableHead className="font-semibold text-muted-foreground">Writing #</TableHead>
+                    <TableHead className="font-semibold text-muted-foreground">NPN</TableHead>
+                    <TableHead className="font-semibold text-muted-foreground text-right">Active Policies</TableHead>
+                    <TableHead className="font-semibold text-muted-foreground text-right">Retention</TableHead>
+                    <TableHead className="font-semibold text-muted-foreground text-right">Health</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filtered.map(a => (
-                    <TableRow key={a.id} className="hover:bg-slate-50 transition-colors">
-                      <TableCell className="font-medium text-slate-900">{a.full_name ?? <span className="text-slate-400 italic">Unnamed</span>}</TableCell>
+                    <TableRow key={a.id} className="hover:bg-background transition-colors">
+                      <TableCell className="font-medium text-foreground">{a.full_name ?? <span className="text-muted-foreground/70 italic">Unnamed</span>}</TableCell>
                       <TableCell>
                         <Badge className={`text-[10px] px-1.5 py-0 border ${roleBadge(a.role)}`}>{a.role}</Badge>
                       </TableCell>
-                      <TableCell className={`font-mono text-sm ${a.writing_number ? 'text-slate-700' : 'text-slate-300 italic'}`}>
+                      <TableCell className={`font-mono text-sm ${a.writing_number ? 'text-foreground/80' : 'text-slate-300 italic'}`}>
                         {a.writing_number ?? 'not set'}
                       </TableCell>
-                      <TableCell className={`font-mono text-sm ${a.npn ? 'text-slate-700' : 'text-slate-300'}`}>
+                      <TableCell className={`font-mono text-sm ${a.npn ? 'text-foreground/80' : 'text-slate-300'}`}>
                         {a.npn ?? '—'}
                       </TableCell>
-                      <TableCell className="text-right font-medium text-slate-700">
+                      <TableCell className="text-right font-medium text-foreground/80">
                         {a.active_policies ? a.active_policies.toLocaleString() : <span className="text-slate-300">—</span>}
                       </TableCell>
                       <TableCell className="text-right">
@@ -192,7 +192,7 @@ export function AgentsPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 h-7 px-2"
+                          className="text-cyan-400 hover:text-blue-800 hover:bg-cyan-500/10 h-7 px-2"
                           onClick={() => navigate(`/agents/${a.id}/health`)}
                           disabled={!a.writing_number}
                         >
@@ -204,7 +204,7 @@ export function AgentsPage() {
                   ))}
                   {filtered.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-10 text-slate-400">
+                      <TableCell colSpan={7} className="text-center py-10 text-muted-foreground/70">
                         {agents.length === 0 ? 'No agents provisioned yet. Use the Add Agent button above.' : 'No agents match your search.'}
                       </TableCell>
                     </TableRow>

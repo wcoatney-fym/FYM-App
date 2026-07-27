@@ -35,9 +35,9 @@ function urgencyLevel(days: number): 'critical' | 'high' | 'medium' {
 
 function urgencyBadge(days: number) {
   const u = urgencyLevel(days);
-  if (u === 'critical') return 'bg-red-100 text-red-800 border-red-200';
+  if (u === 'critical') return 'bg-red-100 text-red-800 border-red-500/20';
   if (u === 'high') return 'bg-amber-100 text-amber-800 border-amber-200';
-  return 'bg-slate-100 text-slate-700 border-slate-200';
+  return 'bg-slate-100 text-foreground/80 border-border';
 }
 
 function urgencyLabel(days: number) {
@@ -193,18 +193,18 @@ export function AtRiskPage() {
         {/* KPI strip */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { label: 'Total At-Risk', value: rows.length.toString(), sub: `${untasked} need attention`, icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50' },
-            { label: 'Critical (30+ days)', value: critical.toString(), sub: 'no draft in 30+ days', icon: Clock, color: 'text-red-700', bg: 'bg-red-50' },
+            { label: 'Total At-Risk', value: rows.length.toString(), sub: `${untasked} need attention`, icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/10' },
+            { label: 'Critical (30+ days)', value: critical.toString(), sub: 'no draft in 30+ days', icon: Clock, color: 'text-red-700', bg: 'bg-red-500/10' },
             { label: 'Urgent (14-29 days)', value: high.toString(), sub: 'approaching critical', icon: Clock, color: 'text-amber-700', bg: 'bg-amber-50' },
             { label: 'At-Risk Premium', value: `$${Math.round(totalPremium).toLocaleString()}`, sub: 'monthly premium exposed', icon: TrendingDown, color: 'text-amber-700', bg: 'bg-amber-50' },
           ].map(card => (
-            <Card key={card.label} className="border-slate-200">
+            <Card key={card.label} className="border-border">
               <CardContent className="p-5">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-sm font-medium text-slate-500">{card.label}</p>
-                    <p className="text-2xl font-bold text-slate-900 mt-1">{card.value}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">{card.sub}</p>
+                    <p className="text-sm font-medium text-muted-foreground">{card.label}</p>
+                    <p className="text-2xl font-bold text-foreground mt-1">{card.value}</p>
+                    <p className="text-xs text-muted-foreground/70 mt-0.5">{card.sub}</p>
                   </div>
                   <div className={`p-2.5 rounded-lg ${card.bg}`}>
                     <card.icon size={20} className={card.color} />
@@ -216,12 +216,12 @@ export function AtRiskPage() {
         </div>
 
         {/* Policy table */}
-        <Card className="border-slate-200">
+        <Card className="border-border">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div>
-                <CardTitle className="text-base font-semibold text-slate-900">Flagged Policies</CardTitle>
-                <p className="text-xs text-slate-400 mt-0.5">{displayRows.length} of {rows.length} shown</p>
+                <CardTitle className="text-base font-semibold text-foreground">Flagged Policies</CardTitle>
+                <p className="text-xs text-muted-foreground/70 mt-0.5">{displayRows.length} of {rows.length} shown</p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 {(['all', 'critical', 'high', 'medium'] as const).map(f => (
@@ -230,8 +230,8 @@ export function AtRiskPage() {
                     onClick={() => setFilterUrgency(f)}
                     className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
                       filterUrgency === f
-                        ? 'bg-[#1e3a5f] text-white border-[#1e3a5f]'
-                        : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
+                        ? 'bg-primary text-white border-[#1e3a5f]'
+                        : 'bg-card text-muted-foreground border-border hover:border-slate-400'
                     }`}
                   >
                     {f === 'all' ? `All (${rows.length})` :
@@ -241,12 +241,12 @@ export function AtRiskPage() {
                   </button>
                 ))}
                 <div className="relative">
-                  <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/70" />
                   <Input
                     placeholder="Search policy #…"
                     value={search}
                     onChange={e => setSearch(e.target.value)}
-                    className="pl-8 h-8 text-sm w-44 bg-white"
+                    className="pl-8 h-8 text-sm w-44 bg-card"
                   />
                 </div>
               </div>
@@ -254,19 +254,19 @@ export function AtRiskPage() {
           </CardHeader>
           <CardContent className="p-0">
             {/* Table header */}
-            <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-slate-50 text-xs font-semibold text-slate-500 border-t border-slate-100">
+            <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-background text-xs font-semibold text-muted-foreground border-t border-border/50">
               <span className="col-span-2">Policy #</span>
-              <span className="col-span-2 cursor-pointer hover:text-slate-800" onClick={() => toggleSort('product')}>Product <SortIcon k="product" /></span>
-              <span className="col-span-2 text-right cursor-pointer hover:text-slate-800" onClick={() => toggleSort('premium')}>Premium <SortIcon k="premium" /></span>
+              <span className="col-span-2 cursor-pointer hover:text-foreground" onClick={() => toggleSort('product')}>Product <SortIcon k="product" /></span>
+              <span className="col-span-2 text-right cursor-pointer hover:text-foreground" onClick={() => toggleSort('premium')}>Premium <SortIcon k="premium" /></span>
               <span className="text-center">Drafts</span>
-              <span className="col-span-2 text-right cursor-pointer hover:text-slate-800" onClick={() => toggleSort('days')}>Days Idle <SortIcon k="days" /></span>
+              <span className="col-span-2 text-right cursor-pointer hover:text-foreground" onClick={() => toggleSort('days')}>Days Idle <SortIcon k="days" /></span>
               <span className="text-center">Urgency</span>
               <span className="col-span-2 text-center">Action</span>
             </div>
 
             <div className="divide-y divide-slate-100 max-h-[560px] overflow-y-auto">
               {displayRows.length === 0 && (
-                <div className="py-10 text-center text-slate-400 text-sm">
+                <div className="py-10 text-center text-muted-foreground/70 text-sm">
                   {rows.length === 0 ? 'No at-risk policies found.' : 'No policies match your filters.'}
                 </div>
               )}
@@ -276,12 +276,12 @@ export function AtRiskPage() {
                 return (
                   <div
                     key={row.policy_number}
-                    className={`grid grid-cols-12 gap-2 px-4 py-2.5 text-sm items-center hover:bg-slate-50 transition-colors ${
+                    className={`grid grid-cols-12 gap-2 px-4 py-2.5 text-sm items-center hover:bg-background transition-colors ${
                       urgency === 'critical' ? 'border-l-2 border-l-red-400' :
                       urgency === 'high' ? 'border-l-2 border-l-amber-400' : ''
                     }`}
                   >
-                    <span className="col-span-2 font-mono text-xs text-slate-700 truncate">{row.policy_number}</span>
+                    <span className="col-span-2 font-mono text-xs text-foreground/80 truncate">{row.policy_number}</span>
                     <span className="col-span-2">
                       <Badge className={`text-[10px] px-1.5 py-0 border ${
                         row.product_type === 'HHC' ? 'bg-sky-50 text-sky-700 border-sky-200' : 'bg-violet-50 text-violet-700 border-violet-200'
@@ -289,12 +289,12 @@ export function AtRiskPage() {
                         {row.product_type}
                       </Badge>
                     </span>
-                    <span className="col-span-2 text-right text-slate-700 font-medium tabular-nums">
+                    <span className="col-span-2 text-right text-foreground/80 font-medium tabular-nums">
                       ${Number(row.plan_premium).toFixed(0)}
                     </span>
-                    <span className="text-center text-slate-600 tabular-nums">{row.draft_count}</span>
+                    <span className="text-center text-muted-foreground tabular-nums">{row.draft_count}</span>
                     <span className={`col-span-2 text-right font-semibold tabular-nums ${
-                      urgency === 'critical' ? 'text-red-700' : urgency === 'high' ? 'text-amber-700' : 'text-slate-600'
+                      urgency === 'critical' ? 'text-red-700' : urgency === 'high' ? 'text-amber-700' : 'text-muted-foreground'
                     }`}>
                       {row.days_since_draft}d
                     </span>
@@ -310,7 +310,7 @@ export function AtRiskPage() {
                           variant="outline"
                           disabled={isBusy}
                           onClick={() => openTask(row.policy_number, row.agency_id)}
-                          className="h-6 px-2 text-[11px] border-slate-300 hover:border-[#1e3a5f] hover:text-[#1e3a5f]"
+                          className="h-6 px-2 text-[11px] border-border hover:border-[#1e3a5f] hover:text-primary"
                         >
                           {isBusy ? '…' : 'Open Task'}
                         </Button>

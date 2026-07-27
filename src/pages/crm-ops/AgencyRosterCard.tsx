@@ -23,9 +23,9 @@ interface AgencyRosterCardProps {
 
 const DEFAULT_CONFIG = {
   label: 'CRM Roster',
-  accent: 'text-gray-700',
-  bg: 'bg-gray-50',
-  border: 'border-gray-200',
+  accent: 'text-foreground/80',
+  bg: 'bg-secondary',
+  border: 'border-border',
   icon: 'bg-gray-600',
 };
 
@@ -84,7 +84,7 @@ export const AgencyRosterCard: React.FC<AgencyRosterCardProps> = ({
   };
 
   return (
-    <div className={`bg-white rounded-xl shadow-sm border ${config.border} overflow-hidden transition-shadow hover:shadow-md`}>
+    <div className={`bg-card rounded-xl glow-sm border ${config.border} overflow-hidden transition-shadow hover:glow-primary`}>
       <div className={`${config.bg} px-5 py-4 border-b ${config.border}`}>
         <div className="flex items-center gap-3">
           <div className={`${config.icon} w-9 h-9 rounded-lg flex items-center justify-center`}>
@@ -106,15 +106,15 @@ export const AgencyRosterCard: React.FC<AgencyRosterCardProps> = ({
         <div className="p-5">
           <div className="flex items-start gap-3 mb-4">
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-gray-900 truncate" title={upload.file_name}>
+              <p className="text-sm font-semibold text-foreground truncate" title={upload.file_name}>
                 {upload.file_name}
               </p>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 {populatedCount !== undefined
                   ? `${populatedCount.toLocaleString()}/200 records`
                   : `${upload.row_count.toLocaleString()} records`}
               </p>
-              <p className="text-xs text-gray-400 mt-0.5">
+              <p className="text-xs text-muted-foreground/70 mt-0.5">
                 Uploaded {formatDate(upload.uploaded_at)}
               </p>
             </div>
@@ -141,14 +141,14 @@ export const AgencyRosterCard: React.FC<AgencyRosterCardProps> = ({
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
-                className="flex items-center justify-center gap-2 flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium disabled:opacity-50"
+                className="flex items-center justify-center gap-2 flex-1 px-4 py-2 border border-border text-foreground/80 rounded-lg hover:bg-secondary transition-colors text-sm font-medium disabled:opacity-50"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 Replace
               </button>
               <button
                 onClick={() => onDelete(upload)}
-                className="flex items-center justify-center gap-2 px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors text-sm font-medium"
+                className="flex items-center justify-center gap-2 px-4 py-2 border border-red-500/20 text-red-400 rounded-lg hover:bg-red-500/10 transition-colors text-sm font-medium"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -158,10 +158,10 @@ export const AgencyRosterCard: React.FC<AgencyRosterCardProps> = ({
       ) : (
         <div className="p-5">
           <div className="flex flex-col items-center text-center py-4">
-            <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-3">
-              <Upload className="w-5 h-5 text-gray-400" />
+            <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center mb-3">
+              <Upload className="w-5 h-5 text-muted-foreground/70" />
             </div>
-            <p className="text-sm text-gray-500 mb-4">No roster uploaded</p>
+            <p className="text-sm text-muted-foreground mb-4">No roster uploaded</p>
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}

@@ -41,7 +41,7 @@ type HistoryEvent = {
 type AgencyOption = { id: string; name: string };
 
 const TYPE_STYLES: Record<HistoryEvent['type'], { bg: string; text: string; icon: React.FC<{ className?: string }> }> = {
-  notification: { bg: 'bg-blue-50', text: 'text-blue-700', icon: Bell },
+  notification: { bg: 'bg-cyan-500/10', text: 'text-cyan-400', icon: Bell },
   roster_upload: { bg: 'bg-emerald-50', text: 'text-emerald-700', icon: Upload },
   dba_upload: { bg: 'bg-amber-50', text: 'text-amber-700', icon: FileText },
   cancellation_upload: { bg: 'bg-rose-50', text: 'text-rose-700', icon: FileText },

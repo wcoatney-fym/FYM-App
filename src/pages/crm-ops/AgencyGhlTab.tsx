@@ -28,7 +28,7 @@ interface AgencyGhlTabProps {
 
 const STATUS_DISPLAY: Record<string, { label: string; icon: React.FC<{ className?: string }>; color: string; bg: string }> = {
   connected: { label: 'Connected', icon: Wifi, color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
-  error: { label: 'Error', icon: AlertTriangle, color: 'text-red-700', bg: 'bg-red-50 border-red-200' },
+  error: { label: 'Error', icon: AlertTriangle, color: 'text-red-700', bg: 'bg-red-500/10 border-red-500/20' },
   disconnected: { label: 'Disconnected', icon: WifiOff, color: 'text-muted-foreground', bg: 'bg-muted border-border' },
 };
 
@@ -230,7 +230,7 @@ export const AgencyGhlTab: React.FC<AgencyGhlTabProps> = ({ agencyId, config, on
 
       <div className="bg-card rounded-xl border border-border p-6">
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-lg bg-cyan-500/10 flex items-center justify-center">
             <Link2 className="w-5 h-5 text-primary" />
           </div>
           <div>
@@ -285,7 +285,7 @@ export const AgencyGhlTab: React.FC<AgencyGhlTabProps> = ({ agencyId, config, on
             <button
               onClick={handleTestConnection}
               disabled={testing || !config}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary bg-blue-50 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary bg-cyan-500/10 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
             >
               {testing ? (
                 <>
@@ -302,7 +302,7 @@ export const AgencyGhlTab: React.FC<AgencyGhlTabProps> = ({ agencyId, config, on
           </div>
 
           {testResult && (
-            <div className={`flex items-center gap-2 p-3 rounded-lg ${testResult.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+            <div className={`flex items-center gap-2 p-3 rounded-lg ${testResult.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-500/10 text-red-700'}`}>
               {testResult.ok ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
               <p className="text-sm">{testResult.message}</p>
             </div>

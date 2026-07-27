@@ -305,7 +305,7 @@ export function AgentDatabaseTab() {
 
   if (!portalSupabase) {
     return (
-      <div className="text-center py-12 text-gray-500">
+      <div className="text-center py-12 text-muted-foreground">
         <Database className="w-12 h-12 mx-auto mb-3 text-gray-300" />
         <p className="font-medium">Portal connection not configured</p>
         <p className="text-sm mt-1">
@@ -320,7 +320,7 @@ export function AgentDatabaseTab() {
     return (
       <div className="flex items-center justify-center py-16">
         <Loader2 className="w-6 h-6 animate-spin text-navy-600 mr-2" />
-        <span className="text-gray-600">Loading agent database…</span>
+        <span className="text-muted-foreground">Loading agent database…</span>
       </div>
     );
   }
@@ -331,7 +331,7 @@ export function AgentDatabaseTab() {
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-2xl font-bold text-navy-600">Agent Database</h2>
-          <p className="text-gray-600 mt-1">
+          <p className="text-muted-foreground mt-1">
             {filteredAgents.length} of {agents.length} completed agent
             {agents.length !== 1 ? 's' : ''}
           </p>
@@ -339,7 +339,7 @@ export function AgentDatabaseTab() {
         <button
           onClick={handleExportCsv}
           disabled={filteredAgents.length === 0}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-navy-600 text-white rounded-lg font-medium hover:bg-navy-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-sm shadow-sm"
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-navy-600 text-white rounded-lg font-medium hover:bg-navy-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-sm glow-sm"
         >
           <FileDown className="w-4 h-4" />
           Export CSV
@@ -347,26 +347,26 @@ export function AgentDatabaseTab() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-card rounded-lg shadow p-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <input
             type="text"
             placeholder="Search by agent name..."
             value={searchName}
             onChange={(e) => setSearchName(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-navy-500 focus:border-transparent"
+            className="px-4 py-2 border border-border rounded-md focus:ring-2 focus:ring-navy-500 focus:border-transparent"
           />
           <input
             type="text"
             placeholder="Search by security code..."
             value={searchCode}
             onChange={(e) => setSearchCode(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-navy-500 focus:border-transparent"
+            className="px-4 py-2 border border-border rounded-md focus:ring-2 focus:ring-navy-500 focus:border-transparent"
           />
           <select
             value={formTypeFilter}
             onChange={(e) => setFormTypeFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-navy-500 focus:border-transparent"
+            className="px-4 py-2 border border-border rounded-md focus:ring-2 focus:ring-navy-500 focus:border-transparent"
           >
             <option value="">All Form Types</option>
             <option value="life-only">Life Only</option>
@@ -383,7 +383,7 @@ export function AgentDatabaseTab() {
           <select
             value={agencyFilter}
             onChange={(e) => setAgencyFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-navy-500 focus:border-transparent"
+            className="px-4 py-2 border border-border rounded-md focus:ring-2 focus:ring-navy-500 focus:border-transparent"
           >
             <option value="">All Agencies</option>
             <option value="FYM">FYM</option>
@@ -394,49 +394,49 @@ export function AgentDatabaseTab() {
       </div>
 
       {/* Agent Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-card rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-secondary">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
                   Agent Name
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
                   Email
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
                   Phone
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
                   Form Type
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
                   Agency
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
                   Security Code
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
                   Date Completed
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
                   NPN
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
                   Resident State
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-border">
               {filteredAgents.length === 0 ? (
                 <tr>
                   <td
                     colSpan={10}
-                    className="px-6 py-12 text-center text-gray-500"
+                    className="px-6 py-12 text-center text-muted-foreground"
                   >
                     {agents.length === 0
                       ? 'No completed agents found'
@@ -447,7 +447,7 @@ export function AgentDatabaseTab() {
                 filteredAgents.map((agent) => {
                   const submission = submissions[agent.id];
                   return (
-                    <tr key={agent.id} className="hover:bg-gray-50">
+                    <tr key={agent.id} className="hover:bg-secondary">
                       <td
                         className="px-6 py-4 whitespace-nowrap cursor-pointer text-navy-600 hover:underline"
                         onClick={() => setDetailAgent(agent)}
@@ -488,7 +488,7 @@ export function AgentDatabaseTab() {
                           <div className="relative group/edit">
                             <button
                               onClick={() => setEditAgent(agent)}
-                              className="p-1.5 text-gray-500 hover:bg-gray-100 rounded transition-colors"
+                              className="p-1.5 text-muted-foreground hover:bg-secondary rounded transition-colors"
                               aria-label={`Edit ${agent.first_name} ${agent.last_name}`}
                             >
                               <Pencil className="w-4 h-4" />
@@ -503,7 +503,7 @@ export function AgentDatabaseTab() {
                           <div className="relative group/view">
                             <button
                               onClick={() => setDetailAgent(agent)}
-                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                              className="p-1.5 text-cyan-400 hover:bg-cyan-500/10 rounded transition-colors"
                               aria-label={`View details for ${agent.first_name} ${agent.last_name}`}
                             >
                               <Eye className="w-4 h-4" />
@@ -548,7 +548,7 @@ export function AgentDatabaseTab() {
                                   setUndoError('');
                                   setUndoAgent(agent);
                                 }}
-                                className="p-1.5 text-orange-500 hover:bg-orange-50 rounded transition-colors"
+                                className="p-1.5 text-orange-500 hover:bg-amber-500/10 rounded transition-colors"
                                 aria-label={`Undo CRM for ${agent.first_name} ${agent.last_name}`}
                               >
                                 <Undo2 className="w-4 h-4" />
@@ -565,7 +565,7 @@ export function AgentDatabaseTab() {
                             <div className="relative group/terminate">
                               <button
                                 onClick={() => setTerminateAgent(agent)}
-                                className="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors"
+                                className="p-1.5 text-red-500 hover:bg-red-500/10 rounded transition-colors"
                                 aria-label={`Terminate ${agent.first_name} ${agent.last_name}`}
                               >
                                 <UserX className="w-4 h-4" />
@@ -625,44 +625,44 @@ export function AgentDatabaseTab() {
       {/* Undo CRM Modal (inline — test only) */}
       {undoAgent && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-            <div className="px-6 py-4 border-b border-gray-200">
+          <div className="bg-card rounded-lg shadow-xl max-w-md w-full">
+            <div className="px-6 py-4 border-b border-border">
               <h2 className="text-lg font-bold text-orange-600">
                 Undo CRM Onboarding
               </h2>
             </div>
             <div className="px-6 py-5">
-              <p className="text-gray-700">
+              <p className="text-foreground/80">
                 This will clear the CRM seat data for{' '}
                 <span className="font-semibold">
                   {undoAgent.first_name} {undoAgent.last_name}
                 </span>{' '}
                 and allow re-onboarding.
               </p>
-              <p className="text-gray-500 text-sm mt-2">
+              <p className="text-muted-foreground text-sm mt-2">
                 This is a test-only action.
               </p>
               {undoError && (
-                <p className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+                <p className="mt-3 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-md px-3 py-2">
                   {undoError}
                 </p>
               )}
             </div>
-            <div className="px-6 py-4 bg-gray-50 rounded-b-lg flex justify-end gap-3">
+            <div className="px-6 py-4 bg-secondary rounded-b-lg flex justify-end gap-3">
               <button
                 onClick={() => {
                   setUndoAgent(null);
                   setUndoError('');
                 }}
                 disabled={undoSubmitting}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                className="px-4 py-2 text-sm font-medium text-foreground/80 bg-card border border-border rounded-md hover:bg-secondary transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleCrmUndo}
                 disabled={undoSubmitting}
-                className="px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-md hover:bg-orange-600 transition-colors disabled:opacity-50"
+                className="px-4 py-2 text-sm font-medium text-white bg-amber-500/100 rounded-md hover:bg-orange-600 transition-colors disabled:opacity-50"
               >
                 {undoSubmitting ? 'Clearing...' : 'Confirm'}
               </button>

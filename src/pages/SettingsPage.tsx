@@ -21,13 +21,13 @@ export function SettingsPage() {
     <div>
       <Header title="Settings" />
       <div className="p-6 max-w-2xl space-y-6">
-        <Card className="border-slate-200">
+        <Card className="border-border">
           <CardHeader>
-            <CardTitle className="text-base font-semibold text-slate-900">Supabase Connection</CardTitle>
+            <CardTitle className="text-base font-semibold text-foreground">Supabase Connection</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="sb-url" className="text-sm font-medium text-slate-700">
+              <Label htmlFor="sb-url" className="text-sm font-medium text-foreground/80">
                 Supabase URL
               </Label>
               <Input
@@ -35,11 +35,11 @@ export function SettingsPage() {
                 placeholder="https://your-project.supabase.co"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                className="bg-white font-mono text-sm"
+                className="bg-card font-mono text-sm"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="sb-key" className="text-sm font-medium text-slate-700">
+              <Label htmlFor="sb-key" className="text-sm font-medium text-foreground/80">
                 Anon Key
               </Label>
               <Input
@@ -48,11 +48,11 @@ export function SettingsPage() {
                 placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..."
                 value={key}
                 onChange={(e) => setKey(e.target.value)}
-                className="bg-white font-mono text-sm"
+                className="bg-card font-mono text-sm"
               />
             </div>
             <div className="flex items-center gap-3 pt-2">
-              <Button onClick={handleSave} className="bg-[#1e3a5f] hover:bg-[#162d4a]">
+              <Button onClick={handleSave} className="bg-primary hover:bg-primary/80">
                 Save Connection
               </Button>
               {saved && (
@@ -61,7 +61,7 @@ export function SettingsPage() {
                 </span>
               )}
             </div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-muted-foreground/70">
               Credentials are stored in localStorage. They override .env values when set.
             </p>
           </CardContent>

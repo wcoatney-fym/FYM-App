@@ -219,7 +219,7 @@ export function LobAssignment({
   };
 
   return (
-    <div className="bg-gray-50 rounded-lg border border-gray-200">
+    <div className="bg-secondary rounded-lg border border-border">
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
@@ -233,7 +233,7 @@ export function LobAssignment({
             <h3 className="font-semibold text-navy-600 text-lg leading-tight">
               Lines of Business
             </h3>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5">
               {hipEnabled
                 ? `HIP - ${Object.values(carriers).filter((c) => c.selected).length} carrier(s)`
                 : 'No lines assigned'}
@@ -241,25 +241,25 @@ export function LobAssignment({
           </div>
         </div>
         {expanded ? (
-          <ChevronUp className="w-5 h-5 text-gray-400" />
+          <ChevronUp className="w-5 h-5 text-muted-foreground/70" />
         ) : (
-          <ChevronDown className="w-5 h-5 text-gray-400" />
+          <ChevronDown className="w-5 h-5 text-muted-foreground/70" />
         )}
       </button>
 
       {expanded && (
         <div className="px-4 pb-4 space-y-4">
-          <div className="border border-gray-200 rounded-lg bg-white p-4">
+          <div className="border border-border rounded-lg bg-card p-4">
             <label className="flex items-center gap-3 cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={hipEnabled}
                 onChange={toggleHip}
-                className="w-5 h-5 rounded border-gray-300 text-navy-600 focus:ring-navy-500 cursor-pointer"
+                className="w-5 h-5 rounded border-border text-navy-600 focus:ring-navy-500 cursor-pointer"
               />
               <div>
-                <span className="font-semibold text-gray-900">HIP</span>
-                <span className="text-sm text-gray-500 ml-2">
+                <span className="font-semibold text-foreground">HIP</span>
+                <span className="text-sm text-muted-foreground ml-2">
                   Health Insurance Products
                 </span>
               </div>
@@ -267,7 +267,7 @@ export function LobAssignment({
 
             {hipEnabled && (
               <div className="mt-4 ml-8 space-y-3">
-                <p className="text-sm font-medium text-gray-600 mb-2">
+                <p className="text-sm font-medium text-muted-foreground mb-2">
                   Select carriers and enter writing numbers:
                 </p>
                 {HIP_CARRIERS.map((carrier) => (
@@ -277,16 +277,16 @@ export function LobAssignment({
                         type="checkbox"
                         checked={carriers[carrier].selected}
                         onChange={() => toggleCarrier(carrier)}
-                        className="w-4 h-4 rounded border-gray-300 text-gold-600 focus:ring-gold-500 cursor-pointer"
+                        className="w-4 h-4 rounded border-border text-gold-600 focus:ring-gold-500 cursor-pointer"
                       />
-                      <span className="font-medium text-gray-800">
+                      <span className="font-medium text-foreground">
                         {carrier}
                       </span>
                     </label>
 
                     {carriers[carrier].selected && (
                       <div className="ml-7">
-                        <label className="block text-sm text-gray-600 mb-1">
+                        <label className="block text-sm text-muted-foreground mb-1">
                           {carrier} Agent Writing Number{' '}
                           <span className="text-red-500">*</span>
                         </label>
@@ -299,8 +299,8 @@ export function LobAssignment({
                           placeholder={`Enter ${carrier} writing number`}
                           className={`w-full max-w-sm px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-navy-500 focus:border-transparent ${
                             errors.some((e) => e.includes(carrier))
-                              ? 'border-red-400 bg-red-50'
-                              : 'border-gray-300'
+                              ? 'border-red-400 bg-red-500/10'
+                              : 'border-border'
                           }`}
                         />
                       </div>
@@ -312,7 +312,7 @@ export function LobAssignment({
           </div>
 
           {errors.length > 0 && (
-            <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
               <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
               <div className="text-sm text-red-700 space-y-1">
                 {errors.map((err, i) => (
@@ -346,7 +346,7 @@ export function LobAssignment({
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-navy-600 text-white rounded-lg font-semibold hover:bg-navy-700 transition-colors disabled:opacity-50 text-sm shadow-sm"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-navy-600 text-white rounded-lg font-semibold hover:bg-navy-700 transition-colors disabled:opacity-50 text-sm glow-sm"
           >
             <Save className="w-4 h-4" />
             {saving ? 'Saving...' : 'Save Lines of Business'}

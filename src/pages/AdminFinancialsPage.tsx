@@ -44,15 +44,15 @@ interface AgencySummaryRow {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function retentionColor(pct: number | null) {
-  if (pct === null) return 'text-slate-400';
+  if (pct === null) return 'text-muted-foreground/70';
   if (pct >= 90) return 'text-emerald-700';
   if (pct >= 85) return 'text-amber-600';
-  return 'text-red-600';
+  return 'text-red-400';
 }
 function retentionBadgeClass(pct: number) {
   if (pct >= 90) return 'bg-emerald-50 text-emerald-700 border-emerald-200';
   if (pct >= 85) return 'bg-amber-50 text-amber-700 border-amber-200';
-  return 'bg-red-50 text-red-700 border-red-200';
+  return 'bg-red-500/10 text-red-700 border-red-500/20';
 }
 function fmt$(n: number) {
   if (n >= 1_000_000) return '$' + (n / 1_000_000).toFixed(1) + 'M';
@@ -217,22 +217,22 @@ export function AdminFinancialsPage() {
               title: 'Active Premium',
               value: fmt$(stats.totalPremium) + '/mo',
               sub: `${stats.totalActive.toLocaleString()} policies`,
-              icon: DollarSign, color: 'text-[#1e3a5f]', bg: 'bg-blue-50',
+              icon: DollarSign, color: 'text-primary', bg: 'bg-cyan-500/10',
             },
             {
               title: 'At-Risk Premium',
               value: fmt$(stats.totalAtRiskPremium),
               sub: `${stats.totalAtRisk} policies flagged`,
               icon: ShieldAlert,
-              color: stats.totalAtRisk > 0 ? 'text-red-600' : 'text-slate-400',
-              bg: stats.totalAtRisk > 0 ? 'bg-red-50' : 'bg-slate-50',
+              color: stats.totalAtRisk > 0 ? 'text-red-400' : 'text-muted-foreground/70',
+              bg: stats.totalAtRisk > 0 ? 'bg-red-500/10' : 'bg-background',
             },
             {
               title: 'Blended Retention',
               value: stats.blendedRetention !== null ? `${stats.blendedRetention}%` : '—',
               sub: '90-day, all products',
               icon: TrendingDown,
-              color: stats.blendedRetention !== null ? retentionColor(stats.blendedRetention) : 'text-slate-400',
+              color: stats.blendedRetention !== null ? retentionColor(stats.blendedRetention) : 'text-muted-foreground/70',
               bg: stats.blendedRetention !== null && stats.blendedRetention >= 90 ? 'bg-emerald-50' : 'bg-amber-50',
             },
             {
@@ -240,17 +240,17 @@ export function AdminFinancialsPage() {
               value: stats.flaggedConcentration.length.toString(),
               sub: 'agencies >10% of premium',
               icon: AlertTriangle,
-              color: stats.flaggedConcentration.length > 0 ? 'text-amber-600' : 'text-slate-400',
-              bg: stats.flaggedConcentration.length > 0 ? 'bg-amber-50' : 'bg-slate-50',
+              color: stats.flaggedConcentration.length > 0 ? 'text-amber-600' : 'text-muted-foreground/70',
+              bg: stats.flaggedConcentration.length > 0 ? 'bg-amber-50' : 'bg-background',
             },
           ].map(card => (
-            <Card key={card.title} className="border-slate-200">
+            <Card key={card.title} className="border-border">
               <CardContent className="p-5">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-sm font-medium text-slate-500">{card.title}</p>
-                    <p className="text-2xl font-bold text-slate-900 mt-1">{card.value}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">{card.sub}</p>
+                    <p className="text-sm font-medium text-muted-foreground">{card.title}</p>
+                    <p className="text-2xl font-bold text-foreground mt-1">{card.value}</p>
+                    <p className="text-xs text-muted-foreground/70 mt-0.5">{card.sub}</p>
                   </div>
                   <div className={`p-2.5 rounded-lg ${card.bg}`}>
                     <card.icon size={20} className={card.color} />
@@ -267,10 +267,10 @@ export function AdminFinancialsPage() {
             .filter(([pt]) => ['HI', 'HHC'].includes(pt))
             .sort(([, a], [, b]) => b.premium - a.premium)
             .map(([pt, data]) => (
-              <Card key={pt} className="border-slate-200">
+              <Card key={pt} className="border-border">
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-base font-semibold text-slate-900">
+                    <CardTitle className="text-base font-semibold text-foreground">
                       {pt === 'HHC' ? 'Home Health Care' : 'Hospital Indemnity'}
                     </CardTitle>
                     {data.retention !== null && (
@@ -283,11 +283,11 @@ export function AdminFinancialsPage() {
                 <CardContent>
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
-                      <p className="text-slate-500 text-xs">Active premium</p>
-                      <p className="font-semibold text-slate-900">{fmt$(data.premium)}<span className="font-normal text-slate-400">/mo</span></p>
+                      <p className="text-muted-foreground text-xs">Active premium</p>
+                      <p className="font-semibold text-foreground">{fmt$(data.premium)}<span className="font-normal text-muted-foreground/70">/mo</span></p>
                     </div>
                     <div>
-                      <p className="text-slate-500 text-xs">Retention</p>
+                      <p className="text-muted-foreground text-xs">Retention</p>
                       <p className={`font-semibold ${retentionColor(data.retention)}`}>
                         {data.retention !== null ? `${data.retention}%` : '—'}
                       </p>
@@ -300,12 +300,12 @@ export function AdminFinancialsPage() {
 
         {/* Cohort retention trend */}
         {retentionChartData.length > 0 && (
-          <Card className="border-slate-200">
+          <Card className="border-border">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-base font-semibold text-slate-900">90-Day Retention by Cohort</CardTitle>
-                  <p className="text-xs text-slate-400 mt-0.5">Monthly cohorts · HI vs HHC · red dashed line = 90% target</p>
+                  <CardTitle className="text-base font-semibold text-foreground">90-Day Retention by Cohort</CardTitle>
+                  <p className="text-xs text-muted-foreground/70 mt-0.5">Monthly cohorts · HI vs HHC · red dashed line = 90% target</p>
                 </div>
               </div>
             </CardHeader>
@@ -335,13 +335,13 @@ export function AdminFinancialsPage() {
 
         {/* Cohort detail table */}
         {cohorts.length > 0 && (
-          <Card className="border-slate-200">
+          <Card className="border-border">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base font-semibold text-slate-900">Cohort Detail</CardTitle>
+              <CardTitle className="text-base font-semibold text-foreground">Cohort Detail</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-slate-100">
-                <div className="grid grid-cols-7 gap-2 px-4 py-2 bg-slate-50 text-xs font-semibold text-slate-500">
+                <div className="grid grid-cols-7 gap-2 px-4 py-2 bg-background text-xs font-semibold text-muted-foreground">
                   <span className="col-span-2">Cohort</span>
                   <span className="text-right">Size</span>
                   <span className="text-right">Drafted</span>
@@ -350,18 +350,18 @@ export function AdminFinancialsPage() {
                   <span className="text-right">Premium</span>
                 </div>
                 {cohorts.slice(0, 20).map((c, i) => (
-                  <div key={i} className={`grid grid-cols-7 gap-2 px-4 py-2.5 text-sm ${Number(c.retention_pct) < 90 ? 'bg-red-50/40' : ''}`}>
-                    <span className="col-span-2 font-medium text-slate-800">
+                  <div key={i} className={`grid grid-cols-7 gap-2 px-4 py-2.5 text-sm ${Number(c.retention_pct) < 90 ? 'bg-red-500/10/40' : ''}`}>
+                    <span className="col-span-2 font-medium text-foreground">
                       {fmtMonth(c.cohort_month)}{' '}
                       <Badge className={`text-[10px] px-1.5 py-0 border ${
                         c.product_type === 'HHC' ? 'bg-sky-50 text-sky-700 border-sky-200' : 'bg-violet-50 text-violet-700 border-violet-200'
                       }`}>{c.product_type}</Badge>
                     </span>
-                    <span className="text-right text-slate-600">{c.cohort_size.toLocaleString()}</span>
-                    <span className="text-right text-slate-600">{c.drafted_first.toLocaleString()}</span>
-                    <span className="text-right text-slate-600">{c.retained.toLocaleString()}</span>
+                    <span className="text-right text-muted-foreground">{c.cohort_size.toLocaleString()}</span>
+                    <span className="text-right text-muted-foreground">{c.drafted_first.toLocaleString()}</span>
+                    <span className="text-right text-muted-foreground">{c.retained.toLocaleString()}</span>
                     <span className={`text-right font-semibold ${retentionColor(Number(c.retention_pct))}`}>{c.retention_pct}%</span>
-                    <span className="text-right text-slate-600">{fmt$(Number(c.active_premium))}</span>
+                    <span className="text-right text-muted-foreground">{fmt$(Number(c.active_premium))}</span>
                   </div>
                 ))}
               </div>
@@ -371,14 +371,14 @@ export function AdminFinancialsPage() {
 
         {/* Premium concentration — with agency names + clickable */}
         {concentration.length > 0 && (
-          <Card className="border-slate-200">
+          <Card className="border-border">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-base font-semibold text-slate-900">Premium Concentration</CardTitle>
-                  <p className="text-xs text-slate-400 mt-0.5">Top agencies by active premium — click to drill in</p>
+                  <CardTitle className="text-base font-semibold text-foreground">Premium Concentration</CardTitle>
+                  <p className="text-xs text-muted-foreground/70 mt-0.5">Top agencies by active premium — click to drill in</p>
                 </div>
-                <Badge className="bg-slate-100 text-slate-600 border-slate-200 border">
+                <Badge className="bg-slate-100 text-muted-foreground border-border border">
                   Top {concentration.length}
                 </Badge>
               </div>
@@ -404,8 +404,8 @@ export function AdminFinancialsPage() {
               </div>
 
               {/* Concentration table with links */}
-              <div className="divide-y divide-slate-100 border-t border-slate-100">
-                <div className="grid grid-cols-7 gap-2 px-4 py-2 bg-slate-50 text-xs font-semibold text-slate-500">
+              <div className="divide-y divide-slate-100 border-t border-border/50">
+                <div className="grid grid-cols-7 gap-2 px-4 py-2 bg-background text-xs font-semibold text-muted-foreground">
                   <span className="col-span-2">Agency</span>
                   <span className="text-right">Active</span>
                   <span className="text-right">Premium</span>
@@ -415,20 +415,20 @@ export function AdminFinancialsPage() {
                 </div>
                 {concentration.map(c => (
                   <div key={c.agency_id} className={`grid grid-cols-7 gap-2 px-4 py-2.5 text-sm items-center ${c.premium_concentration_pct >= 10 ? 'bg-amber-50/30' : ''}`}>
-                    <span className="col-span-2 font-medium text-slate-800 truncate">
-                      {c.name ?? <span className="font-mono text-xs text-slate-400">{c.agency_id.slice(0, 12)}…</span>}
+                    <span className="col-span-2 font-medium text-foreground truncate">
+                      {c.name ?? <span className="font-mono text-xs text-muted-foreground/70">{c.agency_id.slice(0, 12)}…</span>}
                     </span>
-                    <span className="text-right text-slate-600 tabular-nums">{c.active_count}</span>
-                    <span className="text-right text-slate-700 font-medium tabular-nums">{fmt$(c.active_premium)}</span>
+                    <span className="text-right text-muted-foreground tabular-nums">{c.active_count}</span>
+                    <span className="text-right text-foreground/80 font-medium tabular-nums">{fmt$(c.active_premium)}</span>
                     <span className={`text-right font-medium tabular-nums ${c.at_risk_count > 0 ? 'text-red-700' : 'text-slate-300'}`}>
                       {c.at_risk_count || '—'}
                     </span>
-                    <span className={`text-right font-semibold tabular-nums ${c.premium_concentration_pct >= 10 ? 'text-amber-700' : 'text-slate-500'}`}>
+                    <span className={`text-right font-semibold tabular-nums ${c.premium_concentration_pct >= 10 ? 'text-amber-700' : 'text-muted-foreground'}`}>
                       {c.premium_concentration_pct}%
                     </span>
                     <span className="text-center">
                       <Link to={`/agencies/${c.agency_id}`}>
-                        <ChevronRight size={14} className="text-slate-300 hover:text-[#1e3a5f] transition-colors" />
+                        <ChevronRight size={14} className="text-slate-300 hover:text-primary transition-colors" />
                       </Link>
                     </span>
                   </div>

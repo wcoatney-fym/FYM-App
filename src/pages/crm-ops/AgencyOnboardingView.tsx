@@ -451,7 +451,7 @@ const TestStepControls: React.FC<{
           <button
             onClick={() => moveToStatus('pending_csr_assignment')}
             disabled={moving || statusIdx === 0}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 bg-card border border-red-200 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-40"
+            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-400 bg-card border border-red-500/20 rounded-lg hover:bg-red-500/10 transition-colors disabled:opacity-40"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             Reset All
@@ -523,7 +523,7 @@ const CsrStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
     <>
       <div className="bg-card rounded-xl border border-border p-6">
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-lg bg-cyan-500/10 flex items-center justify-center">
             <UserCheck className="w-5 h-5 text-primary" />
           </div>
           <div>
@@ -610,7 +610,7 @@ const CsrStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
               </div>
               <button
                 onClick={() => setShowConfirm(true)}
-                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-primary bg-blue-50 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors"
+                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-primary bg-cyan-500/10 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 Confirm CSR Assignment
@@ -760,7 +760,7 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
     <>
       <div className="bg-card rounded-xl border border-border p-6">
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-lg bg-cyan-500/10 flex items-center justify-center">
             <Phone className="w-5 h-5 text-primary" />
           </div>
           <div>
@@ -787,7 +787,7 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
                 <button
                   onClick={handleSavePhone}
                   disabled={saving === 'phone'}
-                  className="px-3 py-2.5 text-xs font-medium text-primary bg-blue-50 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+                  className="px-3 py-2.5 text-xs font-medium text-primary bg-cyan-500/10 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
                 >
                   {saving === 'phone' ? 'Saving...' : 'Save'}
                 </button>
@@ -904,7 +904,7 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
                     <button
                       onClick={handleSaveBusinessDetails}
                       disabled={saving === 'business_details'}
-                      className="px-4 py-2 text-xs font-medium text-primary bg-blue-50 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+                      className="px-4 py-2 text-xs font-medium text-primary bg-cyan-500/10 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
                     >
                       {saving === 'business_details'
                         ? 'Saving...'
@@ -970,7 +970,7 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
                     <button
                       onClick={handleSaveCalendarUrl}
                       disabled={saving === 'calendar_url'}
-                      className="px-4 py-2 text-xs font-medium text-primary bg-blue-50 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+                      className="px-4 py-2 text-xs font-medium text-primary bg-cyan-500/10 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
                     >
                       {saving === 'calendar_url' ? 'Saving...' : 'Save Calendar & URL'}
                     </button>
@@ -1448,7 +1448,7 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
     <>
       <div className="bg-card rounded-xl border border-border p-6">
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-lg bg-cyan-500/10 flex items-center justify-center">
             <Upload className="w-5 h-5 text-primary" />
           </div>
           <div>
@@ -1460,7 +1460,7 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
         <div className="space-y-4">
           <button
             onClick={downloadRosterTemplate}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary bg-cyan-500/10 rounded-lg hover:bg-blue-100 transition-colors"
           >
             <Download className="w-4 h-4" />
             Download Agent Roster Template
@@ -1476,7 +1476,7 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
               <button
                 onClick={() => fileRef.current?.click()}
                 disabled={uploading}
-                className="w-full flex flex-col items-center justify-center py-8 border-2 border-dashed border-border rounded-lg hover:border-primary/40 hover:bg-blue-50/30 transition-colors cursor-pointer disabled:opacity-50"
+                className="w-full flex flex-col items-center justify-center py-8 border-2 border-dashed border-border rounded-lg hover:border-primary/40 hover:bg-cyan-500/10/30 transition-colors cursor-pointer disabled:opacity-50"
               >
                 <Upload className="w-8 h-8 text-muted-foreground/70 mb-2" />
                 <p className="text-sm font-medium text-muted-foreground">
@@ -1499,7 +1499,7 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
                 </button>
               </div>
             )}
-            {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
+            {error && <p className="text-sm text-red-400 mt-2">{error}</p>}
           </div>
 
           {uploadedFile && (
@@ -1519,7 +1519,7 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
                 {!agency.roster_confirmed && (
                   <button
                     onClick={() => setShowConfirm(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-primary bg-blue-50 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors"
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-primary bg-cyan-500/10 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors"
                   >
                     <CheckCircle2 className="w-4 h-4" />
                     Confirm Roster Upload
@@ -1527,7 +1527,7 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
                 )}
                 <button
                   onClick={() => setShowSendBack(true)}
-                  className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-red-700 bg-red-500/10 border border-red-500/20 rounded-lg hover:bg-red-100 transition-colors"
                 >
                   <Undo2 className="w-4 h-4" />
                   Send Back
@@ -1569,9 +1569,9 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
                     />
                   </div>
                   <div className="flex items-center gap-4 mt-1.5 text-xs text-muted-foreground">
-                    <span className="text-green-600 font-medium">{zapProgress.sent} sent</span>
+                    <span className="text-emerald-400 font-medium">{zapProgress.sent} sent</span>
                     {zapProgress.failed > 0 && (
-                      <span className="text-red-600 font-medium">{zapProgress.failed} failed</span>
+                      <span className="text-red-400 font-medium">{zapProgress.failed} failed</span>
                     )}
                   </div>
                 </div>
@@ -1580,9 +1580,9 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
               {zapResult && (
                 <div className={`mt-4 px-4 py-3 rounded-lg text-sm font-medium ${
                   zapResult.failed === 0 && zapResult.sent > 0
-                    ? 'bg-green-50 text-green-700 border border-green-200'
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-green-200'
                     : zapResult.sent === 0
-                    ? 'bg-red-50 text-red-700 border border-red-200'
+                    ? 'bg-red-500/10 text-red-700 border border-red-500/20'
                     : 'bg-amber-50 text-amber-700 border border-amber-200'
                 }`}>
                   {zapResult.sent === 0 && zapResult.failed === 0
@@ -1980,7 +1980,7 @@ const DbaStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
     <>
       <div className="bg-card rounded-xl border border-border p-6">
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-lg bg-cyan-500/10 flex items-center justify-center">
             <Database className="w-5 h-5 text-primary" />
           </div>
           <div>
@@ -2026,7 +2026,7 @@ const DbaStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
           {dbaTemplate && (
             <button
               onClick={() => downloadTemplate(dbaTemplate)}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary bg-cyan-500/10 rounded-lg hover:bg-blue-100 transition-colors"
             >
               <Download className="w-4 h-4" />
               Download DBA Template
@@ -2043,7 +2043,7 @@ const DbaStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
               <button
                 onClick={() => fileRef.current?.click()}
                 disabled={uploading}
-                className="w-full flex flex-col items-center justify-center py-8 border-2 border-dashed border-border rounded-lg hover:border-primary/40 hover:bg-blue-50/30 transition-colors cursor-pointer disabled:opacity-50"
+                className="w-full flex flex-col items-center justify-center py-8 border-2 border-dashed border-border rounded-lg hover:border-primary/40 hover:bg-cyan-500/10/30 transition-colors cursor-pointer disabled:opacity-50"
               >
                 <Upload className="w-8 h-8 text-muted-foreground/70 mb-2" />
                 <p className="text-sm font-medium text-muted-foreground">
@@ -2066,7 +2066,7 @@ const DbaStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
                 </button>
               </div>
             )}
-            {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
+            {error && <p className="text-sm text-red-400 mt-2">{error}</p>}
           </div>
 
           {uploadedFile && (
@@ -2086,7 +2086,7 @@ const DbaStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
                 {!agency.dba_confirmed && (
                   <button
                     onClick={() => setShowConfirm(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-primary bg-blue-50 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors"
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-primary bg-cyan-500/10 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors"
                   >
                     <CheckCircle2 className="w-4 h-4" />
                     Confirm DBA Upload
@@ -2094,7 +2094,7 @@ const DbaStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
                 )}
                 <button
                   onClick={() => setShowSendBack(true)}
-                  className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-red-700 bg-red-500/10 border border-red-500/20 rounded-lg hover:bg-red-100 transition-colors"
                 >
                   <Undo2 className="w-4 h-4" />
                   Send Back

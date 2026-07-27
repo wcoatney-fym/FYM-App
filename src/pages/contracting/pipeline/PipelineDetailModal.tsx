@@ -125,15 +125,15 @@ export function PipelineDetailModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+      <div className="relative bg-card rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="sticky top-0 bg-white z-10 px-6 py-4 border-b border-slate-200 flex items-center justify-between rounded-t-2xl">
+        <div className="sticky top-0 bg-card z-10 px-6 py-4 border-b border-border flex items-center justify-between rounded-t-2xl">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
-              <User className="w-5 h-5 text-[#1e3a5f]" />
+            <div className="w-10 h-10 rounded-full bg-cyan-500/10 flex items-center justify-center">
+              <User className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-900">
+              <h2 className="text-lg font-bold text-foreground">
                 {record.agent_name || 'Unnamed Agent'}
               </h2>
               <span
@@ -143,8 +143,8 @@ export function PipelineDetailModal({
                     : record.stage === 'actively_selling'
                       ? 'bg-amber-100 text-amber-700'
                       : record.stage.includes('ready')
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-blue-100 text-[#1e3a5f]'
+                        ? 'bg-green-100 text-emerald-400'
+                        : 'bg-blue-100 text-primary'
                 }`}
               >
                 {stageLabel}
@@ -153,16 +153,16 @@ export function PipelineDetailModal({
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-secondary rounded-lg transition-colors"
           >
-            <X className="w-5 h-5 text-slate-500" />
+            <X className="w-5 h-5 text-muted-foreground" />
           </button>
         </div>
 
         <div className="p-6 space-y-6">
           {/* Move Stage */}
           <div className="space-y-2">
-            <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+            <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
               <ArrowRightLeft className="w-3.5 h-3.5" /> Move to Stage
             </label>
             <div className="relative">
@@ -172,7 +172,7 @@ export function PipelineDetailModal({
                   handleStageSelect(e.target.value as AgentPipelineStage)
                 }
                 disabled={movingStage}
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent appearance-none bg-white disabled:opacity-50"
+                className="w-full px-4 py-2.5 border border-border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent appearance-none bg-card disabled:opacity-50"
               >
                 {STAGES.map((s) => (
                   <option key={s.key} value={s.key}>
@@ -183,7 +183,7 @@ export function PipelineDetailModal({
               </select>
               {movingStage && (
                 <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                  <Loader2 className="w-4 h-4 animate-spin text-[#1e3a5f]" />
+                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
                 </div>
               )}
             </div>
@@ -193,12 +193,12 @@ export function PipelineDetailModal({
           {progress.total > 0 && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+                <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   <ListChecks className="w-3.5 h-3.5" /> Steps
                 </h3>
                 <span
                   className={`text-xs font-semibold ${
-                    progress.allComplete ? 'text-emerald-600' : 'text-slate-500'
+                    progress.allComplete ? 'text-emerald-600' : 'text-muted-foreground'
                   }`}
                 >
                   {progress.completedCount}/{progress.total} complete
@@ -207,7 +207,7 @@ export function PipelineDetailModal({
               <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all duration-500 ${
-                    progress.allComplete ? 'bg-emerald-500' : 'bg-[#1e3a5f]'
+                    progress.allComplete ? 'bg-emerald-500' : 'bg-primary'
                   }`}
                   style={{ width: `${Math.round(progress.fraction * 100)}%` }}
                 />
@@ -223,31 +223,31 @@ export function PipelineDetailModal({
                       className={`w-full flex items-center gap-3 p-2.5 rounded-lg border text-left transition-colors ${
                         doneAt
                           ? 'bg-emerald-50 border-emerald-100'
-                          : 'bg-white border-slate-200 hover:bg-slate-50'
+                          : 'bg-card border-border hover:bg-background'
                       }`}
                     >
                       <span
                         className={`w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 border ${
                           doneAt
                             ? 'bg-emerald-500 border-emerald-500'
-                            : 'border-slate-300'
+                            : 'border-border'
                         }`}
                       >
                         {togglingStep === step.id ? (
-                          <Loader2 className="w-3 h-3 animate-spin text-slate-400" />
+                          <Loader2 className="w-3 h-3 animate-spin text-muted-foreground/70" />
                         ) : doneAt ? (
                           <Check className="w-3.5 h-3.5 text-white" />
                         ) : null}
                       </span>
                       <span
                         className={`text-sm flex-1 ${
-                          doneAt ? 'text-slate-700' : 'text-slate-800'
+                          doneAt ? 'text-foreground/80' : 'text-foreground'
                         }`}
                       >
                         {step.label}
                       </span>
                       {doneAt && (
-                        <span className="text-[10px] text-slate-400 flex-shrink-0">
+                        <span className="text-[10px] text-muted-foreground/70 flex-shrink-0">
                           {new Date(doneAt).toLocaleDateString('en-US', {
                             month: 'short',
                             day: 'numeric',
@@ -264,14 +264,14 @@ export function PipelineDetailModal({
           {/* Tags */}
           {record.tags && record.tags.length > 0 && (
             <div className="space-y-2">
-              <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+              <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 <Tag className="w-3.5 h-3.5" /> Tags
               </h3>
               <div className="flex flex-wrap gap-1.5">
                 {record.tags.map((tag) => (
                   <span
                     key={tag}
-                    className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-[#1e3a5f] border border-blue-100"
+                    className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-cyan-500/10 text-primary border border-blue-100"
                   >
                     {tag}
                   </span>
@@ -284,7 +284,7 @@ export function PipelineDetailModal({
           {record.custom_fields &&
             Object.keys(record.custom_fields).length > 0 && (
               <div className="space-y-2">
-                <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+                <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   <FileText className="w-3.5 h-3.5" /> Intake Information
                 </h3>
                 <div className="grid grid-cols-1 gap-2">
@@ -295,12 +295,12 @@ export function PipelineDetailModal({
                     .map(([key, value]) => (
                       <div
                         key={key}
-                        className="flex items-start justify-between gap-3 p-3 bg-slate-50 rounded-lg"
+                        className="flex items-start justify-between gap-3 p-3 bg-background rounded-lg"
                       >
-                        <span className="text-xs font-medium text-slate-500">
+                        <span className="text-xs font-medium text-muted-foreground">
                           {key}
                         </span>
-                        <span className="text-sm text-slate-800 text-right break-words">
+                        <span className="text-sm text-foreground text-right break-words">
                           {typeof value === 'object'
                             ? JSON.stringify(value)
                             : String(value)}
@@ -313,33 +313,33 @@ export function PipelineDetailModal({
 
           {/* Contact Info */}
           <div className="space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
               Contact Information
             </h3>
             <div className="grid grid-cols-1 gap-2">
               {record.email && (
-                <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-                  <Mail className="w-4 h-4 text-slate-400" />
-                  <span className="text-sm text-slate-700">{record.email}</span>
+                <div className="flex items-center gap-3 p-3 bg-background rounded-lg">
+                  <Mail className="w-4 h-4 text-muted-foreground/70" />
+                  <span className="text-sm text-foreground/80">{record.email}</span>
                 </div>
               )}
               {record.phone && (
-                <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-                  <Phone className="w-4 h-4 text-slate-400" />
-                  <span className="text-sm text-slate-700">{record.phone}</span>
+                <div className="flex items-center gap-3 p-3 bg-background rounded-lg">
+                  <Phone className="w-4 h-4 text-muted-foreground/70" />
+                  <span className="text-sm text-foreground/80">{record.phone}</span>
                 </div>
               )}
               {record.agency && (
-                <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-                  <Building2 className="w-4 h-4 text-slate-400" />
-                  <span className="text-sm text-slate-700">
+                <div className="flex items-center gap-3 p-3 bg-background rounded-lg">
+                  <Building2 className="w-4 h-4 text-muted-foreground/70" />
+                  <span className="text-sm text-foreground/80">
                     {record.agency}
                   </span>
                 </div>
               )}
-              <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
-                <Clock className="w-4 h-4 text-slate-400" />
-                <span className="text-sm text-slate-700">
+              <div className="flex items-center gap-3 p-3 bg-background rounded-lg">
+                <Clock className="w-4 h-4 text-muted-foreground/70" />
+                <span className="text-sm text-foreground/80">
                   In stage since {stageEnteredDate}
                 </span>
               </div>
@@ -371,7 +371,7 @@ export function PipelineDetailModal({
           {/* Writing Numbers — READY stages only */}
           {isReadyStage && (
             <div className="space-y-2">
-              <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+              <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 <PenLine className="w-3.5 h-3.5" /> Writing Numbers
               </label>
               <input
@@ -379,14 +379,14 @@ export function PipelineDetailModal({
                 value={writingNumbers}
                 onChange={(e) => setWritingNumbers(e.target.value)}
                 placeholder="Enter writing numbers..."
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                className="w-full px-4 py-2.5 border border-border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent"
               />
             </div>
           )}
 
           {/* Notes */}
           <div className="space-y-2">
-            <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+            <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
               <StickyNote className="w-3.5 h-3.5" /> Notes
             </label>
             <textarea
@@ -394,7 +394,7 @@ export function PipelineDetailModal({
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Add notes..."
               rows={4}
-              className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent resize-none"
+              className="w-full px-4 py-2.5 border border-border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent resize-none"
             />
           </div>
 
@@ -408,7 +408,7 @@ export function PipelineDetailModal({
             <button
               onClick={handleSave}
               disabled={saving || !hasChanges}
-              className="flex items-center gap-2 px-4 py-2.5 bg-[#1e3a5f] text-white rounded-lg font-medium text-sm hover:bg-[#162d4a] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-lg font-medium text-sm hover:bg-primary/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {saving ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

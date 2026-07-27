@@ -61,15 +61,15 @@ interface CancellationRow {
 
 
 const STATUS_COLUMNS: { key: CrmTicket['status']; label: string; color: string; headerBg: string; icon: React.FC<{ className?: string }> }[] = [
-  { key: 'open', label: 'Open', color: 'border-blue-200', headerBg: 'bg-blue-50', icon: AlertCircle },
+  { key: 'open', label: 'Open', color: 'border-blue-200', headerBg: 'bg-cyan-500/10', icon: AlertCircle },
   { key: 'in-progress', label: 'In Progress', color: 'border-amber-200', headerBg: 'bg-amber-50', icon: Loader2 },
   { key: 'resolved', label: 'Resolved', color: 'border-emerald-200', headerBg: 'bg-emerald-50', icon: CheckCircle2 },
 ];
 
 const PRIORITY_CONFIG: Record<string, { label: string; dot: string }> = {
   low: { label: 'Low', dot: 'bg-muted-foreground' },
-  normal: { label: 'Normal', dot: 'bg-blue-500' },
-  high: { label: 'High', dot: 'bg-red-500' },
+  normal: { label: 'Normal', dot: 'bg-cyan-500/100' },
+  high: { label: 'High', dot: 'bg-red-500/100' },
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -341,7 +341,7 @@ const SpecialistChangeRequestsSection: React.FC = () => {
                   <button
                     onClick={() => handleCalendarAdded(req)}
                     disabled={processing === req.id}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-cyan-400 bg-cyan-500/10 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
                   >
                     <Calendar className="w-3.5 h-3.5" />
                     Calendar Added
@@ -566,7 +566,7 @@ const CancellationApprovalsSection: React.FC = () => {
                   <button
                     onClick={() => setRejectingUpload(upload)}
                     disabled={processingId === upload.id}
-                    className="px-2.5 py-1.5 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 transition-colors disabled:opacity-50"
+                    className="px-2.5 py-1.5 text-xs font-medium text-red-700 bg-red-500/10 border border-red-500/20 rounded-md hover:bg-red-100 transition-colors disabled:opacity-50"
                   >
                     <XCircle className="w-3.5 h-3.5 inline -mt-0.5 mr-1" />
                     Reject
@@ -755,9 +755,9 @@ const TicketCard: React.FC<{
               disabled={zapSending}
               className={`w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
                 zapResult === 'success'
-                  ? 'text-green-700 bg-green-50 border border-green-200'
+                  ? 'text-emerald-400 bg-emerald-500/10 border border-green-200'
                   : zapResult === 'failed'
-                  ? 'text-red-700 bg-red-50 border border-red-200'
+                  ? 'text-red-700 bg-red-500/10 border border-red-500/20'
                   : zapResult === 'paused'
                   ? 'text-muted-foreground bg-muted border border-border'
                   : 'text-white bg-amber-500 hover:bg-amber-600'

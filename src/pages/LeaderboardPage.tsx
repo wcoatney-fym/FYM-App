@@ -28,7 +28,7 @@ function fmt$(n: number) {
 }
 
 function retentionColor(pct: number | null) {
-  if (pct === null) return 'text-slate-400';
+  if (pct === null) return 'text-muted-foreground/70';
   if (pct >= 90) return 'text-emerald-700';
   if (pct >= 85) return 'text-amber-700';
   return 'text-red-700';
@@ -38,14 +38,14 @@ function retentionBg(pct: number | null) {
   if (pct === null) return 'bg-slate-100';
   if (pct >= 90) return 'bg-emerald-50';
   if (pct >= 85) return 'bg-amber-50';
-  return 'bg-red-50';
+  return 'bg-red-500/10';
 }
 
 function rankBadge(rank: number) {
   if (rank === 1) return <span className="text-lg">🥇</span>;
   if (rank === 2) return <span className="text-lg">🥈</span>;
   if (rank === 3) return <span className="text-lg">🥉</span>;
-  return <span className="text-sm font-bold text-slate-400 tabular-nums">#{rank}</span>;
+  return <span className="text-sm font-bold text-muted-foreground/70 tabular-nums">#{rank}</span>;
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
@@ -154,20 +154,20 @@ export function LeaderboardPage() {
         {/* Stats strip */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { title: 'Total Agencies', value: stats.total.toString(), icon: Trophy, color: 'text-[#1e3a5f]', bg: 'bg-blue-50' },
+            { title: 'Total Agencies', value: stats.total.toString(), icon: Trophy, color: 'text-primary', bg: 'bg-cyan-500/10' },
             { title: 'Above 90% Target', value: stats.above.toString(), icon: ShieldCheck, color: 'text-emerald-700', bg: 'bg-emerald-50' },
-            { title: 'Below 90% Target', value: stats.below.toString(), icon: AlertTriangle, color: stats.below > 0 ? 'text-red-600' : 'text-slate-400', bg: stats.below > 0 ? 'bg-red-50' : 'bg-slate-50' },
-            { title: 'Total Active Premium', value: fmt$(stats.totalPremium) + '/mo', icon: TrendingUp, color: 'text-slate-700', bg: 'bg-slate-100' },
+            { title: 'Below 90% Target', value: stats.below.toString(), icon: AlertTriangle, color: stats.below > 0 ? 'text-red-400' : 'text-muted-foreground/70', bg: stats.below > 0 ? 'bg-red-500/10' : 'bg-background' },
+            { title: 'Total Active Premium', value: fmt$(stats.totalPremium) + '/mo', icon: TrendingUp, color: 'text-foreground/80', bg: 'bg-slate-100' },
           ].map(card => (
-            <Card key={card.title} className="border-slate-200">
+            <Card key={card.title} className="border-border">
               <CardContent className="p-4">
                 {loading ? (
                   <div className="h-12 rounded bg-slate-100 animate-pulse" />
                 ) : (
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs font-medium text-slate-500">{card.title}</p>
-                      <p className="text-xl font-bold text-slate-900 mt-0.5">{card.value}</p>
+                      <p className="text-xs font-medium text-muted-foreground">{card.title}</p>
+                      <p className="text-xl font-bold text-foreground mt-0.5">{card.value}</p>
                     </div>
                     <div className={`p-2 rounded-lg ${card.bg}`}>
                       <card.icon size={18} className={card.color} />
@@ -187,51 +187,51 @@ export function LeaderboardPage() {
               onClick={() => setFilter(key)}
               className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                 filter === key
-                  ? 'bg-[#1e3a5f] text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  ? 'bg-primary text-white'
+                  : 'bg-slate-100 text-muted-foreground hover:bg-slate-200'
               }`}
             >
               {label}
             </button>
           ))}
-          <span className="ml-auto text-xs text-slate-400">
+          <span className="ml-auto text-xs text-muted-foreground/70">
             {displayed.length} {displayed.length === 1 ? 'agency' : 'agencies'}
           </span>
         </div>
 
         {/* Leaderboard table */}
-        <Card className="border-slate-200 overflow-hidden">
+        <Card className="border-border overflow-hidden">
           <CardContent className="p-0">
             {loading ? (
               <div className="p-6 space-y-3">
                 {[1, 2, 3, 4, 5].map(i => <div key={i} className="h-12 rounded bg-slate-100 animate-pulse" />)}
               </div>
             ) : displayed.length === 0 ? (
-              <div className="py-16 text-center text-slate-400">
+              <div className="py-16 text-center text-muted-foreground/70">
                 No agencies match the current filter.
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-slate-50 text-xs font-semibold text-slate-500 border-b border-slate-100">
+                <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-background text-xs font-semibold text-muted-foreground border-b border-border/50">
                   <span
-                    className="col-span-1 cursor-pointer hover:text-slate-800"
+                    className="col-span-1 cursor-pointer hover:text-foreground"
                     onClick={() => toggleSort('rank')}
                   >Rank <SortArrow k="rank" /></span>
                   <span className="col-span-3">Agency</span>
                   <span
-                    className="col-span-2 text-center cursor-pointer hover:text-slate-800"
+                    className="col-span-2 text-center cursor-pointer hover:text-foreground"
                     onClick={() => toggleSort('retention')}
                   >90-Day Retention <SortArrow k="retention" /></span>
                   <span
-                    className="col-span-2 text-right cursor-pointer hover:text-slate-800"
+                    className="col-span-2 text-right cursor-pointer hover:text-foreground"
                     onClick={() => toggleSort('policies')}
                   >Active <SortArrow k="policies" /></span>
                   <span
-                    className="col-span-2 text-right cursor-pointer hover:text-slate-800"
+                    className="col-span-2 text-right cursor-pointer hover:text-foreground"
                     onClick={() => toggleSort('premium')}
                   >Premium/mo <SortArrow k="premium" /></span>
                   <span
-                    className="col-span-1 text-center cursor-pointer hover:text-slate-800"
+                    className="col-span-1 text-center cursor-pointer hover:text-foreground"
                     onClick={() => toggleSort('at_risk')}
                   >At-Risk <SortArrow k="at_risk" /></span>
                   <span className="col-span-1" />
@@ -240,23 +240,23 @@ export function LeaderboardPage() {
                   {displayed.map((r) => (
                     <div
                       key={r.agency_id}
-                      className={`grid grid-cols-12 gap-2 px-4 py-3 items-center text-sm hover:bg-slate-50/80 transition-colors ${
+                      className={`grid grid-cols-12 gap-2 px-4 py-3 items-center text-sm hover:bg-background/80 transition-colors ${
                         r.rank <= 3 ? 'bg-amber-50/20' : ''
                       }`}
                     >
                       <span className="col-span-1 text-center">{rankBadge(r.rank)}</span>
-                      <span className="col-span-3 font-medium text-slate-800 truncate">
-                        {r.name ?? <span className="font-mono text-xs text-slate-400">{r.agency_id.slice(0, 12)}…</span>}
+                      <span className="col-span-3 font-medium text-foreground truncate">
+                        {r.name ?? <span className="font-mono text-xs text-muted-foreground/70">{r.agency_id.slice(0, 12)}…</span>}
                       </span>
                       <span className="col-span-2 text-center">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${retentionBg(r.retention_pct)} ${retentionColor(r.retention_pct)}`}>
                           {r.retention_pct !== null ? `${r.retention_pct}%` : '—'}
                         </span>
                       </span>
-                      <span className="col-span-2 text-right text-slate-700 tabular-nums">
+                      <span className="col-span-2 text-right text-foreground/80 tabular-nums">
                         {r.active_policies.toLocaleString()}
                       </span>
-                      <span className="col-span-2 text-right text-slate-700 tabular-nums">
+                      <span className="col-span-2 text-right text-foreground/80 tabular-nums">
                         {fmt$(r.active_premium)}
                       </span>
                       <span className={`col-span-1 text-center font-medium tabular-nums ${r.at_risk_count > 0 ? 'text-red-700' : 'text-slate-300'}`}>
@@ -264,7 +264,7 @@ export function LeaderboardPage() {
                       </span>
                       <span className="col-span-1 text-center">
                         <Link to={`/agencies/${r.agency_id}`}>
-                          <ChevronRight size={16} className="text-slate-300 hover:text-[#1e3a5f] transition-colors" />
+                          <ChevronRight size={16} className="text-slate-300 hover:text-primary transition-colors" />
                         </Link>
                       </span>
                     </div>

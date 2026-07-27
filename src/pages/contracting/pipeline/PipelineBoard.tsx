@@ -38,7 +38,7 @@ import { computeProgress, stageHealth } from './pipelineProgress';
 // ─── Stage definitions ───────────────────────────────────────────────────────
 
 export const STAGES: { key: AgentPipelineStage; label: string; color: string }[] = [
-  { key: 'hip_broker', label: 'HIP Broker', color: 'bg-blue-50 border-blue-200' },
+  { key: 'hip_broker', label: 'HIP Broker', color: 'bg-cyan-500/10 border-blue-200' },
   { key: 'hip_career', label: 'HIP Career', color: 'bg-indigo-50 border-indigo-200' },
   { key: 'iaa', label: 'IAA', color: 'bg-violet-50 border-violet-200' },
   { key: 'signed_iaa', label: 'Signed IAA', color: 'bg-purple-50 border-purple-200' },
@@ -46,14 +46,14 @@ export const STAGES: { key: AgentPipelineStage; label: string; color: string }[]
   { key: 'in_contracting', label: 'In Contracting', color: 'bg-teal-50 border-teal-200' },
   { key: 'rts', label: 'RTS', color: 'bg-emerald-50 border-emerald-200' },
   { key: 'crm', label: 'CRM Onboarding', color: 'bg-cyan-50 border-cyan-200' },
-  { key: 'hip_broker_ready', label: 'HIP Broker READY', color: 'bg-green-50 border-green-200' },
+  { key: 'hip_broker_ready', label: 'HIP Broker READY', color: 'bg-emerald-500/10 border-green-200' },
   { key: 'hip_career_ready', label: 'HIP Career READY', color: 'bg-lime-50 border-lime-200' },
   { key: 'actively_selling', label: 'Actively Selling', color: 'bg-amber-50 border-amber-200' },
-  { key: 'terminated', label: 'Terminated', color: 'bg-red-50 border-red-200' },
+  { key: 'terminated', label: 'Terminated', color: 'bg-red-500/10 border-red-500/20' },
 ];
 
 const HEALTH_BORDER: Record<string, string> = {
-  fresh: 'border-slate-200',
+  fresh: 'border-border',
   aging: 'border-amber-300',
   stalled: 'border-red-300',
 };
@@ -309,13 +309,13 @@ export function PipelineBoard() {
 
   if (!portalSupabase) {
     return (
-      <Card className="border-slate-200">
+      <Card className="border-border">
         <CardContent className="p-8 text-center space-y-3">
           <AlertCircle size={28} className="text-amber-500 mx-auto" />
-          <h3 className="text-lg font-semibold text-slate-900">
+          <h3 className="text-lg font-semibold text-foreground">
             Portal Connection Required
           </h3>
-          <p className="text-sm text-slate-500 max-w-md mx-auto">
+          <p className="text-sm text-muted-foreground max-w-md mx-auto">
             Set <code className="bg-slate-100 px-1 py-0.5 rounded text-xs">VITE_PORTAL_SUPABASE_URL</code> and{' '}
             <code className="bg-slate-100 px-1 py-0.5 rounded text-xs">VITE_PORTAL_SUPABASE_KEY</code> to connect.
           </p>
@@ -327,7 +327,7 @@ export function PipelineBoard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-[#1e3a5f]" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -337,21 +337,21 @@ export function PipelineBoard() {
       {/* Toolbar */}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/70" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search agents..."
-            className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent bg-white"
+            className="w-full pl-10 pr-4 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent bg-card"
           />
         </div>
         <div className="relative">
-          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/70" />
           <select
             value={agencyFilter}
             onChange={(e) => setAgencyFilter(e.target.value)}
-            className="pl-10 pr-8 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent bg-white appearance-none"
+            className="pl-10 pr-8 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent bg-card appearance-none"
           >
             <option value="">All Agencies</option>
             {agencies.map((a) => (
@@ -361,7 +361,7 @@ export function PipelineBoard() {
         </div>
         <button
           onClick={() => { setLoading(true); loadData(); }}
-          className="flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+          className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg text-sm text-muted-foreground hover:bg-background transition-colors"
         >
           <RefreshCw className="w-4 h-4" /> Refresh
         </button>
@@ -373,14 +373,14 @@ export function PipelineBoard() {
               <Wifi className="w-3 h-3" /> GHL Synced
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-full">
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground bg-background border border-border px-2.5 py-1 rounded-full">
               <WifiOff className="w-3 h-3" /> GHL Off
             </span>
           )}
           <button
             onClick={handleSyncFromGhl}
             disabled={syncing || !ghlPipelineId}
-            className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-lg text-sm text-muted-foreground hover:bg-background transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title="Pull all opportunities from GHL"
           >
             {syncing ? (
@@ -392,14 +392,14 @@ export function PipelineBoard() {
           </button>
           <button
             onClick={() => setShowStepsEditor(true)}
-            className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-lg text-sm text-muted-foreground hover:bg-background transition-colors"
             title="Edit stage step checklists"
           >
             <ListChecks className="w-4 h-4" /> Steps
           </button>
         </div>
 
-        <span className="text-sm text-slate-500 ml-auto">
+        <span className="text-sm text-muted-foreground ml-auto">
           {totalCount} agent{totalCount !== 1 ? 's' : ''} in pipeline
         </span>
       </div>
@@ -425,14 +425,14 @@ export function PipelineBoard() {
               {/* Column Header */}
               <div className="p-3 border-b border-inherit">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 truncate pr-2">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-foreground/80 truncate pr-2">
                     {col.label}
                   </h3>
                   <span
                     className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
                       col.key === 'terminated'
                         ? 'bg-red-200 text-red-700'
-                        : 'bg-white/80 text-slate-600 border border-slate-200'
+                        : 'bg-card/80 text-muted-foreground border border-border'
                     }`}
                   >
                     {col.records.length}
@@ -460,7 +460,7 @@ export function PipelineBoard() {
                       onDragStart={(e) => handleDragStart(e, record.id)}
                       onDragEnd={handleDragEnd}
                       onClick={() => setSelectedRecord(record)}
-                      className={`w-full text-left bg-white rounded-lg border p-3 shadow-sm hover:shadow-md transition-all cursor-grab active:cursor-grabbing ${
+                      className={`w-full text-left bg-card rounded-lg border p-3 glow-sm hover:glow-primary transition-all cursor-grab active:cursor-grabbing ${
                         progress.allComplete
                           ? 'border-emerald-300 ring-1 ring-emerald-200 shadow-emerald-100'
                           : HEALTH_BORDER[health]
@@ -469,8 +469,8 @@ export function PipelineBoard() {
                       }`}
                     >
                       <div className="flex items-start gap-2">
-                        <User className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
-                        <span className="text-sm font-semibold text-slate-800 line-clamp-2 leading-tight flex-1">
+                        <User className="w-3.5 h-3.5 text-muted-foreground/70 mt-0.5 flex-shrink-0" />
+                        <span className="text-sm font-semibold text-foreground line-clamp-2 leading-tight flex-1">
                           {record.agent_name || 'Unnamed'}
                         </span>
                         {progress.total > 0 && (
@@ -488,7 +488,7 @@ export function PipelineBoard() {
                             <CheckCircle2 className="w-3 h-3" /> Ready to advance
                           </div>
                         ) : progress.nextStep ? (
-                          <div className="mt-2 flex items-center gap-1 text-[11px] text-slate-600">
+                          <div className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
                             <ArrowRight className="w-3 h-3 text-blue-400 flex-shrink-0" />
                             <span className="truncate">
                               Next: {progress.nextStep.label}
@@ -497,8 +497,8 @@ export function PipelineBoard() {
                         ) : null)}
                       {record.agency && (
                         <div className="flex items-center gap-1.5 mt-2">
-                          <Building2 className="w-3 h-3 text-slate-400" />
-                          <span className="text-[11px] text-slate-500 truncate">
+                          <Building2 className="w-3 h-3 text-muted-foreground/70" />
+                          <span className="text-[11px] text-muted-foreground truncate">
                             {record.agency}
                           </span>
                         </div>
@@ -508,13 +508,13 @@ export function PipelineBoard() {
                           {record.tags.slice(0, 3).map((tag) => (
                             <span
                               key={tag}
-                              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-[#1e3a5f] border border-blue-100 truncate max-w-[90px]"
+                              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-cyan-500/10 text-primary border border-blue-100 truncate max-w-[90px]"
                             >
                               {tag}
                             </span>
                           ))}
                           {record.tags.length > 3 && (
-                            <span className="text-[10px] text-slate-400">
+                            <span className="text-[10px] text-muted-foreground/70">
                               +{record.tags.length - 3}
                             </span>
                           )}
@@ -522,8 +522,8 @@ export function PipelineBoard() {
                       )}
                       <div className="flex items-center justify-between mt-2">
                         <div className="flex items-center gap-1 flex-wrap gap-y-0.5">
-                          <Clock className="w-3 h-3 text-slate-400" />
-                          <span className="text-[11px] text-slate-400">
+                          <Clock className="w-3 h-3 text-muted-foreground/70" />
+                          <span className="text-[11px] text-muted-foreground/70">
                             {timeAgo(record.stage_entered_at)}
                           </span>
                           {record.updated_by_source && (
@@ -532,10 +532,10 @@ export function PipelineBoard() {
                                 record.updated_by_source === 'training_hub'
                                   ? 'bg-purple-50 text-purple-700 border-purple-200'
                                   : record.updated_by_source === 'contracting_portal'
-                                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                    ? 'bg-cyan-500/10 text-cyan-400 border-blue-200'
                                     : record.updated_by_source === 'ghl_webhook'
-                                      ? 'bg-orange-50 text-orange-700 border-orange-200'
-                                      : 'bg-gray-50 text-gray-600 border-gray-200'
+                                      ? 'bg-amber-500/10 text-amber-400 border-orange-200'
+                                      : 'bg-secondary text-muted-foreground border-border'
                               }`}
                             >
                               {record.updated_by_source === 'training_hub'
@@ -549,7 +549,7 @@ export function PipelineBoard() {
                           )}
                         </div>
                         {pushingIds.has(record.id) ? (
-                          <Loader2 className="w-3 h-3 text-[#1e3a5f] animate-spin" />
+                          <Loader2 className="w-3 h-3 text-primary animate-spin" />
                         ) : record.wn_pending_review ? (
                           <div className="flex items-center gap-1 bg-amber-100 border border-amber-200 rounded px-1.5 py-0.5">
                             <FileCheck className="w-3 h-3 text-amber-600" />
@@ -574,7 +574,7 @@ export function PipelineBoard() {
                   );
                 })}
                 {col.records.length === 0 && (
-                  <div className="text-center py-6 text-xs text-slate-400">
+                  <div className="text-center py-6 text-xs text-muted-foreground/70">
                     No agents
                   </div>
                 )}
@@ -587,7 +587,7 @@ export function PipelineBoard() {
       {/* Toast */}
       {toastMsg && (
         <div
-          className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-lg shadow-lg text-sm font-medium transition-all ${
+          className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-lg glow-primary text-sm font-medium transition-all ${
             toastMsg.type === 'success'
               ? 'bg-emerald-600 text-white'
               : 'bg-red-600 text-white'

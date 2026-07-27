@@ -96,18 +96,18 @@ export function PipelineSummaryBar({ records, stageSteps }: PipelineSummaryBarPr
   );
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm mb-4 overflow-hidden">
+    <div className="bg-card rounded-xl border border-border glow-sm mb-4 overflow-hidden">
       <button
         onClick={() => setCollapsed((v) => !v)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-50/50 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-background/50 transition-colors"
       >
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
-            <BarChart3 className="w-4 h-4 text-[#1e3a5f]" />
+          <div className="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center">
+            <BarChart3 className="w-4 h-4 text-primary" />
           </div>
           <div className="text-left">
-            <h3 className="text-sm font-bold text-slate-800">Pipeline Overview</h3>
-            <p className="text-[11px] text-slate-500">
+            <h3 className="text-sm font-bold text-foreground">Pipeline Overview</h3>
+            <p className="text-[11px] text-muted-foreground">
               {totalAgents} agent{totalAgents !== 1 ? 's' : ''} across{' '}
               {STAGES.length} stages
             </p>
@@ -122,15 +122,15 @@ export function PipelineSummaryBar({ records, stageSteps }: PipelineSummaryBarPr
             </span>
           )}
           {collapsed ? (
-            <ChevronDown className="w-4 h-4 text-slate-400" />
+            <ChevronDown className="w-4 h-4 text-muted-foreground/70" />
           ) : (
-            <ChevronUp className="w-4 h-4 text-slate-400" />
+            <ChevronUp className="w-4 h-4 text-muted-foreground/70" />
           )}
         </div>
       </button>
 
       {!collapsed && (
-        <div className="px-4 pb-4 space-y-4 border-t border-slate-100">
+        <div className="px-4 pb-4 space-y-4 border-t border-border/50">
           <div className="pt-3 space-y-1.5">
             {STAGES.map((stage) => {
               const count = stageCounts.get(stage.key) || 0;
@@ -154,7 +154,7 @@ export function PipelineSummaryBar({ records, stageSteps }: PipelineSummaryBarPr
               return (
                 <div key={stage.key} className="flex items-center gap-2 group">
                   <div className="w-[140px] flex-shrink-0 text-right pr-2">
-                    <span className="text-[11px] font-medium text-slate-600 truncate block">
+                    <span className="text-[11px] font-medium text-muted-foreground truncate block">
                       {stage.label}
                     </span>
                   </div>
@@ -168,7 +168,7 @@ export function PipelineSummaryBar({ records, stageSteps }: PipelineSummaryBarPr
                               ? 'bg-emerald-400'
                               : isActive
                                 ? 'bg-amber-400'
-                                : 'bg-[#1e3a5f]'
+                                : 'bg-primary'
                         }`}
                         style={{
                           width:
@@ -182,7 +182,7 @@ export function PipelineSummaryBar({ records, stageSteps }: PipelineSummaryBarPr
                         )}
                       </div>
                       {count > 0 && pct <= 15 && (
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-600 ml-[calc(8%+4px)]">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground ml-[calc(8%+4px)]">
                           {count}
                         </span>
                       )}
@@ -218,7 +218,7 @@ export function PipelineSummaryBar({ records, stageSteps }: PipelineSummaryBarPr
           </div>
 
           {pendingReviews.length > 0 && (
-            <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
+            <div className="flex flex-wrap gap-2 pt-2 border-t border-border/50">
               {pendingReviews.map((rev) => {
                 const Icon = rev.icon;
                 return (

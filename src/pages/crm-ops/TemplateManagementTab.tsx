@@ -238,7 +238,7 @@ const CrossSellTemplateCard: React.FC<{
         <div className="flex items-center gap-2">
           <button
             onClick={onDownload}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary bg-cyan-500/10 rounded-lg hover:bg-blue-100 transition-colors"
           >
             <Download className="w-3.5 h-3.5" />
             Download
@@ -266,7 +266,7 @@ const TemplateCard: React.FC<{
   <div className="glass rounded-xl p-5 hover:border-border transition-colors">
     <div className="flex items-start justify-between mb-3">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+        <div className="w-10 h-10 rounded-lg bg-cyan-500/10 flex items-center justify-center flex-shrink-0">
           <FileSpreadsheet className="w-5 h-5 text-primary" />
         </div>
         <div>
@@ -301,14 +301,14 @@ const TemplateCard: React.FC<{
       <div className="flex items-center gap-1">
         <button
           onClick={onDownload}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary bg-cyan-500/10 rounded-lg hover:bg-blue-100 transition-colors"
         >
           <Download className="w-3.5 h-3.5" />
           Download
         </button>
         <button
           onClick={onDelete}
-          className="p-1.5 text-muted-foreground/70 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+          className="p-1.5 text-muted-foreground/70 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>
@@ -441,7 +441,7 @@ const CrossSellUploadModal: React.FC<{
             </button>
           </div>
 
-          {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
+          {error && <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</p>}
           {result && (
             <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
               <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
@@ -604,14 +604,14 @@ const UploadTemplateModal: React.FC<{
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
-                className="w-full flex flex-col items-center justify-center py-8 border-2 border-dashed border-border rounded-lg hover:border-primary/40 hover:bg-blue-50/30 transition-colors cursor-pointer"
+                className="w-full flex flex-col items-center justify-center py-8 border-2 border-dashed border-border rounded-lg hover:border-primary/40 hover:bg-cyan-500/10/30 transition-colors cursor-pointer"
               >
                 <Upload className="w-8 h-8 text-muted-foreground/70 mb-2" />
                 <p className="text-sm font-medium text-muted-foreground">Click to select a CSV file</p>
                 <p className="text-xs text-muted-foreground/70 mt-1">The headers will be used as template columns</p>
               </button>
             ) : (
-              <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-center gap-3 p-3 bg-cyan-500/10 rounded-lg border border-blue-200">
                 <FileSpreadsheet className="w-5 h-5 text-primary" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground truncate">{file.name}</p>
@@ -665,7 +665,7 @@ const UploadTemplateModal: React.FC<{
           </div>
 
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
+            <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</p>
           )}
 
           <div className="flex justify-end gap-3 pt-2">

@@ -621,7 +621,7 @@ export const RosterTab: React.FC = () => {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-card rounded-xl shadow-none max-w-md w-full animate-in fade-in">
             <div className="px-6 py-4 border-b border-border">
-              <h2 className="text-lg font-bold text-red-600">Delete Upload</h2>
+              <h2 className="text-lg font-bold text-red-400">Delete Upload</h2>
             </div>
             <div className="px-6 py-5">
               <p className="text-foreground/80">
@@ -666,7 +666,7 @@ export const RosterTab: React.FC = () => {
               </p>
               <p className="text-muted-foreground text-sm mt-2">This is a test-only action.</p>
               {undoError && (
-                <p className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">{undoError}</p>
+                <p className="mt-3 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-md px-3 py-2">{undoError}</p>
               )}
             </div>
             <div className="px-6 py-4 bg-muted rounded-b-xl flex justify-end gap-3">
@@ -680,7 +680,7 @@ export const RosterTab: React.FC = () => {
               <button
                 onClick={handleRosterUndo}
                 disabled={undoSubmitting}
-                className="px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50"
+                className="px-4 py-2 text-sm font-medium text-white bg-amber-500/100 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50"
               >
                 {undoSubmitting ? 'Clearing...' : 'Confirm'}
               </button>
@@ -693,7 +693,7 @@ export const RosterTab: React.FC = () => {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-card rounded-xl shadow-none max-w-md w-full animate-in fade-in">
             <div className="px-6 py-4 border-b border-border">
-              <h2 className="text-lg font-bold text-red-600">Terminate Agent</h2>
+              <h2 className="text-lg font-bold text-red-400">Terminate Agent</h2>
             </div>
             <div className="px-6 py-5">
               <p className="text-foreground/80">
@@ -704,7 +704,7 @@ export const RosterTab: React.FC = () => {
               </p>
               <p className="text-muted-foreground text-sm mt-2">This action cannot be undone.</p>
               {terminateError && (
-                <p className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">{terminateError}</p>
+                <p className="mt-3 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-md px-3 py-2">{terminateError}</p>
               )}
             </div>
             <div className="px-6 py-4 bg-muted rounded-b-xl flex justify-end gap-3">
@@ -928,7 +928,7 @@ const AddAgentModal: React.FC<AddAgentModalProps> = ({ upload, onClose, onSaved 
             </div>
           </div>
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
+            <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</p>
           )}
         </div>
         <div className="px-6 py-4 bg-muted rounded-b-xl flex justify-end gap-3">
@@ -1125,9 +1125,9 @@ const RosterTableView: React.FC<RosterTableViewProps> = ({
             />
           </div>
           <div className="flex items-center gap-4 mt-1.5 text-xs text-muted-foreground">
-            <span className="text-green-600 font-medium">{zapProgress.sent} sent</span>
+            <span className="text-emerald-400 font-medium">{zapProgress.sent} sent</span>
             {zapProgress.failed > 0 && (
-              <span className="text-red-600 font-medium">{zapProgress.failed} failed</span>
+              <span className="text-red-400 font-medium">{zapProgress.failed} failed</span>
             )}
           </div>
         </div>
@@ -1136,9 +1136,9 @@ const RosterTableView: React.FC<RosterTableViewProps> = ({
       {zapResult && (
         <div className={`mb-4 px-4 py-3 rounded-lg text-sm font-medium ${
           zapResult.failed === 0 && zapResult.sent > 0
-            ? 'bg-green-50 text-green-700 border border-green-200'
+            ? 'bg-emerald-500/10 text-emerald-400 border border-green-200'
             : zapResult.sent === 0
-            ? 'bg-red-50 text-red-700 border border-red-200'
+            ? 'bg-red-500/10 text-red-700 border border-red-500/20'
             : 'bg-amber-50 text-amber-700 border border-amber-200'
         }`}>
           {zapResult.sent === 0 && zapResult.failed === 0
@@ -1261,9 +1261,9 @@ const RosterTableView: React.FC<RosterTableViewProps> = ({
                               disabled={rowZapSending === row.id || zapSending}
                               className={`p-1.5 rounded transition-colors ${
                                 rowZapResults[row.id] === 'success'
-                                  ? 'text-green-500 bg-green-50'
+                                  ? 'text-green-500 bg-emerald-500/10'
                                   : rowZapResults[row.id] === 'failed'
-                                  ? 'text-red-500 bg-red-50'
+                                  ? 'text-red-500 bg-red-500/10'
                                   : rowZapResults[row.id] === 'paused'
                                   ? 'text-muted-foreground/70 bg-muted'
                                   : 'text-amber-500 hover:bg-amber-50'
@@ -1283,7 +1283,7 @@ const RosterTableView: React.FC<RosterTableViewProps> = ({
                           <div className="relative group/undo">
                             <button
                               onClick={() => onUndo(row)}
-                              className="p-1.5 text-orange-500 hover:bg-orange-50 rounded transition-colors"
+                              className="p-1.5 text-orange-500 hover:bg-amber-500/10 rounded transition-colors"
                               aria-label="Undo CRM seat"
                             >
                               <Undo2 className="w-4 h-4" />
@@ -1298,7 +1298,7 @@ const RosterTableView: React.FC<RosterTableViewProps> = ({
                           <div className="relative group/terminate">
                             <button
                               onClick={() => onTerminate(row)}
-                              className="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors"
+                              className="p-1.5 text-red-500 hover:bg-red-500/10 rounded transition-colors"
                               aria-label="Terminate agent"
                             >
                               <UserX className="w-4 h-4" />

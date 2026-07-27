@@ -111,7 +111,7 @@ export const AgencyAssetsTab: React.FC<AgencyAssetsTabProps> = ({ agencyName }) 
     <div className="space-y-6">
       <div className="bg-card rounded-xl border border-border p-6">
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-lg bg-cyan-500/10 flex items-center justify-center">
             <Upload className="w-5 h-5 text-primary" />
           </div>
           <div>

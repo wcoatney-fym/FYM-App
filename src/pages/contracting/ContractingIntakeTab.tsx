@@ -271,13 +271,13 @@ export function ContractingIntakeTab() {
 
   if (!portalSupabase) {
     return (
-      <Card className="border-slate-200">
+      <Card className="border-border">
         <CardContent className="p-8 text-center space-y-3">
           <AlertCircle size={28} className="text-amber-500 mx-auto" />
-          <h3 className="text-lg font-semibold text-slate-900">
+          <h3 className="text-lg font-semibold text-foreground">
             Portal Connection Required
           </h3>
-          <p className="text-sm text-slate-500 max-w-md mx-auto">
+          <p className="text-sm text-muted-foreground max-w-md mx-auto">
             Set{' '}
             <code className="bg-slate-100 px-1 py-0.5 rounded text-xs">
               VITE_PORTAL_SUPABASE_URL
@@ -307,7 +307,7 @@ export function ContractingIntakeTab() {
                 {newHires.length}
               </span>
             </div>
-            <h3 className="text-slate-600 text-sm font-medium">
+            <h3 className="text-muted-foreground text-sm font-medium">
               Awaiting Form
             </h3>
           </CardContent>
@@ -322,15 +322,15 @@ export function ContractingIntakeTab() {
                 {processedCount}
               </span>
             </div>
-            <h3 className="text-slate-600 text-sm font-medium">Processed</h3>
+            <h3 className="text-muted-foreground text-sm font-medium">Processed</h3>
           </CardContent>
         </Card>
-        <Card className="border-blue-200 cursor-pointer hover:shadow-md transition-shadow"
+        <Card className="border-blue-200 cursor-pointer hover:glow-primary transition-shadow"
           onClick={() => { setShowFormGen(!showFormGen); setSendResult(null); }}>
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-2">
-              <div className="p-2 bg-blue-50 rounded-lg">
-                <UserPlus size={18} className="text-blue-600" />
+              <div className="p-2 bg-cyan-500/10 rounded-lg">
+                <UserPlus size={18} className="text-cyan-400" />
               </div>
               {showFormGen ? (
                 <ChevronUp size={18} className="text-blue-400" />
@@ -338,7 +338,7 @@ export function ContractingIntakeTab() {
                 <ChevronDown size={18} className="text-blue-400" />
               )}
             </div>
-            <h3 className="text-slate-600 text-sm font-medium">
+            <h3 className="text-muted-foreground text-sm font-medium">
               Send New Form
             </h3>
           </CardContent>
@@ -349,14 +349,14 @@ export function ContractingIntakeTab() {
       {showFormGen && (
         <Card className="border-blue-200">
           <CardContent className="p-6">
-            <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <Send size={16} className="text-blue-600" />
+            <h3 className="text-base font-bold text-foreground mb-4 flex items-center gap-2">
+              <Send size={16} className="text-cyan-400" />
               Generate & Send Intake Form
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="block text-sm font-medium text-foreground/80 mb-1">
                   First Name
                 </label>
                 <input
@@ -365,12 +365,12 @@ export function ContractingIntakeTab() {
                   onChange={(e) =>
                     setFormData({ ...formData, firstName: e.target.value })
                   }
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
                   placeholder="John"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="block text-sm font-medium text-foreground/80 mb-1">
                   Last Name
                 </label>
                 <input
@@ -379,12 +379,12 @@ export function ContractingIntakeTab() {
                   onChange={(e) =>
                     setFormData({ ...formData, lastName: e.target.value })
                   }
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
                   placeholder="Smith"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="block text-sm font-medium text-foreground/80 mb-1">
                   Email
                 </label>
                 <input
@@ -393,12 +393,12 @@ export function ContractingIntakeTab() {
                   onChange={(e) =>
                     setFormData({ ...formData, email: e.target.value })
                   }
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
                   placeholder="john@example.com"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="block text-sm font-medium text-foreground/80 mb-1">
                   Phone
                 </label>
                 <input
@@ -407,12 +407,12 @@ export function ContractingIntakeTab() {
                   onChange={(e) =>
                     setFormData({ ...formData, phone: e.target.value })
                   }
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
                   placeholder="(555) 123-4567"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="block text-sm font-medium text-foreground/80 mb-1">
                   Form Type
                 </label>
                 <select
@@ -423,7 +423,7 @@ export function ContractingIntakeTab() {
                       formType: e.target.value as AgentFormType,
                     })
                   }
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
                 >
                   {FORM_TYPES.map((ft) => (
                     <option key={ft.value} value={ft.value}>
@@ -433,7 +433,7 @@ export function ContractingIntakeTab() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="block text-sm font-medium text-foreground/80 mb-1">
                   Agency
                 </label>
                 <select
@@ -444,7 +444,7 @@ export function ContractingIntakeTab() {
                       agency: e.target.value as AgencyName,
                     })
                   }
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
                 >
                   {AGENCIES.map((ag) => (
                     <option key={ag.value} value={ag.value}>
@@ -458,7 +458,7 @@ export function ContractingIntakeTab() {
             <button
               onClick={handleSendForm}
               disabled={sending}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#1e3a5f] text-white text-sm font-medium rounded-lg hover:bg-[#162d4a] disabled:opacity-50 transition-colors"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/80 disabled:opacity-50 transition-colors"
             >
               {sending ? (
                 <RefreshCw size={14} className="animate-spin" />
@@ -474,7 +474,7 @@ export function ContractingIntakeTab() {
                 className={`mt-4 p-4 rounded-lg border ${
                   sendResult.success
                     ? 'bg-emerald-50 border-emerald-200'
-                    : 'bg-red-50 border-red-200'
+                    : 'bg-red-500/10 border-red-500/20'
                 }`}
               >
                 {sendResult.success ? (
@@ -487,7 +487,7 @@ export function ContractingIntakeTab() {
                         <span className="text-xs text-emerald-700 font-medium w-20">
                           URL:
                         </span>
-                        <code className="text-xs bg-white px-2 py-1 rounded border border-emerald-200 flex-1 truncate">
+                        <code className="text-xs bg-card px-2 py-1 rounded border border-emerald-200 flex-1 truncate">
                           {sendResult.url}
                         </code>
                         <button
@@ -508,7 +508,7 @@ export function ContractingIntakeTab() {
                         <span className="text-xs text-emerald-700 font-medium w-20">
                           Code:
                         </span>
-                        <code className="text-xs bg-white px-2 py-1 rounded border border-emerald-200 font-mono font-bold tracking-wider">
+                        <code className="text-xs bg-card px-2 py-1 rounded border border-emerald-200 font-mono font-bold tracking-wider">
                           {sendResult.code}
                         </code>
                         <button
@@ -541,27 +541,27 @@ export function ContractingIntakeTab() {
       {/* ── New Hires Queue ────────────────────────────────────────────── */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-base font-bold text-slate-900">
+          <h3 className="text-base font-bold text-foreground">
             New Hires Queue
           </h3>
           <button
             onClick={loadNewHires}
-            className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+            className="p-1.5 rounded-lg hover:bg-secondary transition-colors"
             title="Refresh"
           >
-            <RefreshCw size={14} className="text-slate-400" />
+            <RefreshCw size={14} className="text-muted-foreground/70" />
           </button>
         </div>
 
         {/* Search */}
         <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/70" />
           <input
             type="text"
             placeholder="Search by name, email, phone, agency..."
             value={hiresSearch}
             onChange={(e) => setHiresSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+            className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-card"
           />
         </div>
 
@@ -575,13 +575,13 @@ export function ContractingIntakeTab() {
             ))}
           </div>
         ) : filteredHires.length === 0 ? (
-          <Card className="border-slate-200">
+          <Card className="border-border">
             <CardContent className="p-8 text-center">
               <CheckCircle
                 size={28}
                 className="text-emerald-400 mx-auto mb-2"
               />
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-muted-foreground">
                 {newHires.length === 0
                   ? 'No new hires awaiting forms. Queue is clear!'
                   : 'No hires match your search.'}
@@ -593,7 +593,7 @@ export function ContractingIntakeTab() {
             {filteredHires.map((hire) => (
               <Card
                 key={hire.id}
-                className="border-slate-200 hover:border-blue-300 hover:shadow-sm transition-all"
+                className="border-border hover:border-blue-300 hover:glow-sm transition-all"
               >
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
@@ -605,10 +605,10 @@ export function ContractingIntakeTab() {
                         </span>
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-slate-900 truncate">
+                        <p className="text-sm font-semibold text-foreground truncate">
                           {hire.first_name} {hire.last_name}
                         </p>
-                        <div className="flex items-center gap-3 text-xs text-slate-500 mt-0.5">
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
                           <span className="flex items-center gap-1 truncate">
                             <Mail size={10} /> {hire.email}
                           </span>
@@ -627,12 +627,12 @@ export function ContractingIntakeTab() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3 shrink-0 ml-4">
-                      <span className="text-xs text-slate-400">
+                      <span className="text-xs text-muted-foreground/70">
                         {timeAgo(hire.created_at)}
                       </span>
                       <button
                         onClick={() => handleProcessHire(hire)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#1e3a5f] text-white text-xs font-medium rounded-lg hover:bg-[#162d4a] transition-colors"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-xs font-medium rounded-lg hover:bg-primary/80 transition-colors"
                       >
                         <Send size={12} /> Send Form
                       </button>

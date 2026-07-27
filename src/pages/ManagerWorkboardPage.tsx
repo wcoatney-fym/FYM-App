@@ -45,14 +45,14 @@ function urgencyLevel(days: number): 'critical' | 'high' | 'medium' {
 
 
 function taskBadge(status: string | null) {
-  if (!status) return 'bg-slate-100 text-slate-500 border-slate-200';
-  if (status === 'open') return 'bg-blue-100 text-blue-700 border-blue-200';
+  if (!status) return 'bg-slate-100 text-muted-foreground border-border';
+  if (status === 'open') return 'bg-blue-100 text-cyan-400 border-blue-200';
   if (status === 'resolved') return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-  return 'bg-slate-100 text-slate-500 border-slate-200';
+  return 'bg-slate-100 text-muted-foreground border-border';
 }
 
 function retentionColor(pct: number | null) {
-  if (pct === null) return 'text-slate-400';
+  if (pct === null) return 'text-muted-foreground/70';
   if (pct >= 90) return 'text-emerald-700 font-semibold';
   if (pct >= 85) return 'text-amber-700 font-semibold';
   return 'text-red-700 font-bold';
@@ -199,18 +199,18 @@ export function ManagerWorkboardPage() {
         {/* ── KPI strip ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { label: 'At-Risk Policies', value: rows.length, sub: `${untasked} untasked`, icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50' },
-            { label: 'Critical (30+ days)', value: critical, sub: 'no draft in 30+ days', icon: Clock, color: 'text-red-700', bg: 'bg-red-50' },
+            { label: 'At-Risk Policies', value: rows.length, sub: `${untasked} untasked`, icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/10' },
+            { label: 'Critical (30+ days)', value: critical, sub: 'no draft in 30+ days', icon: Clock, color: 'text-red-700', bg: 'bg-red-500/10' },
             { label: 'At-Risk Premium', value: fmt$(Math.round(atRiskPremium)), sub: 'recoverable', icon: TrendingDown, color: 'text-amber-700', bg: 'bg-amber-50' },
-            { label: 'Agencies Below 90%', value: belowTarget, sub: 'need coaching', icon: TrendingUp, color: 'text-blue-700', bg: 'bg-blue-50' },
+            { label: 'Agencies Below 90%', value: belowTarget, sub: 'need coaching', icon: TrendingUp, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
           ].map(card => (
-            <Card key={card.label} className="border-slate-200">
+            <Card key={card.label} className="border-border">
               <CardContent className="p-5">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-sm font-medium text-slate-500">{card.label}</p>
-                    <p className="text-2xl font-bold text-slate-900 mt-1">{card.value}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">{card.sub}</p>
+                    <p className="text-sm font-medium text-muted-foreground">{card.label}</p>
+                    <p className="text-2xl font-bold text-foreground mt-1">{card.value}</p>
+                    <p className="text-xs text-muted-foreground/70 mt-0.5">{card.sub}</p>
                   </div>
                   <div className={`p-2.5 rounded-lg ${card.bg}`}>
                     <card.icon size={20} className={card.color} />
@@ -223,14 +223,14 @@ export function ManagerWorkboardPage() {
 
         {/* ── Agency coaching panel ── */}
         {agencies.length > 0 && (
-          <Card className="border-slate-200">
+          <Card className="border-border">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base font-semibold text-slate-900">Agency Retention Coaching Signals</CardTitle>
-              <p className="text-xs text-slate-400 mt-0.5">Agencies sorted by 90-day retention (worst first). Below 90% = coaching needed.</p>
+              <CardTitle className="text-base font-semibold text-foreground">Agency Retention Coaching Signals</CardTitle>
+              <p className="text-xs text-muted-foreground/70 mt-0.5">Agencies sorted by 90-day retention (worst first). Below 90% = coaching needed.</p>
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-slate-100">
-                <div className="grid grid-cols-6 gap-2 px-4 py-2 bg-slate-50 text-xs font-semibold text-slate-500">
+                <div className="grid grid-cols-6 gap-2 px-4 py-2 bg-background text-xs font-semibold text-muted-foreground">
                   <span className="col-span-2">Agency</span>
                   <span className="text-right">Active</span>
                   <span className="text-right">At-Risk</span>
@@ -238,11 +238,11 @@ export function ManagerWorkboardPage() {
                   <span className="text-right">Retention</span>
                 </div>
                 {agencies.slice(0, 10).map((a, i) => (
-                  <div key={i} className={`grid grid-cols-6 gap-2 px-4 py-2.5 text-sm ${a.retention_pct !== null && a.retention_pct < 90 ? 'bg-red-50/30' : ''}`}>
-                    <span className="col-span-2 font-medium text-slate-800 truncate" title={a.agency_id}>{a.agency_id}</span>
-                    <span className="text-right text-slate-600">{a.active_policies}</span>
-                    <span className={`text-right font-medium ${a.at_risk_count > 0 ? 'text-red-700' : 'text-slate-600'}`}>{a.at_risk_count}</span>
-                    <span className="text-right text-slate-600">{a.eligible_90d}</span>
+                  <div key={i} className={`grid grid-cols-6 gap-2 px-4 py-2.5 text-sm ${a.retention_pct !== null && a.retention_pct < 90 ? 'bg-red-500/10/30' : ''}`}>
+                    <span className="col-span-2 font-medium text-foreground truncate" title={a.agency_id}>{a.agency_id}</span>
+                    <span className="text-right text-muted-foreground">{a.active_policies}</span>
+                    <span className={`text-right font-medium ${a.at_risk_count > 0 ? 'text-red-700' : 'text-muted-foreground'}`}>{a.at_risk_count}</span>
+                    <span className="text-right text-muted-foreground">{a.eligible_90d}</span>
                     <span className={`text-right ${retentionColor(a.retention_pct)}`}>
                       {a.retention_pct !== null ? `${a.retention_pct}%` : '—'}
                     </span>
@@ -254,12 +254,12 @@ export function ManagerWorkboardPage() {
         )}
 
         {/* ── At-risk workboard ── */}
-        <Card className="border-slate-200">
+        <Card className="border-border">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div>
-                <CardTitle className="text-base font-semibold text-slate-900">At-Risk Policy Workboard</CardTitle>
-                <p className="text-xs text-slate-400 mt-0.5">{displayRows.length} of {rows.length} shown</p>
+                <CardTitle className="text-base font-semibold text-foreground">At-Risk Policy Workboard</CardTitle>
+                <p className="text-xs text-muted-foreground/70 mt-0.5">{displayRows.length} of {rows.length} shown</p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 {/* filter tabs */}
@@ -269,8 +269,8 @@ export function ManagerWorkboardPage() {
                     onClick={() => setFilterStatus(f)}
                     className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
                       filterStatus === f
-                        ? 'bg-[#1e3a5f] text-white border-[#1e3a5f]'
-                        : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
+                        ? 'bg-primary text-white border-[#1e3a5f]'
+                        : 'bg-card text-muted-foreground border-border hover:border-slate-400'
                     }`}
                   >
                     {f === 'all' ? `All (${rows.length})` :
@@ -280,12 +280,12 @@ export function ManagerWorkboardPage() {
                   </button>
                 ))}
                 <div className="relative">
-                  <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/70" />
                   <Input
                     placeholder="Search policy or agency…"
                     value={search}
                     onChange={e => setSearch(e.target.value)}
-                    className="pl-8 h-8 text-sm w-52 bg-white"
+                    className="pl-8 h-8 text-sm w-52 bg-card"
                   />
                 </div>
               </div>
@@ -293,20 +293,20 @@ export function ManagerWorkboardPage() {
           </CardHeader>
           <CardContent className="p-0">
             {/* table header */}
-            <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-slate-50 text-xs font-semibold text-slate-500 border-t border-slate-100">
+            <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-background text-xs font-semibold text-muted-foreground border-t border-border/50">
               <span className="col-span-2">Policy #</span>
-              <span className="col-span-2 cursor-pointer hover:text-slate-800" onClick={() => toggleSort('agency')}>Agency <SortIcon k="agency" /></span>
+              <span className="col-span-2 cursor-pointer hover:text-foreground" onClick={() => toggleSort('agency')}>Agency <SortIcon k="agency" /></span>
               <span className="text-center">Product</span>
-              <span className="text-right cursor-pointer hover:text-slate-800" onClick={() => toggleSort('premium')}>Premium <SortIcon k="premium" /></span>
-              <span className="text-right cursor-pointer hover:text-slate-800" onClick={() => toggleSort('drafts')}>Drafts <SortIcon k="drafts" /></span>
-              <span className="text-right cursor-pointer hover:text-slate-800 col-span-2" onClick={() => toggleSort('days')}>Days Idle <SortIcon k="days" /></span>
+              <span className="text-right cursor-pointer hover:text-foreground" onClick={() => toggleSort('premium')}>Premium <SortIcon k="premium" /></span>
+              <span className="text-right cursor-pointer hover:text-foreground" onClick={() => toggleSort('drafts')}>Drafts <SortIcon k="drafts" /></span>
+              <span className="text-right cursor-pointer hover:text-foreground col-span-2" onClick={() => toggleSort('days')}>Days Idle <SortIcon k="days" /></span>
               <span className="text-center">Task</span>
               <span className="col-span-2 text-center">Action</span>
             </div>
 
             <div className="divide-y divide-slate-100 max-h-[520px] overflow-y-auto">
               {displayRows.length === 0 && (
-                <div className="py-10 text-center text-slate-400 text-sm">No policies match your filters.</div>
+                <div className="py-10 text-center text-muted-foreground/70 text-sm">No policies match your filters.</div>
               )}
               {displayRows.map(row => {
                 const urgency = urgencyLevel(row.days_since_draft);
@@ -314,20 +314,20 @@ export function ManagerWorkboardPage() {
                 return (
                   <div
                     key={row.policy_number}
-                    className={`grid grid-cols-12 gap-2 px-4 py-2.5 text-sm items-center hover:bg-slate-50 transition-colors ${
+                    className={`grid grid-cols-12 gap-2 px-4 py-2.5 text-sm items-center hover:bg-background transition-colors ${
                       urgency === 'critical' ? 'border-l-2 border-l-red-400' : urgency === 'high' ? 'border-l-2 border-l-amber-400' : ''
                     }`}
                   >
-                    <span className="col-span-2 font-mono text-xs text-slate-700 truncate">{row.policy_number}</span>
-                    <span className="col-span-2 text-slate-600 text-xs truncate" title={row.agency_id}>{row.agency_id}</span>
+                    <span className="col-span-2 font-mono text-xs text-foreground/80 truncate">{row.policy_number}</span>
+                    <span className="col-span-2 text-muted-foreground text-xs truncate" title={row.agency_id}>{row.agency_id}</span>
                     <span className="text-center">
                       <Badge className={`text-[10px] px-1.5 py-0 ${row.product_type === 'HHC' ? 'bg-sky-50 text-sky-700 border-sky-200' : 'bg-violet-50 text-violet-700 border-violet-200'} border`}>
                         {row.product_type}
                       </Badge>
                     </span>
-                    <span className="text-right text-slate-700 font-medium">${row.plan_premium.toFixed(0)}</span>
-                    <span className="text-right text-slate-600">{row.draft_count}</span>
-                    <span className={`text-right col-span-2 font-semibold ${urgency === 'critical' ? 'text-red-700' : urgency === 'high' ? 'text-amber-700' : 'text-slate-600'}`}>
+                    <span className="text-right text-foreground/80 font-medium">${row.plan_premium.toFixed(0)}</span>
+                    <span className="text-right text-muted-foreground">{row.draft_count}</span>
+                    <span className={`text-right col-span-2 font-semibold ${urgency === 'critical' ? 'text-red-700' : urgency === 'high' ? 'text-amber-700' : 'text-muted-foreground'}`}>
                       {row.days_since_draft}d
                       {urgency === 'critical' && <span className="ml-1 text-[10px] text-red-500">⚠</span>}
                     </span>
@@ -343,7 +343,7 @@ export function ManagerWorkboardPage() {
                           variant="outline"
                           disabled={isBusy}
                           onClick={() => openTask(row.policy_number, row.agency_id)}
-                          className="h-6 px-2 text-[11px] border-slate-300 hover:border-[#1e3a5f] hover:text-[#1e3a5f]"
+                          className="h-6 px-2 text-[11px] border-border hover:border-[#1e3a5f] hover:text-primary"
                         >
                           {isBusy ? '…' : 'Open Task'}
                         </Button>

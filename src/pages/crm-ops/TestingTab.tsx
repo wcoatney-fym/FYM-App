@@ -182,7 +182,7 @@ export const TestingTab: React.FC = () => {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowOnboarding(true)}
-              className="px-4 py-2 text-sm font-medium text-primary bg-blue-50 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors"
+              className="px-4 py-2 text-sm font-medium text-primary bg-cyan-500/10 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors"
             >
               Open Onboarding View
             </button>
@@ -195,7 +195,7 @@ export const TestingTab: React.FC = () => {
             </button>
             <button
               onClick={() => setShowDelete(true)}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-red-700 bg-red-500/10 border border-red-500/20 rounded-lg hover:bg-red-100 transition-colors"
             >
               <Trash2 className="w-3.5 h-3.5" />
               Delete
@@ -280,8 +280,8 @@ export const TestingTab: React.FC = () => {
                 This will permanently delete <span className="font-semibold">{agency.name}</span> and all associated data
                 (roster uploads, DBA uploads, notifications).
               </p>
-              <div className="flex items-center gap-2 px-3 py-2 bg-red-50 rounded-lg border border-red-200">
-                <Trash2 className="w-4 h-4 text-red-600 flex-shrink-0" />
+              <div className="flex items-center gap-2 px-3 py-2 bg-red-500/10 rounded-lg border border-red-500/20">
+                <Trash2 className="w-4 h-4 text-red-400 flex-shrink-0" />
                 <p className="text-xs text-red-700 font-medium">You can recreate a fresh test agency at any time</p>
               </div>
             </div>
@@ -436,7 +436,7 @@ const StepCard: React.FC<{
   return (
     <div className="bg-card rounded-xl border-2 border-primary/20 p-5">
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+        <div className="w-9 h-9 rounded-lg bg-cyan-500/10 flex items-center justify-center">
           <span className="text-sm font-bold text-primary">{idx + 1}</span>
         </div>
         <div className="flex-1">
