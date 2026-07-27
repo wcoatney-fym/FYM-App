@@ -64,7 +64,6 @@ const adminNav: NavItem[] = [
   { to: '/book', label: 'Book of Business', icon: BookOpen },
   { to: '/financials', label: 'Financials', icon: BarChart3 },
   { to: '/retention', label: 'Retention', icon: Activity },
-  { to: '/coaching', label: 'Coaching', icon: HeartPulse },
   { to: '/compete', label: 'Compete', icon: Swords },
   { to: '/onboarding', label: 'Onboarding', icon: Rocket },
   { to: '/provision', label: 'Provision Agents', icon: UserPlus },
