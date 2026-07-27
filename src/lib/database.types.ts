@@ -178,6 +178,37 @@ export interface Database {
         };
         Relationships: [];
       };
+      agency_cohort_retention: {
+        Row: {
+          agency_id: string | null;
+          agency_name: string | null;
+          product_type: string | null;
+          cohort_month: string | null;
+          cohort_size: number | null;
+          drafted_first: number | null;
+          retained: number | null;
+          retention_pct: number | null;
+          active_premium: number | null;
+          active_annual_premium: number | null;
+        };
+        Relationships: [];
+      };
+      agency_retention_overview: {
+        Row: {
+          agency_id: string | null;
+          agency_name: string | null;
+          total_eligible: number | null;
+          ever_drafted: number | null;
+          retained: number | null;
+          retention_pct: number | null;
+          active_policies: number | null;
+          active_annual_premium: number | null;
+          at_risk_count: number | null;
+          prior_3mo_retention_pct: number | null;
+          recent_3mo_retention_pct: number | null;
+        };
+        Relationships: [];
+      };
       agency_retention_summary: {
         Row: {
           agency_id: string | null;
