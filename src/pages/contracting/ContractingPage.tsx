@@ -2,7 +2,7 @@
  * Contracting Page — Stage 4 absorption
  *
  * Replaces the old redirect card with a full tabbed layout.
- * Each tab is a shell that will be wired to portal data in subsequent PRs.
+ * Each tab is wired to portal data via portal-supabase.ts.
  *
  * Tab layout:
  *   Dashboard  — KPI cards, agency perf, recent activity
@@ -10,6 +10,7 @@
  *   Tracking   — Agent status table with search/filter/edit/export
  *   Pipeline   — Kanban board + list view of agent pipeline
  *   Training   — Content stats, quiz leaderboard, live sessions
+ *   Database   — Complete agent database with actions
  *
  * Portal data flows through portal-supabase.ts (akhojh…) during the
  * parallel-run period. When contracting reaches full parity, data migrates
@@ -24,6 +25,7 @@ import { ContractingIntakeTab } from './ContractingIntakeTab';
 import { ContractingTrackingTab } from './ContractingTrackingTab';
 import { ContractingPipelineTab } from './ContractingPipelineTab';
 import { ContractingTrainingTab } from './ContractingTrainingTab';
+import { AgentDatabaseTab } from './database';
 import type { ContractingTab } from '@/lib/contracting/types';
 
 export function ContractingPage() {
@@ -69,6 +71,7 @@ export function ContractingPage() {
             <TabsTrigger value="tracking">Tracking</TabsTrigger>
             <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
             <TabsTrigger value="training">Training</TabsTrigger>
+            <TabsTrigger value="database">Database</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard">
@@ -89,6 +92,10 @@ export function ContractingPage() {
 
           <TabsContent value="training">
             <ContractingTrainingTab />
+          </TabsContent>
+
+          <TabsContent value="database">
+            <AgentDatabaseTab />
           </TabsContent>
         </Tabs>
       </div>
