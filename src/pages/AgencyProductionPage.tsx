@@ -405,7 +405,13 @@ export function AgencyProductionPage() {
                       {agent.at_risk_policies || '—'}
                     </span>
                     <span className="text-center self-center">
-                      <ChevronRight size={14} className="text-muted-foreground/40" />
+                      {agent.agent_id ? (
+                        <Link to={`/production/${agencyId}/agent/${agent.agent_id}`}>
+                          <ChevronRight size={14} className="text-muted-foreground/40 hover:text-primary transition-colors" />
+                        </Link>
+                      ) : (
+                        <ChevronRight size={14} className="text-muted-foreground/20" />
+                      )}
                     </span>
                   </div>
                 ))}
