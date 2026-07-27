@@ -10,6 +10,8 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.warn('[FYM] Supabase env vars not set — running in mock-data mode.');
 }
 
+export const supabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+
 export const supabase =
   supabaseUrl && supabaseAnonKey
     ? createClient<Database>(supabaseUrl, supabaseAnonKey)

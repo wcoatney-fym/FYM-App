@@ -1,12 +1,14 @@
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Users, DollarSign, TrendingUp, AlertTriangle,
-  Shield, Target, UserPlus, Clock, Bot, Plus, Zap
+  Shield, Target, UserPlus, Clock, Bot, Zap
 } from 'lucide-react';
-import { useTasksStore, usePipelineStore, useSettingsStore } from '@/stores/cc-stores';
+import { useTasksStore } from '@/stores/cc-stores';
 import { formatDistanceToNow } from 'date-fns';
-import { generateInsights } from '@/lib/command-center/clawdbot-ai';
 import { useDashboardStats } from '@/lib/command-center/use-dashboard-stats';
+import { supabase } from '@/lib/supabase';
+import { portalSupabase } from '@/lib/portal-supabase';
 
 const container = {
   hidden: { opacity: 0 },
@@ -17,28 +19,141 @@ const item = {
   show: { opacity: 1, y: 0 },
 };
 
+interface AgencyInsight {
+  agencyName: string;
+  atRiskCount: number;
+  retentionPct: number | null;
+}
+
+interface ActivityRow {
+  id: string;
+  action: string;
+  details: string;
+  created_at: string;
+}
+
+const RECRUITING_STAGES = ['hip_broker', 'hip_career', 'iaa', 'signed_iaa'];
+const ACTIVE_LEAD_EXCLUDED_STAGES = ['terminated', 'rts', 'actively_selling'];
+
 export function CcDashboardTab() {
   const tasks = useTasksStore((s) => s.tasks);
-  const placements = usePipelineStore((s) => s.placements);
-  const cancellations = usePipelineStore((s) => s.cancellations);
-  const retentionAgents = usePipelineStore((s) => s.retentionAgents);
-  const recruitingFollowUp = usePipelineStore((s) => s.recruitingFollowUp);
-  const revenue = usePipelineStore((s) => s.revenue);
-  const activities = useSettingsStore((s) => s.activities);
-  const mockEnabled = useSettingsStore((s) => s.mockDataEnabled);
+  const loadLiveTasks = useTasksStore((s) => s.loadLive);
+  const tasksSource = useTasksStore((s) => s.source);
 
   const liveStats = useDashboardStats();
 
+  const [activeLeads, setActiveLeads] = useState<number | null>(null);
+  const [placementsMTD, setPlacementsMTD] = useState<number | null>(null);
+  const [revenueMTD, setRevenueMTD] = useState<number | null>(null);
+  const [cancelRate, setCancelRate] = useState<string>('0');
+  const [recruitingCount, setRecruitingCount] = useState<number | null>(null);
+  const [insights, setInsights] = useState<AgencyInsight[]>([]);
+  const [activities, setActivities] = useState<ActivityRow[]>([]);
+
+  useEffect(() => {
+    if (tasksSource === null) void loadLiveTasks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      if (!portalSupabase) return;
+      try {
+        const [{ count: activeCount }, { count: recruitCount }] = await Promise.all([
+          portalSupabase
+            .from('agent_pipeline')
+            .select('id', { count: 'exact', head: true })
+            .not('stage', 'in', `(${ACTIVE_LEAD_EXCLUDED_STAGES.join(',')})`),
+          portalSupabase
+            .from('agent_pipeline')
+            .select('id', { count: 'exact', head: true })
+            .in('stage', RECRUITING_STAGES),
+        ]);
+        setActiveLeads(activeCount ?? 0);
+        setRecruitingCount(recruitCount ?? 0);
+      } catch {
+        setActiveLeads(0);
+        setRecruitingCount(0);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      if (!supabase) return;
+      try {
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+        const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+        // Placements MTD — policies with effective date in current month
+        const { count: placedCount } = await (supabase as any)
+          .from('policy_cache')
+          .select('policy_number', { count: 'exact', head: true })
+          .gte('policy_effective_date', monthStart);
+        setPlacementsMTD(placedCount ?? 0);
+
+        // Revenue MTD from monthly_production (current month, all agencies)
+        const monthKey = monthStart.slice(0, 7);
+        const { data: monthRows } = await (supabase as any)
+          .from('monthly_production')
+          .select('month, annual_premium')
+          .eq('month', monthKey);
+        const revenue = (monthRows || []).reduce((s: number, r: any) => s + (Number(r.annual_premium) || 0), 0);
+        setRevenueMTD(revenue);
+
+        // Cancel rate — last 90 days
+        const { count: totalRecent } = await (supabase as any)
+          .from('policy_cache')
+          .select('policy_number', { count: 'exact', head: true })
+          .gte('policy_effective_date', ninetyDaysAgo);
+        const { count: terminatedRecent } = await (supabase as any)
+          .from('policy_cache')
+          .select('policy_number', { count: 'exact', head: true })
+          .eq('status', 'terminated')
+          .gte('policy_effective_date', ninetyDaysAgo);
+        const total = totalRecent ?? 0;
+        const term = terminatedRecent ?? 0;
+        setCancelRate(total > 0 ? ((term / total) * 100).toFixed(1) : '0');
+
+        // Insights — top agencies by at-risk count
+        const { data: retentionRows } = await (supabase as any)
+          .from('agency_retention_overview')
+          .select('agency_id, agency_name, at_risk_count, retention_pct')
+          .order('at_risk_count', { ascending: false })
+          .limit(3);
+        setInsights(
+          (retentionRows || []).map((r: any) => ({
+            agencyName: r.agency_name || 'Unknown Agency',
+            atRiskCount: Number(r.at_risk_count) || 0,
+            retentionPct: r.retention_pct !== null ? Number(r.retention_pct) : null,
+          }))
+        );
+      } catch {
+        setPlacementsMTD(0);
+        setRevenueMTD(0);
+        setCancelRate('0');
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      if (!portalSupabase) return;
+      try {
+        const { data } = await portalSupabase
+          .from('activity_log')
+          .select('id, action, details, created_at')
+          .order('created_at', { ascending: false })
+          .limit(20);
+        setActivities((data as ActivityRow[]) || []);
+      } catch {
+        setActivities([]);
+      }
+    })();
+  }, []);
+
   const overdueTasks = tasks.filter((t) => new Date(t.dueDate) < new Date() && t.status !== 'done');
-  const placedCount = placements.filter((p) => p.status === 'placed').length;
-  const revenueMTD = revenue.reduce((sum, r) => sum + r.actual, 0);
-  const cancelRate = cancellations.length > 0
-    ? ((cancellations.filter(c => !c.saved).length / cancellations.length) * 100).toFixed(1)
-    : '0';
-  const activeAgents = retentionAgents.filter(a => !a.atRisk).length;
-  const totalAgents = retentionAgents.length;
-  const persistencyPct = totalAgents > 0 ? ((activeAgents / totalAgents) * 100).toFixed(0) : '0';
-  const recruitingCount = recruitingFollowUp.length;
 
   const retentionNum = parseFloat(liveStats.retentionPct);
   const retentionColor = !liveStats.configured || liveStats.loading
@@ -52,25 +167,25 @@ export function CcDashboardTab() {
     : retentionNum >= 85 ? 'bg-amber-400/10'
     : 'bg-red-400/10';
 
+  const persistencyPct = liveStats.configured ? (liveStats.loading ? '…' : liveStats.persistencyPct) : '—';
+
   const kpis = [
-    { label: 'Active Leads', value: mockEnabled ? '557' : '0', icon: Target, color: 'text-sky-400', bg: 'bg-sky-400/10', live: false },
-    { label: 'Placements MTD', value: placedCount.toString(), icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-400/10', live: false },
-    { label: 'Revenue MTD', value: revenueMTD > 0 ? `$${(revenueMTD / 1000).toFixed(1)}K` : '$0', icon: DollarSign, color: 'text-emerald-400', bg: 'bg-emerald-400/10', live: false },
-    { label: 'Cancel Rate', value: `${cancelRate}%`, icon: AlertTriangle, color: 'text-amber-400', bg: 'bg-amber-400/10', live: false },
-    { label: 'Persistency', value: `${persistencyPct}%`, icon: Shield, color: 'text-sky-400', bg: 'bg-sky-400/10', live: false },
+    { label: 'Active Leads', value: activeLeads === null ? '…' : activeLeads.toLocaleString(), icon: Target, color: 'text-sky-400', bg: 'bg-sky-400/10', live: true },
+    { label: 'Placements MTD', value: placementsMTD === null ? '…' : placementsMTD.toLocaleString(), icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-400/10', live: true },
+    { label: 'Revenue MTD', value: revenueMTD === null ? '…' : (revenueMTD > 0 ? `$${(revenueMTD / 1000).toFixed(1)}K` : '$0'), icon: DollarSign, color: 'text-emerald-400', bg: 'bg-emerald-400/10', live: true },
+    { label: 'Cancel Rate', value: `${cancelRate}%`, icon: AlertTriangle, color: 'text-amber-400', bg: 'bg-amber-400/10', live: true },
+    { label: 'Persistency', value: persistencyPct, icon: Shield, color: 'text-sky-400', bg: 'bg-sky-400/10', live: liveStats.configured },
     {
       label: '90-Day Retention',
-      value: liveStats.configured ? (liveStats.loading ? '…' : liveStats.retentionPct) : (mockEnabled ? '94.2%' : '0%'),
+      value: liveStats.configured ? (liveStats.loading ? '…' : liveStats.retentionPct) : '—',
       icon: Users,
       color: retentionColor,
       bg: retentionBg,
       live: liveStats.configured,
     },
-    { label: 'Recruiting Pipeline', value: recruitingCount.toString(), icon: UserPlus, color: 'text-sky-400', bg: 'bg-sky-400/10', live: false },
-    { label: 'Tasks Overdue', value: overdueTasks.length.toString(), icon: Clock, color: overdueTasks.length > 0 ? 'text-red-400' : 'text-emerald-400', bg: overdueTasks.length > 0 ? 'bg-red-400/10' : 'bg-emerald-400/10', live: false },
+    { label: 'Recruiting Pipeline', value: recruitingCount === null ? '…' : recruitingCount.toLocaleString(), icon: UserPlus, color: 'text-sky-400', bg: 'bg-sky-400/10', live: true },
+    { label: 'Tasks Overdue', value: overdueTasks.length.toString(), icon: Clock, color: overdueTasks.length > 0 ? 'text-red-400' : 'text-emerald-400', bg: overdueTasks.length > 0 ? 'bg-red-400/10' : 'bg-emerald-400/10', live: true },
   ];
-
-  const insights = mockEnabled ? generateInsights() : [];
 
   return (
     <div className="space-y-6">
@@ -79,13 +194,6 @@ export function CcDashboardTab() {
           <h1 className="text-2xl font-bold">Command Center</h1>
           <p className="text-sm text-muted-foreground mt-1">Real-time overview of all operations</p>
         </div>
-        <button
-          onClick={() => {}}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg gradient-primary text-background text-sm font-medium hover:opacity-90 transition-opacity"
-        >
-          <Plus className="w-4 h-4" />
-          Quick Add Task
-        </button>
       </div>
 
       <motion.div variants={container} initial="hidden" animate="show" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -109,28 +217,29 @@ export function CcDashboardTab() {
             <div className="w-7 h-7 rounded-lg gradient-primary flex items-center justify-center">
               <Bot className="w-4 h-4 text-background" />
             </div>
-            <h2 className="text-sm font-semibold">ClawdBot Insights</h2>
+            <h2 className="text-sm font-semibold">Retention Signals</h2>
             <Zap className="w-3.5 h-3.5 text-amber-400" />
           </div>
           {insights.length > 0 ? (
             <div className="space-y-3">
               {insights.map((insight, i) => (
-                <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-secondary/30 border border-border/30">
+                <div key={insight.agencyName} className="flex items-start gap-3 p-3 rounded-lg bg-secondary/30 border border-border/30">
                   <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
                     <span className="text-[10px] font-bold text-primary">{i + 1}</span>
                   </div>
-                  <p className="text-sm text-foreground/90 leading-relaxed">{insight}</p>
+                  <p className="text-sm text-foreground/90 leading-relaxed">
+                    <span className="font-semibold">{insight.agencyName}</span> — {insight.atRiskCount} at-risk polic{insight.atRiskCount === 1 ? 'y' : 'ies'}
+                    {insight.retentionPct !== null && (
+                      <> · retention {insight.retentionPct}%</>
+                    )}
+                  </p>
                 </div>
               ))}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <Bot className="w-10 h-10 text-muted-foreground/30 mb-3" />
-              <p className="text-sm text-muted-foreground">
-                {liveStats.configured
-                  ? 'Live retention data loaded above. AI insights coming in Phase 2.'
-                  : 'Load mock data to see AI-generated insights'}
-              </p>
+              <p className="text-sm text-muted-foreground">No at-risk signals to surface right now.</p>
             </div>
           )}
         </motion.div>
@@ -141,17 +250,14 @@ export function CcDashboardTab() {
             <div className="space-y-3 max-h-[360px] overflow-y-auto scrollbar-thin pr-1">
               {activities.map((activity) => (
                 <div key={activity.id} className="flex items-start gap-3 p-2.5 rounded-lg hover:bg-secondary/30 transition-colors">
-                  <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
-                    activity.type === 'task' ? 'bg-sky-400' :
-                    activity.type === 'pipeline' ? 'bg-emerald-400' :
-                    activity.type === 'chat' ? 'bg-primary' :
-                    activity.type === 'team' ? 'bg-amber-400' :
-                    'bg-muted-foreground'
-                  }`} />
+                  <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0 bg-sky-400" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs text-foreground/80 leading-relaxed">{activity.message}</p>
+                    <p className="text-xs text-foreground/80 leading-relaxed">
+                      <span className="font-medium">{activity.action}</span>
+                      {activity.details ? ` — ${activity.details}` : ''}
+                    </p>
                     <p className="text-[10px] text-muted-foreground mt-1">
-                      {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}
+                      {formatDistanceToNow(new Date(activity.created_at), { addSuffix: true })}
                     </p>
                   </div>
                 </div>
