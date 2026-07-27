@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { RoleGuard } from '@/components/auth/RoleGuard';
 import { LoginPage } from '@/pages/LoginPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { AgenciesPage } from '@/pages/AgenciesPage';
@@ -39,31 +40,38 @@ function App() {
 
           {/* Protected — AppLayout enforces auth */}
           <Route element={<AppLayout />}>
+            {/* Accessible to all roles (agent, manager, admin, fym_admin) */}
             <Route path="/" element={<DashboardPage />} />
-            <Route path="/agencies" element={<AgenciesPage />} />
-            <Route path="/agencies/:agencyId" element={<AgencyDetailPage />} />
-            <Route path="/agents" element={<AgentsPage />} />
-            <Route path="/contracting" element={<ContractingPage />} />
             <Route path="/at-risk" element={<AtRiskPage />} />
-            <Route path="/crm-ops" element={<CrmOpsPage />} />
-            <Route path="/crm-command" element={<CrmCommandPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/coaching" element={<CoachingPage />} />
             <Route path="/leaderboard" element={<LeaderboardPage />} />
+            <Route path="/compete" element={<GamificationPage />} />
             <Route path="/agents/:agentId/health" element={<AgentHealthPage />} />
             <Route path="/my-health" element={<AgentHealthPage />} />
-            <Route path="/provision" element={<AgentProvisioningPage />} />
-            <Route path="/financials" element={<AdminFinancialsPage />} />
-            <Route path="/retention" element={<RetentionPage />} />
-            <Route path="/coaching" element={<CoachingPage />} />
-            <Route path="/compete" element={<GamificationPage />} />
-            <Route path="/production" element={<ProductionPage />} />
-            <Route path="/production/:agencyId" element={<AgencyProductionPage />} />
-            <Route path="/production/:agencyId/agent/:agentId" element={<AgentProductionPage />} />
-            <Route path="/book" element={<BookOfBusinessPage />} />
-            <Route path="/workboard" element={<ManagerWorkboardPage />} />
-            <Route path="/onboarding" element={<OnboardingListPage />} />
-            <Route path="/onboarding/new" element={<OnboardingNewPage />} />
-            <Route path="/onboarding/:slug" element={<OnboardingDetailPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/crm-ops" element={<CrmOpsPage />} />
+
+            {/* Admin + manager routes (not agent) */}
+            <Route path="/agencies" element={<RoleGuard allow={['admin', 'manager']}><AgenciesPage /></RoleGuard>} />
+            <Route path="/agencies/:agencyId" element={<RoleGuard allow={['admin', 'manager']}><AgencyDetailPage /></RoleGuard>} />
+            <Route path="/agents" element={<RoleGuard allow={['admin', 'manager']}><AgentsPage /></RoleGuard>} />
+            <Route path="/workboard" element={<RoleGuard allow={['admin', 'manager']}><ManagerWorkboardPage /></RoleGuard>} />
+            <Route path="/production" element={<RoleGuard allow={['admin', 'manager']}><ProductionPage /></RoleGuard>} />
+            <Route path="/production/:agencyId" element={<RoleGuard allow={['admin', 'manager']}><AgencyProductionPage /></RoleGuard>} />
+            <Route path="/production/:agencyId/agent/:agentId" element={<RoleGuard allow={['admin', 'manager']}><AgentProductionPage /></RoleGuard>} />
+            <Route path="/retention" element={<RoleGuard allow={['admin', 'manager']}><RetentionPage /></RoleGuard>} />
+
+            {/* Admin-only routes */}
+            <Route path="/book" element={<RoleGuard allow={['admin']}><BookOfBusinessPage /></RoleGuard>} />
+            <Route path="/financials" element={<RoleGuard allow={['admin']}><AdminFinancialsPage /></RoleGuard>} />
+            <Route path="/contracting" element={<RoleGuard allow={['admin']}><ContractingPage /></RoleGuard>} />
+            <Route path="/crm-command" element={<RoleGuard allow={['admin']}><CrmCommandPage /></RoleGuard>} />
+
+            {/* FYM admin only routes */}
+            <Route path="/onboarding" element={<RoleGuard allow={[]} allowFymAdmin={true}><OnboardingListPage /></RoleGuard>} />
+            <Route path="/onboarding/new" element={<RoleGuard allow={[]} allowFymAdmin={true}><OnboardingNewPage /></RoleGuard>} />
+            <Route path="/onboarding/:slug" element={<RoleGuard allow={[]} allowFymAdmin={true}><OnboardingDetailPage /></RoleGuard>} />
+            <Route path="/provision" element={<RoleGuard allow={[]} allowFymAdmin={true}><AgentProvisioningPage /></RoleGuard>} />
           </Route>
         </Routes>
       </BrowserRouter>

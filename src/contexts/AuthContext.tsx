@@ -19,6 +19,7 @@ interface AuthContextValue {
   profile: Profile | null;
   role: UserRole | null;
   agencyId: string | null;
+  isFymAdmin: boolean;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
@@ -26,10 +27,25 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+async function checkFymAdmin(userId: string): Promise<boolean> {
+  if (!supabase) return false;
+  try {
+    const { data, error } = await (supabase as any)
+      .from('fym_admins')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    return !error && !!data;
+  } catch {
+    return false;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [isFymAdmin, setIsFymAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
   async function fetchProfile(userId: string): Promise<void> {
@@ -46,6 +62,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function loadUserContext(userId: string): Promise<void> {
+    await Promise.all([
+      fetchProfile(userId),
+      checkFymAdmin(userId).then(setIsFymAdmin),
+    ]);
+  }
+
   useEffect(() => {
     if (!supabase) {
       setLoading(false);
@@ -56,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchProfile(session.user.id).finally(() => setLoading(false));
+        loadUserContext(session.user.id).finally(() => setLoading(false));
       } else {
         setLoading(false);
       }
@@ -66,9 +89,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchProfile(session.user.id);
+        loadUserContext(session.user.id);
       } else {
         setProfile(null);
+        setIsFymAdmin(false);
       }
     });
 
@@ -85,6 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!supabase) return;
     await supabase.auth.signOut();
     setProfile(null);
+    setIsFymAdmin(false);
   }
 
   return (
@@ -94,6 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile,
       role: profile?.role ?? null,
       agencyId: profile?.agency_id ?? null,
+      isFymAdmin,
       loading,
       signIn,
       signOut,
