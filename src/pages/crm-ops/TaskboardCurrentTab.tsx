@@ -61,7 +61,7 @@ interface CancellationRow {
 
 
 const STATUS_COLUMNS: { key: CrmTicket['status']; label: string; color: string; headerBg: string; icon: React.FC<{ className?: string }> }[] = [
-  { key: 'open', label: 'Open', color: 'border-blue-200', headerBg: 'bg-cyan-500/10', icon: AlertCircle },
+  { key: 'open', label: 'Open', color: 'border-blue-500/20', headerBg: 'bg-cyan-500/10', icon: AlertCircle },
   { key: 'in-progress', label: 'In Progress', color: 'border-amber-500/20', headerBg: 'bg-amber-500/10', icon: Loader2 },
   { key: 'resolved', label: 'Resolved', color: 'border-emerald-500/20', headerBg: 'bg-emerald-500/10', icon: CheckCircle2 },
 ];
@@ -306,7 +306,7 @@ const SpecialistChangeRequestsSection: React.FC = () => {
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-muted transition-colors text-left"
       >
-        <Package className="w-5 h-5 text-emerald-600" />
+        <Package className="w-5 h-5 text-emerald-400" />
         <div className="flex-1">
           <h3 className="text-sm font-bold text-foreground">Specialist Change Requests</h3>
           <p className="text-xs text-muted-foreground">
@@ -341,7 +341,7 @@ const SpecialistChangeRequestsSection: React.FC = () => {
                   <button
                     onClick={() => handleCalendarAdded(req)}
                     disabled={processing === req.id}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-cyan-400 bg-cyan-500/10 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-cyan-400 bg-cyan-500/10 border border-blue-500/20 rounded-lg hover:bg-blue-500/10 transition-colors disabled:opacity-50"
                   >
                     <Calendar className="w-3.5 h-3.5" />
                     Calendar Added
@@ -490,7 +490,7 @@ const CancellationApprovalsSection: React.FC = () => {
       >
         <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`} />
         <h3 className="text-sm font-bold text-muted-foreground">Cancellation Uploads Pending Approval</h3>
-        <span className="ml-2 px-2.5 py-0.5 text-[11px] font-bold bg-amber-500/100/10 text-amber-400 rounded-full">
+        <span className="ml-2 px-2.5 py-0.5 text-[11px] font-bold bg-amber-500/10 text-amber-400 rounded-full">
           {pending.length}
         </span>
       </button>
@@ -542,7 +542,7 @@ const CancellationApprovalsSection: React.FC = () => {
           {pending.map(upload => (
             <div key={upload.id} className="bg-card rounded-xl border border-amber-500/20 shadow-none overflow-hidden hover:shadow-none transition-shadow duration-200">
               <div className="px-4 py-3 flex items-center gap-3">
-                <FileText className="w-5 h-5 text-amber-600 shrink-0" />
+                <FileText className="w-5 h-5 text-amber-400 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold text-muted-foreground truncate">{upload.file_name}</span>
@@ -589,7 +589,7 @@ const CancellationApprovalsSection: React.FC = () => {
               </div>
 
               {previewUploadId === upload.id && (
-                <div className="border-t border-amber-100 bg-amber-500/10/30 px-4 py-3">
+                <div className="border-t border-amber-500/20 bg-amber-500/30 px-4 py-3">
                   {loadingPreview ? (
                     <div className="text-center py-3">
                       <Loader2 className="w-4 h-4 animate-spin text-muted-foreground mx-auto" />
@@ -608,7 +608,7 @@ const CancellationApprovalsSection: React.FC = () => {
                       </thead>
                       <tbody>
                         {previewRows.map((row, i) => (
-                          <tr key={i} className="border-b border-amber-100 last:border-0">
+                          <tr key={i} className="border-b border-amber-500/20 last:border-0">
                             <td className="px-2 py-1.5 text-muted-foreground">{row.first_name}</td>
                             <td className="px-2 py-1.5 text-muted-foreground">{row.last_name}</td>
                             <td className="px-2 py-1.5 text-muted-foreground">{row.phone}</td>
@@ -755,7 +755,7 @@ const TicketCard: React.FC<{
               disabled={zapSending}
               className={`w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
                 zapResult === 'success'
-                  ? 'text-emerald-400 bg-emerald-500/100/10 border border-green-200'
+                  ? 'text-emerald-400 bg-emerald-500/10 border border-green-500/20'
                   : zapResult === 'failed'
                   ? 'text-red-400 bg-red-500/10 border border-red-500/20'
                   : zapResult === 'paused'

@@ -225,7 +225,7 @@ export const AgencyContactsTab: React.FC<AgencyContactsTabProps> = ({ agencyId, 
           <p className="text-xs text-muted-foreground mt-0.5">Active</p>
         </div>
         <div className="bg-card rounded-xl border border-border p-4 text-center">
-          <p className="text-2xl font-bold text-amber-600">{counts.at_risk}</p>
+          <p className="text-2xl font-bold text-amber-400">{counts.at_risk}</p>
           <p className="text-xs text-muted-foreground mt-0.5">At Risk</p>
         </div>
         <div className="bg-card rounded-xl border border-border p-4 text-center">
@@ -434,7 +434,7 @@ export const AgencyContactsTab: React.FC<AgencyContactsTabProps> = ({ agencyId, 
       </div>
 
       {contacts.length !== totalCount && totalCount > contacts.length && (
-        <p className="text-xs text-amber-600 text-center">
+        <p className="text-xs text-amber-400 text-center">
           Showing {contacts.length} of {totalCount} total contacts. Run another sync to import remaining records.
         </p>
       )}

@@ -59,7 +59,7 @@ function totalScoreColor(score: number) {
 
 function totalScoreBg(score: number) {
   if (score >= 90) return 'bg-emerald-500/10 border-emerald-500/20';
-  if (score >= 80) return 'bg-cyan-500/10 border-blue-200';
+  if (score >= 80) return 'bg-cyan-500/10 border-blue-500/20';
   if (score >= 70) return 'bg-amber-500/10 border-amber-500/20';
   return 'bg-red-500/10 border-red-500/20';
 }
@@ -72,9 +72,9 @@ function flagLabel(flag: string | null) {
 
 function flagColor(flag: string | null) {
   if (!flag) return '';
-  if (flag === 'payment_failed') return 'bg-red-100 text-red-400 border-red-500/20';
-  if (flag === 'no_contact') return 'bg-amber-500/100/10 text-amber-400 border-amber-500/20';
-  return 'bg-orange-100 text-amber-400 border-orange-200';
+  if (flag === 'payment_failed') return 'bg-red-500/10 text-red-400 border-red-500/20';
+  if (flag === 'no_contact') return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+  return 'bg-orange-500/10 text-amber-400 border-orange-500/20';
 }
 
 export function AgentHealthPage() {
@@ -154,7 +154,7 @@ export function AgentHealthPage() {
         )}
 
         {usingMock && (
-          <div className="text-xs text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded px-3 py-2">
+          <div className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded px-3 py-2">
             ⚠ Policy cache not yet populated — showing demo data. Run the sync edge function to populate live data.
           </div>
         )}

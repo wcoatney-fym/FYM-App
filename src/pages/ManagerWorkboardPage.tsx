@@ -46,8 +46,8 @@ function urgencyLevel(days: number): 'critical' | 'high' | 'medium' {
 
 function taskBadge(status: string | null) {
   if (!status) return 'shimmer text-muted-foreground border-border';
-  if (status === 'open') return 'bg-blue-100 text-cyan-400 border-blue-200';
-  if (status === 'resolved') return 'bg-emerald-500/100/10 text-emerald-400 border-emerald-500/20';
+  if (status === 'open') return 'bg-blue-500/10 text-cyan-400 border-blue-500/20';
+  if (status === 'resolved') return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
   return 'shimmer text-muted-foreground border-border';
 }
 
@@ -238,7 +238,7 @@ export function ManagerWorkboardPage() {
                   <span className="text-right">Retention</span>
                 </div>
                 {agencies.slice(0, 10).map((a, i) => (
-                  <div key={i} className={`grid grid-cols-6 gap-2 px-4 py-2.5 text-sm ${a.retention_pct !== null && a.retention_pct < 90 ? 'bg-red-500/10/30' : ''}`}>
+                  <div key={i} className={`grid grid-cols-6 gap-2 px-4 py-2.5 text-sm ${a.retention_pct !== null && a.retention_pct < 90 ? 'bg-red-500/30' : ''}`}>
                     <span className="col-span-2 font-medium text-foreground truncate" title={a.agency_id}>{a.agency_id}</span>
                     <span className="text-right text-muted-foreground">{a.active_policies}</span>
                     <span className={`text-right font-medium ${a.at_risk_count > 0 ? 'text-red-400' : 'text-muted-foreground'}`}>{a.at_risk_count}</span>
@@ -321,7 +321,7 @@ export function ManagerWorkboardPage() {
                     <span className="col-span-2 font-data text-xs text-foreground/80 truncate">{row.policy_number}</span>
                     <span className="col-span-2 text-muted-foreground text-xs truncate" title={row.agency_id}>{row.agency_id}</span>
                     <span className="text-center">
-                      <Badge className={`text-[10px] px-1.5 py-0 ${row.product_type === 'HHC' ? 'bg-sky-50 text-sky-700 border-sky-200' : 'bg-violet-50 text-violet-700 border-violet-200'} border`}>
+                      <Badge className={`text-[10px] px-1.5 py-0 ${row.product_type === 'HHC' ? 'bg-sky-500/10 text-sky-400 border-sky-500/20' : 'bg-violet-500/10 text-violet-400 border-violet-500/20'} border`}>
                         {row.product_type}
                       </Badge>
                     </span>
@@ -357,7 +357,7 @@ export function ManagerWorkboardPage() {
                           {isBusy ? '…' : <><CheckCircle2 size={11} className="mr-1 inline" />Resolve</>}
                         </Button>
                       ) : (
-                        <span className="text-xs text-emerald-600 font-medium">✓ Done</span>
+                        <span className="text-xs text-emerald-400 font-medium">✓ Done</span>
                       )}
                     </span>
                   </div>

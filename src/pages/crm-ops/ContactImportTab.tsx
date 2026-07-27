@@ -425,7 +425,7 @@ export const ContactImportTab: React.FC = () => {
           <h2 className="text-xl font-bold text-foreground">Import Results</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             {mappedRows.length} matched contacts across {groupedByAgent.length} agents
-            {unmatchedNpns.length > 0 && <span className="text-amber-600 ml-2">({unmatchedNpns.reduce((s, u) => s + u.clients.length, 0)} unmatched)</span>}
+            {unmatchedNpns.length > 0 && <span className="text-amber-400 ml-2">({unmatchedNpns.reduce((s, u) => s + u.clients.length, 0)} unmatched)</span>}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -631,9 +631,9 @@ export const ContactImportTab: React.FC = () => {
         <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl overflow-hidden">
           <div className="px-4 py-3 border-b border-amber-500/20 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-600" />
+              <AlertTriangle className="w-4 h-4 text-amber-400" />
               <span className="text-sm font-semibold text-amber-400">Unmatched NPNs</span>
-              <span className="text-xs text-amber-600">
+              <span className="text-xs text-amber-400">
                 {unmatchedNpns.length} NPNs ({unmatchedNpns.reduce((s, u) => s + u.clients.length, 0)} contacts not in any roster)
               </span>
             </div>
@@ -645,8 +645,8 @@ export const ContactImportTab: React.FC = () => {
             {unmatchedNpns.map(u => (
               <div key={u.npn} className="bg-card border border-amber-400/15 rounded-lg p-3">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xs font-mono font-medium text-amber-400 bg-amber-500/100/10 px-2 py-0.5 rounded">NPN: {u.npn}</span>
-                  <span className="text-xs text-amber-600">{u.clients.length} contact{u.clients.length !== 1 ? 's' : ''}</span>
+                  <span className="text-xs font-mono font-medium text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">NPN: {u.npn}</span>
+                  <span className="text-xs text-amber-400">{u.clients.length} contact{u.clients.length !== 1 ? 's' : ''}</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {u.clients.map((c, i) => (

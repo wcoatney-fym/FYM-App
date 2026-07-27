@@ -282,8 +282,8 @@ export function AgencyDetailPage() {
                   <div key={p.product} className="grid grid-cols-4 gap-2 px-4 py-2.5 text-sm">
                     <span>
                       <Badge className={`text-[10px] px-1.5 py-0 border ${
-                        p.product === 'HHC' ? 'bg-sky-50 text-sky-700 border-sky-200' :
-                        p.product === 'HI' ? 'bg-violet-50 text-violet-700 border-violet-200' :
+                        p.product === 'HHC' ? 'bg-sky-500/10 text-sky-400 border-sky-500/20' :
+                        p.product === 'HI' ? 'bg-violet-500/10 text-violet-400 border-violet-500/20' :
                         'bg-background text-muted-foreground border-border'
                       }`}>{p.product}</Badge>
                     </span>
@@ -377,7 +377,7 @@ export function AgencyDetailPage() {
                         <span className="col-span-2 font-data text-xs text-foreground/80 truncate">{p.policy_number}</span>
                         <span>
                           <Badge className={`text-[10px] px-1.5 py-0 border ${
-                            p.product_type === 'HHC' ? 'bg-sky-50 text-sky-700 border-sky-200' : 'bg-violet-50 text-violet-700 border-violet-200'
+                            p.product_type === 'HHC' ? 'bg-sky-500/10 text-sky-400 border-sky-500/20' : 'bg-violet-500/10 text-violet-400 border-violet-500/20'
                           }`}>{p.product_type}</Badge>
                         </span>
                         <span className="text-right text-foreground/80 font-medium font-data">${(Number(p.plan_premium) || 0).toFixed(0)}</span>

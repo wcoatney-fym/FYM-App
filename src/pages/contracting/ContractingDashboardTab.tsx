@@ -202,7 +202,7 @@ export function ContractingDashboardTab() {
         title: 'New Hires Awaiting Form',
         count: counts.newHires,
         icon: Users,
-        accent: 'text-amber-600',
+        accent: 'text-amber-400',
         bg: 'bg-amber-500/10',
         border: 'border-amber-500/20',
       },
@@ -210,9 +210,9 @@ export function ContractingDashboardTab() {
         title: 'Pending Verification',
         count: counts.pending,
         icon: Clock,
-        accent: 'text-yellow-600',
-        bg: 'bg-amber-500/100/10',
-        border: 'border-yellow-200',
+        accent: 'text-yellow-400',
+        bg: 'bg-amber-500/10',
+        border: 'border-yellow-500/20',
       },
       {
         title: 'In Progress',
@@ -220,13 +220,13 @@ export function ContractingDashboardTab() {
         icon: FileText,
         accent: 'text-cyan-400',
         bg: 'bg-cyan-500/10',
-        border: 'border-blue-200',
+        border: 'border-blue-500/20',
       },
       {
         title: 'Completed',
         count: counts.completed,
         icon: CheckCircle,
-        accent: 'text-emerald-600',
+        accent: 'text-emerald-400',
         bg: 'bg-emerald-500/10',
         border: 'border-emerald-500/20',
       },
@@ -245,8 +245,8 @@ export function ContractingDashboardTab() {
             Portal Connection Required
           </h3>
           <p className="text-sm text-muted-foreground max-w-md mx-auto">
-            Set <code className="bg-slate-100 px-1 py-0.5 rounded text-xs">VITE_PORTAL_SUPABASE_URL</code> and{' '}
-            <code className="bg-slate-100 px-1 py-0.5 rounded text-xs">VITE_PORTAL_SUPABASE_KEY</code> in
+            Set <code className="bg-secondary/40 px-1 py-0.5 rounded text-xs">VITE_PORTAL_SUPABASE_URL</code> and{' '}
+            <code className="bg-secondary/40 px-1 py-0.5 rounded text-xs">VITE_PORTAL_SUPABASE_KEY</code> in
             Netlify to connect the contracting dashboard to the portal database.
           </p>
         </CardContent>
@@ -258,13 +258,13 @@ export function ContractingDashboardTab() {
     return (
       <div className="space-y-6">
         {/* Hero skeleton */}
-        <div className="h-48 rounded-xl bg-slate-200 animate-pulse" />
+        <div className="h-48 rounded-xl bg-secondary/50 animate-pulse" />
         {/* KPI skeletons */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
             <div
               key={i}
-              className="h-24 rounded-xl bg-slate-100 animate-pulse"
+              className="h-24 rounded-xl bg-secondary/30 animate-pulse"
             />
           ))}
         </div>
@@ -439,7 +439,7 @@ export function ContractingDashboardTab() {
                           {[1, 2, 3, 4].map((i) => (
                             <div
                               key={i}
-                              className="h-24 rounded-xl bg-slate-100 animate-pulse"
+                              className="h-24 rounded-xl bg-secondary/30 animate-pulse"
                             />
                           ))}
                         </div>
@@ -458,12 +458,12 @@ export function ContractingDashboardTab() {
                               {agencyData.formsSent}
                             </div>
                           </div>
-                          <div className="bg-card rounded-xl p-5 border border-yellow-200">
+                          <div className="bg-card rounded-xl p-5 border border-yellow-500/20">
                             <div className="flex items-center mb-3">
-                              <div className="p-2 bg-amber-500/100/10 rounded-lg mr-3">
+                              <div className="p-2 bg-amber-500/10 rounded-lg mr-3">
                                 <Clock
                                   size={14}
-                                  className="text-yellow-600"
+                                  className="text-yellow-400"
                                 />
                               </div>
                               <span className="text-xs font-medium text-muted-foreground">
@@ -474,7 +474,7 @@ export function ContractingDashboardTab() {
                               {agencyData.pending}
                             </div>
                           </div>
-                          <div className="bg-card rounded-xl p-5 border border-blue-200">
+                          <div className="bg-card rounded-xl p-5 border border-blue-500/20">
                             <div className="flex items-center mb-3">
                               <div className="p-2 bg-cyan-500/10 rounded-lg mr-3">
                                 <FileText
@@ -495,7 +495,7 @@ export function ContractingDashboardTab() {
                               <div className="p-2 bg-emerald-500/10 rounded-lg mr-3">
                                 <CheckCircle
                                   size={14}
-                                  className="text-emerald-600"
+                                  className="text-emerald-400"
                                 />
                               </div>
                               <span className="text-xs font-medium text-muted-foreground">
@@ -505,7 +505,7 @@ export function ContractingDashboardTab() {
                             <div className="text-2xl font-bold text-emerald-400">
                               {agencyData.completed}
                             </div>
-                            <p className="text-xs text-emerald-600 font-medium mt-1">
+                            <p className="text-xs text-emerald-400 font-medium mt-1">
                               {agencyData.completionPct}% completion rate
                             </p>
                           </div>

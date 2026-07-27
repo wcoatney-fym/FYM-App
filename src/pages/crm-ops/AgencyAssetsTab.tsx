@@ -153,8 +153,8 @@ export const AgencyAssetsTab: React.FC<AgencyAssetsTabProps> = ({ agencyName }) 
 
       <div className="bg-card rounded-xl border border-border p-6">
         <div className="flex items-center gap-3 mb-4">
-          <div className="w-9 h-9 rounded-lg bg-teal-50 flex items-center justify-center">
-            <Database className="w-5 h-5 text-teal-600" />
+          <div className="w-9 h-9 rounded-lg bg-teal-500/10 flex items-center justify-center">
+            <Database className="w-5 h-5 text-teal-400" />
           </div>
           <div>
             <h3 className="font-semibold text-foreground">DBA Client Roster Uploads</h3>
@@ -190,7 +190,7 @@ export const AgencyAssetsTab: React.FC<AgencyAssetsTabProps> = ({ agencyName }) 
         <div className="bg-card rounded-xl border border-border p-6">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center">
-              <FolderOpen className="w-5 h-5 text-amber-600" />
+              <FolderOpen className="w-5 h-5 text-amber-400" />
             </div>
             <div>
               <h3 className="font-semibold text-foreground">Template Downloads</h3>

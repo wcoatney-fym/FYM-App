@@ -38,24 +38,24 @@ import { computeProgress, stageHealth } from './pipelineProgress';
 // ─── Stage definitions ───────────────────────────────────────────────────────
 
 export const STAGES: { key: AgentPipelineStage; label: string; color: string }[] = [
-  { key: 'hip_broker', label: 'HIP Broker', color: 'bg-cyan-500/10 border-blue-200' },
-  { key: 'hip_career', label: 'HIP Career', color: 'bg-indigo-50 border-indigo-200' },
-  { key: 'iaa', label: 'IAA', color: 'bg-violet-50 border-violet-200' },
-  { key: 'signed_iaa', label: 'Signed IAA', color: 'bg-purple-50 border-purple-200' },
-  { key: 'bill_com', label: 'Bill.com', color: 'bg-fuchsia-50 border-fuchsia-200' },
-  { key: 'in_contracting', label: 'In Contracting', color: 'bg-teal-50 border-teal-200' },
+  { key: 'hip_broker', label: 'HIP Broker', color: 'bg-cyan-500/10 border-blue-500/20' },
+  { key: 'hip_career', label: 'HIP Career', color: 'bg-indigo-500/10 border-indigo-500/20' },
+  { key: 'iaa', label: 'IAA', color: 'bg-violet-500/10 border-violet-500/20' },
+  { key: 'signed_iaa', label: 'Signed IAA', color: 'bg-purple-500/10 border-purple-500/20' },
+  { key: 'bill_com', label: 'Bill.com', color: 'bg-fuchsia-500/10 border-fuchsia-500/20' },
+  { key: 'in_contracting', label: 'In Contracting', color: 'bg-teal-500/10 border-teal-500/20' },
   { key: 'rts', label: 'RTS', color: 'bg-emerald-500/10 border-emerald-500/20' },
-  { key: 'crm', label: 'CRM Onboarding', color: 'bg-cyan-50 border-cyan-200' },
-  { key: 'hip_broker_ready', label: 'HIP Broker READY', color: 'bg-emerald-500/100/10 border-green-200' },
-  { key: 'hip_career_ready', label: 'HIP Career READY', color: 'bg-lime-50 border-lime-200' },
+  { key: 'crm', label: 'CRM Onboarding', color: 'bg-cyan-500/10 border-cyan-500/20' },
+  { key: 'hip_broker_ready', label: 'HIP Broker READY', color: 'bg-emerald-500/10 border-green-500/20' },
+  { key: 'hip_career_ready', label: 'HIP Career READY', color: 'bg-lime-500/10 border-lime-500/20' },
   { key: 'actively_selling', label: 'Actively Selling', color: 'bg-amber-500/10 border-amber-500/20' },
   { key: 'terminated', label: 'Terminated', color: 'bg-red-500/10 border-red-500/20' },
 ];
 
 const HEALTH_BORDER: Record<string, string> = {
   fresh: 'border-border',
-  aging: 'border-amber-300',
-  stalled: 'border-red-300',
+  aging: 'border-amber-500/30',
+  stalled: 'border-red-500/30',
 };
 
 function timeAgo(dateStr: string): string {
@@ -316,8 +316,8 @@ export function PipelineBoard() {
             Portal Connection Required
           </h3>
           <p className="text-sm text-muted-foreground max-w-md mx-auto">
-            Set <code className="bg-slate-100 px-1 py-0.5 rounded text-xs">VITE_PORTAL_SUPABASE_URL</code> and{' '}
-            <code className="bg-slate-100 px-1 py-0.5 rounded text-xs">VITE_PORTAL_SUPABASE_KEY</code> to connect.
+            Set <code className="bg-secondary/40 px-1 py-0.5 rounded text-xs">VITE_PORTAL_SUPABASE_URL</code> and{' '}
+            <code className="bg-secondary/40 px-1 py-0.5 rounded text-xs">VITE_PORTAL_SUPABASE_KEY</code> to connect.
           </p>
         </CardContent>
       </Card>
@@ -431,7 +431,7 @@ export function PipelineBoard() {
                   <span
                     className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
                       col.key === 'terminated'
-                        ? 'bg-red-200 text-red-400'
+                        ? 'bg-red-500/20 text-red-400'
                         : 'bg-card/80 text-muted-foreground border border-border'
                     }`}
                   >
@@ -462,7 +462,7 @@ export function PipelineBoard() {
                       onClick={() => setSelectedRecord(record)}
                       className={`w-full text-left bg-card rounded-lg border p-3 glow-sm hover:glow-primary transition-all cursor-grab active:cursor-grabbing ${
                         progress.allComplete
-                          ? 'border-emerald-300 ring-1 ring-emerald-200 shadow-emerald-100'
+                          ? 'border-emerald-500/30 ring-1 ring-emerald-200 shadow-emerald-100'
                           : HEALTH_BORDER[health]
                       } ${draggingId === record.id ? 'opacity-50 scale-95' : ''} ${
                         pushingIds.has(record.id) ? 'animate-pulse' : ''
@@ -484,7 +484,7 @@ export function PipelineBoard() {
                       </div>
                       {progress.total > 0 &&
                         (progress.allComplete ? (
-                          <div className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-100 rounded px-1.5 py-0.5">
+                          <div className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded px-1.5 py-0.5">
                             <CheckCircle2 className="w-3 h-3" /> Ready to advance
                           </div>
                         ) : progress.nextStep ? (
@@ -508,7 +508,7 @@ export function PipelineBoard() {
                           {record.tags.slice(0, 3).map((tag) => (
                             <span
                               key={tag}
-                              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-cyan-500/10 text-primary border border-blue-100 truncate max-w-[90px]"
+                              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-cyan-500/10 text-primary border border-blue-500/20 truncate max-w-[90px]"
                             >
                               {tag}
                             </span>
@@ -530,11 +530,11 @@ export function PipelineBoard() {
                             <span
                               className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold border ${
                                 record.updated_by_source === 'training_hub'
-                                  ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                  ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
                                   : record.updated_by_source === 'contracting_portal'
-                                    ? 'bg-cyan-500/10 text-cyan-400 border-blue-200'
+                                    ? 'bg-cyan-500/10 text-cyan-400 border-blue-500/20'
                                     : record.updated_by_source === 'ghl_webhook'
-                                      ? 'bg-amber-500/100/10 text-amber-400 border-orange-200'
+                                      ? 'bg-amber-500/10 text-amber-400 border-orange-500/20'
                                       : 'bg-secondary text-muted-foreground border-border'
                               }`}
                             >
@@ -551,8 +551,8 @@ export function PipelineBoard() {
                         {pushingIds.has(record.id) ? (
                           <Loader2 className="w-3 h-3 text-primary animate-spin" />
                         ) : record.wn_pending_review ? (
-                          <div className="flex items-center gap-1 bg-amber-500/100/10 border border-amber-500/20 rounded px-1.5 py-0.5">
-                            <FileCheck className="w-3 h-3 text-amber-600" />
+                          <div className="flex items-center gap-1 bg-amber-500/10 border border-amber-500/20 rounded px-1.5 py-0.5">
+                            <FileCheck className="w-3 h-3 text-amber-400" />
                             <span className="text-[10px] text-amber-400 font-bold">
                               {record.wn_pending_count > 0
                                 ? `${record.wn_pending_count} WN`
@@ -564,7 +564,7 @@ export function PipelineBoard() {
                           record.writing_numbers ? (
                           <div className="flex items-center gap-1">
                             <PenLine className="w-3 h-3 text-emerald-500" />
-                            <span className="text-[10px] text-emerald-600 font-medium truncate max-w-[60px]">
+                            <span className="text-[10px] text-emerald-400 font-medium truncate max-w-[60px]">
                               {record.writing_numbers}
                             </span>
                           </div>

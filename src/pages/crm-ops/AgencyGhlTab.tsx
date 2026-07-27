@@ -222,7 +222,7 @@ export const AgencyGhlTab: React.FC<AgencyGhlTabProps> = ({ agencyId, config, on
           )}
         </div>
         {config?.last_error && status === 'error' && (
-          <div className="mt-3 p-3 bg-red-500/10/50 rounded-lg">
+          <div className="mt-3 p-3 bg-red-500/50 rounded-lg">
             <p className="text-xs text-red-400">{config.last_error}</p>
           </div>
         )}
@@ -285,7 +285,7 @@ export const AgencyGhlTab: React.FC<AgencyGhlTabProps> = ({ agencyId, config, on
             <button
               onClick={handleTestConnection}
               disabled={testing || !config}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary bg-cyan-500/10 border border-primary/20 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary bg-cyan-500/10 border border-primary/20 rounded-lg hover:bg-blue-500/10 transition-colors disabled:opacity-50"
             >
               {testing ? (
                 <>

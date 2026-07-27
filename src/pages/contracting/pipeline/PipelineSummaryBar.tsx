@@ -159,7 +159,7 @@ export function PipelineSummaryBar({ records, stageSteps }: PipelineSummaryBarPr
                     </span>
                   </div>
                   <div className="flex-1 flex items-center gap-2 min-w-0">
-                    <div className="flex-1 bg-slate-100 rounded-full h-5 overflow-hidden relative">
+                    <div className="flex-1 bg-secondary/40 rounded-full h-5 overflow-hidden relative">
                       <div
                         className={`h-full rounded-full transition-all duration-500 flex items-center justify-end pr-2 ${
                           isTerminated
@@ -226,14 +226,14 @@ export function PipelineSummaryBar({ records, stageSteps }: PipelineSummaryBarPr
                     key={rev.key}
                     className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20"
                   >
-                    <div className="w-6 h-6 rounded-md bg-amber-500/100/10 flex items-center justify-center">
-                      <Icon className="w-3.5 h-3.5 text-amber-600" />
+                    <div className="w-6 h-6 rounded-md bg-amber-500/10 flex items-center justify-center">
+                      <Icon className="w-3.5 h-3.5 text-amber-400" />
                     </div>
                     <div>
-                      <p className="text-xs font-bold text-amber-800">
+                      <p className="text-xs font-bold text-amber-300">
                         {rev.count} {rev.label}
                       </p>
-                      <p className="text-[10px] text-amber-600">
+                      <p className="text-[10px] text-amber-400">
                         Pending approval
                       </p>
                     </div>

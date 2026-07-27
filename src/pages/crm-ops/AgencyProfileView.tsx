@@ -235,13 +235,13 @@ export const AgencyProfileView: React.FC<AgencyProfileViewProps> = ({
             </span>
           )}
           {agency.is_test && (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold bg-amber-500/100/10 text-amber-400 rounded-full border border-amber-500/20">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold bg-amber-500/10 text-amber-400 rounded-full border border-amber-500/20">
               <FlaskConical className="w-3 h-3" />
               Test
             </span>
           )}
           {ghlConfig?.connection_status === 'connected' ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-emerald-500/100/10 text-emerald-400">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-emerald-500/10 text-emerald-400">
               <Wifi className="w-3 h-3" />
               GHL Connected
             </span>
@@ -586,7 +586,7 @@ const SyncBusinessInfoModal: React.FC<{
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
           <div className="flex items-center gap-2">
-            <Repeat2 className="w-4 h-4 text-amber-600" />
+            <Repeat2 className="w-4 h-4 text-amber-400" />
             <h3 className="text-base font-semibold text-foreground">Sync Business Info to Roster</h3>
           </div>
           <button
@@ -801,12 +801,12 @@ const ZapsPausedBanner: React.FC<{
   return (
     <div className="flex items-center justify-between bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-3">
       <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-full bg-amber-500/100/10 flex items-center justify-center">
-          <ZapOff className="w-4 h-4 text-amber-600" />
+        <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center">
+          <ZapOff className="w-4 h-4 text-amber-400" />
         </div>
         <div>
           <p className="text-sm font-medium text-amber-400">Zaps are paused for this agency</p>
-          <p className="text-xs text-amber-600">Webhooks will not fire until you enable them after backfilling data.</p>
+          <p className="text-xs text-amber-400">Webhooks will not fire until you enable them after backfilling data.</p>
         </div>
       </div>
       <button
@@ -850,14 +850,14 @@ const OverviewTab: React.FC<{
       <MissingFieldsBanner agency={agency} />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <OverviewKpiCard icon={Contact} label="Total Contacts" value={fmt(kpi?.total_contacts)} color="text-primary" bgColor="bg-cyan-500/10" />
-        <OverviewKpiCard icon={CalendarDays} label="Avg Contacts / Week" value={fmt(kpi ? avgContactsPerWeek(kpi.total_contacts, agency.date_created, agency.dba_client_count) : 0)} color="text-cyan-600" bgColor="bg-cyan-50" />
-        <OverviewKpiCard icon={CalendarRange} label="Avg Contacts / Month" value={fmt(kpi ? avgContactsPerMonth(kpi.total_contacts, agency.date_created, agency.dba_client_count) : 0)} color="text-sky-600" bgColor="bg-sky-50" />
-        <OverviewKpiCard icon={Repeat2} label="Cross-Sell Opps" value={fmt(kpi?.cross_sell_opportunities)} color="text-amber-600" bgColor="bg-amber-500/10" />
+        <OverviewKpiCard icon={CalendarDays} label="Avg Contacts / Week" value={fmt(kpi ? avgContactsPerWeek(kpi.total_contacts, agency.date_created, agency.dba_client_count) : 0)} color="text-cyan-400" bgColor="bg-cyan-500/10" />
+        <OverviewKpiCard icon={CalendarRange} label="Avg Contacts / Month" value={fmt(kpi ? avgContactsPerMonth(kpi.total_contacts, agency.date_created, agency.dba_client_count) : 0)} color="text-sky-400" bgColor="bg-sky-500/10" />
+        <OverviewKpiCard icon={Repeat2} label="Cross-Sell Opps" value={fmt(kpi?.cross_sell_opportunities)} color="text-amber-400" bgColor="bg-amber-500/10" />
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <OverviewKpiCard icon={ShieldCheck} label="Saved Policies" value={fmt(kpi?.saved_policies)} color="text-emerald-600" bgColor="bg-emerald-500/10" />
+        <OverviewKpiCard icon={ShieldCheck} label="Saved Policies" value={fmt(kpi?.saved_policies)} color="text-emerald-400" bgColor="bg-emerald-500/10" />
         <OverviewKpiCard icon={XCircle} label="Cancellations" value={fmt(kpi?.cancellations)} color="text-red-400" bgColor="bg-red-500/10" />
-        <OverviewKpiCard icon={UserPlus} label="Agents Onboarded" value={agentsOnboarded.toLocaleString()} color="text-teal-600" bgColor="bg-teal-50" />
+        <OverviewKpiCard icon={UserPlus} label="Agents Onboarded" value={agentsOnboarded.toLocaleString()} color="text-teal-400" bgColor="bg-teal-500/10" />
         <OverviewKpiCard icon={GitBranchPlus} label="Agents In Pipeline" value={agentsInPipeline.toLocaleString()} color="text-primary" bgColor="bg-cyan-500/10" />
       </div>
 
@@ -887,7 +887,7 @@ const OverviewTab: React.FC<{
             </DetailRow>
             <DetailRow label="GHL Status">
               {ghlConfig?.connection_status === 'connected' ? (
-                <span className="inline-flex items-center gap-1 text-sm text-emerald-600">
+                <span className="inline-flex items-center gap-1 text-sm text-emerald-400">
                   <Wifi className="w-3.5 h-3.5" />
                   Connected
                   {ghlConfig.last_sync_at && (
@@ -1033,7 +1033,7 @@ const EditableDateCreatedRow: React.FC<{ agency: CrmAgency; onAgencyUpdated: (a:
             className="px-2 py-1 border border-border rounded text-sm focus:ring-1 focus:ring-ring focus:border-ring"
           />
           <button onClick={handleSave} className="p-1 hover:bg-emerald-500/10 rounded transition-colors">
-            <Check className="w-4 h-4 text-emerald-600" />
+            <Check className="w-4 h-4 text-emerald-400" />
           </button>
         </div>
       ) : (
@@ -1082,7 +1082,7 @@ const EditableDbaClientCountRow: React.FC<{ agency: CrmAgency; onAgencyUpdated: 
             className="w-24 px-2 py-1 border border-border rounded text-sm text-right focus:ring-1 focus:ring-ring focus:border-ring"
           />
           <button onClick={handleSave} className="p-1 hover:bg-emerald-500/10 rounded transition-colors">
-            <Check className="w-4 h-4 text-emerald-600" />
+            <Check className="w-4 h-4 text-emerald-400" />
           </button>
         </div>
       ) : (
@@ -1267,11 +1267,11 @@ const MissingFieldsBanner: React.FC<{ agency: CrmAgency }> = ({ agency }) => {
 
   return (
     <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex items-start gap-3">
-      <div className="w-9 h-9 rounded-lg bg-amber-500/100/10 flex items-center justify-center flex-shrink-0">
-        <AlertTriangle className="w-4 h-4 text-amber-600" />
+      <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+        <AlertTriangle className="w-4 h-4 text-amber-400" />
       </div>
       <div className="flex-1 min-w-0">
-        <h4 className="text-sm font-semibold text-amber-900">
+        <h4 className="text-sm font-semibold text-amber-200">
           {missing.length} field{missing.length === 1 ? '' : 's'} missing on this agency
         </h4>
         <p className="text-xs text-amber-400 mt-0.5 leading-relaxed">
@@ -1280,7 +1280,7 @@ const MissingFieldsBanner: React.FC<{ agency: CrmAgency }> = ({ agency }) => {
         </p>
         <button
           onClick={handleScrollToConfig}
-          className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-amber-400 hover:text-amber-900 underline"
+          className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-amber-400 hover:text-amber-200 underline"
         >
           Fill in now
           <ChevronRight className="w-3 h-3" />
@@ -1291,7 +1291,7 @@ const MissingFieldsBanner: React.FC<{ agency: CrmAgency }> = ({ agency }) => {
         className="p-1 hover:bg-amber-600/10 rounded transition-colors flex-shrink-0"
         aria-label="Dismiss"
       >
-        <X className="w-4 h-4 text-amber-600" />
+        <X className="w-4 h-4 text-amber-400" />
       </button>
     </div>
   );
@@ -1506,7 +1506,7 @@ const BackfillRow: React.FC<{
               className="p-1 hover:bg-emerald-500/10 rounded transition-colors disabled:opacity-50 mt-0.5"
               aria-label="Save"
             >
-              <Check className="w-4 h-4 text-emerald-600" />
+              <Check className="w-4 h-4 text-emerald-400" />
             </button>
             <button
               onClick={handleCancel}
@@ -1594,7 +1594,7 @@ const AgencyCrossSellAdminCard: React.FC<{
   return (
     <div className="glass rounded-xl p-5">
       <div className="flex items-center gap-2 mb-1">
-        <Package className="w-4 h-4 text-emerald-600" />
+        <Package className="w-4 h-4 text-emerald-400" />
         <h3 className="text-sm font-semibold text-foreground/80">Cross-Sell Status</h3>
       </div>
       <p className="text-xs text-muted-foreground mb-5">
@@ -1605,13 +1605,13 @@ const AgencyCrossSellAdminCard: React.FC<{
         <div className="flex items-center gap-3">
           <div
             className={`w-9 h-9 rounded-lg flex items-center justify-center ${
-              confirmed ? 'bg-emerald-500/100/10' : 'bg-amber-500/100/10'
+              confirmed ? 'bg-emerald-500/10' : 'bg-amber-500/10'
             }`}
           >
             {confirmed ? (
-              <Check className="w-4 h-4 text-emerald-600" />
+              <Check className="w-4 h-4 text-emerald-400" />
             ) : (
-              <AlertTriangle className="w-4 h-4 text-amber-600" />
+              <AlertTriangle className="w-4 h-4 text-amber-400" />
             )}
           </div>
           <div>
@@ -1707,7 +1707,7 @@ const PortalTabToggles: React.FC<{
                 onClick={() => toggleTab(tab.key)}
                 disabled={saving === tab.key}
                 className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                  isHidden ? 'bg-gray-300' : 'bg-emerald-500/100'
+                  isHidden ? 'bg-muted-foreground/30' : 'bg-emerald-500/100'
                 } ${saving === tab.key ? 'opacity-50' : ''}`}
               >
                 <span
@@ -1721,7 +1721,7 @@ const PortalTabToggles: React.FC<{
         })}
       </div>
       {hiddenTabs.length > 0 && (
-        <p className="text-xs text-amber-600 mt-2">
+        <p className="text-xs text-amber-400 mt-2">
           {hiddenTabs.length} tab{hiddenTabs.length > 1 ? 's' : ''} showing as "Coming Soon" on the portal
         </p>
       )}
@@ -1973,7 +1973,7 @@ const AdminTicketDetail: React.FC<{
             messages.map((msg) => {
               const isAdmin = msg.sender_type === 'admin';
               return (
-                <div key={msg.id} className={`px-6 py-4 ${isAdmin ? 'bg-cyan-500/10/40' : ''}`}>
+                <div key={msg.id} className={`px-6 py-4 ${isAdmin ? 'bg-cyan-500/40' : ''}`}>
                   <div className="flex items-center gap-2 mb-1.5">
                     <div className={`w-6 h-6 rounded-full flex items-center justify-center ${isAdmin ? 'bg-primary/5' : 'bg-secondary'}`}>
                       {isAdmin ? <ShieldCheck className="w-3 h-3 text-primary" /> : <User className="w-3 h-3 text-muted-foreground" />}

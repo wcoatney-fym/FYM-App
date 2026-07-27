@@ -82,14 +82,14 @@ export const TaskboardOnboardingTab: React.FC = () => {
     <div className="space-y-6">
       {pendingActionCount > 0 && (
         <div className="flex items-center gap-3 p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl shadow-none">
-          <div className="w-9 h-9 rounded-xl bg-amber-500/100/10 flex items-center justify-center flex-shrink-0">
-            <AlertTriangle className="w-5 h-5 text-amber-600" />
+          <div className="w-9 h-9 rounded-xl bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+            <AlertTriangle className="w-5 h-5 text-amber-400" />
           </div>
           <div className="flex-1">
             <p className="text-sm font-medium text-amber-400">
               {pendingActionCount} pending confirmation{pendingActionCount !== 1 ? 's' : ''} require your attention
             </p>
-            <p className="text-xs text-amber-600 mt-0.5">Roster or DBA uploads awaiting review</p>
+            <p className="text-xs text-amber-400 mt-0.5">Roster or DBA uploads awaiting review</p>
           </div>
         </div>
       )}
@@ -176,7 +176,7 @@ export const TaskboardOnboardingTab: React.FC = () => {
                             </div>
                             <span
                               className={`text-[11px] font-medium whitespace-nowrap ${
-                                isActive ? 'text-primary' : isCompleted ? 'text-emerald-600' : 'text-muted-foreground'
+                                isActive ? 'text-primary' : isCompleted ? 'text-emerald-400' : 'text-muted-foreground'
                               }`}
                             >
                               {step.label}

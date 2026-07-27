@@ -209,7 +209,7 @@ export const AddAgencyModal: React.FC<AddAgencyModalProps> = ({ onClose, onSucce
                 ))}
               </select>
               {mainAgencies.length === 0 && (
-                <p className="text-xs text-amber-600 mt-1">No active main agencies found. Create a main agency first.</p>
+                <p className="text-xs text-amber-400 mt-1">No active main agencies found. Create a main agency first.</p>
               )}
             </div>
           )}

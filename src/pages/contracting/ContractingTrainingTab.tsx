@@ -73,10 +73,10 @@ const CONTENT_TYPE_ICONS: Record<string, typeof BookOpen> = {
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
-  'Products & Benefits': 'bg-blue-100 text-blue-800',
-  'Prescription & Claims': 'bg-green-100 text-green-800',
-  'Applications & Forms': 'bg-purple-100 text-purple-800',
-  'Training Videos': 'bg-amber-500/100/10 text-amber-800',
+  'Products & Benefits': 'bg-blue-500/10 text-blue-300',
+  'Prescription & Claims': 'bg-green-500/10 text-green-300',
+  'Applications & Forms': 'bg-purple-500/10 text-purple-300',
+  'Training Videos': 'bg-amber-500/10 text-amber-300',
 };
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -241,7 +241,7 @@ export function ContractingTrainingTab() {
           <p className="text-sm text-red-400">{error}</p>
           <button
             onClick={loadData}
-            className="text-sm text-red-400 hover:text-red-800 underline"
+            className="text-sm text-red-400 hover:text-red-300 underline"
           >
             Try again
           </button>
@@ -361,7 +361,7 @@ export function ContractingTrainingTab() {
                 {sessions.filter((s) => new Date(s.session_datetime) >= new Date()).length > 5 && (
                   <button
                     onClick={() => setShowAllSessions(!showAllSessions)}
-                    className="w-full text-xs text-cyan-400 hover:text-blue-800 flex items-center justify-center gap-1 py-1"
+                    className="w-full text-xs text-cyan-400 hover:text-blue-300 flex items-center justify-center gap-1 py-1"
                   >
                     {showAllSessions ? (
                       <>Show less <ChevronUp className="w-3 h-3" /></>
@@ -453,9 +453,9 @@ function KpiCard({
 }) {
   const colorMap = {
     blue: { bg: 'bg-cyan-500/10', icon: 'text-cyan-400', ring: 'ring-blue-100' },
-    green: { bg: 'bg-emerald-500/10', icon: 'text-emerald-600', ring: 'ring-emerald-100' },
-    purple: { bg: 'bg-purple-50', icon: 'text-purple-600', ring: 'ring-purple-100' },
-    amber: { bg: 'bg-amber-500/10', icon: 'text-amber-600', ring: 'ring-amber-100' },
+    green: { bg: 'bg-emerald-500/10', icon: 'text-emerald-400', ring: 'ring-emerald-100' },
+    purple: { bg: 'bg-purple-500/10', icon: 'text-purple-400', ring: 'ring-purple-100' },
+    amber: { bg: 'bg-amber-500/10', icon: 'text-amber-400', ring: 'ring-amber-100' },
   };
   const c = colorMap[color];
 
@@ -487,7 +487,7 @@ function ContentRow({
   onToggle: () => void;
 }) {
   const Icon = CONTENT_TYPE_ICONS[item.content_type] || FileText;
-  const categoryColor = CATEGORY_COLORS[item.category ?? ''] ?? 'bg-slate-100 text-foreground/80';
+  const categoryColor = CATEGORY_COLORS[item.category ?? ''] ?? 'bg-secondary/40 text-foreground/80';
 
   return (
     <Card className={`border-border transition-colors ${!item.is_active ? 'opacity-60' : ''}`}>
@@ -496,7 +496,7 @@ function ContentRow({
           onClick={onToggle}
           className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-background transition-colors"
         >
-          <div className="p-1.5 rounded bg-slate-100">
+          <div className="p-1.5 rounded bg-secondary/40">
             <Icon className="w-4 h-4 text-muted-foreground" />
           </div>
           <div className="flex-1 min-w-0">
@@ -505,7 +505,7 @@ function ContentRow({
                 {item.title}
               </span>
               {!item.is_active && (
-                <span className="text-[10px] bg-slate-200 text-muted-foreground px-1.5 py-0.5 rounded font-medium">
+                <span className="text-[10px] bg-secondary/50 text-muted-foreground px-1.5 py-0.5 rounded font-medium">
                   INACTIVE
                 </span>
               )}
@@ -587,7 +587,7 @@ function ContentRow({
                 href={item.content_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-cyan-400 hover:text-blue-800 mt-2"
+                className="inline-flex items-center gap-1 text-xs text-cyan-400 hover:text-blue-300 mt-2"
               >
                 Open content <ExternalLink className="w-3 h-3" />
               </a>
@@ -635,7 +635,7 @@ function SessionCard({ session }: { session: UpcomingSession }) {
               href={session.join_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="p-1.5 rounded-lg bg-cyan-500/10 hover:bg-blue-100 text-cyan-400 transition-colors"
+              className="p-1.5 rounded-lg bg-cyan-500/10 hover:bg-blue-500/10 text-cyan-400 transition-colors"
               title="Join session"
             >
               <Play className="w-3.5 h-3.5" />

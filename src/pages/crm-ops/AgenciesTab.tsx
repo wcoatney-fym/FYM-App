@@ -323,7 +323,7 @@ export const AgenciesTab: React.FC = () => {
                             )}
                           </div>
                           {agency.is_test && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold bg-amber-500/100/10 text-amber-400 rounded border border-amber-500/20">
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold bg-amber-500/10 text-amber-400 rounded border border-amber-500/20">
                               <FlaskConical className="w-2.5 h-2.5" />
                               Test
                             </span>
@@ -535,7 +535,7 @@ export const AgenciesTab: React.FC = () => {
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                  <Phone className="w-5 h-5 text-emerald-600" />
+                  <Phone className="w-5 h-5 text-emerald-400" />
                 </div>
                 <div>
                   <h3 className="font-semibold text-foreground">Assign CRM #</h3>

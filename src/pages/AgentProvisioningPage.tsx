@@ -235,9 +235,9 @@ export function AgentProvisioningPage() {
               {result && (
                 <div className="mt-4 p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                   <div className="flex items-start gap-2">
-                    <CheckCircle2 size={18} className="text-emerald-600 mt-0.5 shrink-0" />
+                    <CheckCircle2 size={18} className="text-emerald-400 mt-0.5 shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-emerald-800">{result.full_name} provisioned!</p>
+                      <p className="text-sm font-semibold text-emerald-300">{result.full_name} provisioned!</p>
                       <p className="text-xs text-emerald-400 mt-1">Writing # {result.writing_number} · {result.role}</p>
                       <div className="mt-2 p-2.5 rounded bg-card border border-emerald-500/20 font-data text-xs text-foreground/80 space-y-0.5">
                         <div>Email: {result.email}</div>
@@ -256,7 +256,7 @@ export function AgentProvisioningPage() {
                         size="sm"
                         variant="outline"
                         onClick={copyCredentials}
-                        className="mt-2 h-7 text-xs border-emerald-300 text-emerald-400 hover:bg-emerald-500/10"
+                        className="mt-2 h-7 text-xs border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
                       >
                         <Copy size={12} className="mr-1.5" />
                         {copied ? 'Copied!' : 'Copy credentials'}
@@ -305,8 +305,8 @@ export function AgentProvisioningPage() {
                       </span>
                       <span className="col-span-2 text-right">
                         <Badge className={`text-[10px] px-1.5 py-0 border ${
-                          a.role === 'admin'   ? 'bg-violet-50 text-violet-700 border-violet-200' :
-                          a.role === 'manager' ? 'bg-cyan-500/10 text-cyan-400 border-blue-200' :
+                          a.role === 'admin'   ? 'bg-violet-500/10 text-violet-400 border-violet-500/20' :
+                          a.role === 'manager' ? 'bg-cyan-500/10 text-cyan-400 border-blue-500/20' :
                                                  'bg-background text-muted-foreground border-border'
                         }`}>
                           {a.role}

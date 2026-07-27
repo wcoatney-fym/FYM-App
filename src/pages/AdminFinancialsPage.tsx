@@ -47,7 +47,7 @@ interface AgencySummaryRow {
 function retentionColor(pct: number | null) {
   if (pct === null) return 'text-muted-foreground/70';
   if (pct >= 90) return 'text-emerald-400';
-  if (pct >= 85) return 'text-amber-600';
+  if (pct >= 85) return 'text-amber-400';
   return 'text-red-400';
 }
 function retentionBadgeClass(pct: number) {
@@ -424,7 +424,7 @@ export function AdminFinancialsPage() {
                   <span />
                 </div>
                 {concentration.map(c => (
-                  <div key={c.agency_id} className={`grid grid-cols-7 gap-2 px-4 py-2.5 text-sm items-center ${c.premium_concentration_pct >= 10 ? 'bg-amber-500/10/30' : ''}`}>
+                  <div key={c.agency_id} className={`grid grid-cols-7 gap-2 px-4 py-2.5 text-sm items-center ${c.premium_concentration_pct >= 10 ? 'bg-amber-500/30' : ''}`}>
                     <span className="col-span-2 font-medium text-foreground truncate">
                       {c.name ?? <span className="font-data text-xs text-muted-foreground/70">{c.agency_id.slice(0, 12)}…</span>}
                     </span>
