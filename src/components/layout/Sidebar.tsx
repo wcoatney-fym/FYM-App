@@ -42,7 +42,7 @@ const managerNav: NavItem[] = [
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
-const adminNav: NavItem[] = [ // updated below
+const adminNav: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/agencies', label: 'Agencies', icon: Building2 },
   { to: '/agents', label: 'Agents', icon: Users },
@@ -69,19 +69,24 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        'fixed left-0 top-0 h-full bg-[#1e3a5f] text-white flex flex-col transition-all duration-300 z-40',
+        'fixed left-0 top-0 h-full flex flex-col transition-all duration-300 z-40',
+        'bg-[hsl(var(--sidebar))] border-r border-border/30',
         sidebarCollapsed ? 'w-16' : 'w-56'
       )}
     >
-      {/* Logo */}
-      <div className={cn('flex items-center gap-3 px-4 py-5 border-b border-white/10', sidebarCollapsed && 'justify-center px-0')}>
-        <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center flex-shrink-0">
-          <ShieldCheck size={16} className="text-white" />
+      {/* Logo — gradient accent line at top */}
+      <div className="h-[2px] w-full gradient-primary" />
+      <div className={cn(
+        'flex items-center gap-3 px-4 py-5 border-b border-border/20',
+        sidebarCollapsed && 'justify-center px-0'
+      )}>
+        <div className="w-8 h-8 rounded-lg bg-[hsl(199,89%,48%)]/15 flex items-center justify-center flex-shrink-0 border border-[hsl(199,89%,48%)]/20 glow-sm">
+          <ShieldCheck size={16} className="text-[hsl(199,89%,48%)]" />
         </div>
         {!sidebarCollapsed && (
           <div>
-            <p className="text-sm font-bold tracking-wide">FYM</p>
-            <p className="text-[10px] text-white/50 uppercase tracking-widest leading-none mt-0.5">
+            <p className="text-sm font-bold tracking-wide gradient-text">FYM</p>
+            <p className="text-[10px] text-[hsl(var(--sidebar-foreground))]/50 uppercase tracking-widest leading-none mt-0.5">
               {role ?? 'loading'}
             </p>
           </div>
@@ -89,7 +94,7 @@ export function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 py-4 space-y-0.5 overflow-y-auto">
+      <nav className="flex-1 py-4 space-y-0.5 overflow-y-auto scrollbar-thin">
         {navItems.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
@@ -97,27 +102,37 @@ export function Sidebar() {
             end={to === '/'}
             className={({ isActive }) =>
               cn(
-                'flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors',
+                'flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-all duration-200 relative group',
                 isActive
-                  ? 'bg-white/15 text-white'
-                  : 'text-white/60 hover:bg-white/10 hover:text-white',
+                  ? 'text-[hsl(var(--sidebar-active))] bg-[hsl(var(--sidebar-active))]/10'
+                  : 'text-[hsl(var(--sidebar-foreground))]/60 hover:bg-[hsl(var(--sidebar-hover))] hover:text-[hsl(var(--sidebar-foreground))]',
                 sidebarCollapsed && 'justify-center px-0'
               )
             }
           >
-            <Icon size={18} className="flex-shrink-0" />
-            {!sidebarCollapsed && label}
+            {({ isActive }) => (
+              <>
+                {/* Active indicator bar */}
+                {isActive && (
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-[hsl(var(--sidebar-active))] shadow-[0_0_8px_hsl(199_89%_48%_/_0.4)]" />
+                )}
+                <Icon size={18} className="flex-shrink-0" />
+                {!sidebarCollapsed && label}
+              </>
+            )}
           </NavLink>
         ))}
       </nav>
 
       {/* User / sign-out */}
       {!sidebarCollapsed && profile && (
-        <div className="border-t border-white/10 px-4 py-3">
-          <p className="text-xs font-medium text-white truncate">{profile.full_name ?? 'FYM User'}</p>
+        <div className="border-t border-border/20 px-4 py-3">
+          <p className="text-xs font-medium text-[hsl(var(--sidebar-foreground))] truncate">
+            {profile.full_name ?? 'FYM User'}
+          </p>
           <button
             onClick={signOut}
-            className="flex items-center gap-1.5 text-xs text-white/50 hover:text-white mt-1 transition-colors"
+            className="flex items-center gap-1.5 text-xs text-[hsl(var(--sidebar-foreground))]/40 hover:text-[hsl(var(--sidebar-active))] mt-1 transition-colors"
           >
             <LogOut size={12} />
             Sign out
@@ -128,7 +143,7 @@ export function Sidebar() {
       {/* Collapse toggle */}
       <button
         onClick={toggleSidebar}
-        className="flex items-center justify-center h-10 border-t border-white/10 text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+        className="flex items-center justify-center h-10 border-t border-border/20 text-[hsl(var(--sidebar-foreground))]/40 hover:text-[hsl(var(--sidebar-active))] hover:bg-[hsl(var(--sidebar-hover))] transition-all duration-200"
       >
         {sidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
       </button>

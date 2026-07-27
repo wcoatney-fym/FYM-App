@@ -27,25 +27,29 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-sm space-y-6">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Ambient glow orbs */}
+      <div className="absolute top-1/4 -left-32 w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
+      <div className="absolute bottom-1/4 -right-32 w-64 h-64 bg-accent/5 rounded-full blur-3xl" />
+
+      <div className="w-full max-w-sm space-y-6 relative z-10">
         {/* Logo */}
-        <div className="flex flex-col items-center gap-2 text-center">
-          <div className="w-12 h-12 rounded-xl bg-[#1e3a5f] flex items-center justify-center">
-            <ShieldCheck size={22} className="text-white" />
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div className="w-14 h-14 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center glow-primary">
+            <ShieldCheck size={26} className="text-primary" />
           </div>
-          <h1 className="text-xl font-bold text-slate-900">FYM Command</h1>
-          <p className="text-sm text-slate-500">Sign in to your account</p>
+          <h1 className="text-2xl font-bold gradient-text">FYM</h1>
+          <p className="text-sm text-muted-foreground">Sign in to your account</p>
         </div>
 
-        <Card className="border-slate-200 shadow-sm">
+        <Card className="glass-card glow-sm">
           <CardHeader className="pb-4">
-            <CardTitle className="text-base font-semibold text-slate-900">Sign In</CardTitle>
+            <CardTitle className="text-base font-semibold text-foreground">Sign In</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email" className="text-muted-foreground">Email</Label>
                 <Input
                   id="email"
                   type="email"
@@ -54,10 +58,11 @@ export function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   autoFocus
+                  className="bg-secondary/50 border-border/50 focus:border-primary/50 focus:ring-primary/20"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password" className="text-muted-foreground">Password</Label>
                 <Input
                   id="password"
                   type="password"
@@ -65,16 +70,17 @@ export function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  className="bg-secondary/50 border-border/50 focus:border-primary/50 focus:ring-primary/20"
                 />
               </div>
               {error && (
-                <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+                <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
                   {error}
                 </p>
               )}
               <Button
                 type="submit"
-                className="w-full bg-[#1e3a5f] hover:bg-[#162d4a] text-white"
+                className="w-full gradient-primary text-primary-foreground font-semibold hover:opacity-90 transition-opacity glow-primary"
                 disabled={submitting}
               >
                 {submitting ? 'Signing in…' : 'Sign In'}
