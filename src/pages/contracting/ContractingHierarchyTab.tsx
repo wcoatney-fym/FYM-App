@@ -52,6 +52,7 @@ import {
 import { portalSupabase } from '@/lib/portal-supabase';
 import { parseCSV } from '@/lib/contracting/csvParser';
 import { normalizeRosterRows } from '@/lib/contracting/rosterNormalizer';
+import { createActivationRecord, sendOnboardingEmail } from '@/lib/contracting/onboarding-service';
 import type {
   PortalCrmAgency,
   AgencyIntakeSubmission,
@@ -247,8 +248,11 @@ export function ContractingHierarchyTab() {
       agency_ein: string;
       principal_agent: string;
       principal_agent_npn: string;
+      principal_agent_email: string;
       contracting_email: string;
       contracting_contact: string;
+      comp_tier: string;
+      variant: string;
     }
   ) => {
     if (!portalSupabase) return 'Portal connection not configured.';
@@ -276,6 +280,9 @@ export function ContractingHierarchyTab() {
         principal_agent_npn: contracting.principal_agent_npn.trim() || null,
         contracting_email: contracting.contracting_email.trim() || null,
         contracting_contact: contracting.contracting_contact.trim() || null,
+        comp_tier: contracting.comp_tier || null,
+        variant: contracting.variant || 'fym_direct',
+        principal_agent_email: contracting.principal_agent_email.trim() || null,
       })
       .select()
       .maybeSingle();
@@ -284,6 +291,27 @@ export function ContractingHierarchyTab() {
       setAgencies((prev) => [...prev, data]);
       setExpandedNodes((prev) => new Set([...prev, data.id, parentId]));
       setShowAddModal(false);
+
+      // Create activation landing page
+      await createActivationRecord({
+        slug,
+        agencyName: name,
+        principalName: contracting.principal_agent,
+        principalEmail: contracting.principal_agent_email,
+        compTier: contracting.comp_tier,
+        variant: contracting.variant,
+      });
+
+      // Send welcome email (best-effort — don't block on failure)
+      const activationUrl = `https://teamfym.com/activation/${slug}`;
+      await sendOnboardingEmail({
+        agencyName: name,
+        principalName: contracting.principal_agent,
+        principalEmail: contracting.principal_agent_email,
+        activationUrl,
+        portalSlug: slug,
+        portalPassword: portalPassword,
+      }).catch((e) => console.error('Failed to send onboarding email:', e));
     }
     return error?.message || null;
   };
@@ -332,6 +360,8 @@ export function ContractingHierarchyTab() {
           agency_state: submission.state?.trim() || null,
           zip: submission.zip?.trim() || null,
           additional_contacts: submission.additional_contacts ?? [],
+          comp_tier: '75',
+          variant: 'fym_direct',
         },
         { onConflict: 'slug' }
       )
@@ -970,8 +1000,11 @@ const AddAgencyHierarchyModal: React.FC<{
       agency_ein: string;
       principal_agent: string;
       principal_agent_npn: string;
+      principal_agent_email: string;
       contracting_email: string;
       contracting_contact: string;
+      comp_tier: string;
+      variant: string;
     }
   ) => Promise<string | null>;
 }> = ({ agencies, onClose, onAdd }) => {
@@ -981,6 +1014,9 @@ const AddAgencyHierarchyModal: React.FC<{
   const [agencyEin, setAgencyEin] = useState('');
   const [principalAgent, setPrincipalAgent] = useState('');
   const [principalAgentNpn, setPrincipalAgentNpn] = useState('');
+  const [principalAgentEmail, setPrincipalAgentEmail] = useState('');
+  const [compTier, setCompTier] = useState('75');
+  const [variant, setVariant] = useState('fym_direct');
   const [contractingEmail, setContractingEmail] = useState('');
   const [contractingContact, setContractingContact] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -1050,6 +1086,14 @@ const AddAgencyHierarchyModal: React.FC<{
       setError('Please enter a valid email address.');
       return;
     }
+    if (!principalAgentEmail.trim()) {
+      setError('Principal Agent email is required for the activation page.');
+      return;
+    }
+    if (!emailRegex.test(principalAgentEmail.trim())) {
+      setError('Please enter a valid Principal Agent email address.');
+      return;
+    }
 
     setSubmitting(true);
     setError('');
@@ -1058,8 +1102,11 @@ const AddAgencyHierarchyModal: React.FC<{
       agency_ein: agencyEin,
       principal_agent: principalAgent,
       principal_agent_npn: principalAgentNpn,
+      principal_agent_email: principalAgentEmail,
       contracting_email: contractingEmail,
       contracting_contact: contractingContact,
+      comp_tier: compTier,
+      variant: variant,
     });
     if (err) {
       setError(err.includes('23505') ? 'An agency with this name already exists.' : err);
@@ -1203,6 +1250,58 @@ const AddAgencyHierarchyModal: React.FC<{
                   className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-transparent bg-secondary/20 text-foreground"
                   placeholder="If applicable"
                 />
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-border pt-4">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+              Compensation & Activation
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-foreground/80 mb-1">
+                  Comp Tier <span className="text-red-400">*</span>
+                </label>
+                <select
+                  value={compTier}
+                  onChange={(e) => setCompTier(e.target.value)}
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-transparent bg-secondary/20 text-foreground"
+                >
+                  <option value="75">75%</option>
+                  <option value="70">70%</option>
+                  <option value="65">65%</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-foreground/80 mb-1">
+                  Variant
+                </label>
+                <input
+                  type="text"
+                  value={variant}
+                  onChange={(e) => setVariant(e.target.value)}
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-transparent bg-secondary/20 text-foreground"
+                  placeholder="e.g. fym_direct"
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-foreground/80 mb-1">
+                  Principal Agent Email <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="email"
+                  value={principalAgentEmail}
+                  onChange={(e) => {
+                    setPrincipalAgentEmail(e.target.value);
+                    setError('');
+                  }}
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-transparent bg-secondary/20 text-foreground"
+                  placeholder="principal@agency.com"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Welcome email with activation page + portal login will be sent here
+                </p>
               </div>
             </div>
           </div>

@@ -247,8 +247,11 @@ export type PortalCrmAgency = {
   agency_ein: string | null;
   principal_agent: string | null;
   principal_agent_npn: string | null;
+  principal_agent_email: string | null;
   contracting_email: string | null;
   contracting_contact: string | null;
+  comp_tier: string | null;
+  variant: string | null;
   carriers: string[];
   agency_state: string | null;
   unl_writing_number: string | null;
