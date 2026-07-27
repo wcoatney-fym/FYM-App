@@ -15,6 +15,9 @@
  * Portal data flows through portal-supabase.ts (akhojh…) during the
  * parallel-run period. When contracting reaches full parity, data migrates
  * to rcbzag and portal-supabase.ts retires.
+ *
+ * Role scoping: FYM admins (org-wide) see every tab. Agency admins are
+ * scoped to their own hierarchy and only see the Hierarchy tab.
  */
 import { useState } from 'react';
 import { Header } from '@/components/layout/Header';
@@ -29,9 +32,38 @@ import { AgentDatabaseTab } from './database';
 import { ContractingHierarchyTab } from './ContractingHierarchyTab';
 import { ContractingRosterImportTab } from './ContractingRosterImportTab';
 import type { ContractingTab } from '@/lib/contracting/types';
+import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
+
+const ALL_TABS: ContractingTab[] = [
+  'dashboard',
+  'intake',
+  'tracking',
+  'pipeline',
+  'training',
+  'database',
+  'hierarchy',
+  'roster-import',
+];
+
+const AGENCY_ADMIN_TABS: ContractingTab[] = ['hierarchy'];
+
+const TAB_LABELS: Record<ContractingTab, string> = {
+  dashboard: 'Dashboard',
+  intake: 'Intake',
+  tracking: 'Tracking',
+  pipeline: 'Pipeline',
+  training: 'Training',
+  database: 'Database',
+  hierarchy: 'Hierarchy',
+  'roster-import': 'Roster Import',
+};
 
 export function ContractingPage() {
-  const [activeTab, setActiveTab] = useState<ContractingTab>('dashboard');
+  const { isOrgWide } = useEffectiveAuth();
+  const availableTabs = isOrgWide ? ALL_TABS : AGENCY_ADMIN_TABS;
+  const [activeTab, setActiveTab] = useState<ContractingTab>(
+    isOrgWide ? 'dashboard' : 'hierarchy'
+  );
 
   return (
     <div>
@@ -68,47 +100,60 @@ export function ContractingPage() {
           onValueChange={(v) => setActiveTab(v as ContractingTab)}
         >
           <TabsList className="bg-secondary/40 p-1">
-            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-            <TabsTrigger value="intake">Intake</TabsTrigger>
-            <TabsTrigger value="tracking">Tracking</TabsTrigger>
-            <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
-            <TabsTrigger value="training">Training</TabsTrigger>
-            <TabsTrigger value="database">Database</TabsTrigger>
-            <TabsTrigger value="hierarchy">Hierarchy</TabsTrigger>
-            <TabsTrigger value="roster-import">Roster Import</TabsTrigger>
+            {availableTabs.map((tab) => (
+              <TabsTrigger key={tab} value={tab}>
+                {TAB_LABELS[tab]}
+              </TabsTrigger>
+            ))}
           </TabsList>
 
-          <TabsContent value="dashboard">
-            <ContractingDashboardTab />
-          </TabsContent>
+          {availableTabs.includes('dashboard') && (
+            <TabsContent value="dashboard">
+              <ContractingDashboardTab />
+            </TabsContent>
+          )}
 
-          <TabsContent value="intake">
-            <ContractingIntakeTab />
-          </TabsContent>
+          {availableTabs.includes('intake') && (
+            <TabsContent value="intake">
+              <ContractingIntakeTab />
+            </TabsContent>
+          )}
 
-          <TabsContent value="tracking">
-            <ContractingTrackingTab />
-          </TabsContent>
+          {availableTabs.includes('tracking') && (
+            <TabsContent value="tracking">
+              <ContractingTrackingTab />
+            </TabsContent>
+          )}
 
-          <TabsContent value="pipeline">
-            <ContractingPipelineTab />
-          </TabsContent>
+          {availableTabs.includes('pipeline') && (
+            <TabsContent value="pipeline">
+              <ContractingPipelineTab />
+            </TabsContent>
+          )}
 
-          <TabsContent value="training">
-            <ContractingTrainingTab />
-          </TabsContent>
+          {availableTabs.includes('training') && (
+            <TabsContent value="training">
+              <ContractingTrainingTab />
+            </TabsContent>
+          )}
 
-          <TabsContent value="database">
-            <AgentDatabaseTab />
-          </TabsContent>
+          {availableTabs.includes('database') && (
+            <TabsContent value="database">
+              <AgentDatabaseTab />
+            </TabsContent>
+          )}
 
-          <TabsContent value="hierarchy">
-            <ContractingHierarchyTab />
-          </TabsContent>
+          {availableTabs.includes('hierarchy') && (
+            <TabsContent value="hierarchy">
+              <ContractingHierarchyTab />
+            </TabsContent>
+          )}
 
-          <TabsContent value="roster-import">
-            <ContractingRosterImportTab />
-          </TabsContent>
+          {availableTabs.includes('roster-import') && (
+            <TabsContent value="roster-import">
+              <ContractingRosterImportTab />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </div>

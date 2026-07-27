@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/store/app-store';
 import { useAuth } from '@/contexts/AuthContext';
+import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { cn } from '@/lib/utils';
 
 interface NavItem {
@@ -54,7 +55,7 @@ const managerNav: NavItem[] = [
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
-const adminNav: NavItem[] = [
+const fymAdminNav: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/agencies', label: 'Agencies', icon: Building2 },
   { to: '/agents', label: 'Agents', icon: Users },
@@ -74,14 +75,39 @@ const adminNav: NavItem[] = [
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
+const agencyAdminNav: NavItem[] = [
+  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/agents', label: 'Agents', icon: Users },
+  { to: '/production', label: 'Production', icon: TrendingUp },
+  { to: '/book', label: 'Book of Business', icon: BookOpen },
+  { to: '/financials', label: 'Financials', icon: BarChart3 },
+  { to: '/retention', label: 'Retention', icon: Activity },
+  { to: '/at-risk', label: 'At-Risk', icon: AlertTriangle },
+  { to: '/coaching', label: 'Coaching', icon: HeartPulse },
+  { to: '/workboard', label: 'Workboard', icon: ClipboardList },
+  { to: '/contracting', label: 'Contracting', icon: FileText },
+  { to: '/crm-command', label: 'CRM Command', icon: Command },
+  { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
+  { to: '/compete', label: 'Compete', icon: Swords },
+  { to: '/settings', label: 'Settings', icon: Settings },
+];
+
 export function Sidebar() {
   const { sidebarCollapsed, toggleSidebar } = useAppStore();
-  const { role, profile, signOut } = useAuth();
+  const { profile, signOut } = useAuth();
+  const { effectiveRole, isFymAdmin, isViewingAs, isOrgWide } = useEffectiveAuth();
 
   const navItems =
-    role === 'agent' ? agentNav :
-    role === 'manager' ? managerNav :
-    adminNav;
+    effectiveRole === 'agent' ? agentNav :
+    effectiveRole === 'manager' ? managerNav :
+    isOrgWide ? fymAdminNav :
+    agencyAdminNav;
+
+  const roleLabel = isViewingAs
+    ? `${effectiveRole} (view as)`
+    : isFymAdmin
+      ? 'fym admin'
+      : (effectiveRole ?? 'loading');
 
   return (
     <aside
@@ -104,7 +130,7 @@ export function Sidebar() {
           <div>
             <p className="text-sm font-bold tracking-wide gradient-text">FYM</p>
             <p className="text-[10px] text-[hsl(var(--sidebar-foreground))]/50 uppercase tracking-widest leading-none mt-0.5">
-              {role ?? 'loading'}
+              {roleLabel}
             </p>
           </div>
         )}

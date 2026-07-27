@@ -5,7 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { HudFrame } from '@/components/ui/hud-frame';
 import { StaggerContainer, StaggerItem, FadeIn, CountUp, RadialGauge } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
+import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ShieldCheck, AlertTriangle, Building2, ChevronRight, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
@@ -64,11 +65,17 @@ function retentionColor(pct: number | null) {
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function DashboardPage() {
+  const { effectiveRole } = useEffectiveAuth();
   const [stats, setStats] = useState<DashStats | null>(null);
   const [trend, setTrend] = useState<CohortPoint[]>([]);
   const [bottomAgencies, setBottomAgencies] = useState<AgencyRisk[]>([]);
   const [production, setProduction] = useState<ProductionSnap | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Agents don't get the org/agency dashboard — send them to their personal book health view.
+  if (effectiveRole === 'agent') {
+    return <Navigate to="/my-health" replace />;
+  }
 
   useEffect(() => {
     if (!supabase) { setLoading(false); return; }
