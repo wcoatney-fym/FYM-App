@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent } from '@/components/ui/card';
-import { StaggerContainer, StaggerItem, FadeIn, CountUp } from '@/components/ui/animated';
+import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
 import { Trophy, TrendingUp, ShieldCheck, AlertTriangle, ChevronRight } from 'lucide-react';
 

@@ -7,7 +7,7 @@ import { StaggerContainer, StaggerItem, FadeIn, CountUp, RadialGauge } from '@/c
 import { supabase } from '@/lib/supabase';
 import { Link } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { ShieldCheck, TrendingUp, AlertTriangle, Building2, ChevronRight } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Building2, ChevronRight } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface DashStats {
