@@ -8,6 +8,7 @@ import { AgentsPage } from '@/pages/AgentsPage';
 import { ContractingPage } from '@/pages/contracting';
 import { AtRiskPage } from '@/pages/AtRiskPage';
 import { CrmOpsPage } from '@/pages/CrmOpsPage';
+import { CrmCommandPage } from '@/pages/CrmCommandPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { LeaderboardPage } from '@/pages/LeaderboardPage';
 import { AgentHealthPage } from '@/pages/AgentHealthPage';
@@ -38,6 +39,7 @@ function App() {
             <Route path="/contracting" element={<ContractingPage />} />
             <Route path="/at-risk" element={<AtRiskPage />} />
             <Route path="/crm-ops" element={<CrmOpsPage />} />
+            <Route path="/crm-command" element={<CrmCommandPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/leaderboard" element={<LeaderboardPage />} />
             <Route path="/agents/:agentId/health" element={<AgentHealthPage />} />

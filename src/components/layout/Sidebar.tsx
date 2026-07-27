@@ -8,7 +8,6 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  Headphones,
   Trophy,
   ShieldCheck,
   LogOut,
@@ -16,6 +15,7 @@ import {
   ClipboardList,
   UserPlus,
   Rocket,
+  Command,
 } from 'lucide-react';
 import { useAppStore } from '@/store/app-store';
 import { useAuth } from '@/contexts/AuthContext';
@@ -50,7 +50,7 @@ const adminNav: NavItem[] = [ // updated below
   { to: '/workboard', label: 'Workboard', icon: ClipboardList },
   { to: '/contracting', label: 'Contracting', icon: FileText },
   { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
-  { to: '/crm-ops', label: 'CRM Ops', icon: Headphones },
+  { to: '/crm-command', label: 'CRM Command', icon: Command },
   { to: '/financials', label: 'Financials', icon: BarChart3 },
   { to: '/onboarding', label: 'Onboarding', icon: Rocket },
   { to: '/provision', label: 'Provision Agents', icon: UserPlus },
