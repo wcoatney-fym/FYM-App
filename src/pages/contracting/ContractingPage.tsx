@@ -26,6 +26,8 @@ import { ContractingTrackingTab } from './ContractingTrackingTab';
 import { ContractingPipelineTab } from './ContractingPipelineTab';
 import { ContractingTrainingTab } from './ContractingTrainingTab';
 import { AgentDatabaseTab } from './database';
+import { ContractingHierarchyTab } from './ContractingHierarchyTab';
+import { ContractingRosterImportTab } from './ContractingRosterImportTab';
 import type { ContractingTab } from '@/lib/contracting/types';
 
 export function ContractingPage() {
@@ -72,6 +74,8 @@ export function ContractingPage() {
             <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
             <TabsTrigger value="training">Training</TabsTrigger>
             <TabsTrigger value="database">Database</TabsTrigger>
+            <TabsTrigger value="hierarchy">Hierarchy</TabsTrigger>
+            <TabsTrigger value="roster-import">Roster Import</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard">
@@ -96,6 +100,14 @@ export function ContractingPage() {
 
           <TabsContent value="database">
             <AgentDatabaseTab />
+          </TabsContent>
+
+          <TabsContent value="hierarchy">
+            <ContractingHierarchyTab />
+          </TabsContent>
+
+          <TabsContent value="roster-import">
+            <ContractingRosterImportTab />
           </TabsContent>
         </Tabs>
       </div>
