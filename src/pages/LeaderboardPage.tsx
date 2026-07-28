@@ -244,21 +244,7 @@ export function LeaderboardPage() {
     }));
   }, [rows, period, periodData]);
 
-  // Stats
-  const stats = useMemo(() => {
-    const total = enrichedRows.length;
-    const above = enrichedRows.filter(r => r.retention_pct !== null && r.retention_pct >= 90).length;
-    const below = total - above;
-    const totalPolicies = period === 'all'
-      ? enrichedRows.reduce((s, r) => s + r.active_policies, 0)
-      : enrichedRows.reduce((s, r) => s + r.period_policies, 0);
-    const totalPremium = period === 'all'
-      ? enrichedRows.reduce((s, r) => s + r.active_premium, 0)
-      : enrichedRows.reduce((s, r) => s + r.period_ap, 0);
-    return { total, above, below, totalPolicies, totalPremium };
-  }, [enrichedRows, period]);
-
-  // Sort + filter
+  // Sort + filter (moved before stats so stats can derive from filtered data)
   const displayed = useMemo(() => {
     let filtered = [...enrichedRows];
     if (filterAgencyId) filtered = filtered.filter(r => r.agency_id === filterAgencyId);
@@ -280,6 +266,20 @@ export function LeaderboardPage() {
     });
     return filtered;
   }, [enrichedRows, sortKey, sortAsc, filter, filterAgencyId]);
+
+  // Stats — derived from displayed (filtered) data
+  const stats = useMemo(() => {
+    const total = displayed.length;
+    const above = displayed.filter(r => r.retention_pct !== null && r.retention_pct >= 90).length;
+    const below = total - above;
+    const totalPolicies = period === 'all'
+      ? displayed.reduce((s, r) => s + r.active_policies, 0)
+      : displayed.reduce((s, r) => s + r.period_policies, 0);
+    const totalPremium = period === 'all'
+      ? displayed.reduce((s, r) => s + r.active_premium, 0)
+      : displayed.reduce((s, r) => s + r.period_ap, 0);
+    return { total, above, below, totalPolicies, totalPremium };
+  }, [displayed, period]);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortAsc(p => !p);

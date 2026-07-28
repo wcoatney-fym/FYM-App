@@ -185,11 +185,11 @@ export function AtRiskPage() {
     return sortDir === 'desc' ? <ChevronDown size={13} className="inline ml-0.5" /> : <ChevronUp size={13} className="inline ml-0.5" />;
   }
 
-  // KPIs
-  const critical = rows.filter(r => urgencyLevel(r.days_since_draft) === 'critical').length;
-  const high = rows.filter(r => urgencyLevel(r.days_since_draft) === 'high').length;
-  const totalPremium = rows.reduce((s, r) => s + Number(r.plan_premium), 0);
-  const untasked = rows.filter(r => !r.task_id).length;
+  // KPIs — derived from displayRows so they update when filters change
+  const critical = displayRows.filter(r => urgencyLevel(r.days_since_draft) === 'critical').length;
+  const high = displayRows.filter(r => urgencyLevel(r.days_since_draft) === 'high').length;
+  const totalPremium = displayRows.reduce((s, r) => s + Number(r.plan_premium), 0);
+  const untasked = displayRows.filter(r => !r.task_id).length;
 
   if (loading) {
     return (
@@ -221,7 +221,7 @@ export function AtRiskPage() {
         {/* KPI strip */}
         <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { label: 'Total At-Risk', end: rows.length, sub: `${untasked} need attention`, icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/10' },
+            { label: 'Total At-Risk', end: displayRows.length, sub: `${untasked} need attention`, icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/10' },
             { label: 'Critical (30+ days)', end: critical, sub: 'no draft in 30+ days', icon: Clock, color: 'text-red-400', bg: 'bg-red-500/10' },
             { label: 'Urgent (14-29 days)', end: high, sub: 'approaching critical', icon: Clock, color: 'text-amber-400', bg: 'bg-amber-500/10' },
             { label: 'At-Risk Premium', end: totalPremium, sub: 'monthly premium exposed', icon: TrendingDown, color: 'text-amber-400', bg: 'bg-amber-500/10', fmt: (n: number) => `$${Math.round(n).toLocaleString()}` },
@@ -268,10 +268,10 @@ export function AtRiskPage() {
                         : 'bg-secondary text-muted-foreground border-border hover:border-primary/30'
                     }`}
                   >
-                    {f === 'all' ? `All (${rows.length})` :
+                    {f === 'all' ? `All (${displayRows.length})` :
                      f === 'critical' ? `Critical (${critical})` :
                      f === 'high' ? `Urgent (${high})` :
-                     `Watch (${rows.length - critical - high})`}
+                     `Watch (${displayRows.length - critical - high})`}
                   </button>
                 ))}
                 <div className="relative">
