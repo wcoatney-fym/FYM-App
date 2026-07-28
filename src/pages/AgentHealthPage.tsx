@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { useAuth } from '@/contexts/AuthContext';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { supabase } from '@/lib/supabase';
 import type { Database } from '@/lib/database.types';
@@ -81,7 +80,6 @@ function flagColor(flag: string | null) {
 export function AgentHealthPage() {
   const { agentId } = useParams<{ agentId: string }>();
   const navigate = useNavigate();
-  const { profile, role } = useAuth();
   const { effectiveRole, effectiveWritingNumber } = useEffectiveAuth();
 
   // For agents viewing their own health: use writing_number (matches policy_cache.agent_id)
