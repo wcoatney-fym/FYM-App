@@ -73,6 +73,20 @@ export function ContractingPage() {
     }
   }, [loading, isOrgWide]);
 
+  // Don't render tabs until auth resolves — prevents flashing the wrong tab set
+  if (loading) {
+    return (
+      <div>
+        <Header title="Contracting" />
+        <div className="p-6">
+          <div className="flex items-center justify-center py-12 text-muted-foreground text-sm">
+            Loading…
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <Header title="Contracting" />
