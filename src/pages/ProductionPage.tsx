@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { HudFrame } from '@/components/ui/hud-frame';
 import { supabase } from '@/lib/supabase';
+import { scopeToAgency } from '@/lib/query-helpers';
+import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import {
   Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ComposedChart, Legend,
@@ -88,6 +90,7 @@ function fmtMonth(iso: string) {
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function ProductionPage() {
+  const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
   const [stats, setStats] = useState<OrgStats | null>(null);
   const [agencies, setAgencies] = useState<AgencyRow[]>([]);
   const [trend, setTrend] = useState<MonthlyPoint[]>([]);
@@ -104,10 +107,14 @@ export function ProductionPage() {
         let offset = 0;
         const PAGE = 500;
         while (true) {
-          const { data, error } = await supabase!
-            .from('agency_production')
-            .select('*')
-            .range(offset, offset + PAGE - 1);
+          const { data, error } = await scopeToAgency(
+            supabase!
+              .from('agency_production')
+              .select('*')
+              .range(offset, offset + PAGE - 1),
+            isOrgWide,
+            effectiveAgencyId
+          );
           if (error) throw error;
           allAgencies = [...allAgencies, ...((data || []) as unknown as AgencyRow[])];
           if (!data || data.length < PAGE) break;
@@ -133,9 +140,13 @@ export function ProductionPage() {
         setStats(org);
 
         // Fetch monthly trend (aggregate by month)
-        const { data: monthData, error: mErr } = await supabase!
-          .from('monthly_production')
-          .select('month, policies, annual_premium');
+        const { data: monthData, error: mErr } = await scopeToAgency(
+          supabase!
+            .from('monthly_production')
+            .select('month, policies, annual_premium'),
+          isOrgWide,
+          effectiveAgencyId
+        );
         if (mErr) throw mErr;
 
         // Aggregate by month (view has per-agency per-product rows)
@@ -160,7 +171,7 @@ export function ProductionPage() {
       }
     }
     load();
-  }, []);
+  }, [effectiveAgencyId, isOrgWide]);
 
   // Sort agencies
   const sortedAgencies = useMemo(() => {

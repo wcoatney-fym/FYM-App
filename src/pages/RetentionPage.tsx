@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { HudFrame } from '@/components/ui/hud-frame';
 import { supabase } from '@/lib/supabase';
+import { scopeToAgency } from '@/lib/query-helpers';
+import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine, Legend,
@@ -110,6 +112,7 @@ function TrendBadge({ recent, prior }: { recent: number | null; prior: number | 
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function RetentionPage() {
+  const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
   const [orgCohorts, setOrgCohorts] = useState<CohortRow[]>([]);
   const [agencies, setAgencies] = useState<AgencyOverviewRow[]>([]);
   const [agencyCohorts, setAgencyCohorts] = useState<AgencyCohortRow[]>([]);
@@ -124,6 +127,7 @@ export function RetentionPage() {
       setLoading(true);
       if (!supabase) { setLoading(false); return; }
       try {
+        // Note: view does not have agency_id — org-wide only
         const { data: cohortData, error: cErr } = await supabase
           .from('cohort_retention')
           .select('*');
@@ -135,10 +139,14 @@ export function RetentionPage() {
         let offset = 0;
         const PAGE = 500;
         while (true) {
-          const { data, error } = await supabase
-            .from('agency_retention_overview')
-            .select('*')
-            .range(offset, offset + PAGE - 1);
+          const { data, error } = await scopeToAgency(
+            supabase
+              .from('agency_retention_overview')
+              .select('*')
+              .range(offset, offset + PAGE - 1),
+            isOrgWide,
+            effectiveAgencyId
+          );
           if (error) throw error;
           allAgencies = [...allAgencies, ...((data || []) as unknown as AgencyOverviewRow[])];
           if (!data || data.length < PAGE) break;
@@ -150,10 +158,14 @@ export function RetentionPage() {
         let allAgencyCohorts: AgencyCohortRow[] = [];
         offset = 0;
         while (true) {
-          const { data, error } = await supabase
-            .from('agency_cohort_retention')
-            .select('*')
-            .range(offset, offset + PAGE - 1);
+          const { data, error } = await scopeToAgency(
+            supabase
+              .from('agency_cohort_retention')
+              .select('*')
+              .range(offset, offset + PAGE - 1),
+            isOrgWide,
+            effectiveAgencyId
+          );
           if (error) throw error;
           allAgencyCohorts = [...allAgencyCohorts, ...((data || []) as unknown as AgencyCohortRow[])];
           if (!data || data.length < PAGE) break;
@@ -167,7 +179,7 @@ export function RetentionPage() {
       }
     }
     load();
-  }, []);
+  }, [effectiveAgencyId, isOrgWide]);
 
   // Org-wide KPI summary
   const summary = useMemo(() => {

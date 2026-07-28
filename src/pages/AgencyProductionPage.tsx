@@ -1,10 +1,11 @@
 import { useEffect, useState, useMemo } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, Navigate } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
+import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell,
@@ -68,6 +69,7 @@ const PIE_COLORS = ['hsl(199 89% 48%)', 'hsl(142 71% 45%)'];
 // ── Component ──────────────────────────────────────────────────────────────
 export function AgencyProductionPage() {
   const { agencyId } = useParams<{ agencyId: string }>();
+  const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
   const [stats, setStats] = useState<AgencyStats | null>(null);
   const [agents, setAgents] = useState<AgentRow[]>([]);
   const [trend, setTrend] = useState<MonthlyPoint[]>([]);
@@ -149,6 +151,11 @@ export function AgencyProductionPage() {
       (a.writing_number || '').toLowerCase().includes(q)
     );
   }, [agents, search]);
+
+  // Guard: agency admins (non org-wide) cannot view another agency's production via URL manipulation.
+  if (!isOrgWide && effectiveAgencyId && agencyId !== effectiveAgencyId) {
+    return <Navigate to="/production" replace />;
+  }
 
   if (loading) {
     return (

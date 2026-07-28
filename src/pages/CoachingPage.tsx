@@ -10,6 +10,7 @@ import {
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { HudFrame } from '@/components/ui/hud-frame';
 import { supabase } from '@/lib/supabase';
+import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import {
   AlertTriangle, TrendingUp, DollarSign, ShieldCheck,
   ArrowLeft, ArrowRight, RefreshCw, Calendar, User, Building2,
@@ -111,7 +112,8 @@ const PAGE = 500;
 async function fetchAllPaginated<T>(
   table: string,
   select: string,
-  order?: { column: string; ascending?: boolean }
+  order?: { column: string; ascending?: boolean },
+  agencyFilter?: { isOrgWide: boolean; agencyId: string | null }
 ): Promise<T[]> {
   if (!supabase) return [];
   let all: T[] = [];
@@ -119,6 +121,9 @@ async function fetchAllPaginated<T>(
   while (true) {
     let query = (supabase as any).from(table).select(select).range(offset, offset + PAGE - 1);
     if (order) query = query.order(order.column, { ascending: order.ascending ?? true });
+    if (agencyFilter && !agencyFilter.isOrgWide && agencyFilter.agencyId) {
+      query = query.eq('agency_id', agencyFilter.agencyId);
+    }
     const { data, error } = await query;
     if (error) throw error;
     all = [...all, ...((data || []) as T[])];
@@ -130,6 +135,7 @@ async function fetchAllPaginated<T>(
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function CoachingPage() {
+  const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
   const [rows, setRows] = useState<CoachingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -142,14 +148,14 @@ export function CoachingPage() {
     if (!supabase) { setLoading(false); return; }
     setLoading(true);
     try {
-      const data = await fetchAllPaginated<CoachingRow>('coaching_pipeline', '*');
+      const data = await fetchAllPaginated<CoachingRow>('coaching_pipeline', '*', undefined, { isOrgWide, agencyId: effectiveAgencyId });
       setRows(data);
     } catch (err) {
       console.error('Coaching pipeline load error:', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isOrgWide, effectiveAgencyId]);
 
   useEffect(() => { load(); }, [load]);
 

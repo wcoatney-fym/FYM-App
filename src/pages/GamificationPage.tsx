@@ -16,6 +16,7 @@ import { StaggerContainer, StaggerItem, CountUp, RadialGauge } from '@/component
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import type { GamificationMetric, BattleType, ChallengeType } from '@/lib/database.types';
 import {
   Swords, Target, Trophy, Users, Percent,
@@ -158,6 +159,7 @@ async function fetchAllRows<T>(table: string, select: string, filter?: (q: any) 
 export function GamificationPage() {
   const { toast } = useToast();
   const { role, profile } = useAuth();
+  const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
   const canCreate = role === 'admin' || role === 'manager';
 
   const [tab, setTab] = useState<MainTab>('battles');
@@ -170,6 +172,13 @@ export function GamificationPage() {
   const [challengeParticipants, setChallengeParticipants] = useState<Map<string, ChallengeParticipant[]>>(new Map());
 
   const [agencies, setAgencies] = useState<AgencyOption[]>([]);
+
+  // Agency options available when creating a challenge scoped to an agency.
+  // Org-wide admins can pick any agency; agency admins are locked to their own.
+  const scopedAgencies = useMemo(() => {
+    if (isOrgWide || !effectiveAgencyId) return agencies;
+    return agencies.filter(a => a.tracker_id === effectiveAgencyId);
+  }, [agencies, isOrgWide, effectiveAgencyId]);
 
   // ── Create Battle form state ──
   const [battleTitle, setBattleTitle] = useState('');
@@ -329,13 +338,15 @@ export function GamificationPage() {
       toast({ title: 'Missing fields', description: 'Title, goal value, start date, and end date are required.', variant: 'destructive' });
       return;
     }
+    // Agency admins (non org-wide) can only scope challenges to their own agency.
+    const resolvedAgencyId = !isOrgWide && effectiveAgencyId ? effectiveAgencyId : (challengeAgencyId || null);
     setChallengeSubmitting(true);
     try {
       const { error } = await (supabase as any).from('challenges').insert({
         title: challengeTitle.trim(),
         description: challengeDesc.trim() || null,
         challenge_type: challengeType,
-        target_agency_id: challengeType === 'agency' ? (challengeAgencyId || null) : null,
+        target_agency_id: challengeType === 'agency' ? resolvedAgencyId : null,
         metric: challengeMetric,
         goal_value: Number(challengeGoal),
         start_date: challengeStart,
@@ -840,12 +851,13 @@ export function GamificationPage() {
                     <div>
                       <label className="text-xs font-medium text-muted-foreground mb-1 block">Agency</label>
                       <select
-                        value={challengeAgencyId}
+                        value={!isOrgWide && effectiveAgencyId ? effectiveAgencyId : challengeAgencyId}
                         onChange={e => setChallengeAgencyId(e.target.value)}
-                        className="flex h-9 w-full items-center rounded-md border border-input bg-card px-3 text-sm text-foreground"
+                        disabled={!isOrgWide && !!effectiveAgencyId}
+                        className="flex h-9 w-full items-center rounded-md border border-input bg-card px-3 text-sm text-foreground disabled:opacity-60"
                       >
                         <option value="">Select an agency…</option>
-                        {agencies.map(a => (
+                        {scopedAgencies.map(a => (
                           <option key={a.tracker_id} value={a.tracker_id}>{a.name}</option>
                         ))}
                       </select>

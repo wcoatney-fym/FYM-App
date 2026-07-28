@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { HudFrame } from '@/components/ui/hud-frame';
 import { StaggerContainer, StaggerItem, FadeIn, CountUp, RadialGauge } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
+import { scopeToAgency } from '@/lib/query-helpers';
 import { Link, Navigate } from 'react-router-dom';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -65,7 +66,7 @@ function retentionColor(pct: number | null) {
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function DashboardPage() {
-  const { effectiveRole } = useEffectiveAuth();
+  const { effectiveRole, effectiveAgencyId, isOrgWide } = useEffectiveAuth();
   const [stats, setStats] = useState<DashStats | null>(null);
   const [trend, setTrend] = useState<CohortPoint[]>([]);
   const [bottomAgencies, setBottomAgencies] = useState<AgencyRisk[]>([]);
@@ -82,9 +83,13 @@ export function DashboardPage() {
 
     async function load() {
       // ── 1. Aggregate stats from agency_retention_summary ──
-      const { data: agencyStats } = await supabase!
-        .from('agency_retention_summary')
-        .select('agency_id, active_policies, active_premium, at_risk_count, retained_90d, eligible_90d, retention_pct');
+      const { data: agencyStats } = await scopeToAgency(
+        supabase!
+          .from('agency_retention_summary')
+          .select('agency_id, active_policies, active_premium, at_risk_count, retained_90d, eligible_90d, retention_pct'),
+        isOrgWide,
+        effectiveAgencyId
+      );
 
       let totalActive = 0, totalPremium = 0, totalAtRisk = 0, totalAtRiskPremium = 0;
       let totalRetained = 0, totalEligible = 0;
@@ -111,9 +116,13 @@ export function DashboardPage() {
       }
 
       // Get at-risk premium from concentration view
-      const { data: concData } = await supabase!
-        .from('agency_concentration')
-        .select('at_risk_premium');
+      const { data: concData } = await scopeToAgency(
+        supabase!
+          .from('agency_concentration')
+          .select('at_risk_premium'),
+        isOrgWide,
+        effectiveAgencyId
+      );
       if (concData) {
         totalAtRiskPremium = (concData as any[]).reduce((s, r) => s + (Number(r.at_risk_premium) || 0), 0);
       }
@@ -133,9 +142,14 @@ export function DashboardPage() {
       });
 
       // Enrich agency names
-      const { data: agencyNames } = await (supabase as any)
-        .from('agencies')
-        .select('tracker_id, name');
+      const { data: agencyNames } = await scopeToAgency(
+        (supabase as any)
+          .from('agencies')
+          .select('tracker_id, name'),
+        isOrgWide,
+        effectiveAgencyId,
+        'tracker_id'
+      );
       const nameMap = new Map<string, string>();
       if (agencyNames) {
         for (const a of agencyNames as any[]) {
@@ -152,6 +166,7 @@ export function DashboardPage() {
       setBottomAgencies(bottom);
 
       // ── 2. Cohort retention trend from cohort_retention view ──
+      // Note: view does not have agency_id — org-wide only
       const { data: cohorts } = await supabase!
         .from('cohort_retention')
         .select('product_type, cohort_month, drafted_first, retained, retention_pct')
@@ -192,9 +207,13 @@ export function DashboardPage() {
       }
 
       // ── 3. Production snapshot from monthly_production ──
-      const { data: monthProd } = await supabase!
-        .from('monthly_production')
-        .select('month, policies, annual_premium');
+      const { data: monthProd } = await scopeToAgency(
+        supabase!
+          .from('monthly_production')
+          .select('month, policies, annual_premium'),
+        isOrgWide,
+        effectiveAgencyId
+      );
 
       if (monthProd) {
         const byMonth = new Map<string, { policies: number; ap: number }>();
@@ -231,7 +250,7 @@ export function DashboardPage() {
     }
 
     load();
-  }, []);
+  }, [effectiveAgencyId, isOrgWide]);
 
   const s = stats;
 
@@ -344,12 +363,12 @@ export function DashboardPage() {
                   ) : (
                     <div className="flex items-start justify-between">
                       <div>
-                        <p className="text-sm font-medium text-muted-foreground">Agencies Below 90%</p>
+                        <p className="text-sm font-medium text-muted-foreground">{isOrgWide ? 'Agencies Below 90%' : 'Your Agency'}</p>
                         <CountUp
                           end={s?.agencies_below_target ?? 0}
                           className="text-2xl font-bold text-foreground mt-1 block"
                         />
-                        {s && <p className="text-xs text-muted-foreground/70 mt-0.5">of {s.total_agencies} total</p>}
+                        {s && <p className="text-xs text-muted-foreground/70 mt-0.5">{isOrgWide ? `of ${s.total_agencies} total` : (s.agencies_below_target > 0 ? 'Below 90% target' : 'On target')}</p>}
                       </div>
                       <div className={`p-2.5 rounded-lg ${s && s.agencies_below_target > 0 ? 'bg-red-500/10' : 'bg-emerald-500/10'}`}>
                         <Building2 size={20} className={s && s.agencies_below_target > 0 ? 'text-red-400' : 'text-emerald-400'} />
@@ -501,9 +520,9 @@ export function DashboardPage() {
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-base font-semibold text-foreground">Agency Coaching Signals</CardTitle>
+                    <CardTitle className="text-base font-semibold text-foreground">{isOrgWide ? 'Agency Coaching Signals' : 'Coaching Signal'}</CardTitle>
                     <p className="text-xs text-muted-foreground/70 mt-0.5">
-                      Lowest retention agencies — sorted worst first. Below 90% = coaching needed.
+                      {isOrgWide ? 'Lowest retention agencies — sorted worst first. Below 90% = coaching needed.' : 'Your agency\'s retention status. Below 90% = coaching needed.'}
                     </p>
                   </div>
                   {stats && stats.agencies_below_target > 0 && (

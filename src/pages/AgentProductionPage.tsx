@@ -6,12 +6,13 @@
  * Route: /production/:agencyId/agent/:agentId
  */
 import { useEffect, useState, useMemo } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, Navigate } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
+import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell,
@@ -103,6 +104,7 @@ const PIE_COLORS = ['hsl(199 89% 48%)', 'hsl(142 71% 45%)'];
 // ── Component ──────────────────────────────────────────────────────────────
 export function AgentProductionPage() {
   const { agencyId, agentId } = useParams<{ agencyId: string; agentId: string }>();
+  const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
   const [stats, setStats] = useState<AgentStats | null>(null);
   const [policies, setPolicies] = useState<PolicyRow[]>([]);
   const [trend, setTrend] = useState<MonthlyPoint[]>([]);
@@ -263,6 +265,11 @@ export function AgentProductionPage() {
     a.download = `agent-${stats?.writing_number || agentId}-policies.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  // Guard: agency admins (non org-wide) cannot view another agency's agent production via URL manipulation.
+  if (!isOrgWide && effectiveAgencyId && agencyId !== effectiveAgencyId) {
+    return <Navigate to="/production" replace />;
   }
 
   if (loading) {

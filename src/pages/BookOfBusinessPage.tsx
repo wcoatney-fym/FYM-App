@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
+import { scopeToAgency } from '@/lib/query-helpers';
+import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import {
   FileText, DollarSign, AlertTriangle, Clock,
   Search, ChevronLeft, ChevronRight, Download,
@@ -57,6 +59,7 @@ const PAGE_SIZE = 25;
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function BookOfBusinessPage() {
+  const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(0);
@@ -76,9 +79,13 @@ export function BookOfBusinessPage() {
   useEffect(() => {
     async function loadSummary() {
       if (!supabase) return;
-      const { data } = await supabase
-        .from('book_of_business')
-        .select('status, is_at_risk, monthly_premium');
+      const { data } = await scopeToAgency(
+        supabase
+          .from('book_of_business')
+          .select('status, is_at_risk, monthly_premium'),
+        isOrgWide,
+        effectiveAgencyId
+      );
 
       if (data) {
         // Paginate the full count
@@ -86,10 +93,14 @@ export function BookOfBusinessPage() {
         let offset = 0;
         const PG = 1000;
         while (true) {
-          const { data: chunk } = await supabase
-            .from('book_of_business')
-            .select('status, is_at_risk, monthly_premium')
-            .range(offset, offset + PG - 1);
+          const { data: chunk } = await scopeToAgency(
+            supabase
+              .from('book_of_business')
+              .select('status, is_at_risk, monthly_premium')
+              .range(offset, offset + PG - 1),
+            isOrgWide,
+            effectiveAgencyId
+          );
           if (!chunk || chunk.length === 0) break;
           all = [...all, ...chunk];
           if (chunk.length < PG) break;
@@ -108,16 +119,20 @@ export function BookOfBusinessPage() {
       }
     }
     loadSummary();
-  }, []);
+  }, [effectiveAgencyId, isOrgWide]);
 
   // Load paginated policies
   const loadPolicies = useCallback(async () => {
     setLoading(true);
       if (!supabase) { setLoading(false); return; }
     try {
-      let query = supabase
-        .from('book_of_business')
-        .select('*', { count: 'exact' });
+      let query = scopeToAgency(
+        supabase
+          .from('book_of_business')
+          .select('*', { count: 'exact' }),
+        isOrgWide,
+        effectiveAgencyId
+      );
 
       if (statusFilter !== 'all') {
         query = query.eq('status', statusFilter);
@@ -141,7 +156,7 @@ export function BookOfBusinessPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, statusFilter, productFilter, search]);
+  }, [page, statusFilter, productFilter, search, effectiveAgencyId, isOrgWide]);
 
   useEffect(() => { loadPolicies(); }, [loadPolicies]);
 
@@ -157,7 +172,11 @@ export function BookOfBusinessPage() {
     const PG = 1000;
     while (true) {
       if (!supabase) break;
-      let query = supabase.from('book_of_business').select('*');
+      let query = scopeToAgency(
+        supabase.from('book_of_business').select('*'),
+        isOrgWide,
+        effectiveAgencyId
+      );
       if (statusFilter !== 'all') query = query.eq('status', statusFilter);
       if (productFilter !== 'all') query = query.eq('product_type', productFilter);
       if (search) query = query.or(`policy_number.ilike.%${search}%,agent_name.ilike.%${search}%,agency_name.ilike.%${search}%`);
