@@ -27,15 +27,51 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-async function checkFymAdmin(userId: string): Promise<boolean> {
+/**
+ * Check if user is an FYM admin. Accepts the session access_token so the
+ * query runs as the authenticated user (RLS requires `authenticated` role).
+ * Without the token, the Supabase client may still be using the anon key
+ * if the internal GoTrueClient hasn't processed the session yet.
+ */
+async function checkFymAdmin(
+  userId: string,
+  accessToken?: string,
+): Promise<boolean> {
   if (!supabase) return false;
   try {
+    // Try the standard Supabase client query first (works when the client
+    // has already attached the session JWT internally).
     const { data, error } = await (supabase as any)
       .from('fym_admins')
       .select('id')
       .eq('user_id', userId)
       .maybeSingle();
-    return !error && !!data;
+
+    if (!error && data) return true;
+
+    // Fallback: if the client query returned nothing and we have an
+    // explicit access token, query PostgREST directly. This handles the
+    // race where getSession() returned the session but the GoTrueClient
+    // hasn't attached the JWT to the internal fetch headers yet.
+    if (accessToken) {
+      const baseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      if (baseUrl && anonKey) {
+        const url = `${baseUrl}/rest/v1/fym_admins?select=id&user_id=eq.${userId}`;
+        const res = await fetch(url, {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${accessToken}`,
+            Accept: 'application/json',
+          },
+        });
+        if (res.ok) {
+          const rows = await res.json();
+          return Array.isArray(rows) && rows.length > 0;
+        }
+      }
+    }
+    return false;
   } catch {
     return false;
   }
@@ -62,10 +98,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function loadUserContext(userId: string): Promise<void> {
+  async function loadUserContext(
+    userId: string,
+    accessToken?: string,
+  ): Promise<void> {
     await Promise.all([
       fetchProfile(userId),
-      checkFymAdmin(userId).then(setIsFymAdmin),
+      checkFymAdmin(userId, accessToken).then(setIsFymAdmin),
     ]);
   }
 
@@ -79,7 +118,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        loadUserContext(session.user.id).finally(() => setLoading(false));
+        loadUserContext(
+          session.user.id,
+          session.access_token,
+        ).finally(() => setLoading(false));
       } else {
         setLoading(false);
       }
@@ -89,7 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        loadUserContext(session.user.id);
+        loadUserContext(session.user.id, session.access_token);
       } else {
         setProfile(null);
         setIsFymAdmin(false);
