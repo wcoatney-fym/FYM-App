@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
+import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { Search, Building2, ChevronRight } from 'lucide-react';
 
 interface AgencyRow {
@@ -42,9 +43,15 @@ function fmt$(n: number) {
 }
 
 export function AgenciesPage() {
+  const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
   const [rows, setRows] = useState<AgencyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+
+  // Managers / agency admins: redirect to their own agency detail
+  if (!isOrgWide && effectiveAgencyId) {
+    return <Navigate to={`/agencies/${effectiveAgencyId}`} replace />;
+  }
 
   useEffect(() => {
     if (!supabase) { setLoading(false); return; }

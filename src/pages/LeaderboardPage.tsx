@@ -11,6 +11,7 @@ import { Header } from '@/components/layout/Header';
 import { Card, CardContent } from '@/components/ui/card';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
+import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import {
   Trophy, TrendingUp, ShieldCheck, AlertTriangle, ChevronRight,
   ChevronDown, ChevronUp, Calendar, DollarSign, FileText,
@@ -98,6 +99,7 @@ function periodStart(p: Period): string | null {
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function LeaderboardPage() {
+  const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
   const [rows, setRows] = useState<AgencyLeaderRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortKey, setSortKey] = useState<SortKey>('rank');
@@ -463,12 +465,17 @@ export function LeaderboardPage() {
                       key={r.agency_id}
                       className={`grid gap-2 px-4 py-3 items-center text-sm hover:bg-background/80 transition-colors ${
                         period !== 'all' ? 'grid-cols-13' : 'grid-cols-12'
-                      } ${r.rank <= 3 ? 'bg-amber-500/10' : ''}`}
+                      } ${r.rank <= 3 ? 'bg-amber-500/10' : ''} ${
+                        !isOrgWide && effectiveAgencyId === r.agency_id ? 'ring-1 ring-primary/40 bg-primary/5' : ''
+                      }`}
                     >
                       <span className="col-span-1 text-center">{rankBadge(r.rank)}</span>
                       <span className={`font-medium text-foreground truncate flex items-center gap-1.5 ${period !== 'all' ? 'col-span-2' : 'col-span-3'}`}>
                         <span className="truncate">
                           {r.name ?? <span className="font-data text-xs text-muted-foreground/70">{r.agency_id.slice(0, 12)}…</span>}
+                          {!isOrgWide && effectiveAgencyId === r.agency_id && (
+                            <span className="ml-1.5 text-[10px] text-primary font-semibold">YOU</span>
+                          )}
                         </span>
                         {(agencyBattleWins.get(r.agency_id) || 0) > 0 && (
                           <span className="text-[10px] font-data text-amber-400 whitespace-nowrap" title="Battle wins">

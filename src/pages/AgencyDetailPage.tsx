@@ -1,10 +1,11 @@
 import { useEffect, useState, useMemo } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, Navigate } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
+import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import {
   ShieldCheck, TrendingUp, AlertTriangle, DollarSign,
   ArrowLeft, ChevronDown, ChevronUp,
@@ -72,6 +73,7 @@ type SortDir = 'asc' | 'desc';
 // ── Component ──────────────────────────────────────────────────────────────
 export function AgencyDetailPage() {
   const { agencyId } = useParams<{ agencyId: string }>();
+  const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
   const [info, setInfo] = useState<AgencyInfo | null>(null);
   const [summary, setSummary] = useState<AgencySummary | null>(null);
   const [policies, setPolicies] = useState<PolicyRow[]>([]);
@@ -80,6 +82,11 @@ export function AgencyDetailPage() {
   const [sortKey, setSortKey] = useState<SortKey>('premium');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [togglingTask, setTogglingTask] = useState<string | null>(null);
+
+  // Guard: managers / agency admins cannot view another agency's detail page
+  if (!isOrgWide && effectiveAgencyId && agencyId !== effectiveAgencyId) {
+    return <Navigate to="/" replace />;
+  }
 
   useEffect(() => {
     if (!supabase || !agencyId) { setLoading(false); return; }
