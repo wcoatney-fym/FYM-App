@@ -41,6 +41,8 @@ interface TrackerPolicy {
   policy_effective_date: string | null;
   paid_to_date: string | null;
   at_risk_fired_at: string | null;
+  client_first_name: string | null;
+  client_last_name: string | null;
 }
 
 interface PolicyCacheRow {
@@ -58,6 +60,8 @@ interface PolicyCacheRow {
   flag_type: string | null;
   is_at_risk: boolean;
   synced_at: string;
+  client_name: string | null;
+  writing_number: string | null;
 }
 
 /**
@@ -295,7 +299,7 @@ Deno.serve(async (req) => {
       const { data: policies, error: fetchError } = await tracker
         .from('form_submissions')
         .select(
-          'policy_number, agent_number, agency_id, agency, product_type, status, plan_premium, billing_mode, policy_effective_date, paid_to_date, at_risk_fired_at'
+          'policy_number, agent_number, agency_id, agency, product_type, status, plan_premium, billing_mode, policy_effective_date, paid_to_date, at_risk_fired_at, client_first_name, client_last_name'
         )
         .eq('product_type', productType)
         .range(trackerOffset, trackerOffset + BATCH_SIZE - 1);
@@ -313,6 +317,12 @@ Deno.serve(async (req) => {
         .map((p: TrackerPolicy) => {
           const { isAtRisk, flagType } = resolveRiskFlag(p);
           const agentId = p.agent_number ? (profileMap.get(p.agent_number.trim()) ?? null) : null;
+          // Build client name from first + last
+          const clientName = [p.client_first_name, p.client_last_name]
+            .filter(Boolean)
+            .map(s => s!.trim())
+            .join(' ') || null;
+
           return {
             policy_number: p.policy_number,
             agent_id: agentId,
@@ -330,6 +340,8 @@ Deno.serve(async (req) => {
             flag_type: flagType,
             is_at_risk: isAtRisk,
             synced_at: syncedAt,
+            client_name: clientName,
+            writing_number: p.agent_number?.trim() ?? null,
           };
         });
 

@@ -13,10 +13,12 @@ import {
   Search, ChevronLeft, ChevronRight, Download,
   Filter, X,
 } from 'lucide-react';
+import { DateRangeSelector } from '@/components/filters/DateRangeSelector';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface Policy {
   policy_number: string;
+  client_name: string | null;
   agent_name: string | null;
   writing_number: string | null;
   agency_name: string | null;
@@ -71,6 +73,8 @@ export function BookOfBusinessPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [filterAgencyId, setFilterAgencyId] = useState<string | null>(null);
   const [filterAgentId, setFilterAgentId] = useState<string | null>(null);
+  const [dateStart, setDateStart] = useState<string | null>(null);
+  const [dateEnd, setDateEnd] = useState<string | null>(null);
 
   // Summary stats
   const [summaryStats, setSummaryStats] = useState({
@@ -98,6 +102,8 @@ export function BookOfBusinessPage() {
         );
         if (filterAgencyId) query = query.eq('agency_id', filterAgencyId);
         if (filterAgentId) query = query.eq('writing_number', filterAgentId);
+        if (dateStart) query = query.gte('policy_effective_date', dateStart);
+        if (dateEnd) query = query.lte('policy_effective_date', dateEnd);
 
         const { data: chunk } = await query;
         if (!chunk || chunk.length === 0) break;
@@ -117,7 +123,7 @@ export function BookOfBusinessPage() {
       setSummaryStats(stats);
     }
     loadSummary();
-  }, [effectiveAgencyId, isOrgWide, filterAgencyId, filterAgentId]);
+  }, [effectiveAgencyId, isOrgWide, filterAgencyId, filterAgentId, dateStart, dateEnd]);
 
   // Load paginated policies
   const loadPolicies = useCallback(async () => {
@@ -138,6 +144,12 @@ export function BookOfBusinessPage() {
       if (filterAgentId) {
         query = query.eq('writing_number', filterAgentId);
       }
+      if (dateStart) {
+        query = query.gte('policy_effective_date', dateStart);
+      }
+      if (dateEnd) {
+        query = query.lte('policy_effective_date', dateEnd);
+      }
       if (statusFilter !== 'all') {
         query = query.eq('status', statusFilter);
       }
@@ -145,7 +157,7 @@ export function BookOfBusinessPage() {
         query = query.eq('product_type', productFilter);
       }
       if (search) {
-        query = query.or(`policy_number.ilike.%${search}%,agent_name.ilike.%${search}%,agency_name.ilike.%${search}%`);
+        query = query.or(`policy_number.ilike.%${search}%,client_name.ilike.%${search}%,agent_name.ilike.%${search}%,agency_name.ilike.%${search}%`);
       }
 
       const { data, count, error } = await query
@@ -160,12 +172,12 @@ export function BookOfBusinessPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, statusFilter, productFilter, search, effectiveAgencyId, isOrgWide, filterAgencyId, filterAgentId]);
+  }, [page, statusFilter, productFilter, search, effectiveAgencyId, isOrgWide, filterAgencyId, filterAgentId, dateStart, dateEnd]);
 
   useEffect(() => { loadPolicies(); }, [loadPolicies]);
 
   // Reset page on filter change
-  useEffect(() => { setPage(0); }, [statusFilter, productFilter, search, filterAgencyId, filterAgentId]);
+  useEffect(() => { setPage(0); }, [statusFilter, productFilter, search, filterAgencyId, filterAgentId, dateStart, dateEnd]);
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
@@ -191,9 +203,9 @@ export function BookOfBusinessPage() {
       offset += PG;
     }
 
-    const headers = ['Policy #', 'Agent', 'Writing #', 'Agency', 'Product', 'Status', 'Monthly Premium', 'Annual Premium', 'Effective Date', 'Paid To', 'Drafts', 'At Risk', 'Flag'];
+    const headers = ['Policy #', 'Client', 'Agent', 'Writing #', 'Agency', 'Product', 'Status', 'Monthly Premium', 'Annual Premium', 'Effective Date', 'Paid To', 'Drafts', 'At Risk', 'Flag'];
     const rows = all.map(p => [
-      p.policy_number, p.agent_name || '', p.writing_number || '', p.agency_name || '',
+      p.policy_number, (p as any).client_name || '', p.agent_name || '', p.writing_number || '', p.agency_name || '',
       p.product_type, p.status, p.monthly_premium, p.annual_premium,
       p.policy_effective_date || '', p.paid_to_date || '', p.draft_count || '',
       p.is_at_risk ? 'Yes' : 'No', p.flag_type || '',
@@ -283,6 +295,15 @@ export function BookOfBusinessPage() {
                 )}
               </button>
 
+              {/* Date Range */}
+              <DateRangeSelector
+                label="Effective Date"
+                startDate={dateStart}
+                endDate={dateEnd}
+                onStartChange={setDateStart}
+                onEndChange={setDateEnd}
+              />
+
               {/* Export */}
               <button
                 onClick={exportCsv}
@@ -348,6 +369,7 @@ export function BookOfBusinessPage() {
               <thead>
                 <tr className="border-b border-border bg-secondary/30">
                   <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground font-data">Policy #</th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">Client</th>
                   <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">Agent</th>
                   <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">Agency</th>
                   <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">Product</th>
@@ -364,14 +386,14 @@ export function BookOfBusinessPage() {
                 {loading ? (
                   Array.from({ length: 10 }).map((_, i) => (
                     <tr key={i}>
-                      {Array.from({ length: 11 }).map((_, j) => (
+                      {Array.from({ length: 12 }).map((_, j) => (
                         <td key={j} className="px-4 py-3"><div className="h-4 rounded shimmer" /></td>
                       ))}
                     </tr>
                   ))
                 ) : policies.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan={12} className="px-4 py-8 text-center text-muted-foreground">
                       No policies match your filters.
                     </td>
                   </tr>
@@ -379,6 +401,9 @@ export function BookOfBusinessPage() {
                   policies.map(p => (
                     <tr key={p.policy_number} className="row-hover">
                       <td className="px-4 py-2.5 font-data text-foreground">{p.policy_number}</td>
+                      <td className="px-4 py-2.5 text-foreground truncate max-w-[140px]">
+                        {p.client_name || '—'}
+                      </td>
                       <td className="px-4 py-2.5 text-muted-foreground truncate max-w-[140px]">
                         {p.agent_name || '—'}
                       </td>
