@@ -218,7 +218,7 @@ export function AgencyDetailPage() {
       <div className="p-6 space-y-6">
 
         {/* Back link */}
-        <Link to="/agencies" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors">
+        <Link to="/people/agencies" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors">
           <ArrowLeft size={14} /> All Agencies
         </Link>
 
