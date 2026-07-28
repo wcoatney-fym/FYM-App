@@ -12,6 +12,7 @@ import {
   Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ComposedChart, Legend,
 } from 'recharts';
+import { DataFilters } from '@/components/filters/DataFilters';
 import {
   TrendingUp, DollarSign, FileText, Building2,
   ArrowUpRight, ArrowDownRight,
@@ -96,6 +97,7 @@ export function ProductionPage() {
   const [trend, setTrend] = useState<MonthlyPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<'ap' | 'policies' | 'growth'>('ap');
+  const [filterAgencyId, setFilterAgencyId] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -173,9 +175,33 @@ export function ProductionPage() {
     load();
   }, [effectiveAgencyId, isOrgWide]);
 
-  // Sort agencies
+  // Filter + sort agencies
+  const filteredAgencies = useMemo(() => {
+    if (!filterAgencyId) return agencies;
+    return agencies.filter(a => a.agency_id === filterAgencyId);
+  }, [agencies, filterAgencyId]);
+
+  const displayStats = useMemo((): OrgStats | null => {
+    if (!stats) return null;
+    if (!filterAgencyId) return stats;
+    const fa = filteredAgencies;
+    return {
+      totalPolicies: fa.reduce((s, a) => s + (a.active_policies || 0) + (a.at_risk_policies || 0), 0),
+      activePolicies: fa.reduce((s, a) => s + (a.active_policies || 0), 0),
+      terminatedPolicies: 0, pendingPolicies: 0,
+      atRiskPolicies: fa.reduce((s, a) => s + (a.at_risk_policies || 0), 0),
+      activeMonthlyPremium: fa.reduce((s, a) => s + Number(a.active_annual_premium || 0) / 12, 0),
+      activeAnnualPremium: fa.reduce((s, a) => s + Number(a.active_annual_premium || 0), 0),
+      policiesThisMonth: fa.reduce((s, a) => s + (a.policies_this_month || 0), 0),
+      apThisMonth: fa.reduce((s, a) => s + Number(a.ap_this_month || 0), 0),
+      policiesLastMonth: fa.reduce((s, a) => s + (a.policies_last_month || 0), 0),
+      apLastMonth: fa.reduce((s, a) => s + Number(a.ap_last_month || 0), 0),
+      activeAgencies: fa.filter(a => a.active_policies > 0).length,
+    };
+  }, [stats, filterAgencyId, filteredAgencies]);
+
   const sortedAgencies = useMemo(() => {
-    const arr = [...agencies];
+    const arr = [...filteredAgencies];
     switch (sortBy) {
       case 'ap': return arr.sort((a, b) => Number(b.active_annual_premium) - Number(a.active_annual_premium));
       case 'policies': return arr.sort((a, b) => b.policies_this_month - a.policies_this_month);
@@ -186,7 +212,7 @@ export function ProductionPage() {
       });
       default: return arr;
     }
-  }, [agencies, sortBy]);
+  }, [filteredAgencies, sortBy]);
 
   if (loading) {
     return (
@@ -199,20 +225,28 @@ export function ProductionPage() {
     );
   }
 
-  if (!stats) return null;
+  if (!stats || !displayStats) return null;
 
   return (
     <>
       <Header title="Production" />
       <div className="p-6 space-y-6 max-w-screen-xl mx-auto">
+        {/* Agency filter — FYM admins only */}
+        {isOrgWide && (
+          <DataFilters
+            selectedAgencyId={filterAgencyId}
+            onAgencyChange={setFilterAgencyId}
+          />
+        )}
+
         {/* Hero KPI Cards */}
         <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             {
               title: 'Active Policies',
-              end: stats.activePolicies,
+              end: displayStats.activePolicies,
               fmt: fmtNum,
-              sub: `${fmtNum(stats.policiesThisMonth)} this month`,
+              sub: `${fmtNum(displayStats.policiesThisMonth)} this month`,
               icon: FileText,
               color: 'text-primary',
               bg: 'bg-cyan-500/10',
@@ -220,9 +254,9 @@ export function ProductionPage() {
             },
             {
               title: 'Annual Premium',
-              end: stats.activeAnnualPremium,
+              end: displayStats.activeAnnualPremium,
               fmt: fmt$,
-              sub: `${fmt$(stats.apThisMonth)} this month`,
+              sub: `${fmt$(displayStats.apThisMonth)} this month`,
               icon: DollarSign,
               color: 'text-emerald-400',
               bg: 'bg-emerald-500/10',
@@ -230,9 +264,9 @@ export function ProductionPage() {
             },
             {
               title: 'This Month',
-              end: stats.policiesThisMonth,
+              end: displayStats.policiesThisMonth,
               fmt: (n: number) => `${fmtNum(n)} policies`,
-              delta: stats.policiesLastMonth,
+              delta: displayStats.policiesLastMonth,
               icon: TrendingUp,
               color: 'text-amber-400',
               bg: 'bg-amber-500/10',
@@ -240,9 +274,9 @@ export function ProductionPage() {
             },
             {
               title: 'Active Agencies',
-              end: stats.activeAgencies,
+              end: displayStats.activeAgencies,
               fmt: fmtNum,
-              sub: `${fmtNum(stats.atRiskPolicies)} at-risk policies`,
+              sub: `${fmtNum(displayStats.atRiskPolicies)} at-risk policies`,
               icon: Building2,
               color: 'text-violet-400',
               bg: 'bg-violet-500/10',
@@ -286,11 +320,11 @@ export function ProductionPage() {
           <CardContent className="p-4">
             <div className="grid grid-cols-5 gap-4 text-center">
               {[
-                { label: 'Active', value: stats.activePolicies, color: 'text-emerald-400' },
-                { label: 'Pending', value: stats.pendingPolicies, color: 'text-amber-400' },
-                { label: 'At Risk', value: stats.atRiskPolicies, color: 'text-red-400' },
-                { label: 'Terminated', value: stats.terminatedPolicies, color: 'text-muted-foreground/70' },
-                { label: 'Total', value: stats.totalPolicies, color: 'text-foreground' },
+                { label: 'Active', value: displayStats.activePolicies, color: 'text-emerald-400' },
+                { label: 'Pending', value: displayStats.pendingPolicies, color: 'text-amber-400' },
+                { label: 'At Risk', value: displayStats.atRiskPolicies, color: 'text-red-400' },
+                { label: 'Terminated', value: displayStats.terminatedPolicies, color: 'text-muted-foreground/70' },
+                { label: 'Total', value: displayStats.totalPolicies, color: 'text-foreground' },
               ].map(s => (
                 <div key={s.label}>
                   <p className="text-xs text-muted-foreground">{s.label}</p>
