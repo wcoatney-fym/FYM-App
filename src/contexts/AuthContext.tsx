@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useRef, type ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Session, User } from '@supabase/supabase-js';
 
@@ -27,52 +27,31 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-/**
- * Check if user is an FYM admin. Accepts the session access_token so the
- * query runs as the authenticated user (RLS requires `authenticated` role).
- * Without the token, the Supabase client may still be using the anon key
- * if the internal GoTrueClient hasn't processed the session yet.
- */
-async function checkFymAdmin(
+/** Check fym_admins table. Uses explicit fetch to guarantee the JWT is sent. */
+async function checkFymAdminTable(
   userId: string,
-  accessToken?: string,
+  accessToken: string,
 ): Promise<boolean> {
-  if (!supabase) return false;
   try {
-    // Try the standard Supabase client query first (works when the client
-    // has already attached the session JWT internally).
-    const { data, error } = await (supabase as any)
-      .from('fym_admins')
-      .select('id')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (!error && data) return true;
-
-    // Fallback: if the client query returned nothing and we have an
-    // explicit access token, query PostgREST directly. This handles the
-    // race where getSession() returned the session but the GoTrueClient
-    // hasn't attached the JWT to the internal fetch headers yet.
-    if (accessToken) {
-      const baseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      if (baseUrl && anonKey) {
-        const url = `${baseUrl}/rest/v1/fym_admins?select=id&user_id=eq.${userId}`;
-        const res = await fetch(url, {
-          headers: {
-            apikey: anonKey,
-            Authorization: `Bearer ${accessToken}`,
-            Accept: 'application/json',
-          },
-        });
-        if (res.ok) {
-          const rows = await res.json();
-          return Array.isArray(rows) && rows.length > 0;
-        }
-      }
+    const baseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    if (!baseUrl || !anonKey) return false;
+    const url = `${baseUrl}/rest/v1/fym_admins?select=id&user_id=eq.${userId}`;
+    const res = await fetch(url, {
+      headers: {
+        apikey: anonKey,
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+    });
+    if (res.ok) {
+      const rows = await res.json();
+      return Array.isArray(rows) && rows.length > 0;
     }
+    console.warn('[FYM Auth] fym_admins fetch failed:', res.status);
     return false;
-  } catch {
+  } catch (err) {
+    console.warn('[FYM Auth] fym_admins fetch error:', err);
     return false;
   }
 }
@@ -83,29 +62,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isFymAdmin, setIsFymAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-
-  async function fetchProfile(userId: string): Promise<void> {
-    if (!supabase) return;
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, role, agency_id, full_name, npn, writing_number')
-        .eq('id', userId)
-        .maybeSingle();
-      if (!error && data) setProfile(data as Profile);
-    } catch {
-      // Profile fetch failed — app still works, role-gated nav falls back to adminNav
-    }
-  }
+  // Guard: once loadUserContext has resolved at least once, don't let a
+  // stale onAuthStateChange event with null session reset isFymAdmin.
+  const contextLoadedRef = useRef(false);
+  // Deduplicate: track in-flight loadUserContext to avoid parallel runs.
+  const loadingRef = useRef<Promise<void> | null>(null);
 
   async function loadUserContext(
     userId: string,
-    accessToken?: string,
+    accessToken: string,
   ): Promise<void> {
-    await Promise.all([
-      fetchProfile(userId),
-      checkFymAdmin(userId, accessToken).then(setIsFymAdmin),
-    ]);
+    console.log('[FYM Auth] loadUserContext start', { userId: userId.slice(0, 8) });
+
+    // Fetch profile
+    let fetchedProfile: Profile | null = null;
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, role, agency_id, full_name, npn, writing_number')
+          .eq('id', userId)
+          .maybeSingle();
+        if (!error && data) {
+          fetchedProfile = data as Profile;
+          setProfile(fetchedProfile);
+        } else {
+          console.warn('[FYM Auth] profile fetch:', error?.message ?? 'no data');
+        }
+      } catch (err) {
+        console.warn('[FYM Auth] profile fetch error:', err);
+      }
+    }
+
+    // Check fym_admins table (explicit fetch — no Supabase client timing dependency)
+    const inTable = await checkFymAdminTable(userId, accessToken);
+    console.log('[FYM Auth] fym_admins table check:', inTable);
+
+    // Derive admin status: in fym_admins table OR profile.role === 'admin'
+    // The profile.role fallback handles cases where the fym_admins query
+    // fails for any reason (RLS timing, network, etc.)
+    const isAdmin = inTable || (fetchedProfile?.role === 'admin');
+    console.log('[FYM Auth] final isFymAdmin:', isAdmin, {
+      inTable,
+      profileRole: fetchedProfile?.role ?? 'null',
+    });
+
+    setIsFymAdmin(isAdmin);
+    contextLoadedRef.current = true;
   }
 
   useEffect(() => {
@@ -114,27 +117,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        loadUserContext(
-          session.user.id,
-          session.access_token,
-        ).finally(() => setLoading(false));
-      } else {
-        setLoading(false);
-      }
-    });
+    // Use onAuthStateChange as the SOLE trigger for loading user context.
+    // In Supabase JS v2, it fires INITIAL_SESSION before getSession resolves,
+    // so we don't need getSession at all for the initial load.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('[FYM Auth] onAuthStateChange:', event, session ? 'has session' : 'no session');
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user) {
-        loadUserContext(session.user.id, session.access_token);
-      } else {
+
+      if (session?.user && session.access_token) {
+        // Deduplicate: if a load is already in flight, skip.
+        if (loadingRef.current) {
+          console.log('[FYM Auth] skipping duplicate loadUserContext');
+          return;
+        }
+        const p = loadUserContext(session.user.id, session.access_token).finally(() => {
+          loadingRef.current = null;
+          setLoading(false);
+        });
+        loadingRef.current = p;
+      } else if (event === 'SIGNED_OUT') {
+        // Only reset on explicit sign-out, not on transient null-session events
+        console.log('[FYM Auth] SIGNED_OUT — resetting');
         setProfile(null);
         setIsFymAdmin(false);
+        contextLoadedRef.current = false;
+        setLoading(false);
+      } else if (!contextLoadedRef.current) {
+        // No session and context never loaded — genuinely not logged in
+        console.log('[FYM Auth] no session, never loaded — setting loading=false');
+        setLoading(false);
+      } else {
+        // Context was loaded before but we got a null-session event (e.g., token
+        // refresh hiccup). DON'T reset isFymAdmin — keep the last known state.
+        console.log('[FYM Auth] ignoring null-session event (context already loaded)');
       }
     });
 
@@ -150,8 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function signOut() {
     if (!supabase) return;
     await supabase.auth.signOut();
-    setProfile(null);
-    setIsFymAdmin(false);
+    // State reset handled by onAuthStateChange SIGNED_OUT event
   }
 
   return (
