@@ -11,6 +11,7 @@ import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated
 import { HudFrame } from '@/components/ui/hud-frame';
 import { supabase } from '@/lib/supabase';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
+import { DataFilters } from '@/components/filters/DataFilters';
 import {
   AlertTriangle, TrendingUp, DollarSign, ShieldCheck,
   ArrowLeft, ArrowRight, RefreshCw, Calendar, User, Building2,
@@ -146,6 +147,8 @@ export function CoachingPage() {
   const [notesDraft, setNotesDraft] = useState('');
   const [resolutionDraft, setResolutionDraft] = useState('');
   const [savingField, setSavingField] = useState<string | null>(null);
+  const [filterAgencyId, setFilterAgencyId] = useState<string | null>(null);
+  const [filterAgentId, setFilterAgentId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!supabase) { setLoading(false); return; }
@@ -174,29 +177,37 @@ export function CoachingPage() {
     }
   }, [selectedRow?.task_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Filter rows by agency/agent ──
+  const filteredRows = useMemo(() => {
+    let r = rows;
+    if (filterAgencyId) r = r.filter(row => row.agency_id === filterAgencyId);
+    if (filterAgentId) r = r.filter(row => row.agent_id === filterAgentId);
+    return r;
+  }, [rows, filterAgencyId, filterAgentId]);
+
   // ── KPI summary ──
   const summary = useMemo(() => {
-    const total = rows.length;
-    const critical = rows.filter(r => r.priority === 'critical').length;
-    const premiumAtRisk = rows
+    const total = filteredRows.length;
+    const critical = filteredRows.filter(r => r.priority === 'critical').length;
+    const premiumAtRisk = filteredRows
       .filter(r => r.stage !== 'saved' && r.stage !== 'lost')
       .reduce((s, r) => s + (r.plan_premium || 0), 0);
-    const saved = rows.filter(r => r.stage === 'saved').length;
-    const lost = rows.filter(r => r.stage === 'lost').length;
+    const saved = filteredRows.filter(r => r.stage === 'saved').length;
+    const lost = filteredRows.filter(r => r.stage === 'lost').length;
     const saveRate = (saved + lost) > 0 ? (saved / (saved + lost)) * 100 : null;
     return { total, critical, premiumAtRisk, saveRate };
-  }, [rows]);
+  }, [filteredRows]);
 
   // ── Columns grouped by stage ──
   const columns = useMemo(() => {
     const map = new Map<string, CoachingRow[]>();
     STAGES.forEach(s => map.set(s.key, []));
-    rows.forEach(r => {
+    filteredRows.forEach(r => {
       const key = STAGE_ORDER.includes(r.stage as StageKey) ? r.stage : 'new';
       map.get(key)!.push(r);
     });
     return map;
-  }, [rows]);
+  }, [filteredRows]);
 
   // ── Mutations ──
   async function updateTask(taskId: string, patch: Record<string, any>) {
@@ -325,6 +336,17 @@ export function CoachingPage() {
     <>
       <Header title="Coaching" />
       <div className="p-6 space-y-6">
+
+        {/* Agency + Agent filters — FYM admins only */}
+        {isOrgWide && (
+          <DataFilters
+            showAgentFilter
+            selectedAgencyId={filterAgencyId}
+            selectedAgentId={filterAgentId}
+            onAgencyChange={setFilterAgencyId}
+            onAgentChange={setFilterAgentId}
+          />
+        )}
 
         {/* ── KPI strip ── */}
         <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">

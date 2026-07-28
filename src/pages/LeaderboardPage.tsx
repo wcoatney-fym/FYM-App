@@ -12,6 +12,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
+import { DataFilters } from '@/components/filters/DataFilters';
 import {
   Trophy, TrendingUp, ShieldCheck, AlertTriangle, ChevronRight,
   ChevronDown, ChevronUp, Calendar, DollarSign, FileText,
@@ -107,6 +108,7 @@ export function LeaderboardPage() {
   const [filter, setFilter] = useState<'all' | 'above' | 'below'>('all');
   const [period, setPeriod] = useState<Period>('all');
   const [metric, setMetric] = useState<Metric>('policies');
+  const [filterAgencyId, setFilterAgencyId] = useState<string | null>(null);
 
   // Cache period data
   const [periodData, setPeriodData] = useState<Map<string, { policies: number; ap: number }>>(new Map());
@@ -259,6 +261,7 @@ export function LeaderboardPage() {
   // Sort + filter
   const displayed = useMemo(() => {
     let filtered = [...enrichedRows];
+    if (filterAgencyId) filtered = filtered.filter(r => r.agency_id === filterAgencyId);
     if (filter === 'above') filtered = filtered.filter(r => r.retention_pct !== null && r.retention_pct >= 90);
     if (filter === 'below') filtered = filtered.filter(r => r.retention_pct === null || r.retention_pct < 90);
 
@@ -276,7 +279,7 @@ export function LeaderboardPage() {
       }
     });
     return filtered;
-  }, [enrichedRows, sortKey, sortAsc, filter]);
+  }, [enrichedRows, sortKey, sortAsc, filter, filterAgencyId]);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortAsc(p => !p);
@@ -294,6 +297,14 @@ export function LeaderboardPage() {
     <div>
       <Header title="Agency Leaderboard" />
       <div className="p-6 space-y-6">
+
+        {/* Agency filter — FYM admins only */}
+        {isOrgWide && (
+          <DataFilters
+            selectedAgencyId={filterAgencyId}
+            onAgencyChange={setFilterAgencyId}
+          />
+        )}
 
         {/* Period + Metric Toggles */}
         <div className="flex flex-wrap items-center gap-4">

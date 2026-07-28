@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
 import { scopeToAgency } from '@/lib/query-helpers';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
+import { DataFilters } from '@/components/filters/DataFilters';
 import {
   FileText, DollarSign, AlertTriangle, Clock,
   Search, ChevronLeft, ChevronRight, Download,
@@ -68,6 +69,8 @@ export function BookOfBusinessPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [productFilter, setProductFilter] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
+  const [filterAgencyId, setFilterAgencyId] = useState<string | null>(null);
+  const [filterAgentId, setFilterAgentId] = useState<string | null>(null);
 
   // Summary stats
   const [summaryStats, setSummaryStats] = useState({
@@ -134,6 +137,12 @@ export function BookOfBusinessPage() {
         effectiveAgencyId
       );
 
+      if (filterAgencyId) {
+        query = query.eq('agency_id', filterAgencyId);
+      }
+      if (filterAgentId) {
+        query = query.eq('writing_number', filterAgentId);
+      }
       if (statusFilter !== 'all') {
         query = query.eq('status', statusFilter);
       }
@@ -156,12 +165,12 @@ export function BookOfBusinessPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, statusFilter, productFilter, search, effectiveAgencyId, isOrgWide]);
+  }, [page, statusFilter, productFilter, search, effectiveAgencyId, isOrgWide, filterAgencyId, filterAgentId]);
 
   useEffect(() => { loadPolicies(); }, [loadPolicies]);
 
   // Reset page on filter change
-  useEffect(() => { setPage(0); }, [statusFilter, productFilter, search]);
+  useEffect(() => { setPage(0); }, [statusFilter, productFilter, search, filterAgencyId, filterAgentId]);
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
@@ -208,6 +217,17 @@ export function BookOfBusinessPage() {
     <>
       <Header title="Book of Business" />
       <div className="p-6 space-y-6 max-w-screen-xl mx-auto">
+
+        {/* Agency + Agent filters — FYM admins only */}
+        {isOrgWide && (
+          <DataFilters
+            showAgentFilter
+            selectedAgencyId={filterAgencyId}
+            selectedAgentId={filterAgentId}
+            onAgencyChange={setFilterAgencyId}
+            onAgentChange={setFilterAgentId}
+          />
+        )}
         {/* Summary Strip */}
         <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[

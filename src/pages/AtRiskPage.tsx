@@ -8,6 +8,7 @@ import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
+import { DataFilters } from '@/components/filters/DataFilters';
 import {
   AlertTriangle, Clock, Search, ChevronDown, ChevronUp,
   CheckCircle2, TrendingDown,
@@ -62,6 +63,8 @@ export function AtRiskPage() {
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [filterUrgency, setFilterUrgency] = useState<'all' | 'critical' | 'high' | 'medium'>('all');
   const [togglingTask, setTogglingTask] = useState<string | null>(null);
+  const [filterAgencyId, setFilterAgencyId] = useState<string | null>(null);
+  const [filterAgentId, setFilterAgentId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!supabase) { setLoading(false); return; }
@@ -143,6 +146,14 @@ export function AtRiskPage() {
   const displayRows = useMemo(() => {
     let r = rows;
 
+    // Agency/agent filters (org-wide admins only)
+    if (filterAgencyId) {
+      r = r.filter(row => row.agency_id === filterAgencyId);
+    }
+    if (filterAgentId) {
+      r = r.filter(row => (row as any).agent_id === filterAgentId);
+    }
+
     if (search) {
       const q = search.toLowerCase();
       r = r.filter(row =>
@@ -162,7 +173,7 @@ export function AtRiskPage() {
       if (sortKey === 'product') return dir * a.product_type.localeCompare(b.product_type);
       return 0;
     });
-  }, [rows, search, filterUrgency, sortKey, sortDir]);
+  }, [rows, search, filterUrgency, sortKey, sortDir, filterAgencyId, filterAgentId]);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir(d => d === 'desc' ? 'asc' : 'desc');
@@ -195,6 +206,17 @@ export function AtRiskPage() {
     <div>
       <Header title={isAgent ? 'Your At-Risk Policies' : 'At-Risk Policies'} />
       <div className="p-6 space-y-6">
+
+        {/* Agency + Agent filters — FYM admins only */}
+        {isOrgWide && (
+          <DataFilters
+            showAgentFilter
+            selectedAgencyId={filterAgencyId}
+            selectedAgentId={filterAgentId}
+            onAgencyChange={setFilterAgencyId}
+            onAgentChange={setFilterAgentId}
+          />
+        )}
 
         {/* KPI strip */}
         <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">

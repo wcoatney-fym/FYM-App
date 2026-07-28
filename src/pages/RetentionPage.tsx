@@ -11,6 +11,7 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine, Legend,
 } from 'recharts';
+import { DataFilters } from '@/components/filters/DataFilters';
 import {
   ShieldCheck, Users, CheckCircle2, AlertTriangle,
   ArrowUpRight, ArrowDownRight, Minus, ChevronDown, ChevronRight,
@@ -120,6 +121,7 @@ export function RetentionPage() {
   const [sortKey, setSortKey] = useState<SortKey>('retention');
   const [sortAsc, setSortAsc] = useState(true);
   const [expandedAgency, setExpandedAgency] = useState<string | null>(null);
+  const [filterAgencyId, setFilterAgencyId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!supabase) { setLoading(false); return; }
@@ -203,9 +205,10 @@ export function RetentionPage() {
     return Array.from(byMonth.values()).sort((a, b) => a.cohort_month.localeCompare(b.cohort_month));
   }, [orgCohorts]);
 
-  // Sorted agency table
+  // Filter + sort agency table
   const sortedAgencies = useMemo(() => {
-    const arr = [...agencies];
+    let arr = [...agencies];
+    if (filterAgencyId) arr = arr.filter(a => a.agency_id === filterAgencyId);
     const dir = sortAsc ? 1 : -1;
     arr.sort((a, b) => {
       switch (sortKey) {
@@ -228,7 +231,7 @@ export function RetentionPage() {
       }
     });
     return arr;
-  }, [agencies, sortKey, sortAsc]);
+  }, [agencies, sortKey, sortAsc, filterAgencyId]);
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -285,6 +288,15 @@ export function RetentionPage() {
     <>
       <Header title="Retention" />
       <div className="p-6 space-y-6 max-w-screen-xl mx-auto">
+
+        {/* Agency filter — FYM admins only */}
+        {isOrgWide && (
+          <DataFilters
+            selectedAgencyId={filterAgencyId}
+            onAgencyChange={setFilterAgencyId}
+          />
+        )}
+
         {/* KPI Summary Cards */}
         <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
