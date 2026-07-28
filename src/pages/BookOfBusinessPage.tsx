@@ -78,51 +78,46 @@ export function BookOfBusinessPage() {
     totalPremium: 0, atRiskPremium: 0,
   });
 
-  // Load summary stats once
+  // Load summary stats — re-runs when agency/agent filter changes
   useEffect(() => {
     async function loadSummary() {
       if (!supabase) return;
-      const { data } = await scopeToAgency(
-        supabase
-          .from('book_of_business')
-          .select('status, is_at_risk, monthly_premium'),
-        isOrgWide,
-        effectiveAgencyId
-      );
 
-      if (data) {
-        // Paginate the full count
-        let all: typeof data = [];
-        let offset = 0;
-        const PG = 1000;
-        while (true) {
-          const { data: chunk } = await scopeToAgency(
-            supabase
-              .from('book_of_business')
-              .select('status, is_at_risk, monthly_premium')
-              .range(offset, offset + PG - 1),
-            isOrgWide,
-            effectiveAgencyId
-          );
-          if (!chunk || chunk.length === 0) break;
-          all = [...all, ...chunk];
-          if (chunk.length < PG) break;
-          offset += PG;
-        }
+      // Paginate the full count with filters applied
+      let all: { status: string; is_at_risk: boolean; monthly_premium: number }[] = [];
+      let offset = 0;
+      const PG = 1000;
+      while (true) {
+        let query = scopeToAgency(
+          supabase
+            .from('book_of_business')
+            .select('status, is_at_risk, monthly_premium')
+            .range(offset, offset + PG - 1),
+          isOrgWide,
+          effectiveAgencyId
+        );
+        if (filterAgencyId) query = query.eq('agency_id', filterAgencyId);
+        if (filterAgentId) query = query.eq('writing_number', filterAgentId);
 
-        const stats = {
-          active: all.filter(p => p.status === 'active').length,
-          pending: all.filter(p => p.status === 'pending').length,
-          atRisk: all.filter(p => p.is_at_risk).length,
-          terminated: all.filter(p => p.status === 'terminated').length,
-          totalPremium: all.filter(p => p.status === 'active').reduce((s, p) => s + (Number(p.monthly_premium) * 12 || 0), 0),
-          atRiskPremium: all.filter(p => p.is_at_risk).reduce((s, p) => s + (Number(p.monthly_premium) * 12 || 0), 0),
-        };
-        setSummaryStats(stats);
+        const { data: chunk } = await query;
+        if (!chunk || chunk.length === 0) break;
+        all = [...all, ...(chunk as typeof all)];
+        if (chunk.length < PG) break;
+        offset += PG;
       }
+
+      const stats = {
+        active: all.filter(p => p.status === 'active').length,
+        pending: all.filter(p => p.status === 'pending').length,
+        atRisk: all.filter(p => p.is_at_risk).length,
+        terminated: all.filter(p => p.status === 'terminated').length,
+        totalPremium: all.filter(p => p.status === 'active').reduce((s, p) => s + (Number(p.monthly_premium) * 12 || 0), 0),
+        atRiskPremium: all.filter(p => p.is_at_risk).reduce((s, p) => s + (Number(p.monthly_premium) * 12 || 0), 0),
+      };
+      setSummaryStats(stats);
     }
     loadSummary();
-  }, [effectiveAgencyId, isOrgWide]);
+  }, [effectiveAgencyId, isOrgWide, filterAgencyId, filterAgentId]);
 
   // Load paginated policies
   const loadPolicies = useCallback(async () => {
