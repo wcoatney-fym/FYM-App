@@ -54,7 +54,7 @@ type SortDir = 'asc' | 'desc';
 
 export function AtRiskPage() {
   const { role, profile } = useAuth();
-  const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
+  const { effectiveAgencyId, effectiveWritingNumber, isOrgWide, isAgent } = useEffectiveAuth();
   const [rows, setRows] = useState<AtRiskRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -78,10 +78,11 @@ export function AtRiskPage() {
           .order('days_since_draft', { ascending: false })
           .range(offset, offset + PAGE_SIZE - 1);
 
-        // Agents see only their agency's policies; agency admins (non org-wide) are scoped too
-        if (role === 'agent' && effectiveAgencyId) {
-          query = query.eq('agency_id', effectiveAgencyId);
+        // Agents see only their own policies (by writing number)
+        if (isAgent && effectiveWritingNumber) {
+          query = query.eq('agent_id', effectiveWritingNumber);
         } else if (!isOrgWide && effectiveAgencyId) {
+          // Managers & agency admins see their agency's policies
           query = query.eq('agency_id', effectiveAgencyId);
         }
 
@@ -100,7 +101,7 @@ export function AtRiskPage() {
     }
 
     load();
-  }, [role, profile, effectiveAgencyId, isOrgWide]);
+  }, [role, profile, effectiveAgencyId, effectiveWritingNumber, isOrgWide, isAgent]);
 
   async function openTask(policy_number: string, agency_id: string) {
     if (!supabase) return;
@@ -192,7 +193,7 @@ export function AtRiskPage() {
 
   return (
     <div>
-      <Header title="At-Risk Policies" />
+      <Header title={isAgent ? 'Your At-Risk Policies' : 'At-Risk Policies'} />
       <div className="p-6 space-y-6">
 
         {/* KPI strip */}
@@ -315,27 +316,36 @@ export function AtRiskPage() {
                       </Badge>
                     </span>
                     <span className="col-span-2 text-center">
-                      {!row.task_id ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={isBusy}
-                          onClick={() => openTask(row.policy_number, row.agency_id)}
-                          className="h-6 px-2 text-[11px] border-border hover:border-primary/50 hover:text-primary"
-                        >
-                          {isBusy ? '…' : 'Open Task'}
-                        </Button>
-                      ) : row.task_status !== 'resolved' ? (
-                        <Button
-                          size="sm"
-                          disabled={isBusy}
-                          onClick={() => resolveTask(row.task_id!, row.policy_number)}
-                          className="h-6 px-2 text-[11px] bg-emerald-500 hover:bg-emerald-600 text-white"
-                        >
-                          {isBusy ? '…' : <><CheckCircle2 size={11} className="mr-1 inline" />Resolve</>}
-                        </Button>
+                      {isAgent ? (
+                        // Agents see status only, no task controls
+                        row.task_status === 'resolved'
+                          ? <span className="text-xs text-emerald-400 font-medium">✓ Resolved</span>
+                          : row.task_id
+                          ? <Badge className="text-[10px] px-1.5 py-0 border bg-cyan-500/10 text-cyan-400 border-cyan-500/20">In Review</Badge>
+                          : <Badge className="text-[10px] px-1.5 py-0 border bg-amber-500/10 text-amber-400 border-amber-500/20">Needs Attention</Badge>
                       ) : (
-                        <span className="text-xs text-emerald-400 font-medium">✓ Done</span>
+                        !row.task_id ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={isBusy}
+                            onClick={() => openTask(row.policy_number, row.agency_id)}
+                            className="h-6 px-2 text-[11px] border-border hover:border-primary/50 hover:text-primary"
+                          >
+                            {isBusy ? '…' : 'Open Task'}
+                          </Button>
+                        ) : row.task_status !== 'resolved' ? (
+                          <Button
+                            size="sm"
+                            disabled={isBusy}
+                            onClick={() => resolveTask(row.task_id!, row.policy_number)}
+                            className="h-6 px-2 text-[11px] bg-emerald-500 hover:bg-emerald-600 text-white"
+                          >
+                            {isBusy ? '…' : <><CheckCircle2 size={11} className="mr-1 inline" />Resolve</>}
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-emerald-400 font-medium">✓ Done</span>
+                        )
                       )}
                     </span>
                   </div>

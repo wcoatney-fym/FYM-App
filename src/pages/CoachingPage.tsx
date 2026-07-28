@@ -113,7 +113,7 @@ async function fetchAllPaginated<T>(
   table: string,
   select: string,
   order?: { column: string; ascending?: boolean },
-  agencyFilter?: { isOrgWide: boolean; agencyId: string | null }
+  agencyFilter?: { isOrgWide: boolean; agencyId: string | null; writingNumber?: string | null; isAgent?: boolean }
 ): Promise<T[]> {
   if (!supabase) return [];
   let all: T[] = [];
@@ -121,7 +121,10 @@ async function fetchAllPaginated<T>(
   while (true) {
     let query = (supabase as any).from(table).select(select).range(offset, offset + PAGE - 1);
     if (order) query = query.order(order.column, { ascending: order.ascending ?? true });
-    if (agencyFilter && !agencyFilter.isOrgWide && agencyFilter.agencyId) {
+    // Agents see only their own policies (by writing number)
+    if (agencyFilter?.isAgent && agencyFilter.writingNumber) {
+      query = query.eq('agent_id', agencyFilter.writingNumber);
+    } else if (agencyFilter && !agencyFilter.isOrgWide && agencyFilter.agencyId) {
       query = query.eq('agency_id', agencyFilter.agencyId);
     }
     const { data, error } = await query;
@@ -135,7 +138,7 @@ async function fetchAllPaginated<T>(
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function CoachingPage() {
-  const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
+  const { effectiveAgencyId, effectiveWritingNumber, isOrgWide, isAgent } = useEffectiveAuth();
   const [rows, setRows] = useState<CoachingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -148,14 +151,14 @@ export function CoachingPage() {
     if (!supabase) { setLoading(false); return; }
     setLoading(true);
     try {
-      const data = await fetchAllPaginated<CoachingRow>('coaching_pipeline', '*', undefined, { isOrgWide, agencyId: effectiveAgencyId });
+      const data = await fetchAllPaginated<CoachingRow>('coaching_pipeline', '*', undefined, { isOrgWide, agencyId: effectiveAgencyId, writingNumber: effectiveWritingNumber, isAgent });
       setRows(data);
     } catch (err) {
       console.error('Coaching pipeline load error:', err);
     } finally {
       setLoading(false);
     }
-  }, [isOrgWide, effectiveAgencyId]);
+  }, [isOrgWide, effectiveAgencyId, effectiveWritingNumber, isAgent]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -395,19 +398,21 @@ export function CoachingPage() {
         {/* ── Toolbar ── */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <h2 className="text-base font-semibold text-foreground">Escalation Pipeline</h2>
-            <p className="text-xs text-muted-foreground/70 mt-0.5">Click a card to open coaching detail and move stages.</p>
+            <h2 className="text-base font-semibold text-foreground">{isAgent ? 'Your Coaching Cases' : 'Escalation Pipeline'}</h2>
+            <p className="text-xs text-muted-foreground/70 mt-0.5">{isAgent ? 'Policies your manager is coaching on your behalf.' : 'Click a card to open coaching detail and move stages.'}</p>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={syncing}
-            onClick={syncAtRisk}
-            className="h-8 text-xs border-border hover:border-primary/50 hover:text-primary"
-          >
-            <RefreshCw size={13} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} />
-            {syncing ? 'Syncing…' : 'Sync At-Risk'}
-          </Button>
+          {!isAgent && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={syncing}
+              onClick={syncAtRisk}
+              className="h-8 text-xs border-border hover:border-primary/50 hover:text-primary"
+            >
+              <RefreshCw size={13} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? 'Syncing…' : 'Sync At-Risk'}
+            </Button>
+          )}
         </div>
 
         {/* ── Kanban board ── */}
@@ -528,54 +533,67 @@ export function CoachingPage() {
                   </div>
                 </div>
 
-                {/* Stage control */}
+                {/* Stage control — read-only for agents */}
                 <div className="border-t border-border/30 pt-4">
                   <p className="text-xs font-semibold text-muted-foreground mb-2">Pipeline Stage</p>
-                  <div className="flex items-center justify-between gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={savingField === 'stage' || STAGE_ORDER.indexOf(selectedRow.stage as StageKey) === 0}
-                      onClick={() => moveStage(selectedRow.task_id, 'prev')}
-                      className="h-8 text-xs border-border"
-                    >
-                      <ArrowLeft size={13} className="mr-1" /> Previous
-                    </Button>
+                  {isAgent ? (
                     <Badge className={`text-xs px-2.5 py-1 border ${STAGES.find(s => s.key === selectedRow.stage)?.color ?? 'border-border'} bg-secondary text-foreground`}>
                       <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${STAGES.find(s => s.key === selectedRow.stage)?.dot ?? 'bg-slate-400'}`} />
                       {STAGES.find(s => s.key === selectedRow.stage)?.label ?? selectedRow.stage}
                     </Badge>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={savingField === 'stage' || STAGE_ORDER.indexOf(selectedRow.stage as StageKey) === STAGE_ORDER.length - 1}
-                      onClick={() => moveStage(selectedRow.task_id, 'next')}
-                      className="h-8 text-xs border-border"
-                    >
-                      Next <ArrowRight size={13} className="ml-1" />
-                    </Button>
-                  </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={savingField === 'stage' || STAGE_ORDER.indexOf(selectedRow.stage as StageKey) === 0}
+                        onClick={() => moveStage(selectedRow.task_id, 'prev')}
+                        className="h-8 text-xs border-border"
+                      >
+                        <ArrowLeft size={13} className="mr-1" /> Previous
+                      </Button>
+                      <Badge className={`text-xs px-2.5 py-1 border ${STAGES.find(s => s.key === selectedRow.stage)?.color ?? 'border-border'} bg-secondary text-foreground`}>
+                        <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${STAGES.find(s => s.key === selectedRow.stage)?.dot ?? 'bg-slate-400'}`} />
+                        {STAGES.find(s => s.key === selectedRow.stage)?.label ?? selectedRow.stage}
+                      </Badge>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={savingField === 'stage' || STAGE_ORDER.indexOf(selectedRow.stage as StageKey) === STAGE_ORDER.length - 1}
+                        onClick={() => moveStage(selectedRow.task_id, 'next')}
+                        className="h-8 text-xs border-border"
+                      >
+                        Next <ArrowRight size={13} className="ml-1" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
-                {/* Priority selector */}
+                {/* Priority — read-only badge for agents, editable for managers */}
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground mb-2">Priority</p>
-                  <div className="flex items-center gap-2">
-                    {(['critical', 'high', 'medium'] as const).map(p => (
-                      <button
-                        key={p}
-                        onClick={() => updatePriority(selectedRow.task_id, p)}
-                        disabled={savingField === 'priority'}
-                        className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors capitalize ${
-                          selectedRow.priority === p
-                            ? priorityBadgeClass(p) + ' ring-1 ring-inset'
-                            : 'bg-secondary text-muted-foreground border-border hover:border-primary/30'
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    ))}
-                  </div>
+                  {isAgent ? (
+                    <Badge className={`text-xs px-2.5 py-1 border capitalize ${priorityBadgeClass(selectedRow.priority)}`}>
+                      {selectedRow.priority}
+                    </Badge>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      {(['critical', 'high', 'medium'] as const).map(p => (
+                        <button
+                          key={p}
+                          onClick={() => updatePriority(selectedRow.task_id, p)}
+                          disabled={savingField === 'priority'}
+                          className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors capitalize ${
+                            selectedRow.priority === p
+                              ? priorityBadgeClass(p) + ' ring-1 ring-inset'
+                              : 'bg-secondary text-muted-foreground border-border hover:border-primary/30'
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Last contact date */}
@@ -583,37 +601,49 @@ export function CoachingPage() {
                   <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1.5">
                     <Calendar size={12} /> Last Contact Date
                   </p>
-                  <input
-                    type="date"
-                    defaultValue={selectedRow.last_contact_date ?? ''}
-                    onBlur={(e) => updateLastContact(selectedRow.task_id, e.target.value)}
-                    className="h-8 text-sm bg-card border border-border rounded-md px-2 text-foreground w-44"
-                  />
+                  {isAgent ? (
+                    <span className="text-sm text-foreground font-data">{selectedRow.last_contact_date ? fmtDate(selectedRow.last_contact_date) : '—'}</span>
+                  ) : (
+                    <input
+                      type="date"
+                      defaultValue={selectedRow.last_contact_date ?? ''}
+                      onBlur={(e) => updateLastContact(selectedRow.task_id, e.target.value)}
+                      className="h-8 text-sm bg-card border border-border rounded-md px-2 text-foreground w-44"
+                    />
+                  )}
                 </div>
 
-                {/* Notes */}
+                {/* Notes — read-only for agents */}
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground mb-2">Coaching Notes</p>
-                  <Textarea
-                    value={notesDraft}
-                    onChange={(e) => setNotesDraft(e.target.value)}
-                    onBlur={() => saveNotes(selectedRow.task_id)}
-                    placeholder="Log outreach attempts, coaching conversations, agent commitments…"
-                    className="min-h-[80px] text-sm bg-card border-border"
-                  />
+                  {isAgent ? (
+                    <p className="text-sm text-foreground/80 whitespace-pre-wrap">{selectedRow.notes || <span className="text-muted-foreground/50 italic">No notes yet.</span>}</p>
+                  ) : (
+                    <Textarea
+                      value={notesDraft}
+                      onChange={(e) => setNotesDraft(e.target.value)}
+                      onBlur={() => saveNotes(selectedRow.task_id)}
+                      placeholder="Log outreach attempts, coaching conversations, agent commitments…"
+                      className="min-h-[80px] text-sm bg-card border-border"
+                    />
+                  )}
                 </div>
 
-                {/* Resolution (saved/lost stages) */}
+                {/* Resolution (saved/lost stages) — read-only for agents */}
                 {(selectedRow.stage === 'saved' || selectedRow.stage === 'lost' || selectedRow.stage === 'pending_save') && (
                   <div>
                     <p className="text-xs font-semibold text-muted-foreground mb-2">Resolution</p>
-                    <Textarea
-                      value={resolutionDraft}
-                      onChange={(e) => setResolutionDraft(e.target.value)}
-                      onBlur={() => saveResolution(selectedRow.task_id)}
-                      placeholder="How was this resolved? Payment plan, carrier rate action, non-responsive, etc."
-                      className="min-h-[60px] text-sm bg-card border-border"
-                    />
+                    {isAgent ? (
+                      <p className="text-sm text-foreground/80 whitespace-pre-wrap">{selectedRow.resolution || <span className="text-muted-foreground/50 italic">No resolution noted.</span>}</p>
+                    ) : (
+                      <Textarea
+                        value={resolutionDraft}
+                        onChange={(e) => setResolutionDraft(e.target.value)}
+                        onBlur={() => saveResolution(selectedRow.task_id)}
+                        placeholder="How was this resolved? Payment plan, carrier rate action, non-responsive, etc."
+                        className="min-h-[60px] text-sm bg-card border-border"
+                      />
+                    )}
                   </div>
                 )}
 

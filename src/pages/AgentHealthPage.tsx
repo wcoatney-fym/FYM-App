@@ -4,6 +4,7 @@ import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
+import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { supabase } from '@/lib/supabase';
 import type { Database } from '@/lib/database.types';
 import {
@@ -81,8 +82,11 @@ export function AgentHealthPage() {
   const { agentId } = useParams<{ agentId: string }>();
   const navigate = useNavigate();
   const { profile, role } = useAuth();
+  const { effectiveRole, effectiveWritingNumber } = useEffectiveAuth();
 
-  const targetId = role === 'agent' ? profile?.id : agentId;
+  // For agents viewing their own health: use writing_number (matches policy_cache.agent_id)
+  // For managers/admins viewing an agent: agentId param is already the writing_number
+  const targetId = effectiveRole === 'agent' ? effectiveWritingNumber : agentId;
 
   const [healthData, setHealthData] = useState<HealthRow | null>(null);
   const [policies, setPolicies] = useState<PolicyRow[]>([]);
@@ -147,15 +151,21 @@ export function AgentHealthPage() {
     <div>
       <Header title="Agent Book Health" />
       <div className="p-6 space-y-5">
-        {role !== 'agent' && (
+        {effectiveRole !== 'agent' && (
           <button onClick={() => navigate(-1)} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
             <ArrowLeft size={15} /> Back
           </button>
         )}
 
-        {usingMock && (
+        {usingMock && effectiveRole !== 'agent' && (
           <div className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded px-3 py-2">
             ⚠ Policy cache not yet populated — showing demo data. Run the sync edge function to populate live data.
+          </div>
+        )}
+
+        {usingMock && effectiveRole === 'agent' && (
+          <div className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded px-3 py-2">
+            ⚠ Your book data isn't available yet. Your writing number may not be linked to your account — contact your manager or admin.
           </div>
         )}
 
