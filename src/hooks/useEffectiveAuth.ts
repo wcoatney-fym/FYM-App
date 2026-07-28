@@ -14,11 +14,13 @@ interface EffectiveAuth {
   // Effective values (may be overridden by View As)
   effectiveRole: UserRole | null;
   effectiveAgencyId: string | null;
+  effectiveWritingNumber: string | null;
   isFymAdmin: boolean;
   isViewingAs: boolean;
 
   // Convenience booleans
   isOrgWide: boolean; // true if FYM admin NOT in View As mode
+  isAgent: boolean; // true if effective role is 'agent'
 }
 
 export function useEffectiveAuth(): EffectiveAuth {
@@ -29,7 +31,9 @@ export function useEffectiveAuth(): EffectiveAuth {
 
   const effectiveRole = isViewingAs ? viewAs.role : auth.role;
   const effectiveAgencyId = isViewingAs ? viewAs.agencyId : auth.agencyId;
+  const effectiveWritingNumber = auth.profile?.writing_number ?? null;
   const isOrgWide = auth.isFymAdmin && !viewAs.active;
+  const isAgent = effectiveRole === 'agent';
 
   return {
     session: auth.session,
@@ -40,8 +44,10 @@ export function useEffectiveAuth(): EffectiveAuth {
     signOut: auth.signOut,
     effectiveRole,
     effectiveAgencyId,
+    effectiveWritingNumber,
     isFymAdmin: auth.isFymAdmin,
     isViewingAs,
     isOrgWide,
+    isAgent,
   };
 }

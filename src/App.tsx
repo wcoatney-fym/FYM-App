@@ -46,10 +46,12 @@ function App() {
             <Route path="/coaching" element={<CoachingPage />} />
             <Route path="/leaderboard" element={<LeaderboardPage />} />
             <Route path="/compete" element={<GamificationPage />} />
-            <Route path="/agents/:agentId/health" element={<AgentHealthPage />} />
+            <Route path="/agents/:agentId/health" element={<RoleGuard allow={['admin', 'manager']}><AgentHealthPage /></RoleGuard>} />
             <Route path="/my-health" element={<AgentHealthPage />} />
             <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/crm-ops" element={<CrmOpsPage />} />
+
+            {/* Admin + manager routes (not agent) */}
+            <Route path="/crm-ops" element={<RoleGuard allow={['admin', 'manager']}><CrmOpsPage /></RoleGuard>} />
 
             {/* Admin + manager routes (not agent) */}
             <Route path="/agencies" element={<RoleGuard allow={['admin', 'manager']}><AgenciesPage /></RoleGuard>} />
