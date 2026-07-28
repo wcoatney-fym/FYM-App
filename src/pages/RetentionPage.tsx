@@ -183,15 +183,22 @@ export function RetentionPage() {
     load();
   }, [effectiveAgencyId, isOrgWide]);
 
-  // Org-wide KPI summary
+  // Org-wide KPI summary — derived from sortedAgencies so it respects the filter
+  // (sortedAgencies is defined below; moved summary after it would create a forward-ref,
+  //  so we inline the filter here)
+  const filteredAgencies = useMemo(() => {
+    if (!filterAgencyId) return agencies;
+    return agencies.filter(a => a.agency_id === filterAgencyId);
+  }, [agencies, filterAgencyId]);
+
   const summary = useMemo(() => {
-    const eligible = agencies.reduce((s, a) => s + (a.total_eligible || 0), 0);
-    const retained = agencies.reduce((s, a) => s + (a.retained || 0), 0);
-    const everDrafted = agencies.reduce((s, a) => s + (a.ever_drafted || 0), 0);
-    const atRiskAgencies = agencies.filter(a => a.retention_pct !== null && a.retention_pct < 90).length;
+    const eligible = filteredAgencies.reduce((s, a) => s + (a.total_eligible || 0), 0);
+    const retained = filteredAgencies.reduce((s, a) => s + (a.retained || 0), 0);
+    const everDrafted = filteredAgencies.reduce((s, a) => s + (a.ever_drafted || 0), 0);
+    const atRiskAgencies = filteredAgencies.filter(a => a.retention_pct !== null && a.retention_pct < 90).length;
     const orgRetentionPct = everDrafted > 0 ? (retained / everDrafted) * 100 : 0;
     return { eligible, retained, orgRetentionPct, atRiskAgencies };
-  }, [agencies]);
+  }, [filteredAgencies]);
 
   // Org-wide trend chart data — HI vs HHC by cohort_month
   const trendData = useMemo(() => {
@@ -334,7 +341,7 @@ export function RetentionPage() {
               title: 'Agencies Below 90%',
               end: summary.atRiskAgencies,
               fmt: fmtNum,
-              sub: `of ${agencies.length} agencies`,
+              sub: `of ${filteredAgencies.length} agencies`,
               icon: AlertTriangle,
               color: summary.atRiskAgencies > 0 ? 'text-red-400' : 'text-muted-foreground/70',
               bg: summary.atRiskAgencies > 0 ? 'bg-red-500/10' : 'bg-secondary',
