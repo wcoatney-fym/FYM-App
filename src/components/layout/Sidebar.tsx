@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   Building2,
@@ -11,14 +11,9 @@ import {
   Trophy,
   ShieldCheck,
   LogOut,
-  BarChart3,
   ClipboardList,
-  UserPlus,
-  Rocket,
   Command,
   TrendingUp,
-  BookOpen,
-  Activity,
   HeartPulse,
   Swords,
 } from 'lucide-react';
@@ -31,6 +26,8 @@ interface NavItem {
   to: string;
   label: string;
   icon: React.ElementType;
+  /** If set, sidebar item is active when path starts with this prefix */
+  activePrefix?: string;
 }
 
 const agentNav: NavItem[] = [
@@ -44,50 +41,37 @@ const agentNav: NavItem[] = [
 
 const managerNav: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/production', label: 'Production', icon: TrendingUp },
-  { to: '/workboard', label: 'Workboard', icon: ClipboardList },
-  { to: '/retention', label: 'Retention', icon: Activity },
-  { to: '/at-risk', label: 'At-Risk', icon: AlertTriangle },
-  { to: '/coaching', label: 'Coaching', icon: HeartPulse },
-  { to: '/compete', label: 'Compete', icon: Swords },
-  { to: '/agents', label: 'Agents', icon: Users },
+  { to: '/people/agents', label: 'Agents', icon: Users, activePrefix: '/people' },
+  { to: '/production', label: 'Production', icon: TrendingUp, activePrefix: '/production' },
+  { to: '/quality/retention', label: 'Quality', icon: ShieldCheck, activePrefix: '/quality' },
   { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
+  { to: '/workboard', label: 'Workboard', icon: ClipboardList },
+  { to: '/compete', label: 'Compete', icon: Swords },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
 const fymAdminNav: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/agencies', label: 'Agencies', icon: Building2 },
-  { to: '/agents', label: 'Agents', icon: Users },
-  { to: '/at-risk', label: 'At-Risk', icon: AlertTriangle },
-  { to: '/coaching', label: 'Coaching', icon: HeartPulse },
+  { to: '/people/agencies', label: 'Agencies & Agents', icon: Building2, activePrefix: '/people' },
+  { to: '/production', label: 'Production', icon: TrendingUp, activePrefix: '/production' },
+  { to: '/quality/retention', label: 'Quality', icon: ShieldCheck, activePrefix: '/quality' },
+  { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { to: '/workboard', label: 'Workboard', icon: ClipboardList },
   { to: '/contracting', label: 'Contracting', icon: FileText },
-  { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { to: '/crm-command', label: 'CRM Command', icon: Command },
-  { to: '/production', label: 'Production', icon: TrendingUp },
-  { to: '/book', label: 'Book of Business', icon: BookOpen },
-  { to: '/financials', label: 'Financials', icon: BarChart3 },
-  { to: '/retention', label: 'Retention', icon: Activity },
   { to: '/compete', label: 'Compete', icon: Swords },
-  { to: '/onboarding', label: 'Onboarding', icon: Rocket },
-  { to: '/provision', label: 'Provision Agents', icon: UserPlus },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
 const agencyAdminNav: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/agents', label: 'Agents', icon: Users },
-  { to: '/production', label: 'Production', icon: TrendingUp },
-  { to: '/book', label: 'Book of Business', icon: BookOpen },
-  { to: '/financials', label: 'Financials', icon: BarChart3 },
-  { to: '/retention', label: 'Retention', icon: Activity },
-  { to: '/at-risk', label: 'At-Risk', icon: AlertTriangle },
-  { to: '/coaching', label: 'Coaching', icon: HeartPulse },
+  { to: '/people/agents', label: 'Agents', icon: Users, activePrefix: '/people' },
+  { to: '/production', label: 'Production', icon: TrendingUp, activePrefix: '/production' },
+  { to: '/quality/retention', label: 'Quality', icon: ShieldCheck, activePrefix: '/quality' },
+  { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { to: '/workboard', label: 'Workboard', icon: ClipboardList },
   { to: '/contracting', label: 'Contracting', icon: FileText },
   { to: '/crm-command', label: 'CRM Command', icon: Command },
-  { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { to: '/compete', label: 'Compete', icon: Swords },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
@@ -96,6 +80,8 @@ export function Sidebar() {
   const { sidebarCollapsed, toggleSidebar } = useAppStore();
   const { profile, signOut } = useAuth();
   const { effectiveRole, isFymAdmin, isViewingAs, isOrgWide } = useEffectiveAuth();
+
+  const location = useLocation();
 
   const navItems =
     effectiveRole === 'agent' ? agentNav :
@@ -138,33 +124,43 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 py-4 space-y-0.5 overflow-y-auto scrollbar-thin">
-        {navItems.map(({ to, label, icon: Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === '/'}
-            className={({ isActive }) =>
-              cn(
-                'flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-all duration-200 relative group',
-                isActive
-                  ? 'text-[hsl(var(--sidebar-active))] bg-[hsl(var(--sidebar-active))]/10'
-                  : 'text-[hsl(var(--sidebar-foreground))]/60 hover:bg-[hsl(var(--sidebar-hover))] hover:text-[hsl(var(--sidebar-foreground))]',
-                sidebarCollapsed && 'justify-center px-0'
-              )
-            }
-          >
-            {({ isActive }) => (
-              <>
-                {/* Active indicator bar */}
-                {isActive && (
-                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-[hsl(var(--sidebar-active))] shadow-[0_0_8px_hsl(199_89%_48%_/_0.4)]" />
-                )}
-                <Icon size={18} className="flex-shrink-0" />
-                {!sidebarCollapsed && label}
-              </>
-            )}
-          </NavLink>
-        ))}
+        {navItems.map(({ to, label, icon: Icon, activePrefix }) => {
+          // Group tabs use prefix matching; standalone tabs use exact or default NavLink matching
+          const isPrefixActive = activePrefix
+            ? location.pathname.startsWith(activePrefix)
+            : false;
+
+          return (
+            <NavLink
+              key={to}
+              to={to}
+              end={to === '/' && !activePrefix}
+              className={({ isActive: routerActive }) => {
+                const active = activePrefix ? isPrefixActive : routerActive;
+                return cn(
+                  'flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-all duration-200 relative group',
+                  active
+                    ? 'text-[hsl(var(--sidebar-active))] bg-[hsl(var(--sidebar-active))]/10'
+                    : 'text-[hsl(var(--sidebar-foreground))]/60 hover:bg-[hsl(var(--sidebar-hover))] hover:text-[hsl(var(--sidebar-foreground))]',
+                  sidebarCollapsed && 'justify-center px-0'
+                );
+              }}
+            >
+              {({ isActive: routerActive }) => {
+                const active = activePrefix ? isPrefixActive : routerActive;
+                return (
+                  <>
+                    {active && (
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-[hsl(var(--sidebar-active))] shadow-[0_0_8px_hsl(199_89%_48%_/_0.4)]" />
+                    )}
+                    <Icon size={18} className="flex-shrink-0" />
+                    {!sidebarCollapsed && label}
+                  </>
+                );
+              }}
+            </NavLink>
+          );
+        })}
       </nav>
 
       {/* User / sign-out */}

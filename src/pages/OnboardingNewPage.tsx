@@ -91,7 +91,7 @@ export function OnboardingNewPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <div>
-        <Link to="/onboarding" className="text-xs text-muted-foreground hover:text-foreground">
+        <Link to="/people/onboarding" className="text-xs text-muted-foreground hover:text-foreground">
           ← Onboarding
         </Link>
         <h1 className="text-2xl font-bold tracking-tight mt-2">Onboard a Partner</h1>
@@ -228,7 +228,7 @@ export function OnboardingNewPage() {
                 {submitting ? 'Creating...' : 'Create agency'}
               </Button>
               <Button type="button" variant="ghost" asChild>
-                <Link to="/onboarding">Cancel</Link>
+                <Link to="/people/onboarding">Cancel</Link>
               </Button>
             </div>
           </form>

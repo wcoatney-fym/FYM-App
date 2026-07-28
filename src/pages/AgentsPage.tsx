@@ -154,7 +154,7 @@ export function AgentsPage() {
                 </div>
                 <Button
                   size="sm"
-                  onClick={() => navigate('/provision')}
+                  onClick={() => navigate('/people/provision')}
                   className="h-8 bg-primary hover:bg-primary/80 text-white text-xs gap-1.5"
                 >
                   <UserPlus size={13} /> Add Agent

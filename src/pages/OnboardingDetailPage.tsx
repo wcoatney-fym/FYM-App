@@ -77,7 +77,7 @@ export function OnboardingDetailPage() {
         <CardContent className="p-12 text-center">
           <h2 className="text-xl font-bold">Agency not found.</h2>
           <Button asChild variant="link" className="mt-4">
-            <Link to="/onboarding">← Back to list</Link>
+            <Link to="/people/onboarding">← Back to list</Link>
           </Button>
         </CardContent>
       </Card>
@@ -105,7 +105,7 @@ export function OnboardingDetailPage() {
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <Link to="/onboarding" className="text-xs text-muted-foreground hover:text-foreground">
+            <Link to="/people/onboarding" className="text-xs text-muted-foreground hover:text-foreground">
               ← Onboarding
             </Link>
           </div>
@@ -321,7 +321,7 @@ function EditAgencyForm({
   return (
     <div className="max-w-2xl space-y-6">
       <div>
-        <Link to="/onboarding" className="text-xs text-muted-foreground hover:text-foreground">
+        <Link to="/people/onboarding" className="text-xs text-muted-foreground hover:text-foreground">
           ← Onboarding
         </Link>
         <h1 className="text-2xl font-bold tracking-tight mt-2">Edit: {agency.agency_name}</h1>
