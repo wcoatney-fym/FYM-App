@@ -19,7 +19,7 @@
  * Role scoping: FYM admins (org-wide) see every tab. Agency admins are
  * scoped to their own hierarchy and only see the Hierarchy tab.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Header } from '@/components/layout/Header';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ExternalLink } from 'lucide-react';
@@ -59,11 +59,19 @@ const TAB_LABELS: Record<ContractingTab, string> = {
 };
 
 export function ContractingPage() {
-  const { isOrgWide } = useEffectiveAuth();
+  const { isOrgWide, loading } = useEffectiveAuth();
   const availableTabs = isOrgWide ? ALL_TABS : AGENCY_ADMIN_TABS;
-  const [activeTab, setActiveTab] = useState<ContractingTab>(
-    isOrgWide ? 'dashboard' : 'hierarchy'
-  );
+  const [activeTab, setActiveTab] = useState<ContractingTab>('hierarchy');
+
+  // Sync activeTab when auth resolves — isFymAdmin starts false while
+  // checkFymAdmin is in-flight, so isOrgWide is initially false and the
+  // tab list renders as AGENCY_ADMIN_TABS (hierarchy only). Once auth
+  // loads and isOrgWide flips true, bump to 'dashboard'.
+  useEffect(() => {
+    if (!loading && isOrgWide && activeTab === 'hierarchy') {
+      setActiveTab('dashboard');
+    }
+  }, [loading, isOrgWide]);
 
   return (
     <div>
