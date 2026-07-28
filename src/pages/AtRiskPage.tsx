@@ -13,10 +13,15 @@ import {
   AlertTriangle, Clock, Search, ChevronDown, ChevronUp,
   CheckCircle2, TrendingDown,
 } from 'lucide-react';
+import { DateRangeSelector } from '@/components/filters/DateRangeSelector';
 
 interface AtRiskRow {
   policy_number: string;
+  client_name: string | null;
   agency_id: string;
+  agency_name: string | null;
+  agent_name: string | null;
+  writing_number: string | null;
   product_type: string;
   plan_premium: number;
   flag_type: string;
@@ -65,6 +70,8 @@ export function AtRiskPage() {
   const [togglingTask, setTogglingTask] = useState<string | null>(null);
   const [filterAgencyId, setFilterAgencyId] = useState<string | null>(null);
   const [filterAgentId, setFilterAgentId] = useState<string | null>(null);
+  const [dateStart, setDateStart] = useState<string | null>(null);
+  const [dateEnd, setDateEnd] = useState<string | null>(null);
 
   useEffect(() => {
     if (!supabase) { setLoading(false); return; }
@@ -151,14 +158,25 @@ export function AtRiskPage() {
       r = r.filter(row => row.agency_id === filterAgencyId);
     }
     if (filterAgentId) {
-      r = r.filter(row => (row as any).agent_id === filterAgentId);
+      r = r.filter(row => row.writing_number === filterAgentId);
+    }
+
+    // Date range filter on paid_to_date
+    if (dateStart) {
+      r = r.filter(row => row.paid_to_date >= dateStart);
+    }
+    if (dateEnd) {
+      r = r.filter(row => row.paid_to_date <= dateEnd);
     }
 
     if (search) {
       const q = search.toLowerCase();
       r = r.filter(row =>
         row.policy_number.toLowerCase().includes(q) ||
-        row.product_type.toLowerCase().includes(q)
+        row.product_type.toLowerCase().includes(q) ||
+        (row.client_name || '').toLowerCase().includes(q) ||
+        (row.agent_name || '').toLowerCase().includes(q) ||
+        (row.agency_name || '').toLowerCase().includes(q)
       );
     }
 
@@ -173,7 +191,7 @@ export function AtRiskPage() {
       if (sortKey === 'product') return dir * a.product_type.localeCompare(b.product_type);
       return 0;
     });
-  }, [rows, search, filterUrgency, sortKey, sortDir, filterAgencyId, filterAgentId]);
+  }, [rows, search, filterUrgency, sortKey, sortDir, filterAgencyId, filterAgentId, dateStart, dateEnd]);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir(d => d === 'desc' ? 'asc' : 'desc');
@@ -258,6 +276,13 @@ export function AtRiskPage() {
                 <p className="text-xs text-muted-foreground/70 mt-0.5">{displayRows.length} of {rows.length} shown</p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
+                <DateRangeSelector
+                  label="Paid To Date"
+                  startDate={dateStart}
+                  endDate={dateEnd}
+                  onStartChange={setDateStart}
+                  onEndChange={setDateEnd}
+                />
                 {(['all', 'critical', 'high', 'medium'] as const).map(f => (
                   <button
                     key={f}
@@ -287,59 +312,68 @@ export function AtRiskPage() {
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            {/* Table header */}
-            <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-background text-xs font-semibold text-muted-foreground border-t border-border/50">
-              <span className="col-span-2">Policy #</span>
-              <span className="col-span-2 cursor-pointer hover:text-foreground" onClick={() => toggleSort('product')}>Product <SortIcon k="product" /></span>
-              <span className="col-span-2 text-right cursor-pointer hover:text-foreground" onClick={() => toggleSort('premium')}>Premium <SortIcon k="premium" /></span>
-              <span className="text-center">Drafts</span>
-              <span className="col-span-2 text-right cursor-pointer hover:text-foreground" onClick={() => toggleSort('days')}>Days Idle <SortIcon k="days" /></span>
-              <span className="text-center">Urgency</span>
-              <span className="col-span-2 text-center">Action</span>
-            </div>
+            {/* Table */}
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-t border-border/50 bg-background text-xs font-semibold text-muted-foreground">
+                  <th className="px-3 py-2 text-left">Policy #</th>
+                  <th className="px-3 py-2 text-left">Client</th>
+                  <th className="px-3 py-2 text-left">Agent</th>
+                  <th className="px-3 py-2 text-left cursor-pointer hover:text-foreground" onClick={() => toggleSort('product')}>Product <SortIcon k="product" /></th>
+                  <th className="px-3 py-2 text-right cursor-pointer hover:text-foreground" onClick={() => toggleSort('premium')}>Premium <SortIcon k="premium" /></th>
+                  <th className="px-3 py-2 text-center">Drafts</th>
+                  <th className="px-3 py-2 text-right cursor-pointer hover:text-foreground" onClick={() => toggleSort('days')}>Days Idle <SortIcon k="days" /></th>
+                  <th className="px-3 py-2 text-center">Urgency</th>
+                  <th className="px-3 py-2 text-center">Action</th>
+                </tr>
+              </thead>
 
-            <div className="divide-y divide-border/30 max-h-[560px] overflow-y-auto scrollbar-thin">
+            <tbody className="divide-y divide-border/30 max-h-[560px] overflow-y-auto">
               {displayRows.length === 0 && (
-                <div className="py-10 text-center text-muted-foreground/70 text-sm">
-                  {rows.length === 0 ? 'No at-risk policies found.' : 'No policies match your filters.'}
-                </div>
+                <tr>
+                  <td colSpan={9} className="py-10 text-center text-muted-foreground/70 text-sm">
+                    {rows.length === 0 ? 'No at-risk policies found.' : 'No policies match your filters.'}
+                  </td>
+                </tr>
               )}
               {displayRows.map(row => {
                 const urgency = urgencyLevel(row.days_since_draft);
                 const isBusy = togglingTask === row.policy_number;
                 return (
-                  <div
+                  <tr
                     key={row.policy_number}
-                    className={`grid grid-cols-12 gap-2 px-4 py-2.5 text-sm items-center hover:bg-background transition-colors ${
+                    className={`row-hover ${
                       urgency === 'critical' ? 'border-l-2 border-l-red-400' :
                       urgency === 'high' ? 'border-l-2 border-l-amber-400' : ''
                     }`}
                   >
-                    <span className="col-span-2 font-data text-xs text-foreground/80 truncate">{row.policy_number}</span>
-                    <span className="col-span-2">
+                    <td className="px-3 py-2.5 font-data text-xs text-foreground/80 whitespace-nowrap">{row.policy_number}</td>
+                    <td className="px-3 py-2.5 text-foreground truncate max-w-[130px]">{row.client_name || '—'}</td>
+                    <td className="px-3 py-2.5 text-muted-foreground truncate max-w-[130px]">{row.agent_name || '—'}</td>
+                    <td className="px-3 py-2.5">
                       <Badge className={`text-[10px] px-1.5 py-0 border ${
                         row.product_type === 'HHC' ? 'bg-sky-500/10 text-sky-400 border-sky-500/20' : 'bg-violet-500/10 text-violet-400 border-violet-500/20'
                       }`}>
                         {row.product_type}
                       </Badge>
-                    </span>
-                    <span className="col-span-2 text-right text-foreground/80 font-medium font-data">
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-foreground/80 font-medium font-data">
                       ${Number(row.plan_premium).toFixed(0)}
-                    </span>
-                    <span className="text-center text-muted-foreground font-data">{row.draft_count}</span>
-                    <span className={`col-span-2 text-right font-semibold font-data ${
+                    </td>
+                    <td className="px-3 py-2.5 text-center text-muted-foreground font-data">{row.draft_count}</td>
+                    <td className={`px-3 py-2.5 text-right font-semibold font-data ${
                       urgency === 'critical' ? 'text-red-400' : urgency === 'high' ? 'text-amber-400' : 'text-muted-foreground'
                     }`}>
                       {row.days_since_draft}d
-                    </span>
-                    <span className="text-center">
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
                       <Badge className={`text-[10px] px-1.5 py-0 border ${urgencyBadge(row.days_since_draft)}`}>
                         {urgencyLabel(row.days_since_draft)}
                       </Badge>
-                    </span>
-                    <span className="col-span-2 text-center">
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
                       {isAgent ? (
-                        // Agents see status only, no task controls
                         row.task_status === 'resolved'
                           ? <span className="text-xs text-emerald-400 font-medium">✓ Resolved</span>
                           : row.task_id
@@ -369,10 +403,12 @@ export function AtRiskPage() {
                           <span className="text-xs text-emerald-400 font-medium">✓ Done</span>
                         )
                       )}
-                    </span>
-                  </div>
+                    </td>
+                  </tr>
                 );
               })}
+            </tbody>
+            </table>
             </div>
           </CardContent>
         </Card>
