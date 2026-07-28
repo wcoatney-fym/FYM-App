@@ -27,7 +27,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useViewAsStore } from '@/store/view-as-store';
 import type { UserRole } from '@/contexts/AuthContext';
-import { Eye, ShieldPlus, Trash2 } from 'lucide-react';
+import { Eye, ShieldPlus, Trash2, UserPlus, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface ProfileOption {
   id: string;
@@ -134,6 +134,14 @@ function FymAdminManagementCard({ currentUserId }: { currentUserId: string | nul
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // New admin form state
+  const [newFirstName, setNewFirstName] = useState('');
+  const [newLastName, setNewLastName] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [createResult, setCreateResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
+
   async function loadAdmins() {
     if (!supabase) return;
     setLoading(true);
@@ -199,6 +207,47 @@ function FymAdminManagementCard({ currentUserId }: { currentUserId: string | nul
     }
     setSelectedProfileId('');
     await loadAdmins();
+  }
+
+  async function handleCreateAdmin() {
+    if (!supabase) return;
+    setCreating(true);
+    setCreateResult(null);
+    setCreateError(null);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/provision-admin`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            first_name: newFirstName.trim(),
+            last_name: newLastName.trim(),
+            email: newEmail.trim().toLowerCase(),
+          }),
+        }
+      );
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+
+      setCreateResult({ success: true, message: json.message });
+      setNewFirstName('');
+      setNewLastName('');
+      setNewEmail('');
+      await loadAdmins();
+    } catch (err: any) {
+      setCreateError(err.message ?? 'Unknown error');
+    } finally {
+      setCreating(false);
+    }
   }
 
   async function handleRemove(fymAdminId: string) {
@@ -290,10 +339,11 @@ function FymAdminManagementCard({ currentUserId }: { currentUserId: string | nul
           </div>
         )}
 
+        {/* Add existing user as admin */}
         <div className="flex items-center gap-2 pt-2">
           <Select value={selectedProfileId} onValueChange={setSelectedProfileId}>
             <SelectTrigger className="bg-secondary/20 flex-1">
-              <SelectValue placeholder="Select a user to add…" />
+              <SelectValue placeholder="Select existing user to promote…" />
             </SelectTrigger>
             <SelectContent>
               {availableProfiles.map((p) => (
@@ -313,6 +363,68 @@ function FymAdminManagementCard({ currentUserId }: { currentUserId: string | nul
         </div>
 
         {error && <p className="text-xs text-red-400">{error}</p>}
+
+        {/* Create new admin account */}
+        <div className="border-t border-border/30 pt-4 mt-4">
+          <p className="text-sm font-semibold text-foreground flex items-center gap-2 mb-3">
+            <UserPlus size={14} className="text-primary" />
+            Create New Admin Account
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs font-medium text-muted-foreground mb-1 block">First Name</Label>
+              <Input
+                placeholder="Jane"
+                value={newFirstName}
+                onChange={(e) => setNewFirstName(e.target.value)}
+                className="bg-card"
+              />
+            </div>
+            <div>
+              <Label className="text-xs font-medium text-muted-foreground mb-1 block">Last Name</Label>
+              <Input
+                placeholder="Smith"
+                value={newLastName}
+                onChange={(e) => setNewLastName(e.target.value)}
+                className="bg-card"
+              />
+            </div>
+            <div className="col-span-2">
+              <Label className="text-xs font-medium text-muted-foreground mb-1 block">Email</Label>
+              <Input
+                type="email"
+                placeholder="jane@teamfym.com"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                className="bg-card"
+              />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground/70 mt-2">
+            Account will be created with the standard FYM admin password.
+          </p>
+          <Button
+            onClick={handleCreateAdmin}
+            disabled={creating || !newFirstName.trim() || !newLastName.trim() || !newEmail.trim()}
+            className="mt-3 bg-primary hover:bg-primary/80"
+          >
+            {creating ? 'Creating…' : 'Create Admin Account'}
+          </Button>
+
+          {createResult && (
+            <div className="mt-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-start gap-2">
+              <CheckCircle2 size={16} className="text-emerald-400 mt-0.5 shrink-0" />
+              <p className="text-sm text-emerald-300">{createResult.message}</p>
+            </div>
+          )}
+
+          {createError && (
+            <div className="mt-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20 flex items-start gap-2">
+              <AlertCircle size={16} className="text-red-400 mt-0.5 shrink-0" />
+              <p className="text-sm text-red-400">{createError}</p>
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
