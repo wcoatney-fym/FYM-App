@@ -43,6 +43,8 @@ interface TrackerPolicy {
   at_risk_fired_at: string | null;
   client_first_name: string | null;
   client_last_name: string | null;
+  agent_first_name: string | null;
+  agent_last_name: string | null;
 }
 
 interface PolicyCacheRow {
@@ -62,6 +64,7 @@ interface PolicyCacheRow {
   synced_at: string;
   client_name: string | null;
   writing_number: string | null;
+  agent_name: string | null;
 }
 
 /**
@@ -299,7 +302,7 @@ Deno.serve(async (req) => {
       const { data: policies, error: fetchError } = await tracker
         .from('form_submissions')
         .select(
-          'policy_number, agent_number, agency_id, agency, product_type, status, plan_premium, billing_mode, policy_effective_date, paid_to_date, at_risk_fired_at, client_first_name, client_last_name'
+          'policy_number, agent_number, agency_id, agency, product_type, status, plan_premium, billing_mode, policy_effective_date, paid_to_date, at_risk_fired_at, client_first_name, client_last_name, agent_first_name, agent_last_name'
         )
         .eq('product_type', productType)
         .range(trackerOffset, trackerOffset + BATCH_SIZE - 1);
@@ -317,8 +320,12 @@ Deno.serve(async (req) => {
         .map((p: TrackerPolicy) => {
           const { isAtRisk, flagType } = resolveRiskFlag(p);
           const agentId = p.agent_number ? (profileMap.get(p.agent_number.trim()) ?? null) : null;
-          // Build client name from first + last
+          // Build client + agent name from first + last
           const clientName = [p.client_first_name, p.client_last_name]
+            .filter(Boolean)
+            .map(s => s!.trim())
+            .join(' ') || null;
+          const agentName = [p.agent_first_name, p.agent_last_name]
             .filter(Boolean)
             .map(s => s!.trim())
             .join(' ') || null;
@@ -342,6 +349,7 @@ Deno.serve(async (req) => {
             synced_at: syncedAt,
             client_name: clientName,
             writing_number: p.agent_number?.trim() ?? null,
+            agent_name: agentName,
           };
         });
 

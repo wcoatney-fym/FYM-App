@@ -1,16 +1,18 @@
--- Add client_name and writing_number to policy_cache
+-- Add client_name, writing_number, and agent_name to policy_cache
 ALTER TABLE policy_cache ADD COLUMN IF NOT EXISTS client_name text;
 ALTER TABLE policy_cache ADD COLUMN IF NOT EXISTS writing_number text;
+ALTER TABLE policy_cache ADD COLUMN IF NOT EXISTS agent_name text;
 
--- Recreate book_of_business view with client_name
+-- Recreate book_of_business view with client_name + agent_name
+-- Uses COALESCE: prefer profiles.full_name (provisioned user) over cached agent_name
 DROP VIEW IF EXISTS public.book_of_business;
 CREATE VIEW public.book_of_business AS
 SELECT
   pc.policy_number,
   pc.client_name,
   pc.agent_id,
-  p.full_name AS agent_name,
-  p.writing_number,
+  COALESCE(p.full_name, pc.agent_name) AS agent_name,
+  COALESCE(p.writing_number, pc.writing_number) AS writing_number,
   pc.agency_id,
   a.name AS agency_name,
   pc.product_type,
@@ -43,8 +45,8 @@ SELECT
   pc.agency_id,
   COALESCE(ag.name, pc.agency_id) AS agency_name,
   pc.agent_id,
-  p.full_name AS agent_name,
-  p.writing_number,
+  COALESCE(p.full_name, pc.agent_name) AS agent_name,
+  COALESCE(p.writing_number, pc.writing_number) AS writing_number,
   pc.product_type,
   pc.plan_premium,
   pc.flag_type,
