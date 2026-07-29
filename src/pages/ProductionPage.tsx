@@ -173,37 +173,17 @@ export function ProductionPage() {
     load();
   }, [effectiveAgencyId, isOrgWide]);
 
-  // Derive trend from raw monthly data, filtered by selected agency/agent
-  const trend = useMemo((): MonthlyPoint[] => {
-    let rows = rawMonthly;
-    if (filterAgencyId) rows = rows.filter(r => r.agency_id === filterAgencyId);
-    if (filterAgentId) rows = rows.filter(r => r.writing_number === filterAgentId);
-
-    const byMonth = new Map<string, { policies: number; ap: number }>();
-    rows.forEach((r) => {
-      const existing = byMonth.get(r.month) || { policies: 0, ap: 0 };
-      existing.policies += Number(r.policies);
-      existing.ap += Number(r.annual_premium);
-      byMonth.set(r.month, existing);
-    });
-
-    return Array.from(byMonth.entries())
-      .map(([month, v]) => ({ month, ...v }))
-      .sort((a, b) => a.month.localeCompare(b.month))
-      .slice(-12);
-  }, [rawMonthly, filterAgencyId, filterAgentId]);
-
   // Filter + sort agencies
   const filteredAgencies = useMemo(() => {
     if (!filterAgencyId) return agencies;
     return agencies.filter(a => a.agency_id === filterAgencyId);
   }, [agencies, filterAgencyId]);
 
-  // Re-aggregate monthly trend from raw rows when filter changes
+  // Re-aggregate monthly trend from raw rows when agency/agent filter changes
   const filteredTrend = useMemo(() => {
-    const rows = filterAgencyId
-      ? rawMonthly.filter(r => r.agency_id === filterAgencyId)
-      : rawMonthly;
+    let rows = rawMonthly;
+    if (filterAgencyId) rows = rows.filter(r => r.agency_id === filterAgencyId);
+    if (filterAgentId) rows = rows.filter(r => r.writing_number === filterAgentId);
     const byMonth = new Map<string, { policies: number; ap: number }>();
     rows.forEach(r => {
       const existing = byMonth.get(r.month) || { policies: 0, ap: 0 };
@@ -215,7 +195,7 @@ export function ProductionPage() {
       .map(([month, v]) => ({ month, ...v }))
       .sort((a, b) => a.month.localeCompare(b.month))
       .slice(-12);
-  }, [rawMonthly, filterAgencyId]);
+  }, [rawMonthly, filterAgencyId, filterAgentId]);
 
   const displayStats = useMemo((): OrgStats | null => {
     if (!stats) return null;
