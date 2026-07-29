@@ -80,9 +80,9 @@ LEFT JOIN LATERAL (
   SELECT
     COUNT(*) AS total_policies,
     COUNT(*) FILTER (WHERE pc.status = 'active') AS active_policies,
-    COUNT(*) FILTER (WHERE pc.at_risk = true) AS at_risk_policies,
-    COALESCE(SUM(pc.annual_premium), 0) AS total_annual_premium,
-    COALESCE(SUM(pc.annual_premium) FILTER (WHERE pc.status = 'active'), 0) AS active_annual_premium
+    COUNT(*) FILTER (WHERE pc.is_at_risk = true) AS at_risk_policies,
+    COALESCE(SUM(pc.plan_premium * 12), 0) AS total_annual_premium,
+    COALESCE(SUM(pc.plan_premium * 12) FILTER (WHERE pc.status = 'active'), 0) AS active_annual_premium
   FROM policy_cache pc
   WHERE pc.product_type IN ('HI', 'HHC')
     AND pc.writing_number IN (
