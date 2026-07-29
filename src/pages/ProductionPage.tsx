@@ -50,6 +50,8 @@ interface AgencyRow {
 interface RawMonthlyRow {
   month: string;
   agency_id: string;
+  agent_id: string | null;
+  writing_number: string | null;
   product_type: string;
   policies: number;
   annual_premium: number;
@@ -100,6 +102,7 @@ export function ProductionPage() {
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<'ap' | 'policies' | 'growth'>('ap');
   const [filterAgencyId, setFilterAgencyId] = useState<string | null>(null);
+  const [filterAgentId, setFilterAgentId] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -143,14 +146,14 @@ export function ProductionPage() {
         };
         setStats(org);
 
-        // Fetch monthly trend (all rows with agency_id for client-side filtering)
+        // Fetch monthly trend with agency_id + agent fields for client-side filtering
         let allMonthly: RawMonthlyRow[] = [];
         let mOffset = 0;
         while (true) {
           const { data: monthData, error: mErr } = await scopeToAgency(
             supabase!
               .from('monthly_production')
-              .select('month, agency_id, product_type, policies, annual_premium')
+              .select('month, agency_id, agent_id, writing_number, policies, annual_premium')
               .range(mOffset, mOffset + PAGE - 1),
             isOrgWide,
             effectiveAgencyId
@@ -169,6 +172,26 @@ export function ProductionPage() {
     }
     load();
   }, [effectiveAgencyId, isOrgWide]);
+
+  // Derive trend from raw monthly data, filtered by selected agency/agent
+  const trend = useMemo((): MonthlyPoint[] => {
+    let rows = rawMonthly;
+    if (filterAgencyId) rows = rows.filter(r => r.agency_id === filterAgencyId);
+    if (filterAgentId) rows = rows.filter(r => r.writing_number === filterAgentId);
+
+    const byMonth = new Map<string, { policies: number; ap: number }>();
+    rows.forEach((r) => {
+      const existing = byMonth.get(r.month) || { policies: 0, ap: 0 };
+      existing.policies += Number(r.policies);
+      existing.ap += Number(r.annual_premium);
+      byMonth.set(r.month, existing);
+    });
+
+    return Array.from(byMonth.entries())
+      .map(([month, v]) => ({ month, ...v }))
+      .sort((a, b) => a.month.localeCompare(b.month))
+      .slice(-12);
+  }, [rawMonthly, filterAgencyId, filterAgentId]);
 
   // Filter + sort agencies
   const filteredAgencies = useMemo(() => {
@@ -247,8 +270,11 @@ export function ProductionPage() {
         {/* Agency filter — FYM admins only */}
         {isOrgWide && (
           <DataFilters
+            showAgentFilter
             selectedAgencyId={filterAgencyId}
-            onAgencyChange={setFilterAgencyId}
+            selectedAgentId={filterAgentId}
+            onAgencyChange={(id) => { setFilterAgencyId(id); setFilterAgentId(null); }}
+            onAgentChange={setFilterAgentId}
           />
         )}
 
