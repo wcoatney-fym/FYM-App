@@ -31,15 +31,12 @@ interface CohortRow {
 interface AgencyOverviewRow {
   agency_id: string;
   agency_name: string | null;
-  total_eligible: number;
-  ever_drafted: number;
-  retained: number;
-  retention_pct: number | null;
   active_policies: number;
-  active_annual_premium: number | null;
+  active_premium: number | null;
   at_risk_count: number;
-  prior_3mo_retention_pct: number | null;
-  recent_3mo_retention_pct: number | null;
+  retained_90d: number;
+  eligible_90d: number;
+  retention_pct: number | null;
 }
 
 interface AgencyCohortRow {
@@ -52,7 +49,7 @@ interface AgencyCohortRow {
   retained: number;
   retention_pct: number | null;
   active_premium: number | null;
-  active_annual_premium: number | null;
+  active_premium: number | null;
 }
 
 interface TrendPoint {
@@ -143,7 +140,7 @@ export function RetentionPage() {
         while (true) {
           const { data, error } = await scopeToAgency(
             supabase
-              .from('agency_retention_overview')
+              .from('agency_retention_summary')
               .select('*')
               .range(offset, offset + PAGE - 1),
             isOrgWide,
@@ -192,9 +189,9 @@ export function RetentionPage() {
   }, [agencies, filterAgencyId]);
 
   const summary = useMemo(() => {
-    const eligible = filteredAgencies.reduce((s, a) => s + (a.total_eligible || 0), 0);
+    const eligible = filteredAgencies.reduce((s, a) => s + (a.eligible_90d || 0), 0);
     const retained = filteredAgencies.reduce((s, a) => s + (a.retained || 0), 0);
-    const everDrafted = filteredAgencies.reduce((s, a) => s + (a.ever_drafted || 0), 0);
+    const everDrafted = filteredAgencies.reduce((s, a) => s + (a.retained_90d || 0), 0);
     const atRiskAgencies = filteredAgencies.filter(a => a.retention_pct !== null && a.retention_pct < 90).length;
     const orgRetentionPct = everDrafted > 0 ? (retained / everDrafted) * 100 : 0;
     return { eligible, retained, orgRetentionPct, atRiskAgencies };
@@ -236,15 +233,15 @@ export function RetentionPage() {
         case 'agency':
           return dir * (a.agency_name || '').localeCompare(b.agency_name || '');
         case 'eligible':
-          return dir * ((a.total_eligible || 0) - (b.total_eligible || 0));
+          return dir * ((a.eligible_90d || 0) - (b.eligible_90d || 0));
         case 'retained':
           return dir * ((a.retained || 0) - (b.retained || 0));
         case 'retention':
           return dir * ((a.retention_pct ?? -1) - (b.retention_pct ?? -1));
         case 'recent':
-          return dir * ((a.recent_3mo_retention_pct ?? -1) - (b.recent_3mo_retention_pct ?? -1));
+          return dir * ((a.retention_pct ?? -1) - (b.retention_pct ?? -1));
         case 'ap':
-          return dir * ((a.active_annual_premium || 0) - (b.active_annual_premium || 0));
+          return dir * ((a.active_premium || 0) - (b.active_premium || 0));
         case 'atRisk':
           return dir * ((a.at_risk_count || 0) - (b.at_risk_count || 0));
         default:
@@ -515,7 +512,7 @@ export function RetentionPage() {
                           </span>
                         </div>
                         <span className="text-right text-muted-foreground font-data self-center">
-                          {fmtNum(agency.total_eligible)}
+                          {fmtNum(agency.eligible_90d)}
                         </span>
                         <span className="text-right text-foreground/80 font-medium font-data self-center">
                           {fmtNum(agency.retained)}
@@ -523,14 +520,14 @@ export function RetentionPage() {
                         <span className={`text-right font-medium font-data self-center ${retentionColor(agency.retention_pct)}`}>
                           {agency.retention_pct !== null ? `${agency.retention_pct}%` : '—'}
                         </span>
-                        <span className={`text-right font-medium font-data self-center ${retentionColor(agency.recent_3mo_retention_pct)}`}>
-                          {agency.recent_3mo_retention_pct !== null ? `${agency.recent_3mo_retention_pct}%` : '—'}
+                        <span className={`text-right font-medium font-data self-center ${retentionColor(agency.retention_pct)}`}>
+                          {agency.retention_pct !== null ? `${agency.retention_pct}%` : '—'}
                         </span>
                         <span className="text-right self-center flex justify-end">
-                          <TrendBadge recent={agency.recent_3mo_retention_pct} prior={agency.prior_3mo_retention_pct} />
+                          <TrendBadge recent={agency.retention_pct} prior={null} />
                         </span>
                         <span className="text-right text-foreground font-data font-medium self-center">
-                          {agency.active_annual_premium !== null ? fmt$(Number(agency.active_annual_premium)) : '—'}
+                          {agency.active_premium !== null ? fmt$(Number(agency.active_premium)) : '—'}
                         </span>
                         <span className={`text-right font-data self-center ${
                           agency.at_risk_count > 0 ? 'text-red-400 font-medium' : 'text-muted-foreground/40'

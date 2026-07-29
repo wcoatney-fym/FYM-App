@@ -146,7 +146,7 @@ export function CcDashboardTab() {
         // Insights — top agencies by at-risk count
         const { data: retentionRows } = await scopeToAgency(
           (supabase as any)
-            .from('agency_retention_overview')
+            .from('agency_retention_summary')
             .select('agency_id, agency_name, at_risk_count, retention_pct')
             .order('at_risk_count', { ascending: false })
             .limit(3),
