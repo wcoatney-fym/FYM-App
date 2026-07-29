@@ -251,6 +251,67 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['challenge_participants']['Insert']>;
         Relationships: [];
       };
+      agency_roster_uploads: {
+        Row: {
+          id: string;
+          agency_id: string;
+          file_name: string;
+          row_count: number;
+          uploaded_by: string | null;
+          uploaded_at: string;
+          status: string;
+        };
+        Insert: {
+          agency_id: string;
+          file_name: string;
+          row_count?: number;
+          uploaded_by?: string | null;
+          status?: string;
+        };
+        Update: Partial<Database['public']['Tables']['agency_roster_uploads']['Insert']>;
+        Relationships: [];
+      };
+      agency_rosters: {
+        Row: {
+          id: string;
+          upload_id: string;
+          agency_id: string;
+          first_name: string;
+          last_name: string;
+          email: string;
+          phone: string;
+          agent_npn: string;
+          gender: string;
+          unl_writing_number: string | null;
+          gtl_writing_number: string | null;
+          ahl_writing_number: string | null;
+          heartland_writing_number: string | null;
+          manhattan_writing_number: string | null;
+          is_manager: boolean;
+          status: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          upload_id: string;
+          agency_id: string;
+          first_name: string;
+          last_name: string;
+          email: string;
+          phone: string;
+          agent_npn: string;
+          gender: string;
+          unl_writing_number?: string | null;
+          gtl_writing_number?: string | null;
+          ahl_writing_number?: string | null;
+          heartland_writing_number?: string | null;
+          manhattan_writing_number?: string | null;
+          is_manager?: boolean;
+          status?: string;
+        };
+        Update: Partial<Database['public']['Tables']['agency_rosters']['Insert']>;
+        Relationships: [];
+      };
     };
     Views: {
       agent_health_scores: {
@@ -448,6 +509,34 @@ export interface Database {
           task_assigned_to: string | null;
           task_due_date: string | null;
           task_created_at: string | null;
+        };
+        Relationships: [];
+      };
+      roster_agent_summary: {
+        Row: {
+          id: string;
+          upload_id: string;
+          agency_id: string;
+          first_name: string;
+          last_name: string;
+          email: string;
+          phone: string;
+          agent_npn: string;
+          gender: string;
+          unl_writing_number: string | null;
+          gtl_writing_number: string | null;
+          ahl_writing_number: string | null;
+          heartland_writing_number: string | null;
+          manhattan_writing_number: string | null;
+          is_manager: boolean;
+          status: string;
+          created_at: string;
+          updated_at: string;
+          total_policies: number;
+          active_policies: number;
+          at_risk_policies: number;
+          total_annual_premium: number;
+          active_annual_premium: number;
         };
         Relationships: [];
       };
