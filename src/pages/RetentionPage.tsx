@@ -200,17 +200,31 @@ export function RetentionPage() {
     return { eligible, retained, orgRetentionPct, atRiskAgencies };
   }, [filteredAgencies]);
 
-  // Org-wide trend chart data — HI vs HHC by cohort_month
+  // Trend chart data — when filtered, re-aggregate from agency cohorts
   const trendData = useMemo(() => {
+    if (!filterAgencyId) {
+      // Org-wide: use the org-wide cohort_retention view
+      const byMonth = new Map<string, TrendPoint>();
+      orgCohorts.forEach(c => {
+        const existing = byMonth.get(c.cohort_month) || { cohort_month: c.cohort_month, HI: null, HHC: null };
+        if (c.product_type === 'HI') existing.HI = c.retention_pct;
+        if (c.product_type === 'HHC') existing.HHC = c.retention_pct;
+        byMonth.set(c.cohort_month, existing);
+      });
+      return Array.from(byMonth.values()).sort((a, b) => a.cohort_month.localeCompare(b.cohort_month));
+    }
+    // Filtered: rebuild from agency_cohort_retention data
+    const filtered = agencyCohorts.filter(c => c.agency_id === filterAgencyId);
     const byMonth = new Map<string, TrendPoint>();
-    orgCohorts.forEach(c => {
-      const existing = byMonth.get(c.cohort_month) || { cohort_month: c.cohort_month, HI: null, HHC: null };
+    filtered.forEach(c => {
+      const key = c.cohort_month;
+      const existing = byMonth.get(key) || { cohort_month: key, HI: null, HHC: null };
       if (c.product_type === 'HI') existing.HI = c.retention_pct;
       if (c.product_type === 'HHC') existing.HHC = c.retention_pct;
-      byMonth.set(c.cohort_month, existing);
+      byMonth.set(key, existing);
     });
     return Array.from(byMonth.values()).sort((a, b) => a.cohort_month.localeCompare(b.cohort_month));
-  }, [orgCohorts]);
+  }, [orgCohorts, agencyCohorts, filterAgencyId]);
 
   // Filter + sort agency table
   const sortedAgencies = useMemo(() => {
