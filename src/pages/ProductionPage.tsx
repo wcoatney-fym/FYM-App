@@ -47,10 +47,12 @@ interface AgencyRow {
   at_risk_policies: number;
 }
 
-interface MonthlyPoint {
+interface RawMonthlyRow {
   month: string;
+  agency_id: string;
+  product_type: string;
   policies: number;
-  ap: number;
+  annual_premium: number;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -94,7 +96,7 @@ export function ProductionPage() {
   const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
   const [stats, setStats] = useState<OrgStats | null>(null);
   const [agencies, setAgencies] = useState<AgencyRow[]>([]);
-  const [trend, setTrend] = useState<MonthlyPoint[]>([]);
+  const [rawMonthly, setRawMonthly] = useState<RawMonthlyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<'ap' | 'policies' | 'growth'>('ap');
   const [filterAgencyId, setFilterAgencyId] = useState<string | null>(null);
@@ -141,31 +143,24 @@ export function ProductionPage() {
         };
         setStats(org);
 
-        // Fetch monthly trend (aggregate by month)
-        const { data: monthData, error: mErr } = await scopeToAgency(
-          supabase!
-            .from('monthly_production')
-            .select('month, policies, annual_premium'),
-          isOrgWide,
-          effectiveAgencyId
-        );
-        if (mErr) throw mErr;
-
-        // Aggregate by month (view has per-agency per-product rows)
-        const byMonth = new Map<string, { policies: number; ap: number }>();
-        ((monthData || []) as unknown as { month: string; policies: number; annual_premium: number }[]).forEach((r) => {
-          const existing = byMonth.get(r.month) || { policies: 0, ap: 0 };
-          existing.policies += Number(r.policies);
-          existing.ap += Number(r.annual_premium);
-          byMonth.set(r.month, existing);
-        });
-
-        const trendArr = Array.from(byMonth.entries())
-          .map(([month, v]) => ({ month, ...v }))
-          .sort((a, b) => a.month.localeCompare(b.month))
-          .slice(-12); // Last 12 months
-
-        setTrend(trendArr);
+        // Fetch monthly trend (all rows with agency_id for client-side filtering)
+        let allMonthly: RawMonthlyRow[] = [];
+        let mOffset = 0;
+        while (true) {
+          const { data: monthData, error: mErr } = await scopeToAgency(
+            supabase!
+              .from('monthly_production')
+              .select('month, agency_id, product_type, policies, annual_premium')
+              .range(mOffset, mOffset + PAGE - 1),
+            isOrgWide,
+            effectiveAgencyId
+          );
+          if (mErr) throw mErr;
+          allMonthly = [...allMonthly, ...((monthData || []) as unknown as RawMonthlyRow[])];
+          if (!monthData || monthData.length < PAGE) break;
+          mOffset += PAGE;
+        }
+        setRawMonthly(allMonthly);
       } catch (err) {
         console.error('Production load error:', err);
       } finally {
@@ -180,6 +175,24 @@ export function ProductionPage() {
     if (!filterAgencyId) return agencies;
     return agencies.filter(a => a.agency_id === filterAgencyId);
   }, [agencies, filterAgencyId]);
+
+  // Re-aggregate monthly trend from raw rows when filter changes
+  const filteredTrend = useMemo(() => {
+    const rows = filterAgencyId
+      ? rawMonthly.filter(r => r.agency_id === filterAgencyId)
+      : rawMonthly;
+    const byMonth = new Map<string, { policies: number; ap: number }>();
+    rows.forEach(r => {
+      const existing = byMonth.get(r.month) || { policies: 0, ap: 0 };
+      existing.policies += Number(r.policies);
+      existing.ap += Number(r.annual_premium);
+      byMonth.set(r.month, existing);
+    });
+    return Array.from(byMonth.entries())
+      .map(([month, v]) => ({ month, ...v }))
+      .sort((a, b) => a.month.localeCompare(b.month))
+      .slice(-12);
+  }, [rawMonthly, filterAgencyId]);
 
   const displayStats = useMemo((): OrgStats | null => {
     if (!stats) return null;
@@ -343,7 +356,7 @@ export function ProductionPage() {
           <CardContent className="pb-2">
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={trend}>
+                <ComposedChart data={filteredTrend}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 33% 17%)" />
                   <XAxis
                     dataKey="month"
