@@ -93,7 +93,7 @@ export function CcPipelinesTab() {
     if (!supabase) return;
     (async () => {
       const { data } = await (supabase as any)
-        .from('agency_retention_overview')
+        .from('agency_retention_summary')
         .select('agency_id, agency_name, active_policies, at_risk_count, retention_pct')
         .lt('retention_pct', 90)
         .order('retention_pct', { ascending: true })
