@@ -49,7 +49,6 @@ interface AgencyCohortRow {
   retained: number;
   retention_pct: number | null;
   active_premium: number | null;
-  active_premium: number | null;
 }
 
 interface TrendPoint {
@@ -190,8 +189,8 @@ export function RetentionPage() {
 
   const summary = useMemo(() => {
     const eligible = filteredAgencies.reduce((s, a) => s + (a.eligible_90d || 0), 0);
-    const retained = filteredAgencies.reduce((s, a) => s + (a.retained || 0), 0);
-    const everDrafted = filteredAgencies.reduce((s, a) => s + (a.retained_90d || 0), 0);
+    const retained = filteredAgencies.reduce((s, a) => s + (a.retained_90d || 0), 0);
+    const everDrafted = filteredAgencies.reduce((s, a) => s + (a.eligible_90d || 0), 0);
     const atRiskAgencies = filteredAgencies.filter(a => a.retention_pct !== null && a.retention_pct < 90).length;
     const orgRetentionPct = everDrafted > 0 ? (retained / everDrafted) * 100 : 0;
     return { eligible, retained, orgRetentionPct, atRiskAgencies };
@@ -235,7 +234,7 @@ export function RetentionPage() {
         case 'eligible':
           return dir * ((a.eligible_90d || 0) - (b.eligible_90d || 0));
         case 'retained':
-          return dir * ((a.retained || 0) - (b.retained || 0));
+          return dir * ((a.retained_90d || 0) - (b.retained_90d || 0));
         case 'retention':
           return dir * ((a.retention_pct ?? -1) - (b.retention_pct ?? -1));
         case 'recent':
@@ -515,7 +514,7 @@ export function RetentionPage() {
                           {fmtNum(agency.eligible_90d)}
                         </span>
                         <span className="text-right text-foreground/80 font-medium font-data self-center">
-                          {fmtNum(agency.retained)}
+                          {fmtNum(agency.retained_90d)}
                         </span>
                         <span className={`text-right font-medium font-data self-center ${retentionColor(agency.retention_pct)}`}>
                           {agency.retention_pct !== null ? `${agency.retention_pct}%` : '—'}
