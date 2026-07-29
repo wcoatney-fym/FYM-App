@@ -28,6 +28,7 @@ import { RetentionPage } from '@/pages/RetentionPage';
 import { CoachingPage } from '@/pages/CoachingPage';
 import { AtRiskPage } from '@/pages/AtRiskPage';
 import { GamificationPage } from '@/pages/GamificationPage';
+import { AgencyRosterPage } from '@/pages/AgencyRosterPage';
 import { PeopleGroupPage } from '@/pages/groups/PeopleGroupPage';
 import { ProductionGroupPage } from '@/pages/groups/ProductionGroupPage';
 import { QualityGroupPage } from '@/pages/groups/QualityGroupPage';
@@ -87,6 +88,7 @@ function App() {
             <Route path="/contracting" element={<RoleGuard allow={['admin']}><ContractingPage /></RoleGuard>} />
             <Route path="/crm-ops" element={<RoleGuard allow={['admin', 'manager']}><CrmOpsPage /></RoleGuard>} />
             <Route path="/crm-command" element={<RoleGuard allow={['admin']}><CrmCommandPage /></RoleGuard>} />
+            <Route path="/rosters" element={<RoleGuard allow={['admin', 'manager']}><AgencyRosterPage /></RoleGuard>} />
 
             {/* ── Legacy redirects — preserve old bookmarks ── */}
             <Route path="/agencies" element={<Navigate to="/people/agencies" replace />} />

@@ -16,6 +16,7 @@ import {
   TrendingUp,
   HeartPulse,
   Swords,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { useAppStore } from '@/store/app-store';
 import { useAuth } from '@/contexts/AuthContext';
@@ -59,6 +60,7 @@ const fymAdminNav: NavItem[] = [
   { to: '/workboard', label: 'Workboard', icon: ClipboardList },
   { to: '/contracting', label: 'Contracting', icon: FileText },
   { to: '/crm-command', label: 'CRM Command', icon: Command },
+  { to: '/rosters', label: 'Rosters', icon: FileSpreadsheet },
   { to: '/compete', label: 'Compete', icon: Swords },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
