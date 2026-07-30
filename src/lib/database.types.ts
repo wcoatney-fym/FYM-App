@@ -585,6 +585,10 @@ export interface Database {
         Args: { start_date: string; end_date: string };
         Returns: Record<string, unknown>[];
       };
+      filtered_daily_production: {
+        Args: { start_date: string; end_date: string };
+        Returns: Record<string, unknown>[];
+      };
     };
     Enums: {
       user_role: UserRole;
