@@ -194,11 +194,15 @@ export function RetentionPage() {
     return monthDate >= start && monthDate < end;
   }, [dateRange, datePreset]);
 
-  // Check if applying the date filter would leave the chart empty
+  // Check if applying the date filter would leave the chart empty.
+  // Must check the correct data source depending on whether an agency is selected.
   const hasCohortsInRange = useMemo(() => {
     if (datePreset === 'allTime') return true;
+    if (filterAgencyId) {
+      return agencyCohorts.some(c => c.agency_id === filterAgencyId && isMonthInRange(c.cohort_month));
+    }
     return orgCohorts.some(c => isMonthInRange(c.cohort_month));
-  }, [orgCohorts, datePreset, isMonthInRange]);
+  }, [orgCohorts, agencyCohorts, filterAgencyId, datePreset, isMonthInRange]);
 
   // If date filter yields no cohorts, show all (graceful fallback)
   const effectiveIsMonthInRange = useCallback((cohortMonth: string) => {
