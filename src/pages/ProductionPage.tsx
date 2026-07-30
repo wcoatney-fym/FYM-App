@@ -13,6 +13,7 @@ import {
   ResponsiveContainer, ComposedChart, Legend,
 } from 'recharts';
 import { DataFilters } from '@/components/filters/DataFilters';
+import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
 import {
   TrendingUp, DollarSign, FileText, Building2,
   ArrowUpRight, ArrowDownRight,
@@ -106,29 +107,49 @@ export function ProductionPage() {
   const [sortBy, setSortBy] = useState<'ap' | 'policies' | 'growth'>('ap');
   const [filterAgencyId, setFilterAgencyId] = useState<string | null>(null);
   const [filterAgentId, setFilterAgentId] = useState<string | null>(null);
+  const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
+  const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
 
   useEffect(() => {
     async function load() {
       setLoading(true);
         if (!supabase) { setLoading(false); return; }
       try {
-        // Fetch agency production (paginated)
+        const startDate = dateRange.startDate.split('T')[0];
+        const endDate = dateRange.endDate.split('T')[0];
+        const useRpc = datePreset !== 'allTime';
+
+        // Fetch agency production — RPC for date-filtered, view for all-time
         let allAgencies: AgencyRow[] = [];
-        let offset = 0;
-        const PAGE = 500;
-        while (true) {
-          const { data, error } = await scopeToAgency(
-            supabase!
-              .from('agency_production')
-              .select('*')
-              .range(offset, offset + PAGE - 1),
-            isOrgWide,
-            effectiveAgencyId
-          );
+        if (useRpc) {
+          const { data, error } = await supabase!.rpc('filtered_agency_production', {
+            start_date: startDate,
+            end_date: endDate,
+          });
           if (error) throw error;
-          allAgencies = [...allAgencies, ...((data || []) as unknown as AgencyRow[])];
-          if (!data || data.length < PAGE) break;
-          offset += PAGE;
+          // Agency scoping client-side when not org-wide
+          let rows = (data || []) as unknown as AgencyRow[];
+          if (!isOrgWide && effectiveAgencyId) {
+            rows = rows.filter(r => r.agency_id === effectiveAgencyId);
+          }
+          allAgencies = rows;
+        } else {
+          let offset = 0;
+          const PAGE = 500;
+          while (true) {
+            const { data, error } = await scopeToAgency(
+              supabase!
+                .from('agency_production')
+                .select('*')
+                .range(offset, offset + PAGE - 1),
+              isOrgWide,
+              effectiveAgencyId
+            );
+            if (error) throw error;
+            allAgencies = [...allAgencies, ...((data || []) as unknown as AgencyRow[])];
+            if (!data || data.length < PAGE) break;
+            offset += PAGE;
+          }
         }
         setAgencies(allAgencies);
 
@@ -149,22 +170,36 @@ export function ProductionPage() {
         };
         setStats(org);
 
-        // Fetch monthly trend with agency_id + agent fields for client-side filtering
+        // Fetch monthly trend — RPC for date-filtered, view for all-time
         let allMonthly: RawMonthlyRow[] = [];
-        let mOffset = 0;
-        while (true) {
-          const { data: monthData, error: mErr } = await scopeToAgency(
-            supabase!
-              .from('monthly_production')
-              .select('month, agency_id, agent_id, writing_number, policies, annual_premium')
-              .range(mOffset, mOffset + PAGE - 1),
-            isOrgWide,
-            effectiveAgencyId
-          );
+        if (useRpc) {
+          const { data: monthData, error: mErr } = await supabase!.rpc('filtered_monthly_production', {
+            start_date: startDate,
+            end_date: endDate,
+          });
           if (mErr) throw mErr;
-          allMonthly = [...allMonthly, ...((monthData || []) as unknown as RawMonthlyRow[])];
-          if (!monthData || monthData.length < PAGE) break;
-          mOffset += PAGE;
+          let rows = (monthData || []) as unknown as RawMonthlyRow[];
+          if (!isOrgWide && effectiveAgencyId) {
+            rows = rows.filter(r => r.agency_id === effectiveAgencyId);
+          }
+          allMonthly = rows;
+        } else {
+          const PAGE = 500;
+          let mOffset = 0;
+          while (true) {
+            const { data: monthData, error: mErr } = await scopeToAgency(
+              supabase!
+                .from('monthly_production')
+                .select('month, agency_id, agent_id, writing_number, policies, annual_premium')
+                .range(mOffset, mOffset + PAGE - 1),
+              isOrgWide,
+              effectiveAgencyId
+            );
+            if (mErr) throw mErr;
+            allMonthly = [...allMonthly, ...((monthData || []) as unknown as RawMonthlyRow[])];
+            if (!monthData || monthData.length < PAGE) break;
+            mOffset += PAGE;
+          }
         }
         setRawMonthly(allMonthly);
       } catch (err) {
@@ -174,7 +209,7 @@ export function ProductionPage() {
       }
     }
     load();
-  }, [effectiveAgencyId, isOrgWide]);
+  }, [effectiveAgencyId, isOrgWide, dateRange, datePreset]);
 
   // Filter + sort agencies
   const filteredAgencies = useMemo(() => {
@@ -251,16 +286,18 @@ export function ProductionPage() {
     <>
       <Header title="Production" />
       <div className="p-6 space-y-6 max-w-screen-xl mx-auto">
-        {/* Agency filter — FYM admins only */}
-        {isOrgWide && (
-          <DataFilters
-            showAgentFilter
-            selectedAgencyId={filterAgencyId}
-            selectedAgentId={filterAgentId}
-            onAgencyChange={(id) => { setFilterAgencyId(id); setFilterAgentId(null); }}
-            onAgentChange={setFilterAgentId}
-          />
-        )}
+        {/* Filters — time period always visible, agency/agent for admins */}
+        <DataFilters
+          showAgentFilter={isOrgWide}
+          showTimePeriod
+          selectedAgencyId={filterAgencyId}
+          selectedAgentId={filterAgentId}
+          selectedPreset={datePreset}
+          selectedDateRange={dateRange}
+          onAgencyChange={(id) => { setFilterAgencyId(id); setFilterAgentId(null); }}
+          onAgentChange={setFilterAgentId}
+          onDateRangeChange={(range, preset) => { setDateRange(range); setDatePreset(preset); }}
+        />
 
         {/* Hero KPI Cards */}
         <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">

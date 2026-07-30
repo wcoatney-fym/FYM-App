@@ -12,6 +12,7 @@ import { HudFrame } from '@/components/ui/hud-frame';
 import { supabase } from '@/lib/supabase';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { DataFilters } from '@/components/filters/DataFilters';
+import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
 import {
   AlertTriangle, TrendingUp, DollarSign, ShieldCheck,
   ArrowLeft, ArrowRight, RefreshCw, Calendar, User, Building2,
@@ -148,6 +149,8 @@ export function CoachingPage() {
   const [resolutionDraft, setResolutionDraft] = useState('');
   const [savingField, setSavingField] = useState<string | null>(null);
   const [filterAgencyId, setFilterAgencyId] = useState<string | null>(null);
+  const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
+  const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
   const [filterAgentId, setFilterAgentId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -337,16 +340,18 @@ export function CoachingPage() {
       <Header title="Coaching" />
       <div className="p-6 space-y-6">
 
-        {/* Agency + Agent filters — FYM admins only */}
-        {isOrgWide && (
-          <DataFilters
-            showAgentFilter
-            selectedAgencyId={filterAgencyId}
-            selectedAgentId={filterAgentId}
-            onAgencyChange={setFilterAgencyId}
-            onAgentChange={setFilterAgentId}
-          />
-        )}
+        {/* Filters — time period always visible, agency/agent for admins */}
+        <DataFilters
+          showAgentFilter={isOrgWide}
+          showTimePeriod
+          selectedAgencyId={filterAgencyId}
+          selectedAgentId={filterAgentId}
+          selectedPreset={datePreset}
+          selectedDateRange={dateRange}
+          onAgencyChange={setFilterAgencyId}
+          onAgentChange={setFilterAgentId}
+          onDateRangeChange={(range, preset) => { setDateRange(range); setDatePreset(preset); }}
+        />
 
         {/* ── KPI strip ── */}
         <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">

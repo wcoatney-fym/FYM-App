@@ -15,6 +15,8 @@ import {
   ChevronRight, Search,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { TimePeriodSelector } from '@/components/filters/TimePeriodSelector';
+import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface AgencyStats {
@@ -49,6 +51,7 @@ interface AgentRow {
 
 interface MonthlyPoint { month: string; policies: number; ap: number }
 interface ProductMix { product_type: string; count: number }
+interface RawMonthlyRow { month: string; agency_id: string; agent_id: string | null; writing_number: string | null; product_type: string; policies: number; annual_premium: number }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function fmt$(n: number) {
@@ -76,6 +79,8 @@ export function AgencyProductionPage() {
   const [productMix, setProductMix] = useState<ProductMix[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
+  const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
 
   useEffect(() => {
     if (!agencyId || !supabase) return;
@@ -83,27 +88,60 @@ export function AgencyProductionPage() {
       setLoading(true);
         if (!supabase) { setLoading(false); return; }
       try {
+        const startDate = dateRange.startDate.split('T')[0];
+        const endDate = dateRange.endDate.split('T')[0];
+        const useRpc = datePreset !== 'allTime';
+
         // Agency stats
-        const { data: agData } = await supabase
-          .from('agency_production')
-          .select('*')
-          .eq('agency_id', agencyId!)
-          .single();
-        if (agData) setStats(agData as unknown as AgencyStats);
+        if (useRpc) {
+          const { data: rpcData } = await supabase.rpc('filtered_agency_production', {
+            start_date: startDate,
+            end_date: endDate,
+          });
+          const match = ((rpcData || []) as unknown as AgencyStats[]).find(r => r.agency_id === agencyId);
+          if (match) setStats(match);
+          else setStats(null);
+        } else {
+          const { data: agData } = await supabase
+            .from('agency_production')
+            .select('*')
+            .eq('agency_id', agencyId!)
+            .single();
+          if (agData) setStats(agData as unknown as AgencyStats);
+        }
 
         // Agent breakdown
-        const { data: agentData } = await supabase
-          .from('agent_production')
-          .select('*')
-          .eq('agency_id', agencyId!)
-          .order('active_annual_premium', { ascending: false });
-        setAgents((agentData || []) as unknown as AgentRow[]);
+        if (useRpc) {
+          const { data: rpcAgents } = await supabase.rpc('filtered_agent_production', {
+            start_date: startDate,
+            end_date: endDate,
+          });
+          const filtered = ((rpcAgents || []) as unknown as AgentRow[]).filter(r => r.agency_id === agencyId);
+          setAgents(filtered);
+        } else {
+          const { data: agentData } = await supabase
+            .from('agent_production')
+            .select('*')
+            .eq('agency_id', agencyId!)
+            .order('active_annual_premium', { ascending: false });
+          setAgents((agentData || []) as unknown as AgentRow[]);
+        }
 
         // Monthly trend for this agency
-        const { data: monthData } = await supabase
-          .from('monthly_production')
-          .select('month, policies, annual_premium')
-          .eq('agency_id', agencyId!);
+        let monthData: { month: string; policies: number; annual_premium: number }[] | null = null;
+        if (useRpc) {
+          const { data: rpcMonth } = await supabase.rpc('filtered_monthly_production', {
+            start_date: startDate,
+            end_date: endDate,
+          });
+          monthData = ((rpcMonth || []) as unknown as RawMonthlyRow[]).filter(r => r.agency_id === agencyId) as unknown as { month: string; policies: number; annual_premium: number }[];
+        } else {
+          const { data } = await supabase
+            .from('monthly_production')
+            .select('month, policies, annual_premium')
+            .eq('agency_id', agencyId!);
+          monthData = data as { month: string; policies: number; annual_premium: number }[] | null;
+        }
 
         const byMonth = new Map<string, { policies: number; ap: number }>();
         (monthData || []).forEach((r: { month: string; policies: number; annual_premium: number }) => {
@@ -119,12 +157,18 @@ export function AgencyProductionPage() {
             .slice(-12)
         );
 
-        // Product mix
-        const { data: mixData } = await supabase
+        // Product mix (date-filtered)
+        let mixQuery = supabase
           .from('policy_cache')
           .select('product_type')
           .eq('agency_id', agencyId!)
           .eq('status', 'active');
+        if (useRpc) {
+          mixQuery = mixQuery
+            .gte('policy_effective_date', startDate)
+            .lt('policy_effective_date', endDate);
+        }
+        const { data: mixData } = await mixQuery;
 
         const mixMap = new Map<string, number>();
         (mixData || []).forEach((r) => {
@@ -141,7 +185,7 @@ export function AgencyProductionPage() {
       }
     }
     load();
-  }, [agencyId]);
+  }, [agencyId, dateRange, datePreset]);
 
   const filteredAgents = useMemo(() => {
     if (!search) return agents;
@@ -187,13 +231,20 @@ export function AgencyProductionPage() {
         title={stats.agency_name || 'Unknown Agency'}
       />
       <div className="p-6 space-y-6 max-w-screen-xl mx-auto">
-        {/* Back nav */}
-        <Link
-          to="/production"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors"
-        >
-          <ArrowLeft size={14} /> Back to Production
-        </Link>
+        {/* Back nav + time filter */}
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <Link
+            to="/production"
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors"
+          >
+            <ArrowLeft size={14} /> Back to Production
+          </Link>
+          <TimePeriodSelector
+            preset={datePreset}
+            dateRange={dateRange}
+            onChange={(range, preset) => { setDateRange(range); setDatePreset(preset); }}
+          />
+        </div>
 
         {/* KPI Strip */}
         <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">

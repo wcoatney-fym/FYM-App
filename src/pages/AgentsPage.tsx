@@ -9,6 +9,7 @@ import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated
 import { supabase } from '@/lib/supabase';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { DataFilters } from '@/components/filters/DataFilters';
+import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
 import {
   Search, Activity, Users, AlertTriangle, DollarSign,
   ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
@@ -63,6 +64,8 @@ export function AgentsPage() {
   const [sortKey, setSortKey] = useState<SortKey>('active');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [filterAgencyId, setFilterAgencyId] = useState<string | null>(null);
+  const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
+  const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
   const [page, setPage] = useState(0);
 
   useEffect(() => {
@@ -159,13 +162,15 @@ export function AgentsPage() {
       <Header title="Agent Directory" />
       <div className="p-6 space-y-6 max-w-screen-xl mx-auto">
 
-        {/* Agency filter — FYM admins only */}
-        {isOrgWide && (
-          <DataFilters
-            selectedAgencyId={filterAgencyId}
-            onAgencyChange={setFilterAgencyId}
-          />
-        )}
+        {/* Filters — time period always visible, agency for admins */}
+        <DataFilters
+          showTimePeriod
+          selectedAgencyId={filterAgencyId}
+          selectedPreset={datePreset}
+          selectedDateRange={dateRange}
+          onAgencyChange={setFilterAgencyId}
+          onDateRangeChange={(range, preset) => { setDateRange(range); setDatePreset(preset); }}
+        />
 
         {/* KPI strip */}
         <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">
