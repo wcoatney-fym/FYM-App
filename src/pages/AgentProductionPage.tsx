@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { TimePeriodSelector } from '@/components/filters/TimePeriodSelector';
-import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
+import { type DatePreset, type DateRange, type TrendPoint, DEFAULT_PRESET, getDateRange, getGranularity, bucketKey, fmtBucketLabel, fmtMonth } from '@/lib/dateUtils';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface AgentStats {
@@ -61,7 +61,7 @@ interface PolicyRow {
   days_since_paid: number | null;
 }
 
-interface MonthlyPoint { month: string; policies: number; ap: number }
+
 interface ProductMix { product_type: string; count: number }
 
 type PolicySort = 'effective' | 'premium' | 'status' | 'drafts' | 'paid';
@@ -73,11 +73,7 @@ function fmt$(n: number) {
   return `$${Math.round(n).toLocaleString()}`;
 }
 function fmtNum(n: number) { return n.toLocaleString(); }
-function fmtMonth(iso: string) {
-  const [y, m] = iso.split('-');
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `${months[parseInt(m) - 1]} '${y.slice(2)}`;
-}
+
 function fmtDate(d: string | null) {
   if (!d) return '—';
   const dt = new Date(d + 'T00:00:00');
@@ -109,7 +105,7 @@ export function AgentProductionPage() {
   const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
   const [stats, setStats] = useState<AgentStats | null>(null);
   const [policies, setPolicies] = useState<PolicyRow[]>([]);
-  const [trend, setTrend] = useState<MonthlyPoint[]>([]);
+  const [trend, setTrend] = useState<TrendPoint[]>([]);
   const [productMix, setProductMix] = useState<ProductMix[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -170,7 +166,7 @@ export function AgentProductionPage() {
         }
         setPolicies(allPolicies);
 
-        // Monthly trend — agent-level from policy_cache (date-filtered)
+        // Trend — agent-level from policy_cache with adaptive granularity
         let trendQuery = supabase
           .from('policy_cache')
           .select('policy_effective_date, plan_premium')
@@ -181,20 +177,20 @@ export function AgentProductionPage() {
         }
         const { data: cacheRows } = await trendQuery;
 
-        const byMonth = new Map<string, { policies: number; ap: number }>();
+        const gran = getGranularity(dateRange);
+        const byBucket = new Map<string, { policies: number; ap: number }>();
         (cacheRows || []).forEach((r: any) => {
           if (!r.policy_effective_date) return;
-          const m = r.policy_effective_date.substring(0, 7);
-          const existing = byMonth.get(m) || { policies: 0, ap: 0 };
+          const key = bucketKey(r.policy_effective_date, gran);
+          const existing = byBucket.get(key) || { policies: 0, ap: 0 };
           existing.policies += 1;
           existing.ap += (Number(r.plan_premium) || 0) * 12;
-          byMonth.set(m, existing);
+          byBucket.set(key, existing);
         });
         setTrend(
-          Array.from(byMonth.entries())
-            .map(([month, v]) => ({ month, ...v }))
-            .sort((a, b) => a.month.localeCompare(b.month))
-            .slice(-12)
+          Array.from(byBucket.entries())
+            .map(([bucket, v]) => ({ bucket, label: fmtBucketLabel(bucket, gran), policies: v.policies, ap: v.ap }))
+            .sort((a, b) => a.bucket.localeCompare(b.bucket))
         );
 
         // Product mix from active policies
@@ -423,7 +419,9 @@ export function AgentProductionPage() {
           {/* Monthly Trend */}
           <Card className="border-border lg:col-span-2">
             <CardHeader>
-              <CardTitle className="text-base text-foreground">Monthly Production</CardTitle>
+              <CardTitle className="text-base text-foreground">
+                Production — {dateRange.label}
+              </CardTitle>
             </CardHeader>
             <CardContent className="pb-2">
               {trend.length === 0 ? (
@@ -435,7 +433,15 @@ export function AgentProductionPage() {
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={trend}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 33% 17%)" />
-                      <XAxis dataKey="month" tickFormatter={fmtMonth} stroke="hsl(215 20% 55%)" fontSize={11} />
+                      <XAxis
+                        dataKey="label"
+                        stroke="hsl(215 20% 55%)"
+                        fontSize={11}
+                        interval={trend.length > 15 ? Math.floor(trend.length / 10) : 0}
+                        angle={trend.length > 12 ? -45 : 0}
+                        textAnchor={trend.length > 12 ? 'end' : 'middle'}
+                        height={trend.length > 12 ? 50 : 30}
+                      />
                       <YAxis yAxisId="ap" orientation="left" stroke="hsl(215 20% 55%)" fontSize={11} tickFormatter={v => fmt$(v)} />
                       <YAxis yAxisId="policies" orientation="right" stroke="hsl(215 20% 55%)" fontSize={11} />
                       <Tooltip
@@ -450,7 +456,7 @@ export function AgentProductionPage() {
                           name === 'ap' ? fmt$(value) : fmtNum(value),
                           name === 'ap' ? 'Annual Premium' : 'Policies',
                         ]}
-                        labelFormatter={fmtMonth}
+                        labelFormatter={(label: string) => label}
                       />
                       <Bar yAxisId="ap" dataKey="ap" fill="hsl(199 89% 48%)" fillOpacity={0.3} stroke="hsl(199 89% 48%)" radius={[3, 3, 0, 0]} />
                       <Line yAxisId="policies" type="monotone" dataKey="policies" stroke="hsl(142 71% 45%)" strokeWidth={2.5} dot={{ r: 3, fill: 'hsl(142 71% 45%)' }} />

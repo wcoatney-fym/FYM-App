@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { TimePeriodSelector } from '@/components/filters/TimePeriodSelector';
-import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
+import { type DatePreset, type DateRange, type DailyRow, type TrendPoint, DEFAULT_PRESET, getDateRange, getGranularity, aggregateTrend, fmtMonth } from '@/lib/dateUtils';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface AgencyStats {
@@ -50,9 +50,7 @@ interface AgentRow {
   retention_pct: number | null;
 }
 
-interface MonthlyPoint { month: string; policies: number; ap: number }
 interface ProductMix { product_type: string; count: number }
-interface RawMonthlyRow { month: string; agency_id: string; agent_id: string | null; writing_number: string | null; product_type: string; policies: number; annual_premium: number }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function fmt$(n: number) {
@@ -61,11 +59,6 @@ function fmt$(n: number) {
   return `$${Math.round(n).toLocaleString()}`;
 }
 function fmtNum(n: number) { return n.toLocaleString(); }
-function fmtMonth(iso: string) {
-  const [y, m] = iso.split('-');
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `${months[parseInt(m) - 1]} '${y.slice(2)}`;
-}
 
 
 const PIE_COLORS = ['hsl(199 89% 48%)', 'hsl(142 71% 45%)'];
@@ -76,7 +69,7 @@ export function AgencyProductionPage() {
   const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
   const [stats, setStats] = useState<AgencyStats | null>(null);
   const [agents, setAgents] = useState<AgentRow[]>([]);
-  const [trend, setTrend] = useState<MonthlyPoint[]>([]);
+  const [trend, setTrend] = useState<TrendPoint[]>([]);
   const [productMix, setProductMix] = useState<ProductMix[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -128,35 +121,34 @@ export function AgencyProductionPage() {
           setAgents((agentData || []) as unknown as AgentRow[]);
         }
 
-        // Monthly trend for this agency
-        let monthData: { month: string; policies: number; annual_premium: number }[] | null = null;
+        // Trend data — daily RPC for date-filtered, monthly view for all-time
+        const gran = getGranularity(dateRange);
         if (useRpc) {
-          const { data: rpcMonth } = await supabase.rpc('filtered_monthly_production', {
+          const { data: dailyData } = await supabase.rpc('filtered_daily_production', {
             start_date: startDate,
             end_date: endDate,
           });
-          monthData = ((rpcMonth || []) as unknown as RawMonthlyRow[]).filter(r => r.agency_id === agencyId) as unknown as { month: string; policies: number; annual_premium: number }[];
+          const rows = ((dailyData || []) as unknown as DailyRow[]).filter(r => r.agency_id === agencyId);
+          setTrend(aggregateTrend(rows, gran));
         } else {
           const { data } = await supabase
             .from('monthly_production')
             .select('month, policies, annual_premium')
             .eq('agency_id', agencyId!);
-          monthData = data as { month: string; policies: number; annual_premium: number }[] | null;
+          const byMonth = new Map<string, { policies: number; ap: number }>();
+          ((data || []) as { month: string; policies: number; annual_premium: number }[]).forEach(r => {
+            const existing = byMonth.get(r.month) || { policies: 0, ap: 0 };
+            existing.policies += Number(r.policies);
+            existing.ap += Number(r.annual_premium);
+            byMonth.set(r.month, existing);
+          });
+          setTrend(
+            Array.from(byMonth.entries())
+              .map(([month, v]) => ({ bucket: month, label: fmtMonth(month), policies: v.policies, ap: v.ap }))
+              .sort((a, b) => a.bucket.localeCompare(b.bucket))
+              .slice(-12)
+          );
         }
-
-        const byMonth = new Map<string, { policies: number; ap: number }>();
-        (monthData || []).forEach((r: { month: string; policies: number; annual_premium: number }) => {
-          const existing = byMonth.get(r.month) || { policies: 0, ap: 0 };
-          existing.policies += Number(r.policies);
-          existing.ap += Number(r.annual_premium);
-          byMonth.set(r.month, existing);
-        });
-        setTrend(
-          Array.from(byMonth.entries())
-            .map(([month, v]) => ({ month, ...v }))
-            .sort((a, b) => a.month.localeCompare(b.month))
-            .slice(-12)
-        );
 
         // Product mix (date-filtered)
         let mixQuery = supabase
@@ -308,14 +300,24 @@ export function AgencyProductionPage() {
           {/* Monthly Trend */}
           <Card className="border-border lg:col-span-2">
             <CardHeader>
-              <CardTitle className="text-base text-foreground">Monthly Production</CardTitle>
+              <CardTitle className="text-base text-foreground">
+                Production — {dateRange.label}
+              </CardTitle>
             </CardHeader>
             <CardContent className="pb-2">
               <div className="h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={trend}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 33% 17%)" />
-                    <XAxis dataKey="month" tickFormatter={fmtMonth} stroke="hsl(215 20% 55%)" fontSize={11} />
+                    <XAxis
+                      dataKey="label"
+                      stroke="hsl(215 20% 55%)"
+                      fontSize={11}
+                      interval={trend.length > 15 ? Math.floor(trend.length / 10) : 0}
+                      angle={trend.length > 12 ? -45 : 0}
+                      textAnchor={trend.length > 12 ? 'end' : 'middle'}
+                      height={trend.length > 12 ? 50 : 30}
+                    />
                     <YAxis yAxisId="ap" orientation="left" stroke="hsl(215 20% 55%)" fontSize={11} tickFormatter={v => fmt$(v)} />
                     <YAxis yAxisId="policies" orientation="right" stroke="hsl(215 20% 55%)" fontSize={11} />
                     <Tooltip
@@ -330,7 +332,7 @@ export function AgencyProductionPage() {
                         name === 'ap' ? fmt$(value) : fmtNum(value),
                         name === 'ap' ? 'Annual Premium' : 'Policies',
                       ]}
-                      labelFormatter={fmtMonth}
+                      labelFormatter={(label: string) => label}
                     />
                     <Bar yAxisId="ap" dataKey="ap" fill="hsl(199 89% 48%)" fillOpacity={0.3} stroke="hsl(199 89% 48%)" radius={[3, 3, 0, 0]} />
                     <Line yAxisId="policies" type="monotone" dataKey="policies" stroke="hsl(142 71% 45%)" strokeWidth={2.5} dot={{ r: 3, fill: 'hsl(142 71% 45%)' }} />
