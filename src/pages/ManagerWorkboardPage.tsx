@@ -94,7 +94,7 @@ export function ManagerWorkboardPage() {
       effectiveAgencyId
     );
 
-    if (boardData) setRows(boardData as AtRiskRow[]);
+    if (boardData) setRows(boardData as unknown as AtRiskRow[]);
 
     const { data: agencyData } = await scopeToAgency(
       supabase

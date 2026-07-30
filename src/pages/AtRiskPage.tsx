@@ -103,7 +103,7 @@ export function AtRiskPage() {
         if (error) { console.error('At-risk fetch error:', error.message); break; }
         if (!data || data.length === 0) break;
 
-        allRows.push(...(data as AtRiskRow[]));
+        allRows.push(...(data as unknown as AtRiskRow[]));
 
         if (data.length < PAGE_SIZE) break; // last page
         offset += PAGE_SIZE;

@@ -4,7 +4,7 @@
  * Default: This Month.
  */
 import { useState, useRef, useEffect } from 'react';
-import { Calendar, ChevronDown, X } from 'lucide-react';
+import { Calendar, ChevronDown } from 'lucide-react';
 import { type DatePreset, type DateRange, DATE_PRESETS, getDateRange } from '@/lib/dateUtils';
 
 interface TimePeriodSelectorProps {

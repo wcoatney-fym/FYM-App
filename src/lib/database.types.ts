@@ -572,7 +572,20 @@ export interface Database {
         Relationships: [];
       };
     };
-    Functions: Record<string, never>;
+    Functions: {
+      filtered_agency_production: {
+        Args: { start_date: string; end_date: string };
+        Returns: Record<string, unknown>[];
+      };
+      filtered_agent_production: {
+        Args: { start_date: string; end_date: string };
+        Returns: Record<string, unknown>[];
+      };
+      filtered_monthly_production: {
+        Args: { start_date: string; end_date: string };
+        Returns: Record<string, unknown>[];
+      };
+    };
     Enums: {
       user_role: UserRole;
       atrisk_status: AtRiskStatus;

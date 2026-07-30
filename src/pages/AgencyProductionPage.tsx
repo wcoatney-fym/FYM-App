@@ -37,6 +37,7 @@ interface AgencyStats {
 }
 
 interface AgentRow {
+  agency_id: string;
   agent_id: string | null;
   agent_name: string | null;
   writing_number: string | null;
