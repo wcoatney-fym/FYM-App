@@ -183,6 +183,15 @@ export function AtRiskKanban({ filterAgencyId }: AtRiskKanbanProps) {
             updated_at: new Date().toISOString(),
           })
           .eq('id', policy.task_id);
+
+        // Log stage transition
+        await (supabase as any)
+          .from('atrisk_stage_history')
+          .insert({
+            task_id: policy.task_id,
+            from_stage: current,
+            to_stage: target,
+          });
       } else {
         // Create new task at target stage
         const { data } = await supabase!
@@ -206,6 +215,15 @@ export function AtRiskKanban({ filterAgencyId }: AtRiskKanbanProps) {
           .single();
 
         if (data) {
+          // Log initial stage entry
+          await (supabase as any)
+            .from('atrisk_stage_history')
+            .insert({
+              task_id: data.id,
+              from_stage: null,
+              to_stage: target,
+            });
+
           setPolicies(prev => prev.map(p =>
             p.policy_number === policy.policy_number
               ? { ...p, task_id: data.id, task_status: target }
