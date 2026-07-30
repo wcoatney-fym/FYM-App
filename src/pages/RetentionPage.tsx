@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,7 @@ import {
   ResponsiveContainer, ReferenceLine, Legend,
 } from 'recharts';
 import { DataFilters } from '@/components/filters/DataFilters';
+import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
 import {
   ShieldCheck, Users, CheckCircle2, AlertTriangle,
   ArrowUpRight, ArrowDownRight, Minus, ChevronDown, ChevronRight,
@@ -118,6 +119,8 @@ export function RetentionPage() {
   const [sortAsc, setSortAsc] = useState(true);
   const [expandedAgency, setExpandedAgency] = useState<string | null>(null);
   const [filterAgencyId, setFilterAgencyId] = useState<string | null>(null);
+  const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
+  const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
 
   useEffect(() => {
     if (!supabase) { setLoading(false); return; }
@@ -179,6 +182,16 @@ export function RetentionPage() {
     load();
   }, [effectiveAgencyId, isOrgWide]);
 
+  // Helper: check if a cohort month falls within the selected date range
+  const isMonthInRange = useCallback((cohortMonth: string) => {
+    if (datePreset === 'allTime') return true;
+    // cohortMonth is YYYY-MM, compare as first-of-month date
+    const monthDate = new Date(cohortMonth + '-01T00:00:00');
+    const start = new Date(dateRange.startDate);
+    const end = new Date(dateRange.endDate);
+    return monthDate >= start && monthDate < end;
+  }, [dateRange, datePreset]);
+
   // Org-wide KPI summary — derived from sortedAgencies so it respects the filter
   // (sortedAgencies is defined below; moved summary after it would create a forward-ref,
   //  so we inline the filter here)
@@ -196,12 +209,12 @@ export function RetentionPage() {
     return { eligible, retained, orgRetentionPct, atRiskAgencies };
   }, [filteredAgencies]);
 
-  // Trend chart data — when filtered, re-aggregate from agency cohorts
+  // Trend chart data — when filtered, re-aggregate from agency cohorts; apply date range filter
   const trendData = useMemo(() => {
     if (!filterAgencyId) {
       // Org-wide: use the org-wide cohort_retention view
       const byMonth = new Map<string, TrendPoint>();
-      orgCohorts.forEach(c => {
+      orgCohorts.filter(c => isMonthInRange(c.cohort_month)).forEach(c => {
         const existing = byMonth.get(c.cohort_month) || { cohort_month: c.cohort_month, HI: null, HHC: null };
         if (c.product_type === 'HI') existing.HI = c.retention_pct;
         if (c.product_type === 'HHC') existing.HHC = c.retention_pct;
@@ -210,7 +223,7 @@ export function RetentionPage() {
       return Array.from(byMonth.values()).sort((a, b) => a.cohort_month.localeCompare(b.cohort_month));
     }
     // Filtered: rebuild from agency_cohort_retention data
-    const filtered = agencyCohorts.filter(c => c.agency_id === filterAgencyId);
+    const filtered = agencyCohorts.filter(c => c.agency_id === filterAgencyId && isMonthInRange(c.cohort_month));
     const byMonth = new Map<string, TrendPoint>();
     filtered.forEach(c => {
       const key = c.cohort_month;
@@ -220,7 +233,7 @@ export function RetentionPage() {
       byMonth.set(key, existing);
     });
     return Array.from(byMonth.values()).sort((a, b) => a.cohort_month.localeCompare(b.cohort_month));
-  }, [orgCohorts, agencyCohorts, filterAgencyId]);
+  }, [orgCohorts, agencyCohorts, filterAgencyId, isMonthInRange]);
 
   // Filter + sort agency table
   const sortedAgencies = useMemo(() => {
@@ -306,13 +319,15 @@ export function RetentionPage() {
       <Header title="Retention" />
       <div className="p-6 space-y-6 max-w-screen-xl mx-auto">
 
-        {/* Agency filter — FYM admins only */}
-        {isOrgWide && (
-          <DataFilters
-            selectedAgencyId={filterAgencyId}
-            onAgencyChange={setFilterAgencyId}
-          />
-        )}
+        {/* Filters — time period always visible, agency for admins */}
+        <DataFilters
+          showTimePeriod
+          selectedAgencyId={filterAgencyId}
+          selectedPreset={datePreset}
+          selectedDateRange={dateRange}
+          onAgencyChange={setFilterAgencyId}
+          onDateRangeChange={(range, preset) => { setDateRange(range); setDatePreset(preset); }}
+        />
 
         {/* KPI Summary Cards */}
         <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">

@@ -10,6 +10,8 @@ import { Link, Navigate } from 'react-router-dom';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ShieldCheck, AlertTriangle, Building2, ChevronRight, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { TimePeriodSelector } from '@/components/filters/TimePeriodSelector';
+import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface ProductionSnap {
@@ -72,6 +74,8 @@ export function DashboardPage() {
   const [bottomAgencies, setBottomAgencies] = useState<AgencyRisk[]>([]);
   const [production, setProduction] = useState<ProductionSnap | null>(null);
   const [loading, setLoading] = useState(true);
+  const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
+  const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
 
   // Agents don't get the org/agency dashboard — send them to their personal book health view.
   if (effectiveRole === 'agent') {
@@ -258,6 +262,15 @@ export function DashboardPage() {
     <div>
       <Header title="Dashboard" />
       <div className="p-6 space-y-6">
+
+        {/* Time period filter */}
+        <div className="flex justify-end">
+          <TimePeriodSelector
+            preset={datePreset}
+            dateRange={dateRange}
+            onChange={(range, preset) => { setDateRange(range); setDatePreset(preset); }}
+          />
+        </div>
 
         {/* ── KPI strip with HUD frames + animations ── */}
         <StaggerContainer className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

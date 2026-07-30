@@ -13,7 +13,8 @@ import {
   AlertTriangle, Clock, Search, ChevronDown, ChevronUp,
   CheckCircle2, TrendingDown,
 } from 'lucide-react';
-import { DateRangeSelector } from '@/components/filters/DateRangeSelector';
+import { TimePeriodSelector } from '@/components/filters/TimePeriodSelector';
+import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
 
 interface AtRiskRow {
   policy_number: string;
@@ -70,8 +71,10 @@ export function AtRiskPage() {
   const [togglingTask, setTogglingTask] = useState<string | null>(null);
   const [filterAgencyId, setFilterAgencyId] = useState<string | null>(null);
   const [filterAgentId, setFilterAgentId] = useState<string | null>(null);
-  const [dateStart, setDateStart] = useState<string | null>(null);
-  const [dateEnd, setDateEnd] = useState<string | null>(null);
+  const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
+  const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
+  const dateStart = datePreset === 'allTime' ? null : dateRange.startDate.split('T')[0];
+  const dateEnd = datePreset === 'allTime' ? null : dateRange.endDate.split('T')[0];
 
   useEffect(() => {
     if (!supabase) { setLoading(false); return; }
@@ -100,7 +103,7 @@ export function AtRiskPage() {
         if (error) { console.error('At-risk fetch error:', error.message); break; }
         if (!data || data.length === 0) break;
 
-        allRows.push(...(data as AtRiskRow[]));
+        allRows.push(...(data as unknown as AtRiskRow[]));
 
         if (data.length < PAGE_SIZE) break; // last page
         offset += PAGE_SIZE;
@@ -276,12 +279,10 @@ export function AtRiskPage() {
                 <p className="text-xs text-muted-foreground/70 mt-0.5">{displayRows.length} of {rows.length} shown</p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <DateRangeSelector
-                  label="Paid To Date"
-                  startDate={dateStart}
-                  endDate={dateEnd}
-                  onStartChange={setDateStart}
-                  onEndChange={setDateEnd}
+                <TimePeriodSelector
+                  preset={datePreset}
+                  dateRange={dateRange}
+                  onChange={(range, preset) => { setDateRange(range); setDatePreset(preset); }}
                 />
                 {(['all', 'critical', 'high', 'medium'] as const).map(f => (
                   <button

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Building2, User, X } from 'lucide-react';
+import { TimePeriodSelector } from './TimePeriodSelector';
+import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
 
 interface AgencyOption {
   id: string;
@@ -17,23 +19,36 @@ interface AgentOption {
 interface DataFiltersProps {
   /** Show agent filter alongside agency filter */
   showAgentFilter?: boolean;
+  /** Show time period filter (default true) */
+  showTimePeriod?: boolean;
   /** Current selected agency tracker_id (matches agency_id in data tables) */
   selectedAgencyId: string | null;
   /** Current selected agent writing_number */
   selectedAgentId?: string | null;
+  /** Current time period preset */
+  selectedPreset?: DatePreset;
+  /** Current date range */
+  selectedDateRange?: DateRange;
   /** Callback when agency changes — receives tracker_id or null */
   onAgencyChange: (agencyId: string | null) => void;
   /** Callback when agent changes — receives writing_number or null */
   onAgentChange?: (agentId: string | null) => void;
+  /** Callback when time period changes */
+  onDateRangeChange?: (range: DateRange, preset: DatePreset) => void;
 }
 
 export function DataFilters({
   showAgentFilter = false,
+  showTimePeriod = true,
   selectedAgencyId,
   selectedAgentId = null,
+  selectedPreset = DEFAULT_PRESET,
+  selectedDateRange,
   onAgencyChange,
   onAgentChange,
+  onDateRangeChange,
 }: DataFiltersProps) {
+  const effectiveDateRange = selectedDateRange ?? getDateRange(DEFAULT_PRESET);
   const [agencies, setAgencies] = useState<AgencyOption[]>([]);
   const [agents, setAgents] = useState<AgentOption[]>([]);
   const [loadingAgencies, setLoadingAgencies] = useState(true);
@@ -76,15 +91,25 @@ export function DataFilters({
       });
   }, [selectedAgencyId, showAgentFilter, agencies]);
 
-  const hasActiveFilters = !!selectedAgencyId || !!selectedAgentId;
+  const hasActiveFilters = !!selectedAgencyId || !!selectedAgentId || (selectedPreset !== DEFAULT_PRESET && showTimePeriod);
 
   function handleClear() {
     onAgencyChange(null);
     onAgentChange?.(null);
+    if (showTimePeriod) onDateRangeChange?.(getDateRange(DEFAULT_PRESET), DEFAULT_PRESET);
   }
 
   return (
     <div className="flex items-center gap-3 flex-wrap">
+      {/* Time period filter */}
+      {showTimePeriod && onDateRangeChange && (
+        <TimePeriodSelector
+          preset={selectedPreset}
+          dateRange={effectiveDateRange}
+          onChange={onDateRangeChange}
+        />
+      )}
+
       {/* Agency filter */}
       <div className="flex items-center gap-1.5">
         <Building2 size={14} className="text-muted-foreground shrink-0" />

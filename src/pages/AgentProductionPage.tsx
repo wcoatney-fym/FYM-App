@@ -22,6 +22,8 @@ import {
   AlertTriangle, Search, Download, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { TimePeriodSelector } from '@/components/filters/TimePeriodSelector';
+import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface AgentStats {
@@ -114,6 +116,8 @@ export function AgentProductionPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'terminated' | 'pending' | 'at_risk'>('all');
   const [sortKey, setSortKey] = useState<PolicySort>('effective');
   const [sortAsc, setSortAsc] = useState(false);
+  const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
+  const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
 
   useEffect(() => {
     if (!agentId || !supabase) return;
@@ -121,26 +125,44 @@ export function AgentProductionPage() {
       setLoading(true);
       if (!supabase) { setLoading(false); return; }
       try {
-        // Agent stats from view
-        const { data: agentData } = await supabase
-          .from('agent_production')
-          .select('*')
-          .eq('agent_id', agentId!)
-          .single();
-        if (agentData) setStats(agentData as unknown as AgentStats);
+        const startDate = dateRange.startDate.split('T')[0];
+        const endDate = dateRange.endDate.split('T')[0];
+        const useRpc = datePreset !== 'allTime';
 
-        // Policies — paginate
+        // Agent stats — RPC for date-filtered, view for all-time
+        if (useRpc) {
+          const { data: rpcData } = await supabase.rpc('filtered_agent_production', {
+            start_date: startDate,
+            end_date: endDate,
+          });
+          const match = ((rpcData || []) as unknown as AgentStats[]).find(r => r.agent_id === agentId);
+          if (match) setStats(match);
+          else setStats(null);
+        } else {
+          const { data: agentData } = await supabase
+            .from('agent_production')
+            .select('*')
+            .eq('agent_id', agentId!)
+            .single();
+          if (agentData) setStats(agentData as unknown as AgentStats);
+        }
+
+        // Policies — paginate (with date filter)
         const allPolicies: PolicyRow[] = [];
         const PAGE = 1000;
         let offset = 0;
         let done = false;
         while (!done) {
-          const { data: policyData } = await supabase
+          let q = supabase
             .from('book_of_business')
             .select('policy_number, product_type, status, monthly_premium, annual_premium, policy_effective_date, paid_to_date, draft_count, is_at_risk, flag_type, days_since_paid')
             .eq('agent_id', agentId!)
             .order('policy_effective_date', { ascending: false })
             .range(offset, offset + PAGE - 1);
+          if (useRpc) {
+            q = q.gte('policy_effective_date', startDate).lt('policy_effective_date', endDate);
+          }
+          const { data: policyData } = await q;
           if (!policyData || policyData.length === 0) { done = true; break; }
           allPolicies.push(...(policyData as unknown as PolicyRow[]));
           if (policyData.length < PAGE) done = true;
@@ -148,12 +170,16 @@ export function AgentProductionPage() {
         }
         setPolicies(allPolicies);
 
-        // Monthly trend — agent-level from policy_cache
-        const { data: cacheRows } = await supabase
+        // Monthly trend — agent-level from policy_cache (date-filtered)
+        let trendQuery = supabase
           .from('policy_cache')
           .select('policy_effective_date, plan_premium')
           .eq('agent_id', agentId!)
           .not('policy_effective_date', 'is', null);
+        if (useRpc) {
+          trendQuery = trendQuery.gte('policy_effective_date', startDate).lt('policy_effective_date', endDate);
+        }
+        const { data: cacheRows } = await trendQuery;
 
         const byMonth = new Map<string, { policies: number; ap: number }>();
         (cacheRows || []).forEach((r: any) => {
@@ -187,7 +213,7 @@ export function AgentProductionPage() {
       }
     }
     load();
-  }, [agentId]);
+  }, [agentId, dateRange, datePreset]);
 
   // Filtered + sorted policies
   const displayed = useMemo(() => {
@@ -301,8 +327,8 @@ export function AgentProductionPage() {
     <>
       <Header title={stats.agent_name || 'Unknown Agent'} />
       <div className="p-6 space-y-6 max-w-screen-xl mx-auto">
-        {/* Back nav + agent info */}
-        <div className="flex items-center justify-between">
+        {/* Back nav + time filter + agent info */}
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <Link
             to={agencyId ? `/production/${agencyId}` : '/production'}
             className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors"
@@ -310,6 +336,11 @@ export function AgentProductionPage() {
             <ArrowLeft size={14} /> Back to {stats.agency_name || 'Agency'}
           </Link>
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <TimePeriodSelector
+              preset={datePreset}
+              dateRange={dateRange}
+              onChange={(range, preset) => { setDateRange(range); setDatePreset(preset); }}
+            />
             {stats.writing_number && (
               <span className="font-data text-xs bg-secondary px-2 py-1 rounded">
                 WN: {stats.writing_number}

@@ -13,7 +13,8 @@ import {
   Search, ChevronLeft, ChevronRight, Download,
   Filter, X,
 } from 'lucide-react';
-import { DateRangeSelector } from '@/components/filters/DateRangeSelector';
+import { TimePeriodSelector } from '@/components/filters/TimePeriodSelector';
+import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface Policy {
@@ -73,8 +74,10 @@ export function BookOfBusinessPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [filterAgencyId, setFilterAgencyId] = useState<string | null>(null);
   const [filterAgentId, setFilterAgentId] = useState<string | null>(null);
-  const [dateStart, setDateStart] = useState<string | null>(null);
-  const [dateEnd, setDateEnd] = useState<string | null>(null);
+  const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
+  const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
+  const dateStart = datePreset === 'allTime' ? null : dateRange.startDate.split('T')[0];
+  const dateEnd = datePreset === 'allTime' ? null : dateRange.endDate.split('T')[0];
 
   // Summary stats
   const [summaryStats, setSummaryStats] = useState({
@@ -295,13 +298,11 @@ export function BookOfBusinessPage() {
                 )}
               </button>
 
-              {/* Date Range */}
-              <DateRangeSelector
-                label="Effective Date"
-                startDate={dateStart}
-                endDate={dateEnd}
-                onStartChange={setDateStart}
-                onEndChange={setDateEnd}
+              {/* Time Period */}
+              <TimePeriodSelector
+                preset={datePreset}
+                dateRange={dateRange}
+                onChange={(range, preset) => { setDateRange(range); setDatePreset(preset); }}
               />
 
               {/* Export */}
