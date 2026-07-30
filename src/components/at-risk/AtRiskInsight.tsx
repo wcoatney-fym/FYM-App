@@ -11,8 +11,8 @@
  */
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import {
-  AlertTriangle, Search, Clock, DollarSign, ChevronDown, ChevronRight,
-  ShieldAlert, Loader2, RefreshCw,
+  AlertTriangle, Search, Clock, DollarSign,
+  ShieldAlert, Loader2, RefreshCw, X,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
@@ -95,7 +95,7 @@ export function AtRiskInsight({ filterAgencyId }: AtRiskInsightProps) {
   const [policies, setPolicies] = useState<AtRiskPolicy[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [expandedStage, setExpandedStage] = useState<Stage | null>(null);
+  const [openBucket, setOpenBucket] = useState<Stage | null>(null);
   const [query, setQuery] = useState('');
   const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>('all');
   const [selectedPolicy, setSelectedPolicy] = useState<AtRiskPolicy | null>(null);
@@ -308,36 +308,24 @@ export function AtRiskInsight({ filterAgencyId }: AtRiskInsightProps) {
         <div className="space-y-2">
           {STAGES.map(stage => {
             const cards = byStage(stage.key);
-            const isExpanded = expandedStage === stage.key;
             const hasCards = cards.length > 0;
 
             return (
               <div key={stage.key}>
-                {/* Bucket header — clickable to expand */}
+                {/* Bucket row — click opens modal */}
                 <button
                   onClick={() => {
                     if (!hasCards) return;
-                    setExpandedStage(prev => prev === stage.key ? null : stage.key);
+                    setOpenBucket(stage.key);
                     setSelectedPolicy(null);
                   }}
                   disabled={!hasCards}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border transition-colors text-left ${
-                    isExpanded
-                      ? `${stage.bg} ${stage.border}`
-                      : hasCards
-                        ? `bg-card border-border hover:${stage.border} hover:${stage.bg}`
-                        : 'bg-card/50 border-border/50 opacity-50 cursor-default'
+                    hasCards
+                      ? `bg-card border-border hover:border-primary/30 hover:${stage.bg}`
+                      : 'bg-card/50 border-border/50 opacity-50 cursor-default'
                   }`}
                 >
-                  {/* Expand icon */}
-                  {hasCards ? (
-                    isExpanded
-                      ? <ChevronDown size={14} className={stage.color} />
-                      : <ChevronRight size={14} className="text-muted-foreground" />
-                  ) : (
-                    <span className="w-3.5" />
-                  )}
-
                   {/* Dot + label */}
                   <span className={`w-2 h-2 rounded-full ${stage.dot} shrink-0`} />
                   <span className={`text-sm font-semibold ${hasCards ? stage.color : 'text-muted-foreground/50'}`}>
@@ -359,83 +347,112 @@ export function AtRiskInsight({ filterAgencyId }: AtRiskInsightProps) {
                   )}
                 </button>
 
-                {/* Expanded client list */}
-                {isExpanded && hasCards && (
-                  <div className="mt-1 ml-4 mr-1">
-                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                      {cards.map(p => {
-                        const level = urgencyLevel(p.days_since_draft);
-                        const isCodeRed = level === 'code_red';
-                        const isHeating = level === 'heating_up';
-                        const dtt = daysToTerminate(p.days_since_draft);
-                        const isSelected = selectedPolicy?.policy_number === p.policy_number;
-
-                        return (
-                          <button
-                            key={p.policy_number}
-                            onClick={() => setSelectedPolicy(isSelected ? null : p)}
-                            className={`w-full text-left rounded-lg border p-3 transition-colors ${
-                              isSelected
-                                ? 'bg-primary/5 border-primary/40 ring-1 ring-primary/20'
-                                : isCodeRed
-                                  ? 'bg-card border-red-500/30 hover:border-red-400/50'
-                                  : 'bg-card border-border hover:border-primary/20'
-                            }`}
-                          >
-                            {/* Urgency row */}
-                            <div className="flex items-center gap-1 mb-1 min-h-[16px]">
-                              {isCodeRed && (
-                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-300 border border-red-500/30">
-                                  CODE RED
-                                </span>
-                              )}
-                              {isHeating && (
-                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                                  HEATING UP
-                                </span>
-                              )}
-                              <span className={`text-[11px] font-bold ml-auto ${
-                                isCodeRed ? 'text-red-400'
-                                : isHeating ? 'text-amber-400'
-                                : 'text-muted-foreground'
-                              }`}>
-                                {dtt > 0 ? `${dtt}d left` : 'grace up'}
-                              </span>
-                            </div>
-
-                            {/* Client */}
-                            <p className="text-sm font-semibold text-foreground leading-snug">
-                              {p.client_name || 'Unknown'}
-                            </p>
-
-                            {/* Product + premium */}
-                            <p className="text-[11px] text-muted-foreground mt-0.5">
-                              {p.product_type === 'HHC' ? 'HHC' : 'HI'} · ${(Number(p.plan_premium) * 12).toLocaleString(undefined, { maximumFractionDigits: 0 })} AP
-                            </p>
-
-                            {/* Agent */}
-                            <p className="text-[10px] text-muted-foreground/70 mt-0.5 truncate">
-                              {p.agent_name || 'Unassigned'}
-                              {p.writing_number ? ` · #${p.writing_number}` : ''}
-                            </p>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-
               </div>
             );
           })}
         </div>
       )}
 
-      {/* Detail modal overlay */}
+      {/* Bucket modal — shows card grid for the selected stage */}
+      {openBucket && (() => {
+        const bucketStage = STAGES.find(s => s.key === openBucket)!;
+        const bucketCards = byStage(openBucket);
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => { setOpenBucket(null); setSelectedPolicy(null); }}
+          >
+            <div
+              className="bg-card border border-border rounded-xl w-full max-w-3xl max-h-[85vh] overflow-y-auto shadow-xl"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Modal header */}
+              <div className={`flex items-center gap-3 px-5 py-4 border-b ${bucketStage.border}`}>
+                <span className={`w-2.5 h-2.5 rounded-full ${bucketStage.dot}`} />
+                <h3 className={`text-base font-bold ${bucketStage.color}`}>
+                  {bucketStage.label}
+                </h3>
+                <span className="text-sm text-muted-foreground">
+                  {bucketCards.length} {bucketCards.length === 1 ? 'policy' : 'policies'}
+                  {' · $'}{Math.round(bucketCards.reduce((s, p) => s + Number(p.plan_premium) * 12, 0)).toLocaleString()} AP
+                </span>
+                <button
+                  onClick={() => { setOpenBucket(null); setSelectedPolicy(null); }}
+                  className="ml-auto text-muted-foreground hover:text-foreground p-1"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Card grid */}
+              <div className="p-4">
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {bucketCards.map(p => {
+                    const level = urgencyLevel(p.days_since_draft);
+                    const isCodeRed = level === 'code_red';
+                    const isHeating = level === 'heating_up';
+                    const dtt = daysToTerminate(p.days_since_draft);
+
+                    return (
+                      <button
+                        key={p.policy_number}
+                        onClick={() => setSelectedPolicy(p)}
+                        className={`w-full text-left rounded-lg border p-3 transition-colors ${
+                          isCodeRed
+                            ? 'bg-card border-red-500/30 hover:border-red-400/50'
+                            : 'bg-card border-border hover:border-primary/20'
+                        }`}
+                      >
+                        {/* Urgency row */}
+                        <div className="flex items-center gap-1 mb-1 min-h-[16px]">
+                          {isCodeRed && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-300 border border-red-500/30">
+                              CODE RED
+                            </span>
+                          )}
+                          {isHeating && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                              HEATING UP
+                            </span>
+                          )}
+                          <span className={`text-[11px] font-bold ml-auto ${
+                            isCodeRed ? 'text-red-400'
+                            : isHeating ? 'text-amber-400'
+                            : 'text-muted-foreground'
+                          }`}>
+                            {dtt > 0 ? `${dtt}d left` : 'grace up'}
+                          </span>
+                        </div>
+
+                        {/* Client */}
+                        <p className="text-sm font-semibold text-foreground leading-snug">
+                          {p.client_name || 'Unknown'}
+                        </p>
+
+                        {/* Product + premium */}
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          {p.product_type === 'HHC' ? 'HHC' : 'HI'} · ${(Number(p.plan_premium) * 12).toLocaleString(undefined, { maximumFractionDigits: 0 })} AP
+                        </p>
+
+                        {/* Agent */}
+                        <p className="text-[10px] text-muted-foreground/70 mt-0.5 truncate">
+                          {p.agent_name || 'Unassigned'}
+                          {p.writing_number ? ` · #${p.writing_number}` : ''}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Detail modal — shows full client info when a card is clicked */}
       {selectedPolicy && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
           onClick={() => setSelectedPolicy(null)}
         >
           <div
