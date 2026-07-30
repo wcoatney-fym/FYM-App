@@ -11,7 +11,7 @@ import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ShieldCheck, AlertTriangle, Building2, ChevronRight, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { TimePeriodSelector } from '@/components/filters/TimePeriodSelector';
-import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
+import { type DatePreset, type DateRange, type DailyRow, type TrendPoint, DEFAULT_PRESET, getDateRange, getGranularity, bucketKey, fmtBucketLabel, fmtMonth } from '@/lib/dateUtils';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface ProductionSnap {
@@ -19,7 +19,7 @@ interface ProductionSnap {
   apThisMonth: number;
   policiesLastMonth: number;
   apLastMonth: number;
-  trend: { month: string; policies: number; ap: number }[];
+  trend: TrendPoint[];
 }
 
 interface DashStats {
@@ -49,9 +49,7 @@ interface AgencyRisk {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
-function fmtMonth(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' });
-}
+
 
 function fmt$(n: number) {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
@@ -210,51 +208,91 @@ export function DashboardPage() {
         setTrend(trendPoints);
       }
 
-      // ── 3. Production snapshot from monthly_production ──
-      const { data: monthProd } = await scopeToAgency(
-        supabase!
-          .from('monthly_production')
-          .select('month, policies, annual_premium'),
-        isOrgWide,
-        effectiveAgencyId
-      );
+      // ── 3. Production snapshot — daily RPC for date-filtered, monthly view for all-time ──
+      const useRpc = datePreset !== 'allTime';
+      const gran = getGranularity(dateRange);
 
-      if (monthProd) {
-        const byMonth = new Map<string, { policies: number; ap: number }>();
-        for (const r of monthProd as any[]) {
-          const existing = byMonth.get(r.month) || { policies: 0, ap: 0 };
-          existing.policies += Number(r.policies);
-          existing.ap += Number(r.annual_premium);
-          byMonth.set(r.month, existing);
+      if (useRpc) {
+        const startDate = dateRange.startDate.split('T')[0];
+        const endDate = dateRange.endDate.split('T')[0];
+        const { data: dailyData } = await supabase!.rpc('filtered_daily_production', {
+          start_date: startDate,
+          end_date: endDate,
+        });
+        let rows = (dailyData || []) as unknown as DailyRow[];
+        if (!isOrgWide && effectiveAgencyId) {
+          rows = rows.filter(r => r.agency_id === effectiveAgencyId);
         }
 
-        const now = new Date();
-        const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-        const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        const lastMonthKey = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`;
+        // Build trend with adaptive granularity
+        const byBucket = new Map<string, { policies: number; ap: number }>();
+        rows.forEach(r => {
+          const key = bucketKey(r.day, gran);
+          const existing = byBucket.get(key) || { policies: 0, ap: 0 };
+          existing.policies += Number(r.policies);
+          existing.ap += Number(r.annual_premium);
+          byBucket.set(key, existing);
+        });
+        const trendArr: TrendPoint[] = Array.from(byBucket.entries())
+          .map(([b, v]) => ({ bucket: b, label: fmtBucketLabel(b, gran), policies: v.policies, ap: v.ap }))
+          .sort((a, b) => a.bucket.localeCompare(b.bucket));
 
-        const thisM = byMonth.get(thisMonthKey) || { policies: 0, ap: 0 };
-        const lastM = byMonth.get(lastMonthKey) || { policies: 0, ap: 0 };
-
-        const trendArr = Array.from(byMonth.entries())
-          .map(([month, v]) => ({ month, ...v }))
-          .sort((a, b) => a.month.localeCompare(b.month))
-          .slice(-6);
+        const totalPolicies = rows.reduce((s, r) => s + Number(r.policies), 0);
+        const totalAp = rows.reduce((s, r) => s + Number(r.annual_premium), 0);
 
         setProduction({
-          policiesThisMonth: thisM.policies,
-          apThisMonth: thisM.ap,
-          policiesLastMonth: lastM.policies,
-          apLastMonth: lastM.ap,
+          policiesThisMonth: totalPolicies,
+          apThisMonth: totalAp,
+          policiesLastMonth: 0,
+          apLastMonth: 0,
           trend: trendArr,
         });
+      } else {
+        const { data: monthProd } = await scopeToAgency(
+          supabase!
+            .from('monthly_production')
+            .select('month, policies, annual_premium'),
+          isOrgWide,
+          effectiveAgencyId
+        );
+
+        if (monthProd) {
+          const byMonth = new Map<string, { policies: number; ap: number }>();
+          for (const r of monthProd as any[]) {
+            const existing = byMonth.get(r.month) || { policies: 0, ap: 0 };
+            existing.policies += Number(r.policies);
+            existing.ap += Number(r.annual_premium);
+            byMonth.set(r.month, existing);
+          }
+
+          const now = new Date();
+          const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+          const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+          const lastMonthKey = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`;
+
+          const thisM = byMonth.get(thisMonthKey) || { policies: 0, ap: 0 };
+          const lastM = byMonth.get(lastMonthKey) || { policies: 0, ap: 0 };
+
+          const trendArr: TrendPoint[] = Array.from(byMonth.entries())
+            .map(([month, v]) => ({ bucket: month, label: fmtMonth(month), policies: v.policies, ap: v.ap }))
+            .sort((a, b) => a.bucket.localeCompare(b.bucket))
+            .slice(-6);
+
+          setProduction({
+            policiesThisMonth: thisM.policies,
+            apThisMonth: thisM.ap,
+            policiesLastMonth: lastM.policies,
+            apLastMonth: lastM.ap,
+            trend: trendArr,
+          });
+        }
       }
 
       setLoading(false);
     }
 
     load();
-  }, [effectiveAgencyId, isOrgWide]);
+  }, [effectiveAgencyId, isOrgWide, dateRange, datePreset]);
 
   const s = stats;
 
@@ -445,8 +483,7 @@ export function DashboardPage() {
                     <LineChart data={production.trend}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 33% 17%)" />
                       <XAxis
-                        dataKey="month"
-                        tickFormatter={(m: string) => { const [,mo] = m.split('-'); const ms = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; return ms[parseInt(mo) - 1] || m; }}
+                        dataKey="label"
                         stroke="hsl(215 20% 55%)"
                         fontSize={10}
                       />

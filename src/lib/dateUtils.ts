@@ -104,3 +104,106 @@ export function fmtMonth(iso: string) {
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   return `${months[parseInt(m) - 1]} '${y.slice(2)}`;
 }
+
+// ── Adaptive chart granularity ─────────────────────────────────────────────
+
+export type Granularity = 'day' | 'week' | 'month';
+
+/**
+ * Pick the right chart granularity based on range size:
+ * - ≤31 days → daily
+ * - ≤90 days → weekly
+ * - >90 days → monthly
+ */
+export function getGranularity(range: DateRange): Granularity {
+  const start = new Date(range.startDate);
+  const end = new Date(range.endDate);
+  const days = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+  if (days <= 31) return 'day';
+  if (days <= 90) return 'week';
+  return 'month';
+}
+
+/** ISO date string → bucket key for the given granularity */
+export function bucketKey(dateStr: string, granularity: Granularity): string {
+  const d = new Date(dateStr + (dateStr.includes('T') ? '' : 'T00:00:00'));
+  switch (granularity) {
+    case 'day':
+      return dateStr.slice(0, 10); // YYYY-MM-DD
+    case 'week': {
+      // ISO week: Monday-aligned. Find the Monday of this week.
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday
+      const monday = new Date(d);
+      monday.setDate(diff);
+      return monday.toISOString().slice(0, 10); // YYYY-MM-DD of Monday
+    }
+    case 'month':
+      return dateStr.slice(0, 7); // YYYY-MM
+  }
+}
+
+/** Format a bucket key for chart axis labels */
+export function fmtBucketLabel(key: string, granularity: Granularity): string {
+  switch (granularity) {
+    case 'day': {
+      const d = new Date(key + 'T00:00:00');
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+    case 'week': {
+      const d = new Date(key + 'T00:00:00');
+      return `Wk ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+    }
+    case 'month':
+      return fmtMonth(key);
+  }
+}
+
+export interface DailyRow {
+  day: string;
+  agency_id: string;
+  agent_id: string | null;
+  writing_number: string | null;
+  product_type: string;
+  policies: number;
+  annual_premium: number;
+}
+
+export interface TrendPoint {
+  bucket: string;
+  label: string;
+  policies: number;
+  ap: number;
+}
+
+/**
+ * Aggregate daily rows into trend points using the appropriate granularity.
+ * Optionally filter by agency_id and/or writing_number.
+ */
+export function aggregateTrend(
+  dailyRows: DailyRow[],
+  granularity: Granularity,
+  filters?: { agencyId?: string | null; writingNumber?: string | null },
+): TrendPoint[] {
+  let rows = dailyRows;
+  if (filters?.agencyId) rows = rows.filter(r => r.agency_id === filters.agencyId);
+  if (filters?.writingNumber) rows = rows.filter(r => r.writing_number === filters.writingNumber);
+
+  const byBucket = new Map<string, { policies: number; ap: number }>();
+  rows.forEach(r => {
+    const key = bucketKey(r.day, granularity);
+    const existing = byBucket.get(key) || { policies: 0, ap: 0 };
+    existing.policies += Number(r.policies);
+    existing.ap += Number(r.annual_premium);
+    byBucket.set(key, existing);
+  });
+
+  return Array.from(byBucket.entries())
+    .map(([bucket, v]) => ({
+      bucket,
+      label: fmtBucketLabel(bucket, granularity),
+      policies: v.policies,
+      ap: v.ap,
+    }))
+    .sort((a, b) => a.bucket.localeCompare(b.bucket));
+}
