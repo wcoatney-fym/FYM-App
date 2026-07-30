@@ -37,7 +37,10 @@ interface OrgStats {
 interface AgencyRow {
   agency_id: string;
   agency_name: string | null;
+  total_policies: number;
   active_policies: number;
+  terminated_policies: number;
+  pending_policies: number;
   active_annual_premium: number;
   avg_annual_premium: number;
   policies_this_month: number;
@@ -131,10 +134,10 @@ export function ProductionPage() {
 
         // Compute org-wide stats from agencies
         const org: OrgStats = {
-          totalPolicies: allAgencies.reduce((s, a) => s + (a.active_policies || 0) + (a.at_risk_policies || 0), 0),
+          totalPolicies: allAgencies.reduce((s, a) => s + (a.total_policies || 0), 0),
           activePolicies: allAgencies.reduce((s, a) => s + (a.active_policies || 0), 0),
-          terminatedPolicies: 0,
-          pendingPolicies: 0,
+          terminatedPolicies: allAgencies.reduce((s, a) => s + (a.terminated_policies || 0), 0),
+          pendingPolicies: allAgencies.reduce((s, a) => s + (a.pending_policies || 0), 0),
           atRiskPolicies: allAgencies.reduce((s, a) => s + (a.at_risk_policies || 0), 0),
           activeMonthlyPremium: allAgencies.reduce((s, a) => s + Number(a.active_annual_premium || 0) / 12, 0),
           activeAnnualPremium: allAgencies.reduce((s, a) => s + Number(a.active_annual_premium || 0), 0),
@@ -202,9 +205,10 @@ export function ProductionPage() {
     if (!filterAgencyId) return stats;
     const fa = filteredAgencies;
     return {
-      totalPolicies: fa.reduce((s, a) => s + (a.active_policies || 0) + (a.at_risk_policies || 0), 0),
+      totalPolicies: fa.reduce((s, a) => s + (a.total_policies || 0), 0),
       activePolicies: fa.reduce((s, a) => s + (a.active_policies || 0), 0),
-      terminatedPolicies: 0, pendingPolicies: 0,
+      terminatedPolicies: fa.reduce((s, a) => s + (a.terminated_policies || 0), 0),
+      pendingPolicies: fa.reduce((s, a) => s + (a.pending_policies || 0), 0),
       atRiskPolicies: fa.reduce((s, a) => s + (a.at_risk_policies || 0), 0),
       activeMonthlyPremium: fa.reduce((s, a) => s + Number(a.active_annual_premium || 0) / 12, 0),
       activeAnnualPremium: fa.reduce((s, a) => s + Number(a.active_annual_premium || 0), 0),
