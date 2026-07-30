@@ -8,6 +8,7 @@ import { HudFrame } from '@/components/ui/hud-frame';
 import { supabase } from '@/lib/supabase';
 import { scopeToAgency } from '@/lib/query-helpers';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
+import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import {
   Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ComposedChart, Legend,
@@ -101,13 +102,13 @@ function fmtMonth(iso: string) {
 // ── Component ──────────────────────────────────────────────────────────────
 export function ProductionPage() {
   const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
+  const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
   const [stats, setStats] = useState<OrgStats | null>(null);
   const [agencies, setAgencies] = useState<AgencyRow[]>([]);
   const [rawMonthly, setRawMonthly] = useState<RawMonthlyRow[]>([]);
   const [dailyRows, setDailyRows] = useState<DailyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<'ap' | 'policies' | 'growth'>('ap');
-  const [filterAgencyId, setFilterAgencyId] = useState<string | null>(null);
   const [filterAgentId, setFilterAgentId] = useState<string | null>(null);
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
@@ -308,7 +309,8 @@ export function ProductionPage() {
       <div className="p-6 space-y-6 max-w-screen-xl mx-auto">
         {/* Filters — time period always visible, agency/agent for admins */}
         <DataFilters
-          showAgentFilter={isOrgWide}
+          showAgencyFilter={showAgencyFilter}
+          showAgentFilter={showAgencyFilter}
           showTimePeriod
           selectedAgencyId={filterAgencyId}
           selectedAgentId={filterAgentId}

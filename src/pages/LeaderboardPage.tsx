@@ -12,6 +12,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
+import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { DataFilters } from '@/components/filters/DataFilters';
 import {
   Trophy, TrendingUp, ShieldCheck, AlertTriangle, ChevronRight,
@@ -101,6 +102,7 @@ function periodStart(p: Period): string | null {
 // ── Component ──────────────────────────────────────────────────────────────
 export function LeaderboardPage() {
   const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
+  const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
   const [rows, setRows] = useState<AgencyLeaderRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortKey, setSortKey] = useState<SortKey>('rank');
@@ -108,7 +110,6 @@ export function LeaderboardPage() {
   const [filter, setFilter] = useState<'all' | 'above' | 'below'>('all');
   const [period, setPeriod] = useState<Period>('all');
   const [metric, setMetric] = useState<Metric>('policies');
-  const [filterAgencyId, setFilterAgencyId] = useState<string | null>(null);
 
   // Cache period data
   const [periodData, setPeriodData] = useState<Map<string, { policies: number; ap: number }>>(new Map());
@@ -299,7 +300,7 @@ export function LeaderboardPage() {
       <div className="p-6 space-y-6">
 
         {/* Agency filter — FYM admins only */}
-        {isOrgWide && (
+        {showAgencyFilter && (
           <DataFilters
             selectedAgencyId={filterAgencyId}
             onAgencyChange={setFilterAgencyId}

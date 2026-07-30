@@ -6,11 +6,12 @@ import { HudFrame } from '@/components/ui/hud-frame';
 import { StaggerContainer, StaggerItem, FadeIn, CountUp, RadialGauge } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
 import { scopeToAgency } from '@/lib/query-helpers';
+import { useAgencyFilter } from '@/hooks/useAgencyFilter';
+import { DataFilters } from '@/components/filters/DataFilters';
 import { Link, Navigate } from 'react-router-dom';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ShieldCheck, AlertTriangle, Building2, ChevronRight, ArrowUpRight, ArrowDownRight } from 'lucide-react';
-import { TimePeriodSelector } from '@/components/filters/TimePeriodSelector';
 import { type DatePreset, type DateRange, type DailyRow, type TrendPoint, DEFAULT_PRESET, getDateRange, getGranularity, bucketKey, fmtBucketLabel, fmtMonth } from '@/lib/dateUtils';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -67,6 +68,7 @@ function retentionColor(pct: number | null) {
 // ── Component ──────────────────────────────────────────────────────────────
 export function DashboardPage() {
   const { effectiveRole, effectiveAgencyId, isOrgWide } = useEffectiveAuth();
+  const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
   const [stats, setStats] = useState<DashStats | null>(null);
   const [trend, setTrend] = useState<CohortPoint[]>([]);
   const [bottomAgencies, setBottomAgencies] = useState<AgencyRisk[]>([]);
@@ -99,7 +101,10 @@ export function DashboardPage() {
       const agencyRows: AgencyRisk[] = [];
 
       if (agencyStats) {
-        for (const a of agencyStats as any[]) {
+        const filteredStats = filterAgencyId
+          ? (agencyStats as any[]).filter((a: any) => a.agency_id === filterAgencyId)
+          : (agencyStats as any[]);
+        for (const a of filteredStats) {
           totalActive += Number(a.active_policies) || 0;
           totalPremium += Number(a.active_premium) || 0;
           totalAtRisk += Number(a.at_risk_count) || 0;
@@ -222,6 +227,8 @@ export function DashboardPage() {
         let rows = (dailyData || []) as unknown as DailyRow[];
         if (!isOrgWide && effectiveAgencyId) {
           rows = rows.filter(r => r.agency_id === effectiveAgencyId);
+        } else if (filterAgencyId) {
+          rows = rows.filter(r => r.agency_id === filterAgencyId);
         }
 
         // Build trend with adaptive granularity
@@ -292,7 +299,7 @@ export function DashboardPage() {
     }
 
     load();
-  }, [effectiveAgencyId, isOrgWide, dateRange, datePreset]);
+  }, [effectiveAgencyId, isOrgWide, dateRange, datePreset, filterAgencyId]);
 
   const s = stats;
 
@@ -301,14 +308,16 @@ export function DashboardPage() {
       <Header title="Dashboard" />
       <div className="p-6 space-y-6">
 
-        {/* Time period filter */}
-        <div className="flex justify-end">
-          <TimePeriodSelector
-            preset={datePreset}
-            dateRange={dateRange}
-            onChange={(range, preset) => { setDateRange(range); setDatePreset(preset); }}
-          />
-        </div>
+        {/* Filters */}
+        <DataFilters
+          showAgencyFilter={showAgencyFilter}
+          showTimePeriod
+          selectedAgencyId={filterAgencyId}
+          selectedPreset={datePreset}
+          selectedDateRange={dateRange}
+          onAgencyChange={setFilterAgencyId}
+          onDateRangeChange={(range, preset) => { setDateRange(range); setDatePreset(preset); }}
+        />
 
         {/* ── KPI strip with HUD frames + animations ── */}
         <StaggerContainer className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

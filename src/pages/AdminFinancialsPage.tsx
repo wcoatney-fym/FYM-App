@@ -7,6 +7,8 @@ import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated
 import { supabase } from '@/lib/supabase';
 import { scopeToAgency } from '@/lib/query-helpers';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
+import { useAgencyFilter } from '@/hooks/useAgencyFilter';
+import { DataFilters } from '@/components/filters/DataFilters';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar,
@@ -69,6 +71,7 @@ function fmtMonth(iso: string) {
 // ── Component ──────────────────────────────────────────────────────────────
 export function AdminFinancialsPage() {
   const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
+  const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
   const [cohorts, setCohorts] = useState<CohortRow[]>([]);
   const [concentration, setConcentration] = useState<ConcentrationRow[]>([]);
   const [agencySummaries, setAgencySummaries] = useState<AgencySummaryRow[]>([]);
@@ -151,18 +154,24 @@ export function AdminFinancialsPage() {
       setLoading(false);
     }
     load();
-  }, [effectiveAgencyId, isOrgWide]);
+  }, [effectiveAgencyId, isOrgWide, filterAgencyId]);
 
   // ── Derived stats from pre-computed views ────────────────────────────────
   const stats = useMemo(() => {
-    const totalPremium = agencySummaries.reduce((s, r) => s + r.active_premium, 0);
-    const totalActive = agencySummaries.reduce((s, r) => s + r.active_policies, 0);
-    const totalAtRisk = agencySummaries.reduce((s, r) => s + r.at_risk_count, 0);
-    const totalAtRiskPremium = concentration.reduce((s, r) => s + r.at_risk_premium, 0);
-    const totalRetained = agencySummaries.reduce((s, r) => s + r.retained_90d, 0);
-    const totalEligible = agencySummaries.reduce((s, r) => s + r.eligible_90d, 0);
+    const filteredSummaries = filterAgencyId
+      ? agencySummaries.filter(r => r.agency_id === filterAgencyId)
+      : agencySummaries;
+    const filteredConcentration = filterAgencyId
+      ? concentration.filter(r => r.agency_id === filterAgencyId)
+      : concentration;
+    const totalPremium = filteredSummaries.reduce((s, r) => s + r.active_premium, 0);
+    const totalActive = filteredSummaries.reduce((s, r) => s + r.active_policies, 0);
+    const totalAtRisk = filteredSummaries.reduce((s, r) => s + r.at_risk_count, 0);
+    const totalAtRiskPremium = filteredConcentration.reduce((s, r) => s + r.at_risk_premium, 0);
+    const totalRetained = filteredSummaries.reduce((s, r) => s + r.retained_90d, 0);
+    const totalEligible = filteredSummaries.reduce((s, r) => s + r.eligible_90d, 0);
     const blendedRetention = totalEligible > 0 ? Math.round((totalRetained / totalEligible) * 1000) / 10 : null;
-    const flaggedConcentration = concentration.filter(c => c.premium_concentration_pct >= 10);
+    const flaggedConcentration = filteredConcentration.filter(c => c.premium_concentration_pct >= 10);
 
     // Product-level stats from cohort_retention (latest cohorts)
     const latestByProduct: Record<string, { active: number; premium: number; atRisk: number; atRiskPremium: number; retention: number | null }> = {};
@@ -185,7 +194,7 @@ export function AdminFinancialsPage() {
     }
 
     return { totalPremium, totalActive, totalAtRisk, totalAtRiskPremium, blendedRetention, flaggedConcentration, latestByProduct };
-  }, [agencySummaries, concentration, cohorts]);
+  }, [agencySummaries, concentration, cohorts, filterAgencyId]);
 
   // Chart data — last 12 cohort months
   const retentionChartData = useMemo(() => {
@@ -227,6 +236,14 @@ export function AdminFinancialsPage() {
     <div>
       <Header title="Financials" />
       <div className="p-6 space-y-6">
+
+        {/* Filters */}
+        <DataFilters
+          showAgencyFilter={showAgencyFilter}
+          showTimePeriod={false}
+          selectedAgencyId={filterAgencyId}
+          onAgencyChange={setFilterAgencyId}
+        />
 
         {/* KPI strip */}
         <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">

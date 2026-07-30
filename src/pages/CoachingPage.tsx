@@ -11,6 +11,7 @@ import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated
 import { HudFrame } from '@/components/ui/hud-frame';
 import { supabase } from '@/lib/supabase';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
+import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { DataFilters } from '@/components/filters/DataFilters';
 import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
 import {
@@ -141,6 +142,7 @@ async function fetchAllPaginated<T>(
 // ── Component ──────────────────────────────────────────────────────────────
 export function CoachingPage() {
   const { effectiveAgencyId, effectiveWritingNumber, isOrgWide, isAgent } = useEffectiveAuth();
+  const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
   const [rows, setRows] = useState<CoachingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -148,7 +150,6 @@ export function CoachingPage() {
   const [notesDraft, setNotesDraft] = useState('');
   const [resolutionDraft, setResolutionDraft] = useState('');
   const [savingField, setSavingField] = useState<string | null>(null);
-  const [filterAgencyId, setFilterAgencyId] = useState<string | null>(null);
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
   const [filterAgentId, setFilterAgentId] = useState<string | null>(null);
@@ -342,7 +343,8 @@ export function CoachingPage() {
 
         {/* Filters — time period always visible, agency/agent for admins */}
         <DataFilters
-          showAgentFilter={isOrgWide}
+          showAgencyFilter={showAgencyFilter}
+          showAgentFilter={showAgencyFilter}
           showTimePeriod
           selectedAgencyId={filterAgencyId}
           selectedAgentId={filterAgentId}
