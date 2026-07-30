@@ -425,18 +425,28 @@ export function AtRiskInsight({ filterAgencyId }: AtRiskInsightProps) {
                   </div>
                 )}
 
-                {/* Detail panel for selected client card */}
-                {isExpanded && selectedPolicy && stageOf(selectedPolicy) === stage.key && (
-                  <div className="mt-2 ml-4 mr-1">
-                    <AtRiskDetailPanel
-                      policy={selectedPolicy}
-                      onClose={() => setSelectedPolicy(null)}
-                    />
-                  </div>
-                )}
+
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Detail modal overlay */}
+      {selectedPolicy && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => setSelectedPolicy(null)}
+        >
+          <div
+            className="w-full max-w-lg max-h-[85vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <AtRiskDetailPanel
+              policy={selectedPolicy}
+              onClose={() => setSelectedPolicy(null)}
+            />
+          </div>
         </div>
       )}
     </div>
