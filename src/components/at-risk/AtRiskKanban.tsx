@@ -13,14 +13,12 @@
  */
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import {
-  AlertTriangle, RefreshCw, Search, Clock, DollarSign, Users,
-  ShieldAlert, XCircle, Loader2,
+  AlertTriangle, RefreshCw, Search, Clock, DollarSign,
+  ShieldAlert, Loader2,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
-import { scopeToAgency } from '@/lib/query-helpers';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { AtRiskPolicyModal } from './AtRiskPolicyModal';
 
@@ -180,7 +178,7 @@ export function AtRiskKanban({ filterAgencyId }: AtRiskKanbanProps) {
         await supabase!
           .from('atrisk_tasks')
           .update({
-            status: target,
+            status: target as any,
             stage_changed_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
@@ -192,9 +190,17 @@ export function AtRiskKanban({ filterAgencyId }: AtRiskKanbanProps) {
           .insert({
             policy_number: policy.policy_number,
             agency_id: policy.agency_id,
-            status: target,
+            status: target as any,
+            stage: target,
+            priority: 'normal',
             flag_type: 'at_risk',
             due_date: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
+            assigned_to: null,
+            assigned_by: null,
+            notes: null,
+            last_contact_date: null,
+            resolution: null,
+            escalated_at: null,
           })
           .select('id')
           .single();

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Building2, User, X } from 'lucide-react';
-import { FYM_AGENCY_TRACKER_ID } from '@/lib/constants';
 import { TimePeriodSelector } from './TimePeriodSelector';
 import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
 

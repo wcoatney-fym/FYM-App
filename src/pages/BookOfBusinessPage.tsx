@@ -64,7 +64,7 @@ const PAGE_SIZE = 25;
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function BookOfBusinessPage() {
-  const { effectiveAgencyId, isOrgWide, isFymAdmin } = useEffectiveAuth();
+  const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
   const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [totalCount, setTotalCount] = useState(0);

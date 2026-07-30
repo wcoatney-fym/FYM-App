@@ -10,13 +10,11 @@
  * - Managers: locked to their own agency
  */
 import { Header } from '@/components/layout/Header';
-import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { DataFilters } from '@/components/filters/DataFilters';
 import { AtRiskKanban } from '@/components/at-risk/AtRiskKanban';
 
 export function ManagerWorkboardPage() {
-  const { isOrgWide } = useEffectiveAuth();
   const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
 
   return (

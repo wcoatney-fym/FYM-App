@@ -11,7 +11,7 @@ import { FYM_AGENCY_TRACKER_ID } from '@/lib/constants';
  * Returns the filter state, setter, and whether the filter dropdown should show.
  */
 export function useAgencyFilter() {
-  const { isFymAdmin, effectiveAgencyId, isOrgWide } = useEffectiveAuth();
+  const { isFymAdmin } = useEffectiveAuth();
 
   // FYM admins default to FYM's own tracker_id; everyone else gets null
   // (their data is already scoped by effectiveAgencyId via RLS/query)
