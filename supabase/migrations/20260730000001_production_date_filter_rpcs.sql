@@ -127,3 +127,31 @@ RETURNS TABLE (
   GROUP BY 1, 2, 3, 4, 5
   ORDER BY 1 DESC, 2;
 $$;
+
+-- Daily production for adaptive chart granularity (day/week/month client-side)
+CREATE OR REPLACE FUNCTION filtered_daily_production(start_date date, end_date date)
+RETURNS TABLE (
+  day date,
+  agency_id text,
+  agent_id uuid,
+  writing_number text,
+  product_type text,
+  policies bigint,
+  annual_premium numeric
+) LANGUAGE sql STABLE AS $$
+  SELECT
+    pc.policy_effective_date AS day,
+    pc.agency_id,
+    pc.agent_id,
+    p.writing_number,
+    pc.product_type,
+    count(*)::bigint AS policies,
+    round(sum(pc.plan_premium * 12), 0) AS annual_premium
+  FROM policy_cache pc
+  LEFT JOIN profiles p ON p.id = pc.agent_id
+  WHERE pc.policy_effective_date IS NOT NULL
+    AND pc.policy_effective_date >= start_date
+    AND pc.policy_effective_date < end_date
+  GROUP BY 1, 2, 3, 4, 5
+  ORDER BY 1, 2;
+$$;

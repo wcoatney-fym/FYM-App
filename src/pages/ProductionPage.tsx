@@ -13,7 +13,7 @@ import {
   ResponsiveContainer, ComposedChart, Legend,
 } from 'recharts';
 import { DataFilters } from '@/components/filters/DataFilters';
-import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
+import { type DatePreset, type DateRange, type DailyRow, type TrendPoint, DEFAULT_PRESET, getDateRange, getGranularity, aggregateTrend } from '@/lib/dateUtils';
 import {
   TrendingUp, DollarSign, FileText, Building2,
   ArrowUpRight, ArrowDownRight,
@@ -51,6 +51,7 @@ interface AgencyRow {
   at_risk_policies: number;
 }
 
+// RawMonthlyRow kept for all-time fallback to monthly_production view
 interface RawMonthlyRow {
   month: string;
   agency_id: string;
@@ -103,6 +104,7 @@ export function ProductionPage() {
   const [stats, setStats] = useState<OrgStats | null>(null);
   const [agencies, setAgencies] = useState<AgencyRow[]>([]);
   const [rawMonthly, setRawMonthly] = useState<RawMonthlyRow[]>([]);
+  const [dailyRows, setDailyRows] = useState<DailyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState<'ap' | 'policies' | 'growth'>('ap');
   const [filterAgencyId, setFilterAgencyId] = useState<string | null>(null);
@@ -170,20 +172,21 @@ export function ProductionPage() {
         };
         setStats(org);
 
-        // Fetch monthly trend — RPC for date-filtered, view for all-time
-        let allMonthly: RawMonthlyRow[] = [];
+        // Fetch trend data — daily RPC for date-filtered, monthly view for all-time
         if (useRpc) {
-          const { data: monthData, error: mErr } = await supabase!.rpc('filtered_monthly_production', {
+          const { data: dailyData, error: dErr } = await supabase!.rpc('filtered_daily_production', {
             start_date: startDate,
             end_date: endDate,
           });
-          if (mErr) throw mErr;
-          let rows = (monthData || []) as unknown as RawMonthlyRow[];
+          if (dErr) throw dErr;
+          let rows = (dailyData || []) as unknown as DailyRow[];
           if (!isOrgWide && effectiveAgencyId) {
             rows = rows.filter(r => r.agency_id === effectiveAgencyId);
           }
-          allMonthly = rows;
+          setDailyRows(rows);
+          setRawMonthly([]); // clear monthly fallback
         } else {
+          let allMonthly: RawMonthlyRow[] = [];
           const PAGE = 500;
           let mOffset = 0;
           while (true) {
@@ -200,8 +203,9 @@ export function ProductionPage() {
             if (!monthData || monthData.length < PAGE) break;
             mOffset += PAGE;
           }
+          setRawMonthly(allMonthly);
+          setDailyRows([]); // clear daily
         }
-        setRawMonthly(allMonthly);
       } catch (err) {
         console.error('Production load error:', err);
       } finally {
@@ -217,8 +221,19 @@ export function ProductionPage() {
     return agencies.filter(a => a.agency_id === filterAgencyId);
   }, [agencies, filterAgencyId]);
 
-  // Re-aggregate monthly trend from raw rows when agency/agent filter changes
-  const filteredTrend = useMemo(() => {
+  // Compute adaptive granularity based on selected date range
+  const granularity = useMemo(() => getGranularity(dateRange), [dateRange]);
+
+  // Aggregate trend data with adaptive granularity
+  const filteredTrend = useMemo((): TrendPoint[] => {
+    // Date-filtered path: use dailyRows with adaptive granularity
+    if (dailyRows.length > 0) {
+      return aggregateTrend(dailyRows, granularity, {
+        agencyId: filterAgencyId,
+        writingNumber: filterAgentId,
+      });
+    }
+    // All-time fallback: use monthly view data
     let rows = rawMonthly;
     if (filterAgencyId) rows = rows.filter(r => r.agency_id === filterAgencyId);
     if (filterAgentId) rows = rows.filter(r => r.writing_number === filterAgentId);
@@ -230,10 +245,15 @@ export function ProductionPage() {
       byMonth.set(r.month, existing);
     });
     return Array.from(byMonth.entries())
-      .map(([month, v]) => ({ month, ...v }))
-      .sort((a, b) => a.month.localeCompare(b.month))
+      .map(([month, v]) => ({
+        bucket: month,
+        label: fmtMonth(month),
+        policies: v.policies,
+        ap: v.ap,
+      }))
+      .sort((a, b) => a.bucket.localeCompare(b.bucket))
       .slice(-12);
-  }, [rawMonthly, filterAgencyId, filterAgentId]);
+  }, [dailyRows, rawMonthly, granularity, filterAgencyId, filterAgentId]);
 
   const displayStats = useMemo((): OrgStats | null => {
     if (!stats) return null;
@@ -395,10 +415,12 @@ export function ProductionPage() {
           </CardContent>
         </Card>
 
-        {/* Monthly Production Trend Chart */}
+        {/* Production Trend Chart */}
         <Card className="border-border">
           <CardHeader>
-            <CardTitle className="text-base text-foreground">Monthly Production — Last 12 Months</CardTitle>
+            <CardTitle className="text-base text-foreground">
+              Production — {dateRange.label}{granularity === 'day' ? ' (Daily)' : granularity === 'week' ? ' (Weekly)' : ' (Monthly)'}
+            </CardTitle>
           </CardHeader>
           <CardContent className="pb-2">
             <div className="h-72">
@@ -406,10 +428,13 @@ export function ProductionPage() {
                 <ComposedChart data={filteredTrend}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 33% 17%)" />
                   <XAxis
-                    dataKey="month"
-                    tickFormatter={fmtMonth}
+                    dataKey="label"
                     stroke="hsl(215 20% 55%)"
                     fontSize={11}
+                    interval={filteredTrend.length > 15 ? Math.floor(filteredTrend.length / 10) : 0}
+                    angle={filteredTrend.length > 12 ? -45 : 0}
+                    textAnchor={filteredTrend.length > 12 ? 'end' : 'middle'}
+                    height={filteredTrend.length > 12 ? 50 : 30}
                   />
                   <YAxis
                     yAxisId="ap"
@@ -436,7 +461,7 @@ export function ProductionPage() {
                       name === 'ap' ? fmt$(value) : fmtNum(value),
                       name === 'ap' ? 'Annual Premium' : 'Policies',
                     ]}
-                    labelFormatter={fmtMonth}
+                    labelFormatter={(label: string) => label}
                   />
                   <Legend
                     formatter={(value: string) => value === 'ap' ? 'Annual Premium' : 'Policies'}
