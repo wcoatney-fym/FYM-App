@@ -12,12 +12,13 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   AlertTriangle, Search, Clock, DollarSign, ChevronDown, ChevronRight,
-  ShieldAlert, Loader2, RefreshCw, User, Building2, FileText, X,
+  ShieldAlert, Loader2, RefreshCw,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
+import { AtRiskDetailPanel } from './AtRiskDetailPanel';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface AtRiskPolicy {
@@ -424,97 +425,28 @@ export function AtRiskInsight({ filterAgencyId }: AtRiskInsightProps) {
                   </div>
                 )}
 
-                {/* Detail panel for selected client card */}
-                {isExpanded && selectedPolicy && stageOf(selectedPolicy) === stage.key && (
-                  <div className="mt-2 ml-4 mr-1 p-4 rounded-lg bg-card border border-border">
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <h4 className="text-base font-bold text-foreground">
-                          {selectedPolicy.client_name || 'Unknown Client'}
-                        </h4>
-                        <p className="text-xs text-muted-foreground">
-                          Policy #{selectedPolicy.policy_number}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setSelectedPolicy(null)}
-                        className="text-muted-foreground hover:text-foreground p-1"
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
-                      <div className="flex items-center gap-2">
-                        <FileText size={13} className="text-muted-foreground shrink-0" />
-                        <div>
-                          <p className="text-[10px] text-muted-foreground">Product</p>
-                          <p className="text-foreground font-medium">{selectedPolicy.product_type}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <DollarSign size={13} className="text-muted-foreground shrink-0" />
-                        <div>
-                          <p className="text-[10px] text-muted-foreground">Annual Premium</p>
-                          <p className="text-foreground font-medium">${(Number(selectedPolicy.plan_premium) * 12).toLocaleString()}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Clock size={13} className="text-muted-foreground shrink-0" />
-                        <div>
-                          <p className="text-[10px] text-muted-foreground">Days Since Draft</p>
-                          <p className={`font-bold ${
-                            urgencyLevel(selectedPolicy.days_since_draft) === 'code_red' ? 'text-red-400'
-                            : urgencyLevel(selectedPolicy.days_since_draft) === 'heating_up' ? 'text-amber-400'
-                            : 'text-foreground'
-                          }`}>
-                            {selectedPolicy.days_since_draft}d
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Clock size={13} className="text-muted-foreground shrink-0" />
-                        <div>
-                          <p className="text-[10px] text-muted-foreground">Paid To Date</p>
-                          <p className="text-foreground">
-                            {new Date(selectedPolicy.paid_to_date).toLocaleDateString('en-US', {
-                              month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC'
-                            })}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <User size={13} className="text-muted-foreground shrink-0" />
-                        <div>
-                          <p className="text-[10px] text-muted-foreground">Agent</p>
-                          <p className="text-foreground">{selectedPolicy.agent_name || 'Unassigned'}</p>
-                          {selectedPolicy.writing_number && (
-                            <p className="text-[10px] text-muted-foreground">#{selectedPolicy.writing_number}</p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Building2 size={13} className="text-muted-foreground shrink-0" />
-                        <div>
-                          <p className="text-[10px] text-muted-foreground">Agency</p>
-                          <p className="text-foreground truncate">{selectedPolicy.agency_name || selectedPolicy.agency_id}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Pipeline stage badge */}
-                    <div className="mt-3 pt-3 border-t border-border">
-                      <p className="text-[10px] text-muted-foreground mb-1">Current Pipeline Stage</p>
-                      <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border ${stage.bg} ${stage.color} ${stage.border}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${stage.dot}`} />
-                        {stage.label}
-                      </span>
-                    </div>
-                  </div>
-                )}
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Detail modal overlay */}
+      {selectedPolicy && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => setSelectedPolicy(null)}
+        >
+          <div
+            className="w-full max-w-lg max-h-[85vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            <AtRiskDetailPanel
+              policy={selectedPolicy}
+              onClose={() => setSelectedPolicy(null)}
+            />
+          </div>
         </div>
       )}
     </div>
