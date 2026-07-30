@@ -182,15 +182,29 @@ export function RetentionPage() {
     load();
   }, [effectiveAgencyId, isOrgWide]);
 
-  // Helper: check if a cohort month falls within the selected date range
+  // Cohort retention is always a historical lookback — the time filter controls
+  // which *issue-date cohorts* appear. For "This Month" or very narrow ranges
+  // that have zero mature cohorts, fall back to showing all data so the chart
+  // is never empty.
   const isMonthInRange = useCallback((cohortMonth: string) => {
     if (datePreset === 'allTime') return true;
-    // cohortMonth is YYYY-MM, compare as first-of-month date
     const monthDate = new Date(cohortMonth + '-01T00:00:00');
     const start = new Date(dateRange.startDate);
     const end = new Date(dateRange.endDate);
     return monthDate >= start && monthDate < end;
   }, [dateRange, datePreset]);
+
+  // Check if applying the date filter would leave the chart empty
+  const hasCohortsInRange = useMemo(() => {
+    if (datePreset === 'allTime') return true;
+    return orgCohorts.some(c => isMonthInRange(c.cohort_month));
+  }, [orgCohorts, datePreset, isMonthInRange]);
+
+  // If date filter yields no cohorts, show all (graceful fallback)
+  const effectiveIsMonthInRange = useCallback((cohortMonth: string) => {
+    if (!hasCohortsInRange) return true; // fallback: show all
+    return isMonthInRange(cohortMonth);
+  }, [hasCohortsInRange, isMonthInRange]);
 
   // Org-wide KPI summary — derived from sortedAgencies so it respects the filter
   // (sortedAgencies is defined below; moved summary after it would create a forward-ref,
@@ -210,11 +224,12 @@ export function RetentionPage() {
   }, [filteredAgencies]);
 
   // Trend chart data — when filtered, re-aggregate from agency cohorts; apply date range filter
+  // Falls back to showing all cohorts when the selected range has none (e.g. "This Month" with no July cohorts)
   const trendData = useMemo(() => {
     if (!filterAgencyId) {
       // Org-wide: use the org-wide cohort_retention view
       const byMonth = new Map<string, TrendPoint>();
-      orgCohorts.filter(c => isMonthInRange(c.cohort_month)).forEach(c => {
+      orgCohorts.filter(c => effectiveIsMonthInRange(c.cohort_month)).forEach(c => {
         const existing = byMonth.get(c.cohort_month) || { cohort_month: c.cohort_month, HI: null, HHC: null };
         if (c.product_type === 'HI') existing.HI = c.retention_pct;
         if (c.product_type === 'HHC') existing.HHC = c.retention_pct;
@@ -223,7 +238,7 @@ export function RetentionPage() {
       return Array.from(byMonth.values()).sort((a, b) => a.cohort_month.localeCompare(b.cohort_month));
     }
     // Filtered: rebuild from agency_cohort_retention data
-    const filtered = agencyCohorts.filter(c => c.agency_id === filterAgencyId && isMonthInRange(c.cohort_month));
+    const filtered = agencyCohorts.filter(c => c.agency_id === filterAgencyId && effectiveIsMonthInRange(c.cohort_month));
     const byMonth = new Map<string, TrendPoint>();
     filtered.forEach(c => {
       const key = c.cohort_month;
@@ -233,7 +248,7 @@ export function RetentionPage() {
       byMonth.set(key, existing);
     });
     return Array.from(byMonth.values()).sort((a, b) => a.cohort_month.localeCompare(b.cohort_month));
-  }, [orgCohorts, agencyCohorts, filterAgencyId, isMonthInRange]);
+  }, [orgCohorts, agencyCohorts, filterAgencyId, effectiveIsMonthInRange]);
 
   // Filter + sort agency table
   const sortedAgencies = useMemo(() => {
