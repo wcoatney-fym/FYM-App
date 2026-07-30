@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
 import { scopeToAgency } from '@/lib/query-helpers';
+import { useAgencyFilter } from '@/hooks/useAgencyFilter';
+import { DataFilters } from '@/components/filters/DataFilters';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import {
   AlertTriangle, Clock, CheckCircle2, Search,
@@ -73,6 +75,7 @@ type SortDir = 'asc' | 'desc';
 // ── Component ──────────────────────────────────────────────────────────────
 export function ManagerWorkboardPage() {
   const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
+  const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
   const [rows, setRows] = useState<AtRiskRow[]>([]);
   const [agencies, setAgencies] = useState<AgencyRetention[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,7 +97,11 @@ export function ManagerWorkboardPage() {
       effectiveAgencyId
     );
 
-    if (boardData) setRows(boardData as unknown as AtRiskRow[]);
+    if (boardData) {
+      let filtered = boardData as unknown as AtRiskRow[];
+      if (filterAgencyId) filtered = filtered.filter(r => r.agency_id === filterAgencyId);
+      setRows(filtered);
+    }
 
     const { data: agencyData } = await scopeToAgency(
       supabase
@@ -106,12 +113,16 @@ export function ManagerWorkboardPage() {
       effectiveAgencyId
     );
 
-    if (agencyData) setAgencies(agencyData as AgencyRetention[]);
+    if (agencyData) {
+      let filtered = agencyData as AgencyRetention[];
+      if (filterAgencyId) filtered = filtered.filter(r => r.agency_id === filterAgencyId);
+      setAgencies(filtered);
+    }
 
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, [effectiveAgencyId, isOrgWide]);
+  useEffect(() => { load(); }, [effectiveAgencyId, isOrgWide, filterAgencyId]);
 
   // Open a task on a policy (upsert into atrisk_tasks)
   async function openTask(policy_number: string, agency_id: string) {
@@ -208,6 +219,14 @@ export function ManagerWorkboardPage() {
     <div>
       <Header title="Manager Workboard" />
       <div className="p-6 space-y-6">
+
+        {/* Filters */}
+        <DataFilters
+          showAgencyFilter={showAgencyFilter}
+          showTimePeriod={false}
+          selectedAgencyId={filterAgencyId}
+          onAgencyChange={setFilterAgencyId}
+        />
 
         {/* ── KPI strip ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

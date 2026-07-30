@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
+import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { DataFilters } from '@/components/filters/DataFilters';
 import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
 import {
@@ -58,12 +59,12 @@ const PAGE_SIZE = 50;
 export function AgentsPage() {
   const navigate = useNavigate();
   const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
+  const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
   const [agents, setAgents] = useState<AgentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('active');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
-  const [filterAgencyId, setFilterAgencyId] = useState<string | null>(null);
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
   const [page, setPage] = useState(0);
@@ -164,6 +165,7 @@ export function AgentsPage() {
 
         {/* Filters — time period always visible, agency for admins */}
         <DataFilters
+          showAgencyFilter={showAgencyFilter}
           showTimePeriod
           selectedAgencyId={filterAgencyId}
           selectedPreset={datePreset}

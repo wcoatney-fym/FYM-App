@@ -7,6 +7,7 @@ import { HudFrame } from '@/components/ui/hud-frame';
 import { supabase } from '@/lib/supabase';
 import { scopeToAgency } from '@/lib/query-helpers';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
+import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine, Legend,
@@ -111,6 +112,7 @@ function TrendBadge({ recent, prior }: { recent: number | null; prior: number | 
 // ── Component ──────────────────────────────────────────────────────────────
 export function RetentionPage() {
   const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
+  const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
   const [orgCohorts, setOrgCohorts] = useState<CohortRow[]>([]);
   const [agencies, setAgencies] = useState<AgencyOverviewRow[]>([]);
   const [agencyCohorts, setAgencyCohorts] = useState<AgencyCohortRow[]>([]);
@@ -118,7 +120,6 @@ export function RetentionPage() {
   const [sortKey, setSortKey] = useState<SortKey>('retention');
   const [sortAsc, setSortAsc] = useState(true);
   const [expandedAgency, setExpandedAgency] = useState<string | null>(null);
-  const [filterAgencyId, setFilterAgencyId] = useState<string | null>(null);
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
 
@@ -340,6 +341,7 @@ export function RetentionPage() {
 
         {/* Filters — time period always visible, agency for admins */}
         <DataFilters
+          showAgencyFilter={showAgencyFilter}
           showTimePeriod
           selectedAgencyId={filterAgencyId}
           selectedPreset={datePreset}

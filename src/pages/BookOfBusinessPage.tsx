@@ -6,6 +6,7 @@ import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
 import { scopeToAgency } from '@/lib/query-helpers';
+import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { DataFilters } from '@/components/filters/DataFilters';
 import {
@@ -63,7 +64,8 @@ const PAGE_SIZE = 25;
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function BookOfBusinessPage() {
-  const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
+  const { effectiveAgencyId, isOrgWide, isFymAdmin } = useEffectiveAuth();
+  const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(0);
@@ -72,7 +74,7 @@ export function BookOfBusinessPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [productFilter, setProductFilter] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
-  const [filterAgencyId, setFilterAgencyId] = useState<string | null>(null);
+
   const [filterAgentId, setFilterAgentId] = useState<string | null>(null);
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
@@ -229,7 +231,7 @@ export function BookOfBusinessPage() {
       <div className="p-6 space-y-6 max-w-screen-xl mx-auto">
 
         {/* Agency + Agent filters — FYM admins only */}
-        {isOrgWide && (
+        {showAgencyFilter && (
           <DataFilters
             showAgentFilter
             selectedAgencyId={filterAgencyId}

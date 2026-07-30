@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Building2, User, X } from 'lucide-react';
+import { FYM_AGENCY_TRACKER_ID } from '@/lib/constants';
 import { TimePeriodSelector } from './TimePeriodSelector';
 import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
 
@@ -17,6 +18,8 @@ interface AgentOption {
 }
 
 interface DataFiltersProps {
+  /** Show agency filter dropdown (default true) */
+  showAgencyFilter?: boolean;
   /** Show agent filter alongside agency filter */
   showAgentFilter?: boolean;
   /** Show time period filter (default true) */
@@ -38,6 +41,7 @@ interface DataFiltersProps {
 }
 
 export function DataFilters({
+  showAgencyFilter = true,
   showAgentFilter = false,
   showTimePeriod = true,
   selectedAgencyId,
@@ -111,7 +115,7 @@ export function DataFilters({
       )}
 
       {/* Agency filter */}
-      <div className="flex items-center gap-1.5">
+      {showAgencyFilter && <div className="flex items-center gap-1.5">
         <Building2 size={14} className="text-muted-foreground shrink-0" />
         <select
           value={selectedAgencyId ?? ''}
@@ -131,7 +135,7 @@ export function DataFilters({
             </option>
           ))}
         </select>
-      </div>
+      </div>}
 
       {/* Agent filter (conditional) */}
       {showAgentFilter && (

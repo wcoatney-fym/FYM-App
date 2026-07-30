@@ -8,6 +8,7 @@ import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
+import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { DataFilters } from '@/components/filters/DataFilters';
 import {
   AlertTriangle, Clock, Search, ChevronDown, ChevronUp,
@@ -61,7 +62,8 @@ type SortDir = 'asc' | 'desc';
 
 export function AtRiskPage() {
   const { role, profile } = useAuth();
-  const { effectiveAgencyId, effectiveWritingNumber, isOrgWide, isAgent } = useEffectiveAuth();
+  const { effectiveAgencyId, effectiveWritingNumber, isOrgWide, isAgent, isFymAdmin } = useEffectiveAuth();
+  const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
   const [rows, setRows] = useState<AtRiskRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -69,7 +71,6 @@ export function AtRiskPage() {
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [filterUrgency, setFilterUrgency] = useState<'all' | 'critical' | 'high' | 'medium'>('all');
   const [togglingTask, setTogglingTask] = useState<string | null>(null);
-  const [filterAgencyId, setFilterAgencyId] = useState<string | null>(null);
   const [filterAgentId, setFilterAgentId] = useState<string | null>(null);
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
@@ -229,7 +230,7 @@ export function AtRiskPage() {
       <div className="p-6 space-y-6">
 
         {/* Agency + Agent filters — FYM admins only */}
-        {isOrgWide && (
+        {showAgencyFilter && (
           <DataFilters
             showAgentFilter
             selectedAgencyId={filterAgencyId}
