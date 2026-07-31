@@ -67,6 +67,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const contextLoadedRef = useRef(false);
   // Deduplicate: track in-flight loadUserContext to avoid parallel runs.
   const loadingRef = useRef<Promise<void> | null>(null);
+  // Track which user ID the in-flight load is for.
+  const loadingUserRef = useRef<string | null>(null);
 
   async function loadUserContext(
     userId: string,
@@ -111,6 +113,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     contextLoadedRef.current = true;
   }
 
+  // Safety net: if loading is still true after 8 seconds, force it false.
+  // This prevents infinite spinners from any auth edge case.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLoading((prev) => {
+        if (prev) {
+          console.warn('[FYM Auth] loading timeout — forcing loading=false after 8s');
+        }
+        return false;
+      });
+    }, 8000);
+    return () => clearTimeout(timer);
+  }, []);
+
   useEffect(() => {
     if (!supabase) {
       setLoading(false);
@@ -127,11 +143,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session?.user ?? null);
 
       if (session?.user && session.access_token) {
-        // Deduplicate: if a load is already in flight, skip.
+        // Deduplicate: if a load is already in flight for the SAME user, skip.
+        // Clear the ref if the user changed (e.g. sign-out + sign-in as different user).
         if (loadingRef.current) {
-          console.log('[FYM Auth] skipping duplicate loadUserContext');
-          return;
+          if (loadingUserRef.current === session.user.id) {
+            console.log('[FYM Auth] skipping duplicate loadUserContext');
+            return;
+          }
+          // Different user — allow new load
+          loadingRef.current = null;
         }
+        loadingUserRef.current = session.user.id;
         const p = loadUserContext(session.user.id, session.access_token).finally(() => {
           loadingRef.current = null;
           setLoading(false);
