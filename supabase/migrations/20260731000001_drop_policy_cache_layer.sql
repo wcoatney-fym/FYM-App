@@ -20,8 +20,11 @@ DROP FUNCTION IF EXISTS filtered_daily_production(date, date);
 -- ══════════════════════════════════════════════════════════════════════════
 
 -- Leaf views (no other view depends on these)
+DROP VIEW IF EXISTS public.agency_leaderboard;
 DROP VIEW IF EXISTS public.roster_agent_summary;
 DROP VIEW IF EXISTS public.agent_summary;
+DROP VIEW IF EXISTS public.agent_health_scores;
+DROP VIEW IF EXISTS public.atrisk_exposure;
 DROP VIEW IF EXISTS public.coaching_pipeline;
 DROP VIEW IF EXISTS public.agency_concentration;
 DROP VIEW IF EXISTS public.agency_cohort_retention;
