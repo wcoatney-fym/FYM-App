@@ -96,16 +96,8 @@ export function CcDashboardTab() {
       try {
         const now = new Date();
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-        const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-
         // Placements MTD — from prod DB edge function
         const agencyParam = !isOrgWide && effectiveAgencyId ? { agency_id: effectiveAgencyId } : {};
-        const bobMtdRes = await fetchBookOfBusiness({
-          ...agencyParam,
-          page_size: 1,
-        });
-        // Use summary from book-of-business for MTD placements
-        // Filter by effective date >= monthStart for placements count
         const bobAllRes = await fetchBookOfBusiness({
           ...agencyParam,
           page_size: 1,

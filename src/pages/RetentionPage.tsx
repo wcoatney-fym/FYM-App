@@ -6,7 +6,6 @@ import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated
 import { HudFrame } from '@/components/ui/hud-frame';
 import { supabase } from '@/lib/supabase';
 import { fetchRetentionSummary, fetchRetentionCohorts } from '@/lib/prod-api';
-import { scopeToAgency } from '@/lib/query-helpers';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import {

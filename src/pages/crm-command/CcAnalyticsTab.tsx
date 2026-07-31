@@ -5,7 +5,7 @@ import {
   LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
-import { supabase, supabaseConfigured as rcbzagConfigured } from '@/lib/supabase';
+import { supabaseConfigured as rcbzagConfigured } from '@/lib/supabase';
 import { fetchRetentionCohorts, fetchMonthlyProduction } from '@/lib/prod-api';
 
 interface RetentionTrendPoint {

@@ -11,7 +11,7 @@ import {
   fetchDailyProduction,
   fetchMonthlyProduction,
 } from '@/lib/prod-api';
-import { scopeToAgency } from '@/lib/query-helpers';
+// scopeToAgency removed — reads now go through prod-api edge functions
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import {
@@ -176,6 +176,9 @@ export function ProductionPage() {
           });
           const rows: DailyRow[] = dailyData.map(d => ({
             agency_id: d.agency_id,
+            agent_id: null,
+            writing_number: null,
+            product_type: '',
             day: d.day,
             policies: d.policies,
             annual_premium: d.annual_premium,

@@ -4,7 +4,6 @@ import {
   TrendingUp, XCircle, DollarSign, Shield, TrendingDown, Minus, Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/lib/supabase';
 import { fetchBookOfBusiness, fetchRetentionSummary, fetchMonthlyProduction } from '@/lib/prod-api';
 
 type PipelineTab = 'placements' | 'cancellations' | 'retention' | 'revenue';
@@ -66,7 +65,6 @@ export function CcPipelinesTab() {
     (async () => {
       try {
         const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-        const today = new Date().toISOString().slice(0, 10);
         const res = await fetchBookOfBusiness({
           sort: 'issue_date',
           order: 'desc',

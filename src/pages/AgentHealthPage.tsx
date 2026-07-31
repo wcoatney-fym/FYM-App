@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { supabase } from '@/lib/supabase';
-import { fetchBookOfBusiness, type PolicyRow as ProdPolicyRow } from '@/lib/prod-api';
+import { fetchBookOfBusiness } from '@/lib/prod-api';
 import {
   ArrowLeft,
   ShieldCheck,

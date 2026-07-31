@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
-import { fetchRetentionSummary, fetchBookOfBusiness, type AgencyRetentionSummary } from '@/lib/prod-api';
+import { fetchRetentionSummary, fetchBookOfBusiness } from '@/lib/prod-api';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import {
   ShieldCheck, TrendingUp, AlertTriangle, DollarSign,

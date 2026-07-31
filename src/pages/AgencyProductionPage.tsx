@@ -143,6 +143,9 @@ export function AgencyProductionPage() {
           const dailyData = await fetchDailyProduction(dateParams);
           const rows: DailyRow[] = dailyData.map(d => ({
             agency_id: d.agency_id,
+            agent_id: null,
+            writing_number: null,
+            product_type: '',
             day: d.day,
             policies: d.policies,
             annual_premium: d.annual_premium,
