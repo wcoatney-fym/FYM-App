@@ -116,8 +116,10 @@ function resolveRiskFlag(
 }
 
 // ── Extract agency writing number from roster hierarchy ───────────────────
-// The owning sub-agency is the shallowest non-person node at depth 02.
-// If no depth-02 exists, fall back to depth-01 (FYM direct).
+// The owning agency is the DEEPEST non-person node in the hierarchy.
+// For agencies writing directly under FYM, that's depth-02.
+// For sub-agencies (e.g. Guardian's 13 subs), that's depth-03 or deeper.
+// This ensures sub-agency policies map to the sub-agency, not the parent.
 function extractAgencyWritingNumber(
   roster: Array<{
     writing_number: string;
@@ -128,17 +130,14 @@ function extractAgencyWritingNumber(
 ): string | null {
   if (!roster || !Array.isArray(roster)) return null;
 
-  // Depth-02 non-person = sub-agency
-  const depth02 = roster.find(
-    (e) => e.depth === "02" && !e.is_person
+  // Find deepest non-person node — that's the owning agency/sub-agency
+  const nonPersonNodes = roster.filter((e) => !e.is_person);
+  if (nonPersonNodes.length === 0) return null;
+
+  const deepest = nonPersonNodes.reduce((a, b) =>
+    a.depth > b.depth ? a : b
   );
-  if (depth02) return depth02.writing_number?.trim() || null;
-
-  // Fall back to depth-01 (FYM direct)
-  const depth01 = roster.find((e) => e.depth === "01");
-  if (depth01) return depth01.writing_number?.trim() || null;
-
-  return null;
+  return deepest.writing_number?.trim() || null;
 }
 
 // ── Extract writing agent's writing number ────────────────────────────────
