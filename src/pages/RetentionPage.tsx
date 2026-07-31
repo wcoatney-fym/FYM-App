@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { HudFrame } from '@/components/ui/hud-frame';
 import { supabase } from '@/lib/supabase';
+import { fetchRetentionSummary, fetchRetentionCohorts } from '@/lib/prod-api';
 import { scopeToAgency } from '@/lib/query-helpers';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
@@ -124,56 +125,58 @@ export function RetentionPage() {
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
 
   useEffect(() => {
-    if (!supabase) { setLoading(false); return; }
     async function load() {
       setLoading(true);
-      if (!supabase) { setLoading(false); return; }
       try {
-        // Note: view does not have agency_id — org-wide only
-        const { data: cohortData, error: cErr } = await supabase
-          .from('cohort_retention')
-          .select('*');
-        if (cErr) throw cErr;
-        setOrgCohorts((cohortData || []) as unknown as CohortRow[]);
+        const agencyParam = !isOrgWide && effectiveAgencyId ? { agency_id: effectiveAgencyId } : {};
 
-        // Agency overview — paginate defensively
-        let allAgencies: AgencyOverviewRow[] = [];
-        let offset = 0;
-        const PAGE = 500;
-        while (true) {
-          const { data, error } = await scopeToAgency(
-            supabase
-              .from('agency_retention_summary')
-              .select('*')
-              .range(offset, offset + PAGE - 1),
-            isOrgWide,
-            effectiveAgencyId
-          );
-          if (error) throw error;
-          allAgencies = [...allAgencies, ...((data || []) as unknown as AgencyOverviewRow[])];
-          if (!data || data.length < PAGE) break;
-          offset += PAGE;
+        // Cohort data from prod DB edge function
+        const cohortRes = await fetchRetentionCohorts(agencyParam);
+        // Map cohort data to CohortRow format (combined, not per-product)
+        const cohortRows: CohortRow[] = cohortRes.data.cohorts.map(c => ({
+          product_type: 'HI' as const, // combined cohort
+          cohort_month: c.month,
+          cohort_size: c.eligible,
+          drafted_first: c.eligible,
+          retained: c.retained,
+          retention_pct: c.retention_pct,
+          active_premium: null,
+        }));
+        setOrgCohorts(cohortRows);
+
+        // Agency overview from prod DB edge function
+        const retRes = await fetchRetentionSummary(agencyParam);
+        const allAgencies: AgencyOverviewRow[] = retRes.data.agencies.map(a => ({
+          agency_id: a.agency_id,
+          agency_name: null,
+          active_policies: a.active_policies,
+          active_premium: a.active_premium,
+          at_risk_count: a.at_risk_count,
+          retained_90d: a.retained_90d,
+          eligible_90d: a.eligible_90d,
+          retention_pct: a.retention_pct,
+        }));
+
+        // Enrich with agency names from rcbzag
+        if (supabase) {
+          const { data: nameData } = await (supabase as any)
+            .from('agencies')
+            .select('tracker_id, name');
+          if (nameData) {
+            const nameMap = new Map<string, string>();
+            for (const a of nameData as any[]) {
+              if (a.tracker_id) nameMap.set(a.tracker_id, a.name);
+            }
+            allAgencies.forEach(a => {
+              a.agency_name = nameMap.get(a.agency_id) ?? null;
+            });
+          }
         }
         setAgencies(allAgencies);
 
-        // Agency cohort detail — fetched up front (small enough per-agency, filtered client-side on expand)
-        let allAgencyCohorts: AgencyCohortRow[] = [];
-        offset = 0;
-        while (true) {
-          const { data, error } = await scopeToAgency(
-            supabase
-              .from('agency_cohort_retention')
-              .select('*')
-              .range(offset, offset + PAGE - 1),
-            isOrgWide,
-            effectiveAgencyId
-          );
-          if (error) throw error;
-          allAgencyCohorts = [...allAgencyCohorts, ...((data || []) as unknown as AgencyCohortRow[])];
-          if (!data || data.length < PAGE) break;
-          offset += PAGE;
-        }
-        setAgencyCohorts(allAgencyCohorts);
+        // Agency cohort detail — build from per-agency retention cohort calls
+        // For now, set empty — will be populated on expand
+        setAgencyCohorts([]);
       } catch (err) {
         console.error('Retention load error:', err);
       } finally {

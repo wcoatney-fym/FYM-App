@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
+import { fetchRetentionSummary } from '@/lib/prod-api';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { Search, Building2, ChevronRight } from 'lucide-react';
 
@@ -56,38 +57,43 @@ export function AgenciesPage() {
   useEffect(() => {
     if (!supabase) { setLoading(false); return; }
     async function load() {
-      // Live agency retention summary
-      const { data: stats } = await supabase!
-        .from('agency_retention_summary')
-        .select('*')
-        .order('active_premium', { ascending: false });
+      try {
+        // Live agency retention summary from prod DB edge function
+        const retRes = await fetchRetentionSummary();
+        const stats = retRes.data.agencies;
 
-      if (!stats) { setLoading(false); return; }
+        if (!stats || stats.length === 0) { setLoading(false); return; }
 
-      // Enrich with name from agencies table (if populated)
-      const { data: agencyNames } = await (supabase as any)
-        .from('agencies')
-        .select('tracker_id, name, slug, is_active');
-
-      const nameMap = new Map<string, { name: string; slug?: string; is_active: boolean }>();
-      if (agencyNames) {
-        for (const a of agencyNames as any[]) {
-          if (a.tracker_id) nameMap.set(a.tracker_id, { name: a.name, slug: a.slug ?? undefined, is_active: a.is_active });
+        // Enrich with name from agencies table (stays in rcbzag)
+        const nameMap = new Map<string, { name: string; slug?: string; is_active: boolean }>();
+        if (supabase) {
+          const { data: agencyNames } = await (supabase as any)
+            .from('agencies')
+            .select('tracker_id, name, slug, is_active');
+          if (agencyNames) {
+            for (const a of agencyNames as any[]) {
+              if (a.tracker_id) nameMap.set(a.tracker_id, { name: a.name, slug: a.slug ?? undefined, is_active: a.is_active });
+            }
+          }
         }
+
+        const enriched: AgencyRow[] = stats
+          .map(s => ({
+            agency_id: s.agency_id,
+            active_policies: s.active_policies,
+            active_premium: s.active_premium,
+            at_risk_count: s.at_risk_count,
+            eligible_90d: s.eligible_90d,
+            retained_90d: s.retained_90d,
+            retention_pct: s.retention_pct,
+            ...(nameMap.get(s.agency_id) ?? {}),
+          }))
+          .sort((a, b) => b.active_premium - a.active_premium);
+
+        setRows(enriched);
+      } catch (err) {
+        console.error('Agencies load error:', err);
       }
-
-      const enriched: AgencyRow[] = (stats as any[]).map((s: any) => ({
-        agency_id: s.agency_id,
-        active_policies: s.active_policies,
-        active_premium: s.active_premium,
-        at_risk_count: s.at_risk_count,
-        eligible_90d: s.eligible_90d,
-        retained_90d: s.retained_90d,
-        retention_pct: s.retention_pct,
-        ...(nameMap.get(s.agency_id) ?? {}),
-      }));
-
-      setRows(enriched);
       setLoading(false);
     }
     load();

@@ -6,6 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { HudFrame } from '@/components/ui/hud-frame';
 import { supabase } from '@/lib/supabase';
+import {
+  fetchAgencyProduction,
+  fetchDailyProduction,
+  fetchMonthlyProduction,
+} from '@/lib/prod-api';
 import { scopeToAgency } from '@/lib/query-helpers';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
@@ -122,38 +127,27 @@ export function ProductionPage() {
         const endDate = dateRange.endDate.split('T')[0];
         const useRpc = datePreset !== 'allTime';
 
-        // Fetch agency production — RPC for date-filtered, view for all-time
-        let allAgencies: AgencyRow[] = [];
-        if (useRpc) {
-          const { data, error } = await supabase!.rpc('filtered_agency_production', {
-            start_date: startDate,
-            end_date: endDate,
-          });
-          if (error) throw error;
-          // Agency scoping client-side when not org-wide
-          let rows = (data || []) as unknown as AgencyRow[];
-          if (!isOrgWide && effectiveAgencyId) {
-            rows = rows.filter(r => r.agency_id === effectiveAgencyId);
-          }
-          allAgencies = rows;
-        } else {
-          let offset = 0;
-          const PAGE = 500;
-          while (true) {
-            const { data, error } = await scopeToAgency(
-              supabase!
-                .from('agency_production')
-                .select('*')
-                .range(offset, offset + PAGE - 1),
-              isOrgWide,
-              effectiveAgencyId
-            );
-            if (error) throw error;
-            allAgencies = [...allAgencies, ...((data || []) as unknown as AgencyRow[])];
-            if (!data || data.length < PAGE) break;
-            offset += PAGE;
-          }
-        }
+        // Fetch agency production from prod DB edge function
+        const agencyParam = !isOrgWide && effectiveAgencyId ? { agency_id: effectiveAgencyId } : {};
+        const dateParams = useRpc
+          ? { ...agencyParam, start_date: startDate, end_date: endDate }
+          : agencyParam;
+        const prodAgencies = await fetchAgencyProduction(dateParams);
+        const allAgencies: AgencyRow[] = prodAgencies.map(a => ({
+          agency_id: a.agency_id,
+          agency_name: null,
+          total_policies: a.total_policies,
+          active_policies: a.active_policies,
+          terminated_policies: a.terminated_policies,
+          pending_policies: a.pending_policies,
+          active_annual_premium: a.active_annual_premium,
+          avg_annual_premium: a.avg_annual_premium,
+          policies_this_month: a.policies_this_month,
+          ap_this_month: a.ap_this_month,
+          policies_last_month: a.policies_last_month,
+          ap_last_month: a.ap_last_month,
+          at_risk_policies: a.at_risk_policies,
+        }));
         setAgencies(allAgencies);
 
         // Compute org-wide stats from agencies
@@ -173,37 +167,32 @@ export function ProductionPage() {
         };
         setStats(org);
 
-        // Fetch trend data — daily RPC for date-filtered, monthly view for all-time
+        // Fetch trend data from prod DB edge function
         if (useRpc) {
-          const { data: dailyData, error: dErr } = await supabase!.rpc('filtered_daily_production', {
+          const dailyData = await fetchDailyProduction({
+            ...agencyParam,
             start_date: startDate,
             end_date: endDate,
           });
-          if (dErr) throw dErr;
-          let rows = (dailyData || []) as unknown as DailyRow[];
-          if (!isOrgWide && effectiveAgencyId) {
-            rows = rows.filter(r => r.agency_id === effectiveAgencyId);
-          }
+          const rows: DailyRow[] = dailyData.map(d => ({
+            agency_id: d.agency_id,
+            day: d.day,
+            policies: d.policies,
+            annual_premium: d.annual_premium,
+          }));
           setDailyRows(rows);
           setRawMonthly([]); // clear monthly fallback
         } else {
-          let allMonthly: RawMonthlyRow[] = [];
-          const PAGE = 500;
-          let mOffset = 0;
-          while (true) {
-            const { data: monthData, error: mErr } = await scopeToAgency(
-              supabase!
-                .from('monthly_production')
-                .select('month, agency_id, agent_id, writing_number, policies, annual_premium')
-                .range(mOffset, mOffset + PAGE - 1),
-              isOrgWide,
-              effectiveAgencyId
-            );
-            if (mErr) throw mErr;
-            allMonthly = [...allMonthly, ...((monthData || []) as unknown as RawMonthlyRow[])];
-            if (!monthData || monthData.length < PAGE) break;
-            mOffset += PAGE;
-          }
+          const monthlyData = await fetchMonthlyProduction(agencyParam);
+          const allMonthly: RawMonthlyRow[] = monthlyData.map(m => ({
+            month: m.month,
+            agency_id: m.agency_id,
+            agent_id: null,
+            writing_number: null,
+            product_type: '',
+            policies: m.policies,
+            annual_premium: m.annual_premium,
+          }));
           setRawMonthly(allMonthly);
           setDailyRows([]); // clear daily
         }

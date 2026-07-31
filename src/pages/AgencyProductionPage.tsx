@@ -5,6 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
+import {
+  fetchAgencyProduction,
+  fetchAgentProduction,
+  fetchDailyProduction,
+  fetchMonthlyProduction,
+  fetchProductMix,
+} from '@/lib/prod-api';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -86,60 +93,68 @@ export function AgencyProductionPage() {
         const endDate = dateRange.endDate.split('T')[0];
         const useRpc = datePreset !== 'allTime';
 
-        // Agency stats
-        if (useRpc) {
-          const { data: rpcData } = await supabase.rpc('filtered_agency_production', {
-            start_date: startDate,
-            end_date: endDate,
+        // Agency stats from prod DB edge function
+        const dateParams = useRpc
+          ? { agency_id: agencyId!, start_date: startDate, end_date: endDate }
+          : { agency_id: agencyId! };
+
+        const agencyData = await fetchAgencyProduction(dateParams);
+        const match = agencyData.find(r => r.agency_id === agencyId);
+        if (match) {
+          setStats({
+            agency_id: match.agency_id,
+            agency_name: null,
+            total_policies: match.total_policies,
+            active_policies: match.active_policies,
+            terminated_policies: match.terminated_policies,
+            pending_policies: match.pending_policies,
+            at_risk_policies: match.at_risk_policies,
+            active_monthly_premium: match.active_monthly_premium,
+            active_annual_premium: match.active_annual_premium,
+            avg_annual_premium: match.avg_annual_premium,
+            policies_this_month: match.policies_this_month,
+            ap_this_month: match.ap_this_month,
+            policies_last_month: match.policies_last_month,
+            ap_last_month: match.ap_last_month,
           });
-          const match = ((rpcData || []) as unknown as AgencyStats[]).find(r => r.agency_id === agencyId);
-          if (match) setStats(match);
-          else setStats(null);
         } else {
-          const { data: agData } = await supabase
-            .from('agency_production')
-            .select('*')
-            .eq('agency_id', agencyId!)
-            .single();
-          if (agData) setStats(agData as unknown as AgencyStats);
+          setStats(null);
         }
 
-        // Agent breakdown
-        if (useRpc) {
-          const { data: rpcAgents } = await supabase.rpc('filtered_agent_production', {
-            start_date: startDate,
-            end_date: endDate,
-          });
-          const filtered = ((rpcAgents || []) as unknown as AgentRow[]).filter(r => r.agency_id === agencyId);
-          setAgents(filtered);
-        } else {
-          const { data: agentData } = await supabase
-            .from('agent_production')
-            .select('*')
-            .eq('agency_id', agencyId!)
-            .order('active_annual_premium', { ascending: false });
-          setAgents((agentData || []) as unknown as AgentRow[]);
-        }
+        // Agent breakdown from prod DB edge function
+        const agentData = await fetchAgentProduction(dateParams);
+        setAgents(agentData.map(a => ({
+          agency_id: a.agency_id,
+          agent_id: a.agent_id,
+          agent_name: a.agent_name,
+          writing_number: a.writing_number,
+          active_policies: a.active_policies,
+          active_annual_premium: a.active_annual_premium,
+          avg_annual_premium: a.avg_annual_premium,
+          policies_this_month: a.policies_this_month,
+          ap_this_month: a.ap_this_month,
+          at_risk_policies: a.at_risk_policies,
+          retention_pct: a.retention_pct,
+        })));
 
-        // Trend data — daily RPC for date-filtered, monthly view for all-time
+        // Trend data from prod DB edge function
         const gran = getGranularity(dateRange);
         if (useRpc) {
-          const { data: dailyData } = await supabase.rpc('filtered_daily_production', {
-            start_date: startDate,
-            end_date: endDate,
-          });
-          const rows = ((dailyData || []) as unknown as DailyRow[]).filter(r => r.agency_id === agencyId);
+          const dailyData = await fetchDailyProduction(dateParams);
+          const rows: DailyRow[] = dailyData.map(d => ({
+            agency_id: d.agency_id,
+            day: d.day,
+            policies: d.policies,
+            annual_premium: d.annual_premium,
+          }));
           setTrend(aggregateTrend(rows, gran));
         } else {
-          const { data } = await supabase
-            .from('monthly_production')
-            .select('month, policies, annual_premium')
-            .eq('agency_id', agencyId!);
+          const monthlyData = await fetchMonthlyProduction({ agency_id: agencyId! });
           const byMonth = new Map<string, { policies: number; ap: number }>();
-          ((data || []) as { month: string; policies: number; annual_premium: number }[]).forEach(r => {
+          monthlyData.forEach(r => {
             const existing = byMonth.get(r.month) || { policies: 0, ap: 0 };
-            existing.policies += Number(r.policies);
-            existing.ap += Number(r.annual_premium);
+            existing.policies += r.policies;
+            existing.ap += r.annual_premium;
             byMonth.set(r.month, existing);
           });
           setTrend(
@@ -150,26 +165,9 @@ export function AgencyProductionPage() {
           );
         }
 
-        // Product mix (date-filtered)
-        let mixQuery = supabase
-          .from('policy_cache')
-          .select('product_type')
-          .eq('agency_id', agencyId!)
-          .eq('status', 'active');
-        if (useRpc) {
-          mixQuery = mixQuery
-            .gte('policy_effective_date', startDate)
-            .lt('policy_effective_date', endDate);
-        }
-        const { data: mixData } = await mixQuery;
-
-        const mixMap = new Map<string, number>();
-        (mixData || []).forEach((r) => {
-          const pt = r.product_type as string;
-          if (!pt) return;
-          mixMap.set(pt, (mixMap.get(pt) || 0) + 1);
-        });
-        setProductMix(Array.from(mixMap.entries()).map(([product_type, count]) => ({ product_type, count })));
+        // Product mix from prod DB edge function
+        const mixData = await fetchProductMix({ agency_id: agencyId! });
+        setProductMix(mixData.map(m => ({ product_type: m.product_type, count: m.count })));
 
       } catch (err) {
         console.error('Agency production load error:', err);

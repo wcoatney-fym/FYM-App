@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { supabase } from '@/lib/supabase';
-import type { Database } from '@/lib/database.types';
+import { fetchBookOfBusiness, type PolicyRow as ProdPolicyRow } from '@/lib/prod-api';
 import {
   ArrowLeft,
   ShieldCheck,
@@ -17,9 +17,36 @@ import {
   Clock,
 } from 'lucide-react';
 
-type HealthRow = Database['public']['Views']['agent_health_scores']['Row'];
-type PolicyRow = Database['public']['Tables']['policy_cache']['Row'];
-type ProfileRow = Database['public']['Tables']['profiles']['Row'];
+interface HealthRow {
+  agent_id: string;
+  active_count: number;
+  retained_count: number;
+  ever_drafted_count: number;
+  persistency_score: number;
+  payment_method_score: number;
+  contact_recency_score: number;
+  product_diversity_score: number;
+  total_score: number;
+}
+
+interface PolicyRow {
+  policy_number: string;
+  agent_id: string | null;
+  agency_id: string;
+  product_type: string | null;
+  status: string | null;
+  plan_premium: number | null;
+  billing_mode: string | null;
+  policy_effective_date: string | null;
+  paid_to_date: string | null;
+  draft_count: number | null;
+  last_contact_date: string | null;
+  flag_type: string | null;
+  is_at_risk: boolean;
+  synced_at: string;
+}
+
+type ProfileRow = { id: string; full_name: string | null; writing_number: string | null };
 
 const MOCK_HEALTH: HealthRow = {
   agent_id: 'mock',
@@ -103,18 +130,68 @@ export function AgentHealthPage() {
         setLoading(false);
         return;
       }
-      const [healthRes, policiesRes, profileRes] = await Promise.all([
-        supabase.from('agent_health_scores').select('*').eq('agent_id', targetId as string).maybeSingle(),
-        supabase.from('policy_cache').select('*').eq('agent_id', targetId as string).order('policy_effective_date', { ascending: false }),
-        supabase.from('profiles').select('*').eq('id', targetId as string).maybeSingle(),
+      // Fetch policies from prod DB via edge function
+      const [bobRes, profileRes] = await Promise.all([
+        fetchBookOfBusiness({ agent_wn: targetId as string, sort: 'issue_date', order: 'desc', page_size: 500 }),
+        supabase.from('profiles').select('id, full_name, writing_number').eq('id', targetId as string).maybeSingle(),
       ]);
-      if (healthRes.data) {
-        setHealthData(healthRes.data as typeof MOCK_HEALTH);
+
+      const prodPolicies = bobRes.data;
+      if (prodPolicies && prodPolicies.length > 0) {
+        // Convert prod API shape to local PolicyRow shape
+        const localPolicies: PolicyRow[] = prodPolicies.map((p) => ({
+          policy_number: p.policy_number,
+          agent_id: p.agent_writing_number,
+          agency_id: p.agency_id,
+          product_type: p.product_type,
+          status: p.status,
+          plan_premium: p.plan_premium,
+          billing_mode: p.billing_mode ? String(p.billing_mode) : 'monthly',
+          policy_effective_date: p.policy_effective_date,
+          paid_to_date: p.paid_to_date,
+          draft_count: p.draft_count,
+          last_contact_date: null,
+          flag_type: p.flag_type,
+          is_at_risk: p.is_at_risk,
+          synced_at: '',
+        }));
+        setPolicies(localPolicies);
+
+        // Compute health scores from policy data
+        const active = localPolicies.filter((p) => p.status === 'active');
+        const everDrafted = localPolicies.filter((p) => (p.draft_count ?? 0) >= 1).length;
+        const retained = localPolicies.filter((p) => (p.draft_count ?? 0) >= 3).length;
+        const persistencyPct = everDrafted > 0 ? retained / everDrafted : 0;
+        const persistencyScore = Math.round(persistencyPct * 40 * 10) / 10;
+
+        // Product diversity: balance of HI vs HHC
+        const hiCount = active.filter((p) => p.product_type === 'HI').length;
+        const hhcCount = active.filter((p) => p.product_type === 'HHC').length;
+        const total = hiCount + hhcCount;
+        const diversityPct = total > 0 ? 1 - Math.abs(hiCount - hhcCount) / total : 0;
+        const diversityScore = Math.round(diversityPct * 15 * 10) / 10;
+
+        // Payment method and contact recency not available from prod DB — use baseline
+        const paymentScore = 15.0;
+        const contactScore = 18.0;
+        const totalScore = Math.round((persistencyScore + paymentScore + contactScore + diversityScore) * 10) / 10;
+
+        setHealthData({
+          agent_id: targetId as string,
+          active_count: active.length,
+          retained_count: retained,
+          ever_drafted_count: everDrafted,
+          persistency_score: persistencyScore,
+          payment_method_score: paymentScore,
+          contact_recency_score: contactScore,
+          product_diversity_score: diversityScore,
+          total_score: totalScore,
+        });
       } else {
         setHealthData(MOCK_HEALTH);
+        setPolicies(MOCK_POLICIES);
         setUsingMock(true);
       }
-      setPolicies((policiesRes.data && policiesRes.data.length > 0 ? policiesRes.data : MOCK_POLICIES) as typeof MOCK_POLICIES);
       setAgentProfile((profileRes.data ?? null) as typeof agentProfile);
       setLoading(false);
     }

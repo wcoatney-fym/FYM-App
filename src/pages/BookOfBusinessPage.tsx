@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
+import { fetchBookOfBusiness, type BookOfBusinessResponse } from '@/lib/prod-api';
 import { scopeToAgency } from '@/lib/query-helpers';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
@@ -90,88 +91,70 @@ export function BookOfBusinessPage() {
   // Load summary stats — re-runs when agency/agent filter changes
   useEffect(() => {
     async function loadSummary() {
-      if (!supabase) return;
-
-      // Paginate the full count with filters applied
-      let all: { status: string; is_at_risk: boolean; monthly_premium: number }[] = [];
-      let offset = 0;
-      const PG = 1000;
-      while (true) {
-        let query = scopeToAgency(
-          supabase
-            .from('book_of_business')
-            .select('status, is_at_risk, monthly_premium')
-            .range(offset, offset + PG - 1),
-          isOrgWide,
-          effectiveAgencyId
-        );
-        if (filterAgencyId) query = query.eq('agency_id', filterAgencyId);
-        if (filterAgentId) query = query.eq('writing_number', filterAgentId);
-        if (dateStart) query = query.gte('policy_effective_date', dateStart);
-        if (dateEnd) query = query.lte('policy_effective_date', dateEnd);
-
-        const { data: chunk } = await query;
-        if (!chunk || chunk.length === 0) break;
-        all = [...all, ...(chunk as typeof all)];
-        if (chunk.length < PG) break;
-        offset += PG;
+      try {
+        const agencyId = filterAgencyId || (!isOrgWide && effectiveAgencyId ? effectiveAgencyId : undefined);
+        const summaryRes = await fetchBookOfBusiness({
+          agency_id: agencyId,
+          agent_wn: filterAgentId || undefined,
+          page_size: 1,
+        });
+        const s = summaryRes.summary;
+        setSummaryStats({
+          active: s.status_breakdown['active'] || 0,
+          pending: s.status_breakdown['pending'] || 0,
+          atRisk: s.at_risk_policies,
+          terminated: s.status_breakdown['terminated'] || 0,
+          totalPremium: s.active_annual_premium,
+          atRiskPremium: 0,
+        });
+      } catch (err) {
+        console.error('Summary load error:', err);
       }
-
-      const stats = {
-        active: all.filter(p => p.status === 'active').length,
-        pending: all.filter(p => p.status === 'pending').length,
-        atRisk: all.filter(p => p.is_at_risk).length,
-        terminated: all.filter(p => p.status === 'terminated').length,
-        totalPremium: all.filter(p => p.status === 'active').reduce((s, p) => s + (Number(p.monthly_premium) * 12 || 0), 0),
-        atRiskPremium: all.filter(p => p.is_at_risk).reduce((s, p) => s + (Number(p.monthly_premium) * 12 || 0), 0),
-      };
-      setSummaryStats(stats);
     }
     loadSummary();
   }, [effectiveAgencyId, isOrgWide, filterAgencyId, filterAgentId, dateStart, dateEnd]);
 
-  // Load paginated policies
+  // Load paginated policies from prod DB edge function
   const loadPolicies = useCallback(async () => {
     setLoading(true);
-      if (!supabase) { setLoading(false); return; }
     try {
-      let query = scopeToAgency(
-        supabase
-          .from('book_of_business')
-          .select('*', { count: 'exact' }),
-        isOrgWide,
-        effectiveAgencyId
-      );
+      const agencyId = filterAgencyId || (!isOrgWide && effectiveAgencyId ? effectiveAgencyId : undefined);
+      const res = await fetchBookOfBusiness({
+        agency_id: agencyId,
+        agent_wn: filterAgentId || undefined,
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        product_type: productFilter !== 'all' ? productFilter : undefined,
+        search: search || undefined,
+        sort: 'issue_date',
+        order: 'desc',
+        page,
+        page_size: PAGE_SIZE,
+      });
 
-      if (filterAgencyId) {
-        query = query.eq('agency_id', filterAgencyId);
-      }
-      if (filterAgentId) {
-        query = query.eq('writing_number', filterAgentId);
-      }
-      if (dateStart) {
-        query = query.gte('policy_effective_date', dateStart);
-      }
-      if (dateEnd) {
-        query = query.lte('policy_effective_date', dateEnd);
-      }
-      if (statusFilter !== 'all') {
-        query = query.eq('status', statusFilter);
-      }
-      if (productFilter !== 'all') {
-        query = query.eq('product_type', productFilter);
-      }
-      if (search) {
-        query = query.or(`policy_number.ilike.%${search}%,client_name.ilike.%${search}%,agent_name.ilike.%${search}%,agency_name.ilike.%${search}%`);
-      }
+      const mapped: Policy[] = res.data.map(p => ({
+        policy_number: p.policy_number,
+        client_name: p.client_name,
+        agent_name: null,
+        writing_number: p.writing_number,
+        agency_name: null,
+        agency_id: p.agency_id,
+        product_type: p.product_type,
+        status: p.status,
+        monthly_premium: p.plan_premium,
+        annual_premium: p.annual_premium,
+        billing_mode: p.billing_mode ? String(p.billing_mode) : null,
+        policy_effective_date: p.policy_effective_date,
+        paid_to_date: p.paid_to_date,
+        draft_count: p.draft_count,
+        is_at_risk: p.is_at_risk,
+        flag_type: p.flag_type,
+        days_since_paid: p.paid_to_date
+          ? Math.max(0, Math.floor((Date.now() - new Date(p.paid_to_date).getTime()) / 86400000))
+          : null,
+      }));
 
-      const { data, count, error } = await query
-        .order('policy_effective_date', { ascending: false })
-        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
-
-      if (error) throw error;
-      setPolicies((data || []) as unknown as Policy[]);
-      setTotalCount(count || 0);
+      setPolicies(mapped);
+      setTotalCount(res.pagination.total_count);
     } catch (err) {
       console.error('Book load error:', err);
     } finally {
@@ -189,23 +172,44 @@ export function BookOfBusinessPage() {
   // Export CSV
   async function exportCsv() {
     let all: Policy[] = [];
-    let offset = 0;
-    const PG = 1000;
+    let pg = 0;
+    const PG = 500;
     while (true) {
-      if (!supabase) break;
-      let query = scopeToAgency(
-        supabase.from('book_of_business').select('*'),
-        isOrgWide,
-        effectiveAgencyId
-      );
-      if (statusFilter !== 'all') query = query.eq('status', statusFilter);
-      if (productFilter !== 'all') query = query.eq('product_type', productFilter);
-      if (search) query = query.or(`policy_number.ilike.%${search}%,agent_name.ilike.%${search}%,agency_name.ilike.%${search}%`);
-      const { data } = await query.order('policy_effective_date', { ascending: false }).range(offset, offset + PG - 1);
-      if (!data || data.length === 0) break;
-      all = [...all, ...(data as unknown as Policy[])];
-      if (data.length < PG) break;
-      offset += PG;
+      try {
+        const agencyId = filterAgencyId || (!isOrgWide && effectiveAgencyId ? effectiveAgencyId : undefined);
+        const res = await fetchBookOfBusiness({
+          agency_id: agencyId,
+          status: statusFilter !== 'all' ? statusFilter : undefined,
+          product_type: productFilter !== 'all' ? productFilter : undefined,
+          search: search || undefined,
+          sort: 'issue_date',
+          order: 'desc',
+          page: pg,
+          page_size: PG,
+        });
+        const mapped = res.data.map(p => ({
+          policy_number: p.policy_number,
+          client_name: p.client_name,
+          agent_name: null,
+          writing_number: p.writing_number,
+          agency_name: null,
+          agency_id: p.agency_id,
+          product_type: p.product_type,
+          status: p.status,
+          monthly_premium: p.plan_premium,
+          annual_premium: p.annual_premium,
+          billing_mode: p.billing_mode ? String(p.billing_mode) : null,
+          policy_effective_date: p.policy_effective_date,
+          paid_to_date: p.paid_to_date,
+          draft_count: p.draft_count,
+          is_at_risk: p.is_at_risk,
+          flag_type: p.flag_type,
+          days_since_paid: null as number | null,
+        }));
+        all = [...all, ...mapped];
+        if (res.data.length < PG) break;
+        pg++;
+      } catch { break; }
     }
 
     const headers = ['Policy #', 'Client', 'Agent', 'Writing #', 'Agency', 'Product', 'Status', 'Monthly Premium', 'Annual Premium', 'Effective Date', 'Paid To', 'Drafts', 'At Risk', 'Flag'];

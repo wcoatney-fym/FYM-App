@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
+import { fetchBookOfBusiness, fetchRetentionSummary, fetchMonthlyProduction } from '@/lib/prod-api';
 
 type PipelineTab = 'placements' | 'cancellations' | 'retention' | 'revenue';
 
@@ -60,70 +61,101 @@ export function CcPipelinesTab() {
   const [retentionAgencies, setRetentionAgencies] = useState<RetentionAgencyRow[] | null>(null);
   const [revenue, setRevenue] = useState<RevenueMonthRow[] | null>(null);
 
+  // Placements — recent policies from prod DB
   useEffect(() => {
-    if (!supabase) return;
     (async () => {
-      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-      const { data } = await (supabase as any)
-        .from('book_of_business')
-        .select('policy_number, agent_name, agency_name, product_type, status, annual_premium, policy_effective_date')
-        .gte('policy_effective_date', thirtyDaysAgo)
-        .order('policy_effective_date', { ascending: false })
-        .limit(200);
-      setPlacements((data as PlacementRow[]) || []);
+      try {
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        const today = new Date().toISOString().slice(0, 10);
+        const res = await fetchBookOfBusiness({
+          sort: 'issue_date',
+          order: 'desc',
+          page_size: 200,
+        });
+        // Filter to last 30 days client-side
+        const recent = res.data
+          .filter(p => p.policy_effective_date && p.policy_effective_date >= thirtyDaysAgo)
+          .map(p => ({
+            policy_number: p.policy_number,
+            agent_name: null,
+            agency_name: null,
+            product_type: p.product_type,
+            status: p.status,
+            annual_premium: p.annual_premium,
+            policy_effective_date: p.policy_effective_date,
+          }));
+        setPlacements(recent);
+      } catch { setPlacements([]); }
     })();
   }, []);
 
+  // Cancellations — terminated policies from prod DB
   useEffect(() => {
-    if (!supabase) return;
     (async () => {
-      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-      const { data } = await (supabase as any)
-        .from('book_of_business')
-        .select('policy_number, agent_name, agency_name, annual_premium, paid_to_date')
-        .eq('status', 'terminated')
-        .gte('paid_to_date', thirtyDaysAgo)
-        .order('paid_to_date', { ascending: false })
-        .limit(200);
-      setCancellations((data as CancellationRow[]) || []);
+      try {
+        const res = await fetchBookOfBusiness({
+          status: 'terminated',
+          sort: 'paid_to_date',
+          order: 'desc',
+          page_size: 200,
+        });
+        setCancellations(
+          res.data.map(p => ({
+            policy_number: p.policy_number,
+            agent_name: null,
+            agency_name: null,
+            annual_premium: p.annual_premium,
+            paid_to_date: p.paid_to_date,
+          }))
+        );
+      } catch { setCancellations([]); }
     })();
   }, []);
 
+  // Retention agencies — below 90% from prod DB
   useEffect(() => {
-    if (!supabase) return;
     (async () => {
-      const { data } = await (supabase as any)
-        .from('agency_retention_summary')
-        .select('agency_id, agency_name, active_policies, at_risk_count, retention_pct')
-        .lt('retention_pct', 90)
-        .order('retention_pct', { ascending: true })
-        .limit(50);
-      setRetentionAgencies((data as RetentionAgencyRow[]) || []);
+      try {
+        const retRes = await fetchRetentionSummary();
+        const below90 = retRes.data.agencies
+          .filter(a => a.retention_pct !== null && a.retention_pct < 90)
+          .sort((a, b) => (a.retention_pct ?? 100) - (b.retention_pct ?? 100))
+          .slice(0, 50)
+          .map(a => ({
+            agency_id: a.agency_id,
+            agency_name: null,
+            active_policies: a.active_policies,
+            at_risk_count: a.at_risk_count,
+            retention_pct: a.retention_pct,
+          }));
+        setRetentionAgencies(below90);
+      } catch { setRetentionAgencies([]); }
     })();
   }, []);
 
+  // Revenue — monthly production from prod DB
   useEffect(() => {
-    if (!supabase) return;
     (async () => {
-      const sixMonthsAgo = new Date();
-      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-      const monthKey = sixMonthsAgo.toISOString().slice(0, 7);
-      const { data } = await (supabase as any)
-        .from('monthly_production')
-        .select('month, policies, annual_premium')
-        .gte('month', monthKey);
-      const byMonth = new Map<string, { policies: number; annual_premium: number }>();
-      (data || []).forEach((r: any) => {
-        const existing = byMonth.get(r.month) || { policies: 0, annual_premium: 0 };
-        existing.policies += Number(r.policies) || 0;
-        existing.annual_premium += Number(r.annual_premium) || 0;
-        byMonth.set(r.month, existing);
-      });
-      setRevenue(
-        Array.from(byMonth.entries())
-          .map(([month, v]) => ({ month, ...v }))
-          .sort((a, b) => a.month.localeCompare(b.month))
-      );
+      try {
+        const monthlyData = await fetchMonthlyProduction();
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+        const monthKey = sixMonthsAgo.toISOString().slice(0, 7);
+        const byMonth = new Map<string, { policies: number; annual_premium: number }>();
+        monthlyData
+          .filter(m => m.month >= monthKey)
+          .forEach(m => {
+            const existing = byMonth.get(m.month) || { policies: 0, annual_premium: 0 };
+            existing.policies += m.policies;
+            existing.annual_premium += m.annual_premium;
+            byMonth.set(m.month, existing);
+          });
+        setRevenue(
+          Array.from(byMonth.entries())
+            .map(([month, v]) => ({ month, ...v }))
+            .sort((a, b) => a.month.localeCompare(b.month))
+        );
+      } catch { setRevenue([]); }
     })();
   }, []);
 
