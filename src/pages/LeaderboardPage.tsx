@@ -11,6 +11,7 @@ import { Header } from '@/components/layout/Header';
 import { Card, CardContent } from '@/components/ui/card';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
+import { fetchRetentionSummary, fetchAgencyProduction } from '@/lib/prod-api';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { DataFilters } from '@/components/filters/DataFilters';
@@ -118,113 +119,106 @@ export function LeaderboardPage() {
   const [agencyBattleWins, setAgencyBattleWins] = useState<Map<string, number>>(new Map());
 
   const loadPeriodData = useCallback(async (p: Period) => {
-    if (!supabase) return;
     const start = periodStart(p);
     if (!start) {
       setPeriodData(new Map());
       return;
     }
 
-    // Query policy_cache for the period
-    const PAGE = 1000;
-    let offset = 0;
-    let done = false;
-    const agMap = new Map<string, { policies: number; ap: number }>();
-
-    while (!done) {
-      const { data } = await supabase
-        .from('policy_cache')
-        .select('agency_id, plan_premium')
-        .gte('policy_effective_date', start)
-        .in('product_type', ['HI', 'HHC'])
-        .range(offset, offset + PAGE - 1);
-
-      if (!data || data.length === 0) { done = true; break; }
-
-      data.forEach((r: any) => {
-        const aid = r.agency_id || 'unknown';
-        const existing = agMap.get(aid) || { policies: 0, ap: 0 };
-        existing.policies += 1;
-        existing.ap += (Number(r.plan_premium) || 0) * 12;
-        agMap.set(aid, existing);
-      });
-
-      if (data.length < PAGE) done = true;
-      else offset += PAGE;
+    try {
+      // Query prod DB edge function for period-filtered agency production
+      const today = new Date();
+      const endDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate() + 1).padStart(2, '0')}`;
+      const agencies = await fetchAgencyProduction({ start_date: start, end_date: endDate });
+      const agMap = new Map<string, { policies: number; ap: number }>();
+      for (const a of agencies) {
+        agMap.set(a.agency_id, {
+          policies: a.active_policies + a.terminated_policies + a.pending_policies,
+          ap: a.active_annual_premium,
+        });
+      }
+      setPeriodData(agMap);
+    } catch (err) {
+      console.error('Period data load error:', err);
+      setPeriodData(new Map());
     }
-
-    setPeriodData(agMap);
   }, []);
 
   useEffect(() => {
-    if (!supabase) { setLoading(false); return; }
-
     async function load() {
-      // Retention summary
-      const { data: summaryData } = await supabase!
-        .from('agency_retention_summary')
-        .select('agency_id, active_policies, active_premium, at_risk_count, retained_90d, eligible_90d, retention_pct');
+      try {
+        // Retention summary from prod DB edge function
+        const retRes = await fetchRetentionSummary();
+        const summaryData = retRes.data.agencies;
 
-      if (!summaryData || summaryData.length === 0) { setLoading(false); return; }
+        if (!summaryData || summaryData.length === 0) { setLoading(false); return; }
 
-      // Agency names
-      const { data: agencyNames } = await (supabase as any)
-        .from('agencies')
-        .select('tracker_id, name');
-      const nameMap = new Map<string, string>();
-      if (agencyNames) {
-        for (const a of agencyNames as any[]) {
-          if (a.tracker_id) nameMap.set(a.tracker_id, a.name);
+        // Agency names from rcbzag (stays — not policy_cache dependent)
+        const nameMap = new Map<string, string>();
+        if (supabase) {
+          const { data: agencyNames } = await (supabase as any)
+            .from('agencies')
+            .select('tracker_id, name');
+          if (agencyNames) {
+            for (const a of agencyNames as any[]) {
+              if (a.tracker_id) nameMap.set(a.tracker_id, a.name);
+            }
+          }
         }
-      }
 
-      // Build ranked rows
-      const ranked = (summaryData as any[])
-        .map(r => ({
-          agency_id: r.agency_id as string,
-          name: nameMap.get(r.agency_id) ?? null,
-          active_policies: Number(r.active_policies) || 0,
-          active_premium: Number(r.active_premium) || 0,
-          at_risk_count: Number(r.at_risk_count) || 0,
-          retained_90d: Number(r.retained_90d) || 0,
-          eligible_90d: Number(r.eligible_90d) || 0,
-          retention_pct: r.retention_pct !== null ? Number(r.retention_pct) : null,
-          rank: 0,
-          period_policies: 0,
-          period_ap: 0,
-        }))
-        .sort((a, b) => {
-          const retA = a.retention_pct ?? -1;
-          const retB = b.retention_pct ?? -1;
-          if (retB !== retA) return retB - retA;
-          return b.active_premium - a.active_premium;
-        });
+        // Build ranked rows
+        const ranked = summaryData
+          .map(r => ({
+            agency_id: r.agency_id,
+            name: nameMap.get(r.agency_id) ?? null,
+            active_policies: r.active_policies,
+            active_premium: r.active_premium,
+            at_risk_count: r.at_risk_count,
+            retained_90d: r.retained_90d,
+            eligible_90d: r.eligible_90d,
+            retention_pct: r.retention_pct,
+            rank: 0,
+            period_policies: 0,
+            period_ap: 0,
+          }))
+          .sort((a, b) => {
+            const retA = a.retention_pct ?? -1;
+            const retB = b.retention_pct ?? -1;
+            if (retB !== retA) return retB - retA;
+            return b.active_premium - a.active_premium;
+          });
 
-      ranked.forEach((r, i) => { r.rank = i + 1; });
-      setRows(ranked);
-      setLoading(false);
+        ranked.forEach((r, i) => { r.rank = i + 1; });
+        setRows(ranked);
+        setLoading(false);
 
-      // Battle wins per agency — light-touch trophy badge
-      const PAGE = 100;
-      let offset = 0;
-      let done = false;
-      const winMap = new Map<string, number>();
-      while (!done) {
-        const { data: winData } = await (supabase as any)
-          .from('battle_participants')
-          .select('agency_id')
-          .eq('is_winner', true)
-          .not('agency_id', 'is', null)
-          .range(offset, offset + PAGE - 1);
-        if (!winData || winData.length === 0) { done = true; break; }
-        for (const w of winData as any[]) {
-          if (!w.agency_id) continue;
-          winMap.set(w.agency_id, (winMap.get(w.agency_id) || 0) + 1);
+        // Battle wins per agency — light-touch trophy badge (stays — gamification table)
+        if (supabase) {
+          const PAGE = 100;
+          let offset = 0;
+          let done = false;
+          const winMap = new Map<string, number>();
+          while (!done) {
+            const { data: winData } = await (supabase as any)
+              .from('battle_participants')
+              .select('agency_id')
+              .eq('is_winner', true)
+              .not('agency_id', 'is', null)
+              .range(offset, offset + PAGE - 1);
+            if (!winData || winData.length === 0) { done = true; break; }
+            for (const w of winData as any[]) {
+              if (!w.agency_id) continue;
+              winMap.set(w.agency_id, (winMap.get(w.agency_id) || 0) + 1);
+            }
+            if (winData.length < PAGE) done = true;
+            else offset += PAGE;
+          }
+          setAgencyBattleWins(winMap);
         }
-        if (winData.length < PAGE) done = true;
-        else offset += PAGE;
+      } catch (err) {
+        console.error('Leaderboard load error:', err);
+        setLoading(false);
       }
-      setAgencyBattleWins(winMap);
     }
 
     load();

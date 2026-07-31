@@ -23,6 +23,7 @@ import {
   generateTemplateCSV,
   type RosterValidationError,
 } from '@/lib/roster-normalizer';
+import { fetchAgencyRosterData } from '@/lib/prod-api';
 
 /* ── Types ──────────────────────────────────────────────────────────── */
 
@@ -256,14 +257,32 @@ export function AgencyRosterPage() {
     ].filter((w): w is string => !!w);
 
     if (wns.length > 0) {
-      const { data } = await supabase
-        .from('policy_cache')
-        .select('*')
-        .in('writing_number', wns)
-        .in('product_type', ['HI', 'HHC'])
-        .order('policy_effective_date', { ascending: false });
-
-      setAgentPolicies((data as PolicyRow[] | null) || []);
+      try {
+        const res = await fetchAgencyRosterData({ writing_numbers: wns.join(',') });
+        // Flatten all agent policies into a single list for this agent
+        const allPolicies: PolicyRow[] = [];
+        for (const agentData of res.data) {
+          for (const p of agentData.policies) {
+            allPolicies.push({
+              policy_number: p.policy_number,
+              product_type: (p.product_type as 'HI' | 'HHC' | null),
+              status: p.status,
+              plan_premium: p.plan_premium,
+              is_at_risk: p.is_at_risk,
+              draft_count: p.draft_count,
+              policy_effective_date: p.policy_effective_date,
+              paid_to_date: p.paid_to_date,
+              writing_number: agentData.writing_number,
+            });
+          }
+        }
+        // Sort by effective date descending
+        allPolicies.sort((a, b) => (b.policy_effective_date || '').localeCompare(a.policy_effective_date || ''));
+        setAgentPolicies(allPolicies);
+      } catch (err) {
+        console.error('Error loading agent policies from prod:', err);
+        setAgentPolicies([]);
+      }
     }
     setLoadingPolicies(false);
   };

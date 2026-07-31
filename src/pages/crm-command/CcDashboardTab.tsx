@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabase';
 import { portalSupabase } from '@/lib/portal-supabase';
 import { scopeToAgency } from '@/lib/query-helpers';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
+import { fetchRetentionSummary, fetchMonthlyProduction, fetchBookOfBusiness } from '@/lib/prod-api';
 
 const container = {
   hidden: { opacity: 0 },
@@ -95,69 +96,51 @@ export function CcDashboardTab() {
       try {
         const now = new Date();
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-        const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        // Placements MTD — from prod DB edge function
+        const agencyParam = !isOrgWide && effectiveAgencyId ? { agency_id: effectiveAgencyId } : {};
+        const bobAllRes = await fetchBookOfBusiness({
+          ...agencyParam,
+          page_size: 1,
+        });
+        setPlacementsMTD(bobAllRes.summary.total_policies);
 
-        // Placements MTD — policies with effective date in current month
-        const { count: placedCount } = await scopeToAgency(
-          (supabase as any)
-            .from('policy_cache')
-            .select('policy_number', { count: 'exact', head: true })
-            .gte('policy_effective_date', monthStart),
-          isOrgWide,
-          effectiveAgencyId
-        );
-        setPlacementsMTD(placedCount ?? 0);
-
-        // Revenue MTD from monthly_production (current month, all agencies)
+        // Revenue MTD from prod DB edge function
         const monthKey = monthStart.slice(0, 7);
-        const { data: monthRows } = await scopeToAgency(
-          (supabase as any)
-            .from('monthly_production')
-            .select('month, annual_premium')
-            .eq('month', monthKey),
-          isOrgWide,
-          effectiveAgencyId
-        );
-        const revenue = (monthRows || []).reduce((s: number, r: any) => s + (Number(r.annual_premium) || 0), 0);
+        const monthlyData = await fetchMonthlyProduction(agencyParam);
+        const thisMonthData = monthlyData.filter(m => m.month === monthKey);
+        const revenue = thisMonthData.reduce((s, r) => s + r.annual_premium, 0);
         setRevenueMTD(revenue);
 
-        // Cancel rate — last 90 days
-        const { count: totalRecent } = await scopeToAgency(
-          (supabase as any)
-            .from('policy_cache')
-            .select('policy_number', { count: 'exact', head: true })
-            .gte('policy_effective_date', ninetyDaysAgo),
-          isOrgWide,
-          effectiveAgencyId
-        );
-        const { count: terminatedRecent } = await scopeToAgency(
-          (supabase as any)
-            .from('policy_cache')
-            .select('policy_number', { count: 'exact', head: true })
-            .eq('status', 'terminated')
-            .gte('policy_effective_date', ninetyDaysAgo),
-          isOrgWide,
-          effectiveAgencyId
-        );
-        const total = totalRecent ?? 0;
-        const term = terminatedRecent ?? 0;
-        setCancelRate(total > 0 ? ((term / total) * 100).toFixed(1) : '0');
+        // Cancel rate — from retention summary
+        const retRes = await fetchRetentionSummary(agencyParam);
+        const orgData = retRes.data.org_wide;
+        const totalPolicies = orgData.total_active_policies + orgData.total_at_risk;
+        const atRisk = orgData.total_at_risk;
+        setCancelRate(totalPolicies > 0 ? ((atRisk / totalPolicies) * 100).toFixed(1) : '0');
 
         // Insights — top agencies by at-risk count
-        const { data: retentionRows } = await scopeToAgency(
-          (supabase as any)
-            .from('agency_retention_summary')
-            .select('agency_id, agency_name, at_risk_count, retention_pct')
-            .order('at_risk_count', { ascending: false })
-            .limit(3),
-          isOrgWide,
-          effectiveAgencyId
-        );
+        const agenciesByRisk = [...retRes.data.agencies]
+          .sort((a, b) => b.at_risk_count - a.at_risk_count)
+          .slice(0, 3);
+
+        // Get agency names from rcbzag
+        const insightNames = new Map<string, string>();
+        if (supabase) {
+          const { data: nameData } = await (supabase as any)
+            .from('agencies')
+            .select('tracker_id, name');
+          if (nameData) {
+            for (const a of nameData as any[]) {
+              if (a.tracker_id) insightNames.set(a.tracker_id, a.name);
+            }
+          }
+        }
+
         setInsights(
-          (retentionRows || []).map((r: any) => ({
-            agencyName: r.agency_name || 'Unknown Agency',
-            atRiskCount: Number(r.at_risk_count) || 0,
-            retentionPct: r.retention_pct !== null ? Number(r.retention_pct) : null,
+          agenciesByRisk.map((r) => ({
+            agencyName: insightNames.get(r.agency_id) || 'Unknown Agency',
+            atRiskCount: r.at_risk_count,
+            retentionPct: r.retention_pct,
           }))
         );
       } catch {

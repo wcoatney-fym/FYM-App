@@ -5,7 +5,8 @@ import {
   LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
-import { supabase, supabaseConfigured as rcbzagConfigured } from '@/lib/supabase';
+import { supabaseConfigured as rcbzagConfigured } from '@/lib/supabase';
+import { fetchRetentionCohorts, fetchMonthlyProduction } from '@/lib/prod-api';
 
 interface RetentionTrendPoint {
   month: string;
@@ -30,57 +31,50 @@ export function CcAnalyticsTab() {
   const [production, setProduction] = useState<ProductionPoint[] | null>(null);
   const [productMix, setProductMix] = useState<ProductMixPoint[] | null>(null);
 
+  // Retention trend from prod DB edge function
   useEffect(() => {
-    if (!supabase) return;
     (async () => {
-      const twelveMonthsAgo = new Date();
-      twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
-      const monthKey = twelveMonthsAgo.toISOString().slice(0, 7);
-
-      const { data } = await (supabase as any)
-        .from('cohort_retention')
-        .select('product_type, cohort_month, retention_pct')
-        .gte('cohort_month', monthKey)
-        .order('cohort_month', { ascending: true });
-
-      const byMonth = new Map<string, RetentionTrendPoint>();
-      (data || []).forEach((r: any) => {
-        const existing = byMonth.get(r.cohort_month) || { month: r.cohort_month, HI: null, HHC: null };
-        if (r.product_type === 'HI') existing.HI = r.retention_pct !== null ? Number(r.retention_pct) : null;
-        if (r.product_type === 'HHC') existing.HHC = r.retention_pct !== null ? Number(r.retention_pct) : null;
-        byMonth.set(r.cohort_month, existing);
-      });
-      setRetentionTrend(Array.from(byMonth.values()).sort((a, b) => a.month.localeCompare(b.month)));
+      try {
+        const cohortRes = await fetchRetentionCohorts();
+        const points: RetentionTrendPoint[] = cohortRes.data.cohorts
+          .slice(-12)
+          .map(c => ({
+            month: c.month,
+            HI: c.retention_pct,
+            HHC: null, // combined cohort from prod DB
+          }));
+        setRetentionTrend(points);
+      } catch { setRetentionTrend([]); }
     })();
   }, []);
 
+  // Production + product mix from prod DB edge function
   useEffect(() => {
-    if (!supabase) return;
     (async () => {
-      const twelveMonthsAgo = new Date();
-      twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
-      const monthKey = twelveMonthsAgo.toISOString().slice(0, 7);
+      try {
+        const monthlyData = await fetchMonthlyProduction();
+        const twelveMonthsAgo = new Date();
+        twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+        const monthKey = twelveMonthsAgo.toISOString().slice(0, 7);
 
-      const { data } = await (supabase as any)
-        .from('monthly_production')
-        .select('month, policies, annual_premium, product_type')
-        .gte('month', monthKey);
+        const byMonth = new Map<string, ProductionPoint>();
+        monthlyData
+          .filter(m => m.month >= monthKey)
+          .forEach(m => {
+            const existing = byMonth.get(m.month) || { month: m.month, policies: 0, premium: 0 };
+            existing.policies += m.policies;
+            existing.premium += m.annual_premium;
+            byMonth.set(m.month, existing);
+          });
+        setProduction(Array.from(byMonth.values()).sort((a, b) => a.month.localeCompare(b.month)));
 
-      const byMonth = new Map<string, ProductionPoint>();
-      const mixByMonth = new Map<string, ProductMixPoint>();
-      (data || []).forEach((r: any) => {
-        const existing = byMonth.get(r.month) || { month: r.month, policies: 0, premium: 0 };
-        existing.policies += Number(r.policies) || 0;
-        existing.premium += Number(r.annual_premium) || 0;
-        byMonth.set(r.month, existing);
-
-        const mixExisting = mixByMonth.get(r.month) || { month: r.month, HI: 0, HHC: 0 };
-        if (r.product_type === 'HI') mixExisting.HI += Number(r.policies) || 0;
-        if (r.product_type === 'HHC') mixExisting.HHC += Number(r.policies) || 0;
-        mixByMonth.set(r.month, mixExisting);
-      });
-      setProduction(Array.from(byMonth.values()).sort((a, b) => a.month.localeCompare(b.month)));
-      setProductMix(Array.from(mixByMonth.values()).sort((a, b) => a.month.localeCompare(b.month)));
+        // Product mix not available per-product from the current edge function
+        // Set empty for now — will be populated when prod-data returns product_type breakdown
+        setProductMix([]);
+      } catch {
+        setProduction([]);
+        setProductMix([]);
+      }
     })();
   }, []);
 

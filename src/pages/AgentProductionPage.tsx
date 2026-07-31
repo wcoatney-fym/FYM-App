@@ -11,7 +11,11 @@ import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
-import { supabase } from '@/lib/supabase';
+// supabase import removed — reads now go through prod-api edge functions
+import {
+  fetchAgentProduction,
+  fetchBookOfBusiness,
+} from '@/lib/prod-api';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -116,75 +120,90 @@ export function AgentProductionPage() {
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
 
   useEffect(() => {
-    if (!agentId || !supabase) return;
+    if (!agentId) return;
     async function load() {
       setLoading(true);
-      if (!supabase) { setLoading(false); return; }
       try {
         const startDate = dateRange.startDate.split('T')[0];
         const endDate = dateRange.endDate.split('T')[0];
         const useRpc = datePreset !== 'allTime';
 
-        // Agent stats — RPC for date-filtered, view for all-time
-        if (useRpc) {
-          const { data: rpcData } = await supabase.rpc('filtered_agent_production', {
-            start_date: startDate,
-            end_date: endDate,
+        // Agent stats from prod DB edge function
+        const dateParams = useRpc
+          ? { agent_id: agentId!, start_date: startDate, end_date: endDate }
+          : { agent_id: agentId! };
+        const agentData = await fetchAgentProduction(dateParams);
+        const match = agentData.find(r => r.agent_id === agentId);
+        if (match) {
+          setStats({
+            agent_id: match.agent_id,
+            agent_name: match.agent_name,
+            writing_number: match.writing_number,
+            agency_id: match.agency_id,
+            agency_name: null,
+            total_policies: match.total_policies,
+            active_policies: match.active_policies,
+            terminated_policies: match.terminated_policies,
+            pending_policies: match.pending_policies,
+            at_risk_policies: match.at_risk_policies,
+            active_monthly_premium: match.active_monthly_premium,
+            active_annual_premium: match.active_annual_premium,
+            avg_annual_premium: match.avg_annual_premium,
+            policies_this_month: match.policies_this_month,
+            ap_this_month: match.ap_this_month,
+            retained_policies: match.retained_policies,
+            ever_drafted: match.ever_drafted,
+            retention_pct: match.retention_pct,
           });
-          const match = ((rpcData || []) as unknown as AgentStats[]).find(r => r.agent_id === agentId);
-          if (match) setStats(match);
-          else setStats(null);
         } else {
-          const { data: agentData } = await supabase
-            .from('agent_production')
-            .select('*')
-            .eq('agent_id', agentId!)
-            .single();
-          if (agentData) setStats(agentData as unknown as AgentStats);
+          setStats(null);
         }
 
-        // Policies — paginate (with date filter)
+        // Policies from prod DB edge function (paginated)
         const allPolicies: PolicyRow[] = [];
-        const PAGE = 1000;
-        let offset = 0;
-        let done = false;
-        while (!done) {
-          let q = supabase
-            .from('book_of_business')
-            .select('policy_number, product_type, status, monthly_premium, annual_premium, policy_effective_date, paid_to_date, draft_count, is_at_risk, flag_type, days_since_paid')
-            .eq('agent_id', agentId!)
-            .order('policy_effective_date', { ascending: false })
-            .range(offset, offset + PAGE - 1);
-          if (useRpc) {
-            q = q.gte('policy_effective_date', startDate).lt('policy_effective_date', endDate);
+        const PAGE_SIZE = 500;
+        let page = 0;
+        while (true) {
+          const bobRes = await fetchBookOfBusiness({
+            agent_wn: agentId!,
+            sort: 'issue_date',
+            order: 'desc',
+            page,
+            page_size: PAGE_SIZE,
+            ...(useRpc ? { start_date: startDate, end_date: endDate } : {}),
+          } as any);
+          for (const p of bobRes.data) {
+            const daysIdle = p.paid_to_date
+              ? Math.max(0, Math.floor((Date.now() - new Date(p.paid_to_date).getTime()) / 86400000))
+              : null;
+            allPolicies.push({
+              policy_number: p.policy_number,
+              product_type: p.product_type,
+              status: p.status,
+              monthly_premium: p.plan_premium,
+              annual_premium: p.annual_premium,
+              policy_effective_date: p.policy_effective_date,
+              paid_to_date: p.paid_to_date,
+              draft_count: p.draft_count,
+              is_at_risk: p.is_at_risk,
+              flag_type: p.flag_type,
+              days_since_paid: daysIdle,
+            });
           }
-          const { data: policyData } = await q;
-          if (!policyData || policyData.length === 0) { done = true; break; }
-          allPolicies.push(...(policyData as unknown as PolicyRow[]));
-          if (policyData.length < PAGE) done = true;
-          else offset += PAGE;
+          if (bobRes.data.length < PAGE_SIZE) break;
+          page++;
         }
         setPolicies(allPolicies);
 
-        // Trend — agent-level from policy_cache with adaptive granularity
-        let trendQuery = supabase
-          .from('policy_cache')
-          .select('policy_effective_date, plan_premium')
-          .eq('agent_id', agentId!)
-          .not('policy_effective_date', 'is', null);
-        if (useRpc) {
-          trendQuery = trendQuery.gte('policy_effective_date', startDate).lt('policy_effective_date', endDate);
-        }
-        const { data: cacheRows } = await trendQuery;
-
+        // Trend — computed from policies with adaptive granularity
         const gran = getGranularity(dateRange);
         const byBucket = new Map<string, { policies: number; ap: number }>();
-        (cacheRows || []).forEach((r: any) => {
-          if (!r.policy_effective_date) return;
-          const key = bucketKey(r.policy_effective_date, gran);
+        allPolicies.forEach((p) => {
+          if (!p.policy_effective_date) return;
+          const key = bucketKey(p.policy_effective_date, gran);
           const existing = byBucket.get(key) || { policies: 0, ap: 0 };
           existing.policies += 1;
-          existing.ap += (Number(r.plan_premium) || 0) * 12;
+          existing.ap += Number(p.annual_premium) || 0;
           byBucket.set(key, existing);
         });
         setTrend(

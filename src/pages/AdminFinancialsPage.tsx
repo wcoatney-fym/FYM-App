@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
+import { fetchRetentionSummary, fetchRetentionCohorts } from '@/lib/prod-api';
 import { scopeToAgency } from '@/lib/query-helpers';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
@@ -78,79 +79,81 @@ export function AdminFinancialsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!supabase) { setLoading(false); return; }
-
     async function load() {
-      // Agency names map
-      const { data: agencyNames } = await scopeToAgency(
-        (supabase as any)
-          .from('agencies')
-          .select('tracker_id, name'),
-        isOrgWide,
-        effectiveAgencyId,
-        'tracker_id'
-      );
-      const nameMap = new Map<string, string>();
-      if (agencyNames) {
-        for (const a of agencyNames as any[]) {
-          if (a.tracker_id) nameMap.set(a.tracker_id, a.name);
+      try {
+        const agencyParam = !isOrgWide && effectiveAgencyId ? { agency_id: effectiveAgencyId } : {};
+
+        // Agency names map from rcbzag (stays)
+        const nameMap = new Map<string, string>();
+        if (supabase) {
+          const { data: agencyNames } = await scopeToAgency(
+            (supabase as any)
+              .from('agencies')
+              .select('tracker_id, name'),
+            isOrgWide,
+            effectiveAgencyId,
+            'tracker_id'
+          );
+          if (agencyNames) {
+            for (const a of agencyNames as any[]) {
+              if (a.tracker_id) nameMap.set(a.tracker_id, a.name);
+            }
+          }
         }
-      }
 
-      // Agency retention summary (aggregate KPIs)
-      const { data: summaryData } = await scopeToAgency(
-        supabase!
-          .from('agency_retention_summary')
-          .select('agency_id, active_policies, active_premium, at_risk_count, retained_90d, eligible_90d, retention_pct'),
-        isOrgWide,
-        effectiveAgencyId
-      );
-      if (summaryData) {
+        // Agency retention summary from prod DB edge function
+        const retRes = await fetchRetentionSummary(agencyParam);
         setAgencySummaries(
-          (summaryData as any[]).map(r => ({
+          retRes.data.agencies.map(r => ({
             agency_id: r.agency_id,
-            active_policies: Number(r.active_policies) || 0,
-            active_premium: Number(r.active_premium) || 0,
-            at_risk_count: Number(r.at_risk_count) || 0,
-            retained_90d: Number(r.retained_90d) || 0,
-            eligible_90d: Number(r.eligible_90d) || 0,
-            retention_pct: r.retention_pct !== null ? Number(r.retention_pct) : null,
+            active_policies: r.active_policies,
+            active_premium: r.active_premium,
+            at_risk_count: r.at_risk_count,
+            retained_90d: r.retained_90d,
+            eligible_90d: r.eligible_90d,
+            retention_pct: r.retention_pct,
           }))
         );
-      }
 
-      // Cohort retention view
-      // Note: view does not have agency_id — org-wide only
-      const { data: cohortData } = await supabase!
-        .from('cohort_retention')
-        .select('*')
-        .order('cohort_month', { ascending: false })
-        .limit(24);
-      if (cohortData) setCohorts(cohortData as unknown as CohortRow[]);
+        // Cohort retention from prod DB edge function
+        const cohortRes = await fetchRetentionCohorts(agencyParam);
+        setCohorts(
+          cohortRes.data.cohorts.slice(-24).reverse().map(c => ({
+            product_type: 'combined',
+            cohort_month: c.month,
+            cohort_size: c.eligible,
+            drafted_first: c.eligible,
+            retained: c.retained,
+            retention_pct: c.retention_pct ?? 0,
+            active_premium: 0,
+          }))
+        );
 
-      // Concentration view — enriched with names
-      const { data: concData } = await scopeToAgency(
-        supabase!
-          .from('agency_concentration')
-          .select('*')
-          .order('active_premium', { ascending: false })
-          .limit(20),
-        isOrgWide,
-        effectiveAgencyId
-      );
-      if (concData) {
+        // Concentration — derive from retention summary
+        const totalPremium = retRes.data.agencies.reduce((s, a) => s + a.active_premium, 0);
         setConcentration(
-          (concData as any[]).map(r => ({
-            ...r,
-            active_premium: Number(r.active_premium) || 0,
-            at_risk_premium: Number(r.at_risk_premium) || 0,
-            at_risk_pct: Number(r.at_risk_pct) || 0,
-            premium_concentration_pct: Number(r.premium_concentration_pct) || 0,
-            name: nameMap.get(r.agency_id) ?? null,
-          }))
+          retRes.data.agencies
+            .map(r => {
+              const atRiskPremium = r.active_policies > 0
+                ? Math.round((r.at_risk_count / r.active_policies) * r.active_premium * 100) / 100
+                : 0;
+              return {
+                agency_id: r.agency_id,
+                name: nameMap.get(r.agency_id) ?? null,
+                active_count: r.active_policies,
+                active_premium: r.active_premium,
+                at_risk_count: r.at_risk_count,
+                at_risk_premium: atRiskPremium,
+                at_risk_pct: r.active_policies > 0 ? Math.round((r.at_risk_count / r.active_policies) * 1000) / 10 : 0,
+                premium_concentration_pct: totalPremium > 0 ? Math.round((r.active_premium / totalPremium) * 1000) / 10 : 0,
+              };
+            })
+            .sort((a, b) => b.active_premium - a.active_premium)
+            .slice(0, 20)
         );
+      } catch (err) {
+        console.error('Admin financials load error:', err);
       }
-
       setLoading(false);
     }
     load();

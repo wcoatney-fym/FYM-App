@@ -5,6 +5,12 @@ import { Badge } from '@/components/ui/badge';
 import { HudFrame } from '@/components/ui/hud-frame';
 import { StaggerContainer, StaggerItem, FadeIn, CountUp, RadialGauge } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
+import {
+  fetchRetentionSummary,
+  fetchRetentionCohorts,
+  fetchDailyProduction,
+  fetchMonthlyProduction,
+} from '@/lib/prod-api';
 import { scopeToAgency } from '@/lib/query-helpers';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { DataFilters } from '@/components/filters/DataFilters';
@@ -12,7 +18,7 @@ import { Link, Navigate } from 'react-router-dom';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ShieldCheck, AlertTriangle, Building2, ChevronRight, ArrowUpRight, ArrowDownRight } from 'lucide-react';
-import { type DatePreset, type DateRange, type DailyRow, type TrendPoint, DEFAULT_PRESET, getDateRange, getGranularity, bucketKey, fmtBucketLabel, fmtMonth } from '@/lib/dateUtils';
+import { type DatePreset, type DateRange, type TrendPoint, DEFAULT_PRESET, getDateRange, getGranularity, bucketKey, fmtBucketLabel, fmtMonth } from '@/lib/dateUtils';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface ProductionSnap {
@@ -83,192 +89,146 @@ export function DashboardPage() {
   }
 
   useEffect(() => {
-    if (!supabase) { setLoading(false); return; }
-
     async function load() {
-      // ── 1. Aggregate stats from agency_retention_summary ──
-      const { data: agencyStats } = await scopeToAgency(
-        supabase!
-          .from('agency_retention_summary')
-          .select('agency_id, active_policies, active_premium, at_risk_count, retained_90d, eligible_90d, retention_pct'),
-        isOrgWide,
-        effectiveAgencyId
-      );
+      try {
+        // ── 1. Aggregate stats from prod DB retention edge function ──
+        const agencyParam = !isOrgWide && effectiveAgencyId
+          ? { agency_id: effectiveAgencyId }
+          : {};
+        const retRes = await fetchRetentionSummary(agencyParam);
+        const allAgencies = retRes.data.agencies;
 
-      let totalActive = 0, totalPremium = 0, totalAtRisk = 0, totalAtRiskPremium = 0;
-      let totalRetained = 0, totalEligible = 0;
-      let belowTarget = 0;
-      const agencyRows: AgencyRisk[] = [];
+        let totalActive = 0, totalPremium = 0, totalAtRisk = 0, totalAtRiskPremium = 0;
+        let totalRetained = 0, totalEligible = 0;
+        let belowTarget = 0;
+        const agencyRows: AgencyRisk[] = [];
 
-      if (agencyStats) {
         const filteredStats = filterAgencyId
-          ? (agencyStats as any[]).filter((a: any) => a.agency_id === filterAgencyId)
-          : (agencyStats as any[]);
+          ? allAgencies.filter(a => a.agency_id === filterAgencyId)
+          : allAgencies;
+
         for (const a of filteredStats) {
-          totalActive += Number(a.active_policies) || 0;
-          totalPremium += Number(a.active_premium) || 0;
-          totalAtRisk += Number(a.at_risk_count) || 0;
-          totalRetained += Number(a.retained_90d) || 0;
-          totalEligible += Number(a.eligible_90d) || 0;
-          if (a.retention_pct !== null && Number(a.retention_pct) < 90) belowTarget++;
+          totalActive += a.active_policies;
+          totalPremium += a.active_premium;
+          totalAtRisk += a.at_risk_count;
+          totalRetained += a.retained_90d;
+          totalEligible += a.eligible_90d;
+          if (a.retention_pct !== null && a.retention_pct < 90) belowTarget++;
           agencyRows.push({
             agency_id: a.agency_id,
             name: null,
-            active_policies: Number(a.active_policies),
-            active_premium: Number(a.active_premium),
-            at_risk_count: Number(a.at_risk_count),
-            retention_pct: a.retention_pct !== null ? Number(a.retention_pct) : null,
+            active_policies: a.active_policies,
+            active_premium: a.active_premium,
+            at_risk_count: a.at_risk_count,
+            retention_pct: a.retention_pct,
           });
         }
-      }
 
-      // Get at-risk premium from concentration view
-      const { data: concData } = await scopeToAgency(
-        supabase!
-          .from('agency_concentration')
-          .select('at_risk_premium'),
-        isOrgWide,
-        effectiveAgencyId
-      );
-      if (concData) {
-        totalAtRiskPremium = (concData as any[]).reduce((s, r) => s + (Number(r.at_risk_premium) || 0), 0);
-      }
+        // At-risk premium estimated from at-risk count * avg premium
+        totalAtRiskPremium = totalPremium > 0 && totalActive > 0
+          ? Math.round((totalAtRisk * (totalPremium / totalActive)) * 100) / 100
+          : 0;
 
-      const overallRetention = totalEligible > 0
-        ? Math.round((totalRetained / totalEligible) * 1000) / 10
-        : null;
+        const overallRetention = totalEligible > 0
+          ? Math.round((totalRetained / totalEligible) * 1000) / 10
+          : null;
 
-      setStats({
-        active_policies: totalActive,
-        active_premium: totalPremium,
-        at_risk_count: totalAtRisk,
-        at_risk_premium: totalAtRiskPremium,
-        retention_pct: overallRetention,
-        agencies_below_target: belowTarget,
-        total_agencies: agencyRows.length,
-      });
+        setStats({
+          active_policies: totalActive,
+          active_premium: totalPremium,
+          at_risk_count: totalAtRisk,
+          at_risk_premium: totalAtRiskPremium,
+          retention_pct: overallRetention,
+          agencies_below_target: belowTarget,
+          total_agencies: agencyRows.length,
+        });
 
-      // Enrich agency names
-      const { data: agencyNames } = await scopeToAgency(
-        (supabase as any)
-          .from('agencies')
-          .select('tracker_id, name'),
-        isOrgWide,
-        effectiveAgencyId,
-        'tracker_id'
-      );
-      const nameMap = new Map<string, string>();
-      if (agencyNames) {
-        for (const a of agencyNames as any[]) {
-          if (a.tracker_id) nameMap.set(a.tracker_id, a.name);
-        }
-      }
-
-      // Bottom agencies by retention (coaching signals)
-      const bottom = agencyRows
-        .filter(a => a.retention_pct !== null)
-        .map(a => ({ ...a, name: nameMap.get(a.agency_id) ?? null }))
-        .sort((a, b) => (a.retention_pct ?? 100) - (b.retention_pct ?? 100))
-        .slice(0, 8);
-      setBottomAgencies(bottom);
-
-      // ── 2. Cohort retention trend from cohort_retention view ──
-      // Note: view does not have agency_id — org-wide only
-      const { data: cohorts } = await supabase!
-        .from('cohort_retention')
-        .select('product_type, cohort_month, drafted_first, retained, retention_pct')
-        .order('cohort_month', { ascending: true });
-
-      if (cohorts) {
-        const monthMap: Record<string, { hi: number | null; hhc: number | null; hiD: number; hiR: number; hhcD: number; hhcR: number }> = {};
-        for (const c of cohorts as any[]) {
-          const key = (c.cohort_month as string).slice(0, 7);
-          if (!monthMap[key]) monthMap[key] = { hi: null, hhc: null, hiD: 0, hiR: 0, hhcD: 0, hhcR: 0 };
-          const entry = monthMap[key];
-          if (c.product_type === 'HI') {
-            entry.hi = Number(c.retention_pct);
-            entry.hiD += Number(c.drafted_first);
-            entry.hiR += Number(c.retained);
-          } else if (c.product_type === 'HHC') {
-            entry.hhc = Number(c.retention_pct);
-            entry.hhcD += Number(c.drafted_first);
-            entry.hhcR += Number(c.retained);
+        // Enrich agency names from rcbzag (stays — not policy_cache)
+        const nameMap = new Map<string, string>();
+        if (supabase) {
+          const { data: agencyNames } = await scopeToAgency(
+            (supabase as any)
+              .from('agencies')
+              .select('tracker_id, name'),
+            isOrgWide,
+            effectiveAgencyId,
+            'tracker_id'
+          );
+          if (agencyNames) {
+            for (const a of agencyNames as any[]) {
+              if (a.tracker_id) nameMap.set(a.tracker_id, a.name);
+            }
           }
         }
 
-        const trendPoints: CohortPoint[] = Object.entries(monthMap)
-          .sort(([a], [b]) => a.localeCompare(b))
-          .slice(-12)
-          .map(([month, v]) => {
-            const totalD = v.hiD + v.hhcD;
-            const totalR = v.hiR + v.hhcR;
-            const combined = totalD > 0 ? Math.round((totalR / totalD) * 1000) / 10 : null;
-            return {
-              month: fmtMonth(month + '-01'),
-              hi: v.hi,
-              hhc: v.hhc,
-              combined,
-            };
-          });
-        setTrend(trendPoints);
-      }
+        // Bottom agencies by retention (coaching signals)
+        const bottom = agencyRows
+          .filter(a => a.retention_pct !== null)
+          .map(a => ({ ...a, name: nameMap.get(a.agency_id) ?? null }))
+          .sort((a, b) => (a.retention_pct ?? 100) - (b.retention_pct ?? 100))
+          .slice(0, 8);
+        setBottomAgencies(bottom);
 
-      // ── 3. Production snapshot — daily RPC for date-filtered, monthly view for all-time ──
-      const useRpc = datePreset !== 'allTime';
-      const gran = getGranularity(dateRange);
-
-      if (useRpc) {
-        const startDate = dateRange.startDate.split('T')[0];
-        const endDate = dateRange.endDate.split('T')[0];
-        const { data: dailyData } = await supabase!.rpc('filtered_daily_production', {
-          start_date: startDate,
-          end_date: endDate,
-        });
-        let rows = (dailyData || []) as unknown as DailyRow[];
-        if (!isOrgWide && effectiveAgencyId) {
-          rows = rows.filter(r => r.agency_id === effectiveAgencyId);
-        } else if (filterAgencyId) {
-          rows = rows.filter(r => r.agency_id === filterAgencyId);
+        // ── 2. Cohort retention trend from prod DB edge function ──
+        const cohortRes = await fetchRetentionCohorts(agencyParam);
+        if (cohortRes.data.cohorts.length > 0) {
+          const trendPoints: CohortPoint[] = cohortRes.data.cohorts
+            .slice(-12)
+            .map(c => ({
+              month: fmtMonth(c.month + '-01'),
+              hi: null,
+              hhc: null,
+              combined: c.retention_pct,
+            }));
+          setTrend(trendPoints);
         }
 
-        // Build trend with adaptive granularity
-        const byBucket = new Map<string, { policies: number; ap: number }>();
-        rows.forEach(r => {
-          const key = bucketKey(r.day, gran);
-          const existing = byBucket.get(key) || { policies: 0, ap: 0 };
-          existing.policies += Number(r.policies);
-          existing.ap += Number(r.annual_premium);
-          byBucket.set(key, existing);
-        });
-        const trendArr: TrendPoint[] = Array.from(byBucket.entries())
-          .map(([b, v]) => ({ bucket: b, label: fmtBucketLabel(b, gran), policies: v.policies, ap: v.ap }))
-          .sort((a, b) => a.bucket.localeCompare(b.bucket));
+        // ── 3. Production snapshot from prod DB edge function ──
+        const useRpc = datePreset !== 'allTime';
+        const gran = getGranularity(dateRange);
+        const prodAgencyParam = filterAgencyId
+          ? { agency_id: filterAgencyId }
+          : agencyParam;
 
-        const totalPolicies = rows.reduce((s, r) => s + Number(r.policies), 0);
-        const totalAp = rows.reduce((s, r) => s + Number(r.annual_premium), 0);
+        if (useRpc) {
+          const startDate = dateRange.startDate.split('T')[0];
+          const endDate = dateRange.endDate.split('T')[0];
+          const dailyData = await fetchDailyProduction({
+            ...prodAgencyParam,
+            start_date: startDate,
+            end_date: endDate,
+          });
 
-        setProduction({
-          policiesThisMonth: totalPolicies,
-          apThisMonth: totalAp,
-          policiesLastMonth: 0,
-          apLastMonth: 0,
-          trend: trendArr,
-        });
-      } else {
-        const { data: monthProd } = await scopeToAgency(
-          supabase!
-            .from('monthly_production')
-            .select('month, policies, annual_premium'),
-          isOrgWide,
-          effectiveAgencyId
-        );
+          const byBucket = new Map<string, { policies: number; ap: number }>();
+          dailyData.forEach(r => {
+            const key = bucketKey(r.day, gran);
+            const existing = byBucket.get(key) || { policies: 0, ap: 0 };
+            existing.policies += r.policies;
+            existing.ap += r.annual_premium;
+            byBucket.set(key, existing);
+          });
+          const trendArr: TrendPoint[] = Array.from(byBucket.entries())
+            .map(([b, v]) => ({ bucket: b, label: fmtBucketLabel(b, gran), policies: v.policies, ap: v.ap }))
+            .sort((a, b) => a.bucket.localeCompare(b.bucket));
 
-        if (monthProd) {
+          const totalPolicies = dailyData.reduce((s, r) => s + r.policies, 0);
+          const totalAp = dailyData.reduce((s, r) => s + r.annual_premium, 0);
+
+          setProduction({
+            policiesThisMonth: totalPolicies,
+            apThisMonth: totalAp,
+            policiesLastMonth: 0,
+            apLastMonth: 0,
+            trend: trendArr,
+          });
+        } else {
+          const monthlyData = await fetchMonthlyProduction(prodAgencyParam);
+
           const byMonth = new Map<string, { policies: number; ap: number }>();
-          for (const r of monthProd as any[]) {
+          for (const r of monthlyData) {
             const existing = byMonth.get(r.month) || { policies: 0, ap: 0 };
-            existing.policies += Number(r.policies);
-            existing.ap += Number(r.annual_premium);
+            existing.policies += r.policies;
+            existing.ap += r.annual_premium;
             byMonth.set(r.month, existing);
           }
 
@@ -293,9 +253,12 @@ export function DashboardPage() {
             trend: trendArr,
           });
         }
-      }
 
-      setLoading(false);
+        setLoading(false);
+      } catch (err) {
+        console.error('Dashboard load error:', err);
+        setLoading(false);
+      }
     }
 
     load();
