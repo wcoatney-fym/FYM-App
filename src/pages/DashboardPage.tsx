@@ -83,11 +83,6 @@ export function DashboardPage() {
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
 
-  // Agents don't get the org/agency dashboard — send them to their personal book health view.
-  if (effectiveRole === 'agent') {
-    return <Navigate to="/my-health" replace />;
-  }
-
   useEffect(() => {
     async function load() {
       try {
@@ -265,6 +260,11 @@ export function DashboardPage() {
   }, [effectiveAgencyId, isOrgWide, dateRange, datePreset, filterAgencyId]);
 
   const s = stats;
+
+  // Agents don't get the org/agency dashboard — redirect AFTER all hooks.
+  if (effectiveRole === 'agent') {
+    return <Navigate to="/my-health" replace />;
+  }
 
   return (
     <div>

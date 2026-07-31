@@ -49,11 +49,6 @@ export function AgenciesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
-  // Managers / agency admins: redirect to their own agency detail
-  if (!isOrgWide && effectiveAgencyId) {
-    return <Navigate to={`/agencies/${effectiveAgencyId}`} replace />;
-  }
-
   useEffect(() => {
     if (!supabase) { setLoading(false); return; }
     async function load() {
@@ -98,6 +93,12 @@ export function AgenciesPage() {
     }
     load();
   }, []);
+
+  // Managers / agency admins: redirect to their own agency detail
+  // Placed AFTER all hooks to satisfy React's rules of hooks.
+  if (!isOrgWide && effectiveAgencyId) {
+    return <Navigate to={`/agencies/${effectiveAgencyId}`} replace />;
+  }
 
   const filtered = useMemo(() => {
     if (!search) return rows;

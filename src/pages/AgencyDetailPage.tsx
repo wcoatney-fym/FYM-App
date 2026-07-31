@@ -84,11 +84,6 @@ export function AgencyDetailPage() {
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [togglingTask, setTogglingTask] = useState<string | null>(null);
 
-  // Guard: managers / agency admins cannot view another agency's detail page
-  if (!isOrgWide && effectiveAgencyId && agencyId !== effectiveAgencyId) {
-    return <Navigate to="/" replace />;
-  }
-
   useEffect(() => {
     if (!supabase || !agencyId) { setLoading(false); return; }
     const targetId = agencyId;
@@ -231,6 +226,12 @@ export function AgencyDetailPage() {
 
   const agencyName = info?.name ?? agencyId?.slice(0, 8) + '…';
   const s = summary;
+
+  // Guard: managers / agency admins cannot view another agency's detail page
+  // Placed AFTER all hooks to satisfy React's rules of hooks.
+  if (!isOrgWide && effectiveAgencyId && agencyId !== effectiveAgencyId) {
+    return <Navigate to="/" replace />;
+  }
 
   if (loading) {
     return (
