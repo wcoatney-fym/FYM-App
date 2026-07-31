@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
       role,
       temp_password: password,
       policies_will_link: count ?? 0,
-      note: 'Policies link on next nightly sync (4 AM CT). Run sync-policy-cache now to link immediately.',
+      note: 'Policies are read live from production DB via edge functions.',
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (err) {
