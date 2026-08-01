@@ -20,6 +20,12 @@ export interface RosterMap {
   /** Given an agent's writing number and the hierarchy-derived agency,
    *  return the roster-overridden agency writing number (or the hierarchy one). */
   resolveAgency(agentWn: string | null, hierarchyAgencyWn: string | null): string | null;
+  /** Scan ALL writing numbers from a policy's roster hierarchy and return
+   *  the first roster-matched agency writing number, or the hierarchy default. */
+  resolveAgencyFromHierarchy(
+    rosterHierarchy: Array<{ writing_number: string; depth: string; is_person: boolean; name: string }> | null,
+    hierarchyAgencyWn: string | null
+  ): string | null;
   /** Number of roster entries loaded */
   size: number;
 }
@@ -84,6 +90,24 @@ export async function loadRosterMap(): Promise<RosterMap> {
     resolveAgency(agentWn: string | null, hierarchyAgencyWn: string | null): string | null {
       if (agentWn && map.has(agentWn)) {
         return map.get(agentWn)!;
+      }
+      return hierarchyAgencyWn;
+    },
+    resolveAgencyFromHierarchy(
+      rosterHierarchy: Array<{ writing_number: string; depth: string; is_person: boolean; name: string }> | null,
+      hierarchyAgencyWn: string | null
+    ): string | null {
+      if (rosterHierarchy && Array.isArray(rosterHierarchy)) {
+        // Check all writing numbers in the hierarchy (deepest first = person entries)
+        // The first match wins — this handles agents whose individual writing number
+        // appears at any depth in the hierarchy.
+        const sorted = [...rosterHierarchy].sort((a, b) => b.depth.localeCompare(a.depth));
+        for (const entry of sorted) {
+          const wn = entry.writing_number?.trim();
+          if (wn && map.has(wn)) {
+            return map.get(wn)!;
+          }
+        }
       }
       return hierarchyAgencyWn;
     },

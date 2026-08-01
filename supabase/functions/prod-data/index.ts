@@ -157,8 +157,11 @@ Deno.serve(async (req) => {
         const hierarchyAgencyWn = extractAgencyWritingNumber(roster);
         const agentWn = extractAgentWritingNumber(roster);
 
-        // Roster override: if agent is in a roster, use that agency assignment
-        const agencyWn = rosterMap.resolveAgency(agentWn, hierarchyAgencyWn);
+        // Roster override: scan ALL hierarchy writing numbers for a roster match.
+        // This catches agents whose individual writing number appears at any
+        // depth in the UNL hierarchy, even if extractAgentWritingNumber returns
+        // a different entry.
+        const agencyWn = rosterMap.resolveAgencyFromHierarchy(roster, hierarchyAgencyWn);
         const agencyId = agencyWn || "unknown";
 
         // Apply agency filter if set

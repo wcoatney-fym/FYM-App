@@ -117,8 +117,7 @@ Deno.serve(async (req) => {
         // Agency filter — use roster override when available
         if (agencyFilter) {
           const hierarchyAgencyWn = extractAgencyWritingNumber(roster);
-          const agentWn = extractAgentWritingNumber(roster);
-          const resolvedAgencyWn = rosterMap.resolveAgency(agentWn, hierarchyAgencyWn);
+          const resolvedAgencyWn = rosterMap.resolveAgencyFromHierarchy(roster, hierarchyAgencyWn);
           if (resolvedAgencyWn !== agencyFilter) continue;
         }
 
