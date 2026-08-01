@@ -30,6 +30,7 @@ import {
   jsonResponse,
   corsResponse,
 } from "../_shared/prod-db.ts";
+import { loadRosterMap } from "../_shared/roster-map.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return corsResponse();
@@ -47,9 +48,10 @@ Deno.serve(async (req) => {
   try {
     sql = createProdConnection();
 
-    // Agency identification: use the writing number from the roster hierarchy
-    // directly as the agency_id. The frontend resolves names from its own
-    // agencies table. No cross-DB lookup needed.
+    // Load roster-based agent→agency overrides from FYM App DB.
+    // When an agent's writing number exists in a roster, the roster's
+    // agency assignment takes precedence over the UNL hierarchy.
+    const rosterMap = await loadRosterMap();
 
     // Build the base query with optional date filter
     const dateFilter = startDate && endDate
@@ -152,13 +154,19 @@ Deno.serve(async (req) => {
           name: string;
         }> | null;
 
-        const agencyWn = extractAgencyWritingNumber(roster);
+        const hierarchyAgencyWn = extractAgencyWritingNumber(roster);
+        const agentWn = extractAgentWritingNumber(roster);
+
+        // Roster override: scan ALL hierarchy writing numbers for a roster match.
+        // This catches agents whose individual writing number appears at any
+        // depth in the UNL hierarchy, even if extractAgentWritingNumber returns
+        // a different entry.
+        const agencyWn = rosterMap.resolveAgencyFromHierarchy(roster, hierarchyAgencyWn);
         const agencyId = agencyWn || "unknown";
 
         // Apply agency filter if set
         if (agencyFilter && agencyId !== agencyFilter) continue;
 
-        const agentWn = extractAgentWritingNumber(roster);
         // Apply agent filter if set
         if (agentFilter && agentWn !== agentFilter) continue;
 

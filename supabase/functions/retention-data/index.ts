@@ -27,6 +27,7 @@ import {
   jsonResponse,
   corsResponse,
 } from "../_shared/prod-db.ts";
+import { loadRosterMap } from "../_shared/roster-map.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return corsResponse();
@@ -41,6 +42,9 @@ Deno.serve(async (req) => {
 
   try {
     sql = createProdConnection();
+
+    // Load roster-based agent→agency overrides from FYM App DB.
+    const rosterMap = await loadRosterMap();
 
     const FETCH_SIZE = 5000;
     let offset = 0;
@@ -125,8 +129,11 @@ Deno.serve(async (req) => {
           name: string;
         }> | null;
 
-        const agencyWn = extractAgencyWritingNumber(roster);
+        const hierarchyAgencyWn = extractAgencyWritingNumber(roster);
         const agentWn = extractAgentWritingNumber(roster);
+
+        // Roster override: scan ALL hierarchy writing numbers for a roster match
+        const agencyWn = rosterMap.resolveAgencyFromHierarchy(roster, hierarchyAgencyWn);
 
         // Agency filter
         if (agencyFilter && agencyWn !== agencyFilter) continue;
