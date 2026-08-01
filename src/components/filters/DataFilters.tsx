@@ -58,16 +58,16 @@ export function DataFilters({
   const [loadingAgencies, setLoadingAgencies] = useState(true);
   const [loadingAgents, setLoadingAgents] = useState(false);
 
-  // Load agencies on mount — only show agencies with a writing_number mapped,
-  // since edge functions key by writing_number. Agencies without one have no
-  // production data and would always show zeros if selected.
+  // Load all active agencies on mount.
+  // Agencies with a writing_number have production data in Max's DB.
+  // Agencies without one are shown but marked — selecting them will show
+  // a "no production data" state on the dashboard.
   useEffect(() => {
     if (!supabase) { setLoadingAgencies(false); return; }
     supabase
       .from('agencies')
       .select('id, tracker_id, writing_number, name')
       .eq('is_active', true)
-      .not('writing_number', 'is', null)
       .order('name')
       .then(({ data }) => {
         if (data) setAgencies(data as AgencyOption[]);
@@ -134,8 +134,8 @@ export function DataFilters({
         >
           <option value="">{loadingAgencies ? 'Loading…' : 'All Agencies'}</option>
           {agencies.map(a => (
-            <option key={a.id} value={a.writing_number ?? a.tracker_id ?? a.id}>
-              {a.name}
+            <option key={a.id} value={a.writing_number ?? `no-data:${a.id}`}>
+              {a.name}{a.writing_number ? '' : ' (no data yet)'}
             </option>
           ))}
         </select>
