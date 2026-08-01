@@ -111,7 +111,7 @@ function TrendBadge({ recent, prior }: { recent: number | null; prior: number | 
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function RetentionPage() {
-  const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
+  const { effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide } = useEffectiveAuth();
   const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
   const [orgCohorts, setOrgCohorts] = useState<CohortRow[]>([]);
   const [agencies, setAgencies] = useState<AgencyOverviewRow[]>([]);
@@ -127,7 +127,7 @@ export function RetentionPage() {
     async function load() {
       setLoading(true);
       try {
-        const agencyParam = !isOrgWide && effectiveAgencyId ? { agency_id: effectiveAgencyId } : {};
+        const agencyParam = !isOrgWide && effectiveAgencyWritingNumber ? { agency_id: effectiveAgencyWritingNumber } : {};
 
         // Cohort data from prod DB edge function
         const cohortRes = await fetchRetentionCohorts(agencyParam);
@@ -160,10 +160,11 @@ export function RetentionPage() {
         if (supabase) {
           const { data: nameData } = await (supabase as any)
             .from('agencies')
-            .select('tracker_id, name');
+            .select('tracker_id, writing_number, name');
           if (nameData) {
             const nameMap = new Map<string, string>();
             for (const a of nameData as any[]) {
+              if (a.writing_number) nameMap.set(a.writing_number, a.name);
               if (a.tracker_id) nameMap.set(a.tracker_id, a.name);
             }
             allAgencies.forEach(a => {
@@ -183,7 +184,7 @@ export function RetentionPage() {
       }
     }
     load();
-  }, [effectiveAgencyId, isOrgWide]);
+  }, [effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide]);
 
   // Cohort retention is always a historical lookback — the time filter controls
   // which *issue-date cohorts* appear. For "This Month" or very narrow ranges

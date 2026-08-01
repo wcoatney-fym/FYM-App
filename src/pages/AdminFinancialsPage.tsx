@@ -71,7 +71,7 @@ function fmtMonth(iso: string) {
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function AdminFinancialsPage() {
-  const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
+  const { effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide } = useEffectiveAuth();
   const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
   const [cohorts, setCohorts] = useState<CohortRow[]>([]);
   const [concentration, setConcentration] = useState<ConcentrationRow[]>([]);
@@ -81,7 +81,7 @@ export function AdminFinancialsPage() {
   useEffect(() => {
     async function load() {
       try {
-        const agencyParam = !isOrgWide && effectiveAgencyId ? { agency_id: effectiveAgencyId } : {};
+        const agencyParam = !isOrgWide && effectiveAgencyWritingNumber ? { agency_id: effectiveAgencyWritingNumber } : {};
 
         // Agency names map from rcbzag (stays)
         const nameMap = new Map<string, string>();
@@ -89,13 +89,14 @@ export function AdminFinancialsPage() {
           const { data: agencyNames } = await scopeToAgency(
             (supabase as any)
               .from('agencies')
-              .select('tracker_id, name'),
+              .select('tracker_id, writing_number, name'),
             isOrgWide,
             effectiveAgencyId,
             'tracker_id'
           );
           if (agencyNames) {
             for (const a of agencyNames as any[]) {
+              if (a.writing_number) nameMap.set(a.writing_number, a.name);
               if (a.tracker_id) nameMap.set(a.tracker_id, a.name);
             }
           }
@@ -157,7 +158,7 @@ export function AdminFinancialsPage() {
       setLoading(false);
     }
     load();
-  }, [effectiveAgencyId, isOrgWide, filterAgencyId]);
+  }, [effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide, filterAgencyId]);
 
   // ── Derived stats from pre-computed views ────────────────────────────────
   const stats = useMemo(() => {

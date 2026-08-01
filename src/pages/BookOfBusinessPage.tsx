@@ -63,7 +63,7 @@ const PAGE_SIZE = 25;
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function BookOfBusinessPage() {
-  const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
+  const { effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide } = useEffectiveAuth();
   const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -90,7 +90,7 @@ export function BookOfBusinessPage() {
   useEffect(() => {
     async function loadSummary() {
       try {
-        const agencyId = filterAgencyId || (!isOrgWide && effectiveAgencyId ? effectiveAgencyId : undefined);
+        const agencyId = filterAgencyId || (!isOrgWide && effectiveAgencyWritingNumber ? effectiveAgencyWritingNumber : undefined);
         const summaryRes = await fetchBookOfBusiness({
           agency_id: agencyId,
           agent_wn: filterAgentId || undefined,
@@ -110,13 +110,13 @@ export function BookOfBusinessPage() {
       }
     }
     loadSummary();
-  }, [effectiveAgencyId, isOrgWide, filterAgencyId, filterAgentId, dateStart, dateEnd]);
+  }, [effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide, filterAgencyId, filterAgentId, dateStart, dateEnd]);
 
   // Load paginated policies from prod DB edge function
   const loadPolicies = useCallback(async () => {
     setLoading(true);
     try {
-      const agencyId = filterAgencyId || (!isOrgWide && effectiveAgencyId ? effectiveAgencyId : undefined);
+      const agencyId = filterAgencyId || (!isOrgWide && effectiveAgencyWritingNumber ? effectiveAgencyWritingNumber : undefined);
       const res = await fetchBookOfBusiness({
         agency_id: agencyId,
         agent_wn: filterAgentId || undefined,
@@ -158,7 +158,7 @@ export function BookOfBusinessPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, statusFilter, productFilter, search, effectiveAgencyId, isOrgWide, filterAgencyId, filterAgentId, dateStart, dateEnd]);
+  }, [page, statusFilter, productFilter, search, effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide, filterAgencyId, filterAgentId, dateStart, dateEnd]);
 
   useEffect(() => { loadPolicies(); }, [loadPolicies]);
 
@@ -174,7 +174,7 @@ export function BookOfBusinessPage() {
     const PG = 500;
     while (true) {
       try {
-        const agencyId = filterAgencyId || (!isOrgWide && effectiveAgencyId ? effectiveAgencyId : undefined);
+        const agencyId = filterAgencyId || (!isOrgWide && effectiveAgencyWritingNumber ? effectiveAgencyWritingNumber : undefined);
         const res = await fetchBookOfBusiness({
           agency_id: agencyId,
           status: statusFilter !== 'all' ? statusFilter : undefined,

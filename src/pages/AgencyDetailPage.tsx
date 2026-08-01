@@ -90,19 +90,38 @@ export function AgencyDetailPage() {
 
     async function load() {
       // Agency name from agencies table (stays in rcbzag)
+      // Resolve by writing_number first (edge function links), then tracker_id (legacy links)
+      let resolvedWritingNumber = targetId;
       if (supabase) {
-        const { data: agencyData } = await (supabase as any)
+        let agencyData = null;
+        // Try writing_number first (new links from edge function data)
+        const { data: byWn } = await (supabase as any)
           .from('agencies')
-          .select('tracker_id, name, slug, is_active')
-          .eq('tracker_id', targetId)
+          .select('tracker_id, writing_number, name, slug, is_active')
+          .eq('writing_number', targetId)
           .maybeSingle();
+        if (byWn) {
+          agencyData = byWn;
+          resolvedWritingNumber = byWn.writing_number;
+        } else {
+          // Fallback: try tracker_id (legacy links)
+          const { data: byTracker } = await (supabase as any)
+            .from('agencies')
+            .select('tracker_id, writing_number, name, slug, is_active')
+            .eq('tracker_id', targetId)
+            .maybeSingle();
+          if (byTracker) {
+            agencyData = byTracker;
+            resolvedWritingNumber = byTracker.writing_number || targetId;
+          }
+        }
         if (agencyData) setInfo(agencyData as AgencyInfo);
       }
 
-      // Retention summary from prod DB edge function
+      // Retention summary from prod DB edge function (use writing_number)
       try {
-        const retRes = await fetchRetentionSummary({ agency_id: targetId });
-        const agencySummary = retRes.data.agencies.find((a) => a.agency_id === targetId);
+        const retRes = await fetchRetentionSummary({ agency_id: resolvedWritingNumber });
+        const agencySummary = retRes.data.agencies.find((a) => a.agency_id === resolvedWritingNumber);
         if (agencySummary) {
           setSummary({
             agency_id: agencySummary.agency_id,
@@ -125,7 +144,7 @@ export function AgencyDetailPage() {
         const PAGE_SIZE = 500;
         while (true) {
           const bobRes = await fetchBookOfBusiness({
-            agency_id: targetId,
+            agency_id: resolvedWritingNumber,
             sort: 'premium',
             order: 'desc',
             page,
