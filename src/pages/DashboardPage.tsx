@@ -73,7 +73,7 @@ function retentionColor(pct: number | null) {
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function DashboardPage() {
-  const { effectiveRole, effectiveAgencyId, isOrgWide } = useEffectiveAuth();
+  const { effectiveRole, effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide } = useEffectiveAuth();
   const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
   const [stats, setStats] = useState<DashStats | null>(null);
   const [trend, setTrend] = useState<CohortPoint[]>([]);
@@ -87,8 +87,8 @@ export function DashboardPage() {
     async function load() {
       try {
         // ── 1. Aggregate stats from prod DB retention edge function ──
-        const agencyParam = !isOrgWide && effectiveAgencyId
-          ? { agency_id: effectiveAgencyId }
+        const agencyParam = !isOrgWide && effectiveAgencyWritingNumber
+          ? { agency_id: effectiveAgencyWritingNumber }
           : {};
         const retRes = await fetchRetentionSummary(agencyParam);
         const allAgencies = retRes.data.agencies;
@@ -144,13 +144,16 @@ export function DashboardPage() {
           const { data: agencyNames } = await scopeToAgency(
             (supabase as any)
               .from('agencies')
-              .select('tracker_id, name'),
+              .select('tracker_id, writing_number, name'),
             isOrgWide,
             effectiveAgencyId,
             'tracker_id'
           );
           if (agencyNames) {
             for (const a of agencyNames as any[]) {
+              // Key by writing_number (matches edge function agency_id)
+              if (a.writing_number) nameMap.set(a.writing_number, a.name);
+              // Also key by tracker_id as fallback
               if (a.tracker_id) nameMap.set(a.tracker_id, a.name);
             }
           }
@@ -257,7 +260,7 @@ export function DashboardPage() {
     }
 
     load();
-  }, [effectiveAgencyId, isOrgWide, dateRange, datePreset, filterAgencyId]);
+  }, [effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide, dateRange, datePreset, filterAgencyId]);
 
   const s = stats;
 

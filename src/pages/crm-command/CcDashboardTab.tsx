@@ -39,7 +39,7 @@ const RECRUITING_STAGES = ['hip_broker', 'hip_career', 'iaa', 'signed_iaa'];
 const ACTIVE_LEAD_EXCLUDED_STAGES = ['terminated', 'rts', 'actively_selling'];
 
 export function CcDashboardTab() {
-  const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
+  const { effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide } = useEffectiveAuth();
   const tasks = useTasksStore((s) => s.tasks);
   const loadLiveTasks = useTasksStore((s) => s.loadLive);
   const tasksSource = useTasksStore((s) => s.source);
@@ -97,7 +97,7 @@ export function CcDashboardTab() {
         const now = new Date();
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
         // Placements MTD — from prod DB edge function
-        const agencyParam = !isOrgWide && effectiveAgencyId ? { agency_id: effectiveAgencyId } : {};
+        const agencyParam = !isOrgWide && effectiveAgencyWritingNumber ? { agency_id: effectiveAgencyWritingNumber } : {};
         const bobAllRes = await fetchBookOfBusiness({
           ...agencyParam,
           page_size: 1,
@@ -149,7 +149,7 @@ export function CcDashboardTab() {
         setCancelRate('0');
       }
     })();
-  }, [isOrgWide, effectiveAgencyId]);
+  }, [isOrgWide, effectiveAgencyId, effectiveAgencyWritingNumber]);
 
   useEffect(() => {
     (async () => {

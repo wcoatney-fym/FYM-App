@@ -16,6 +16,7 @@ export interface Database {
         Row: {
           id: string;
           tracker_id: string | null;
+          writing_number: string | null;
           name: string;
           slug: string | null;
           is_active: boolean;

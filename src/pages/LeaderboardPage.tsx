@@ -102,7 +102,7 @@ function periodStart(p: Period): string | null {
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function LeaderboardPage() {
-  const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
+  const { effectiveAgencyWritingNumber, isOrgWide } = useEffectiveAuth();
   const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
   const [rows, setRows] = useState<AgencyLeaderRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -158,9 +158,10 @@ export function LeaderboardPage() {
         if (supabase) {
           const { data: agencyNames } = await (supabase as any)
             .from('agencies')
-            .select('tracker_id, name');
+            .select('tracker_id, writing_number, name');
           if (agencyNames) {
             for (const a of agencyNames as any[]) {
+              if (a.writing_number) nameMap.set(a.writing_number, a.name);
               if (a.tracker_id) nameMap.set(a.tracker_id, a.name);
             }
           }
@@ -472,14 +473,14 @@ export function LeaderboardPage() {
                       className={`grid gap-2 px-4 py-3 items-center text-sm hover:bg-background/80 transition-colors ${
                         period !== 'all' ? 'grid-cols-13' : 'grid-cols-12'
                       } ${r.rank <= 3 ? 'bg-amber-500/10' : ''} ${
-                        !isOrgWide && effectiveAgencyId === r.agency_id ? 'ring-1 ring-primary/40 bg-primary/5' : ''
+                        !isOrgWide && effectiveAgencyWritingNumber === r.agency_id ? 'ring-1 ring-primary/40 bg-primary/5' : ''
                       }`}
                     >
                       <span className="col-span-1 text-center">{rankBadge(r.rank)}</span>
                       <span className={`font-medium text-foreground truncate flex items-center gap-1.5 ${period !== 'all' ? 'col-span-2' : 'col-span-3'}`}>
                         <span className="truncate">
                           {r.name ?? <span className="font-data text-xs text-muted-foreground/70">{r.agency_id.slice(0, 12)}…</span>}
-                          {!isOrgWide && effectiveAgencyId === r.agency_id && (
+                          {!isOrgWide && effectiveAgencyWritingNumber === r.agency_id && (
                             <span className="ml-1.5 text-[10px] text-primary font-semibold">YOU</span>
                           )}
                         </span>

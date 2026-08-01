@@ -44,7 +44,7 @@ function fmt$(n: number) {
 }
 
 export function AgenciesPage() {
-  const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
+  const { effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide } = useEffectiveAuth();
   const [rows, setRows] = useState<AgencyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -64,9 +64,12 @@ export function AgenciesPage() {
         if (supabase) {
           const { data: agencyNames } = await (supabase as any)
             .from('agencies')
-            .select('tracker_id, name, slug, is_active');
+            .select('tracker_id, writing_number, name, slug, is_active');
           if (agencyNames) {
             for (const a of agencyNames as any[]) {
+              // Key by writing_number (matches edge function agency_id)
+              if (a.writing_number) nameMap.set(a.writing_number, { name: a.name, slug: a.slug ?? undefined, is_active: a.is_active });
+              // Also key by tracker_id as fallback
               if (a.tracker_id) nameMap.set(a.tracker_id, { name: a.name, slug: a.slug ?? undefined, is_active: a.is_active });
             }
           }
@@ -96,8 +99,8 @@ export function AgenciesPage() {
 
   // Managers / agency admins: redirect to their own agency detail
   // Placed AFTER all hooks to satisfy React's rules of hooks.
-  if (!isOrgWide && effectiveAgencyId) {
-    return <Navigate to={`/agencies/${effectiveAgencyId}`} replace />;
+  if (!isOrgWide && (effectiveAgencyWritingNumber || effectiveAgencyId)) {
+    return <Navigate to={`/agencies/${effectiveAgencyWritingNumber || effectiveAgencyId}`} replace />;
   }
 
   const filtered = useMemo(() => {

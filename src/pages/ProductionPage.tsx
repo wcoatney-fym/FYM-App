@@ -106,7 +106,7 @@ function fmtMonth(iso: string) {
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function ProductionPage() {
-  const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
+  const { effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide } = useEffectiveAuth();
   const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
   const [stats, setStats] = useState<OrgStats | null>(null);
   const [agencies, setAgencies] = useState<AgencyRow[]>([]);
@@ -128,7 +128,7 @@ export function ProductionPage() {
         const useRpc = datePreset !== 'allTime';
 
         // Fetch agency production from prod DB edge function
-        const agencyParam = !isOrgWide && effectiveAgencyId ? { agency_id: effectiveAgencyId } : {};
+        const agencyParam = !isOrgWide && effectiveAgencyWritingNumber ? { agency_id: effectiveAgencyWritingNumber } : {};
         const dateParams = useRpc
           ? { ...agencyParam, start_date: startDate, end_date: endDate }
           : agencyParam;
@@ -206,7 +206,7 @@ export function ProductionPage() {
       }
     }
     load();
-  }, [effectiveAgencyId, isOrgWide, dateRange, datePreset]);
+  }, [effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide, dateRange, datePreset]);
 
   // Filter + sort agencies
   const filteredAgencies = useMemo(() => {

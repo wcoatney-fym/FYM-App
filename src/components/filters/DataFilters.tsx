@@ -7,6 +7,7 @@ import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@
 interface AgencyOption {
   id: string;
   tracker_id: string | null;
+  writing_number: string | null;
   name: string;
 }
 
@@ -62,7 +63,7 @@ export function DataFilters({
     if (!supabase) { setLoadingAgencies(false); return; }
     supabase
       .from('agencies')
-      .select('id, tracker_id, name')
+      .select('id, tracker_id, writing_number, name')
       .eq('is_active', true)
       .order('name')
       .then(({ data }) => {
@@ -79,8 +80,9 @@ export function DataFilters({
     }
     setLoadingAgents(true);
     // Get profiles for agents in this agency — match by agency_id UUID
-    // First find the agency UUID from tracker_id
-    const agency = agencies.find(a => a.tracker_id === selectedAgencyId);
+    // Find the agency by writing_number (primary) or tracker_id (fallback)
+    const agency = agencies.find(a => a.writing_number === selectedAgencyId)
+      || agencies.find(a => a.tracker_id === selectedAgencyId);
     if (!agency) { setLoadingAgents(false); return; }
 
     supabase
@@ -129,7 +131,7 @@ export function DataFilters({
         >
           <option value="">{loadingAgencies ? 'Loading…' : 'All Agencies'}</option>
           {agencies.map(a => (
-            <option key={a.id} value={a.tracker_id ?? a.id}>
+            <option key={a.id} value={a.writing_number ?? a.tracker_id ?? a.id}>
               {a.name}
             </option>
           ))}
