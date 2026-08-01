@@ -58,13 +58,16 @@ export function DataFilters({
   const [loadingAgencies, setLoadingAgencies] = useState(true);
   const [loadingAgents, setLoadingAgents] = useState(false);
 
-  // Load agencies on mount
+  // Load agencies on mount — only show agencies with a writing_number mapped,
+  // since edge functions key by writing_number. Agencies without one have no
+  // production data and would always show zeros if selected.
   useEffect(() => {
     if (!supabase) { setLoadingAgencies(false); return; }
     supabase
       .from('agencies')
       .select('id, tracker_id, writing_number, name')
       .eq('is_active', true)
+      .not('writing_number', 'is', null)
       .order('name')
       .then(({ data }) => {
         if (data) setAgencies(data as AgencyOption[]);

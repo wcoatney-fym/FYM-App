@@ -86,11 +86,38 @@ export function DashboardPage() {
   useEffect(() => {
     async function load() {
       try {
-        // ── 1. Aggregate stats from prod DB retention edge function ──
-        const agencyParam = !isOrgWide && effectiveAgencyWritingNumber
-          ? { agency_id: effectiveAgencyWritingNumber }
-          : {};
-        const retRes = await fetchRetentionSummary(agencyParam);
+        // ── Resolve the agency filter to a writing_number for edge functions ──
+        // filterAgencyId is already a writing_number from DataFilters dropdown
+        // (agencies without writing_number are excluded from the dropdown).
+        // For scoped users, use effectiveAgencyWritingNumber.
+        const edgeFnAgencyId = filterAgencyId
+          ?? (!isOrgWide && effectiveAgencyWritingNumber ? effectiveAgencyWritingNumber : null);
+        const agencyParam = edgeFnAgencyId ? { agency_id: edgeFnAgencyId } : {};
+
+        // ── Parallel fetch: retention + cohorts + production + agency names ──
+        const useRpc = datePreset !== 'allTime';
+        const startDateStr = dateRange.startDate.split('T')[0];
+        const endDateStr = dateRange.endDate.split('T')[0];
+
+        const [retRes, cohortRes, prodResult, agencyNameData] = await Promise.all([
+          // 1. Retention summary
+          fetchRetentionSummary(agencyParam),
+          // 2. Cohort retention trend
+          fetchRetentionCohorts(agencyParam),
+          // 3. Production data (daily for date-filtered, monthly for all-time)
+          useRpc
+            ? fetchDailyProduction({ ...agencyParam, start_date: startDateStr, end_date: endDateStr })
+            : fetchMonthlyProduction(agencyParam),
+          // 4. Agency names from rcbzag (local DB, fast)
+          supabase
+            ? scopeToAgency(
+                (supabase as any).from('agencies').select('tracker_id, writing_number, name'),
+                isOrgWide, effectiveAgencyId, 'tracker_id'
+              ).then(r => r.data)
+            : Promise.resolve(null),
+        ]);
+
+        // ── 1. Aggregate stats from retention response ──
         const allAgencies = retRes.data.agencies;
 
         let totalActive = 0, totalPremium = 0, totalAtRisk = 0, totalAtRiskPremium = 0;
@@ -98,11 +125,7 @@ export function DashboardPage() {
         let belowTarget = 0;
         const agencyRows: AgencyRisk[] = [];
 
-        const filteredStats = filterAgencyId
-          ? allAgencies.filter(a => a.agency_id === filterAgencyId)
-          : allAgencies;
-
-        for (const a of filteredStats) {
+        for (const a of allAgencies) {
           totalActive += a.active_policies;
           totalPremium += a.active_premium;
           totalAtRisk += a.at_risk_count;
@@ -119,7 +142,6 @@ export function DashboardPage() {
           });
         }
 
-        // At-risk premium estimated from at-risk count * avg premium
         totalAtRiskPremium = totalPremium > 0 && totalActive > 0
           ? Math.round((totalAtRisk * (totalPremium / totalActive)) * 100) / 100
           : 0;
@@ -138,28 +160,15 @@ export function DashboardPage() {
           total_agencies: agencyRows.length,
         });
 
-        // Enrich agency names from rcbzag (stays — not policy_cache)
+        // ── Agency name enrichment ──
         const nameMap = new Map<string, string>();
-        if (supabase) {
-          const { data: agencyNames } = await scopeToAgency(
-            (supabase as any)
-              .from('agencies')
-              .select('tracker_id, writing_number, name'),
-            isOrgWide,
-            effectiveAgencyId,
-            'tracker_id'
-          );
-          if (agencyNames) {
-            for (const a of agencyNames as any[]) {
-              // Key by writing_number (matches edge function agency_id)
-              if (a.writing_number) nameMap.set(a.writing_number, a.name);
-              // Also key by tracker_id as fallback
-              if (a.tracker_id) nameMap.set(a.tracker_id, a.name);
-            }
+        if (agencyNameData) {
+          for (const a of agencyNameData as any[]) {
+            if (a.writing_number) nameMap.set(a.writing_number, a.name);
+            if (a.tracker_id) nameMap.set(a.tracker_id, a.name);
           }
         }
 
-        // Bottom agencies by retention (coaching signals)
         const bottom = agencyRows
           .filter(a => a.retention_pct !== null)
           .map(a => ({ ...a, name: nameMap.get(a.agency_id) ?? null }))
@@ -167,8 +176,7 @@ export function DashboardPage() {
           .slice(0, 8);
         setBottomAgencies(bottom);
 
-        // ── 2. Cohort retention trend from prod DB edge function ──
-        const cohortRes = await fetchRetentionCohorts(agencyParam);
+        // ── 2. Cohort retention trend ──
         if (cohortRes.data.cohorts.length > 0) {
           const trendPoints: CohortPoint[] = cohortRes.data.cohorts
             .slice(-12)
@@ -181,21 +189,11 @@ export function DashboardPage() {
           setTrend(trendPoints);
         }
 
-        // ── 3. Production snapshot from prod DB edge function ──
-        const useRpc = datePreset !== 'allTime';
+        // ── 3. Production snapshot ──
         const gran = getGranularity(dateRange);
-        const prodAgencyParam = filterAgencyId
-          ? { agency_id: filterAgencyId }
-          : agencyParam;
 
         if (useRpc) {
-          const startDate = dateRange.startDate.split('T')[0];
-          const endDate = dateRange.endDate.split('T')[0];
-          const dailyData = await fetchDailyProduction({
-            ...prodAgencyParam,
-            start_date: startDate,
-            end_date: endDate,
-          });
+          const dailyData = prodResult as Awaited<ReturnType<typeof fetchDailyProduction>>;
 
           const byBucket = new Map<string, { policies: number; ap: number }>();
           dailyData.forEach(r => {
@@ -220,7 +218,7 @@ export function DashboardPage() {
             trend: trendArr,
           });
         } else {
-          const monthlyData = await fetchMonthlyProduction(prodAgencyParam);
+          const monthlyData = prodResult as Awaited<ReturnType<typeof fetchMonthlyProduction>>;
 
           const byMonth = new Map<string, { policies: number; ap: number }>();
           for (const r of monthlyData) {
