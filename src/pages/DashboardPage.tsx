@@ -80,6 +80,7 @@ export function DashboardPage() {
   const [bottomAgencies, setBottomAgencies] = useState<AgencyRisk[]>([]);
   const [production, setProduction] = useState<ProductionSnap | null>(null);
   const [loading, setLoading] = useState(true);
+  const [noDataAgency, setNoDataAgency] = useState(false); // true when selected agency has no writing_number
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
 
@@ -87,9 +88,32 @@ export function DashboardPage() {
     async function load() {
       try {
         // ── Resolve the agency filter to a writing_number for edge functions ──
-        // filterAgencyId is already a writing_number from DataFilters dropdown
-        // (agencies without writing_number are excluded from the dropdown).
+        // filterAgencyId from DataFilters is either:
+        //   - a writing_number (e.g. '202NEW00') for agencies with prod data
+        //   - 'no-data:<uuid>' for agencies without a writing_number mapping
         // For scoped users, use effectiveAgencyWritingNumber.
+        const isNoDataAgency = filterAgencyId?.startsWith('no-data:') ?? false;
+        setNoDataAgency(isNoDataAgency);
+
+        if (isNoDataAgency) {
+          // Agency has no writing_number — no production data exists.
+          // Show empty state instead of querying edge functions with a bad ID.
+          setStats({
+            active_policies: 0,
+            active_premium: 0,
+            at_risk_count: 0,
+            at_risk_premium: 0,
+            retention_pct: null,
+            agencies_below_target: 0,
+            total_agencies: 0,
+          });
+          setBottomAgencies([]);
+          setTrend([]);
+          setProduction({ policiesThisMonth: 0, apThisMonth: 0, policiesLastMonth: 0, apLastMonth: 0, trend: [] });
+          setLoading(false);
+          return;
+        }
+
         const edgeFnAgencyId = filterAgencyId
           ?? (!isOrgWide && effectiveAgencyWritingNumber ? effectiveAgencyWritingNumber : null);
         const agencyParam = edgeFnAgencyId ? { agency_id: edgeFnAgencyId } : {};
@@ -282,6 +306,21 @@ export function DashboardPage() {
           onAgencyChange={setFilterAgencyId}
           onDateRangeChange={(range, preset) => { setDateRange(range); setDatePreset(preset); }}
         />
+
+        {/* No production data banner for agencies without writing_number */}
+        {noDataAgency && !loading && (
+          <FadeIn>
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3 flex items-center gap-3">
+              <AlertTriangle size={18} className="text-amber-400 shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-amber-300">No production data available</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  This agency hasn't started writing with UNL yet. Production data will appear once their first policies are issued.
+                </p>
+              </div>
+            </div>
+          </FadeIn>
+        )}
 
         {/* ── KPI strip with HUD frames + animations ── */}
         <StaggerContainer className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
