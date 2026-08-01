@@ -113,7 +113,7 @@ export function DashboardPage() {
             ? scopeToAgency(
                 (supabase as any).from('agencies').select('tracker_id, writing_number, name'),
                 isOrgWide, effectiveAgencyId, 'tracker_id'
-              ).then(r => r.data)
+              ).then((r: { data: any }) => r.data)
             : Promise.resolve(null),
         ]);
 
