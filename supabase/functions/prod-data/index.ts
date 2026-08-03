@@ -66,12 +66,16 @@ Deno.serve(async (req) => {
     const agencyMap = new Map<string, {
       agency_id: string;
       total_policies: number;
+      total_annual_premium: number;
       active_policies: number;
       terminated_policies: number;
       pending_policies: number;
       at_risk_policies: number;
       active_monthly_premium: number;
       active_annual_premium: number;
+      terminated_annual_premium: number;
+      pending_annual_premium: number;
+      at_risk_annual_premium: number;
       policies_this_month: number;
       ap_this_month: number;
       policies_last_month: number;
@@ -189,12 +193,16 @@ Deno.serve(async (req) => {
             agencyMap.set(agencyId, {
               agency_id: agencyId,
               total_policies: 0,
+              total_annual_premium: 0,
               active_policies: 0,
               terminated_policies: 0,
               pending_policies: 0,
               at_risk_policies: 0,
               active_monthly_premium: 0,
               active_annual_premium: 0,
+              terminated_annual_premium: 0,
+              pending_annual_premium: 0,
+              at_risk_annual_premium: 0,
               policies_this_month: 0,
               ap_this_month: 0,
               policies_last_month: 0,
@@ -203,14 +211,24 @@ Deno.serve(async (req) => {
           }
           const ag = agencyMap.get(agencyId)!;
           ag.total_policies++;
+          ag.total_annual_premium += annualPremium;
           if (status === "active") {
             ag.active_policies++;
             ag.active_monthly_premium += monthlyPremium;
             ag.active_annual_premium += annualPremium;
           }
-          if (status === "terminated") ag.terminated_policies++;
-          if (status === "pending") ag.pending_policies++;
-          if (isAtRisk) ag.at_risk_policies++;
+          if (status === "terminated") {
+            ag.terminated_policies++;
+            ag.terminated_annual_premium += annualPremium;
+          }
+          if (status === "pending") {
+            ag.pending_policies++;
+            ag.pending_annual_premium += annualPremium;
+          }
+          if (isAtRisk) {
+            ag.at_risk_policies++;
+            ag.at_risk_annual_premium += annualPremium;
+          }
           if (appRecvdDateMonth === thisMonthKey) {
             ag.policies_this_month++;
             ag.ap_this_month += annualPremium;
