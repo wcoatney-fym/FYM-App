@@ -11,7 +11,7 @@ import { Header } from '@/components/layout/Header';
 import { Card, CardContent } from '@/components/ui/card';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
-import { fetchRetentionSummary, fetchAgencyProduction } from '@/lib/prod-api';
+import { fetchAgencyProduction } from '@/lib/prod-api';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { useOrgData } from '@/contexts/OrgDataCache';

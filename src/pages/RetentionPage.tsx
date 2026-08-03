@@ -5,8 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { HudFrame } from '@/components/ui/hud-frame';
 import { supabase } from '@/lib/supabase';
-import { fetchRetentionSummary, fetchRetentionCohorts } from '@/lib/prod-api';
-import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
+// prod-api fetch functions now handled by OrgDataCache
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { useOrgData } from '@/contexts/OrgDataCache';
 import {
@@ -112,7 +111,6 @@ function TrendBadge({ recent, prior }: { recent: number | null; prior: number | 
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function RetentionPage() {
-  const { effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide } = useEffectiveAuth();
   const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
   const orgData = useOrgData();
 

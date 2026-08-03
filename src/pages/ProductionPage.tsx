@@ -9,7 +9,6 @@ import { supabase } from '@/lib/supabase';
 import {
   fetchAgencyProduction,
   fetchDailyProduction,
-  fetchMonthlyProduction,
 } from '@/lib/prod-api';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
@@ -106,7 +105,7 @@ function fmtMonth(iso: string) {
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function ProductionPage() {
-  const { effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide } = useEffectiveAuth();
+  const { effectiveAgencyWritingNumber, isOrgWide } = useEffectiveAuth();
   const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
   const orgData = useOrgData();
 

@@ -7,7 +7,6 @@ import { StaggerContainer, StaggerItem, FadeIn, CountUp, RadialGauge } from '@/c
 import { supabase } from '@/lib/supabase';
 import {
   fetchDailyProduction,
-  fetchMonthlyProduction,
 } from '@/lib/prod-api';
 import { scopeToAgency } from '@/lib/query-helpers';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
