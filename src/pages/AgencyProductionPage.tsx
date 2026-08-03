@@ -468,7 +468,7 @@ export function AgencyProductionPage() {
                     </span>
                     <span className="text-center self-center">
                       {agent.agent_id ? (
-                        <Link to={`/production/${agencyId}/agent/${agent.agent_id}`}>
+                        <Link to={`/production/${agencyId}/agent/${agent.agent_id}`} state={{ from: `/production/${agencyId}` }}>
                           <ChevronRight size={14} className="text-muted-foreground/40 hover:text-primary transition-colors" />
                         </Link>
                       ) : (
