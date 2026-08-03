@@ -1,0 +1,2178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FYM Production Dashboard — Writing Agent (Desktop)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<style id="appStyles">
+  :root {
+    --fym-navy: #1F3A68;
+    --fym-navy-dark: #122444;
+    --fym-navy-light: #2D5290;
+    --fym-navy-50: #EEF3FA;
+    --fym-navy-100: #DCE6F2;
+
+    --bg-app: #F5F7FA;
+    --bg-card: #FFFFFF;
+    --bg-subtle: #F8FAFC;
+    --border: #E2E8F0;
+    --border-strong: #CBD5E1;
+
+    --text-primary: #0F172A;
+    --text-secondary: #475569;
+    --text-tertiary: #94A3B8;
+
+    --success: #16A34A;
+    --success-bg: #DCFCE7;
+    --success-dark: #15803D;
+    --warning: #D97706;
+    --warning-bg: #FEF3C7;
+    --warning-dark: #B45309;
+    --danger: #DC2626;
+    --danger-bg: #FEE2E2;
+    --danger-dark: #B91C1C;
+  }
+
+  * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+  html, body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; color: var(--text-primary); }
+  body { background: radial-gradient(circle at 15% 10%, rgba(31, 58, 104, 0.04) 0%, transparent 40%), radial-gradient(circle at 85% 90%, rgba(45, 82, 144, 0.03) 0%, transparent 40%), #EFF2F7; min-height: 100vh; }
+
+  .serif-display { font-family: 'Instrument Serif', Georgia, serif; font-style: italic; }
+  .mono { font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace; }
+  .tnum { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }
+
+  /* Browser window frame */
+  .window-frame {
+    width: 100%;
+    max-width: 1180px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 30px 60px -20px rgba(15, 23, 42, 0.25), 0 12px 28px -10px rgba(15, 23, 42, 0.12);
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .window-chrome {
+    background: linear-gradient(180deg, #FAFBFC, #F1F4F8);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .traffic-lights { display: flex; gap: 6px; flex-shrink: 0; }
+  .traffic-light { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.05); }
+  .traffic-light.red    { background: #FF5F57; }
+  .traffic-light.yellow { background: #FEBC2E; }
+  .traffic-light.green  { background: #28C840; }
+  .window-url {
+    flex: 1;
+    max-width: 480px;
+    margin: 0 auto;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 12px;
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .window-url .lock { width: 10px; height: 10px; color: var(--success-dark); }
+
+  html, body { height: 100%; margin: 0; }
+
+  /* App inside window */
+  .app-shell {
+    background: var(--bg-app);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+
+  /* Top nav inside the app */
+  .top-nav {
+    background: white;
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    flex-shrink: 0;
+  }
+  .top-nav-link {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    padding: 8px 2px;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+    cursor: pointer;
+    position: relative;
+  }
+  .top-nav-link:hover { color: var(--text-primary); }
+  .top-nav-link[data-active="true"] {
+    color: var(--fym-navy);
+    border-bottom-color: var(--fym-navy);
+  }
+
+  /* App content (scrolls) */
+  .app-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 24px 28px 32px;
+  }
+  .app-content::-webkit-scrollbar { width: 8px; }
+  .app-content::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+  .app-content::-webkit-scrollbar-track { background: transparent; }
+
+  .card { background: white; border-radius: 14px; border: 1px solid var(--border); transition: transform 0.18s ease, box-shadow 0.18s ease; }
+  .card-elevated { box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03), 0 4px 12px -2px rgba(15, 23, 42, 0.06); }
+  .lift { transition: transform 0.18s, box-shadow 0.18s, border-color 0.18s; }
+  .lift:hover { transform: translateY(-1px); box-shadow: 0 4px 16px -4px rgba(15,23,42,0.1); border-color: var(--border-strong); }
+
+  @keyframes view-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  .view { display: none; }
+  .view.active { display: block; animation: view-fade 0.32s cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+  /* Progress bar */
+  .progress-track { background: #F1F5F9; border-radius: 999px; height: 8px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--fym-navy) 0%, var(--fym-navy-light) 100%); border-radius: 999px; position: relative; animation: progress-grow 1.2s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  @keyframes progress-grow { from { width: 0; } }
+
+  /* Pills */
+  .pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; letter-spacing: 0.01em; line-height: 1.4; }
+  .pill-success { background: var(--success-bg); color: var(--success-dark); }
+  .pill-warning { background: var(--warning-bg); color: var(--warning-dark); }
+  .pill-danger { background: var(--danger-bg); color: var(--danger-dark); }
+  .pill-navy { background: var(--fym-navy-50); color: var(--fym-navy); }
+  .pill-slate { background: #F1F5F9; color: var(--text-secondary); }
+
+  /* Action buttons */
+  .action-btn { padding: 7px 14px; border-radius: 8px; border: 1px solid var(--border); background: white; font-size: 12px; font-weight: 600; color: var(--text-secondary); transition: all 0.15s ease; cursor: pointer; }
+  .action-btn:hover { border-color: var(--border-strong); background: var(--bg-subtle); }
+  .action-btn[data-state="got-it"][data-selected="true"] { background: #475569; color: white; border-color: #475569; }
+  .action-btn[data-state="working"][data-selected="true"] { background: var(--warning); color: white; border-color: var(--warning); }
+  .action-btn[data-state="done"][data-selected="true"] { background: var(--success); color: white; border-color: var(--success); }
+
+  /* Attention card */
+  .attention-row { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; display: grid; grid-template-columns: auto 1fr auto auto; gap: 16px; align-items: center; transition: border-color 0.15s; }
+  .attention-row:hover { border-color: var(--border-strong); }
+  .attention-row[data-severity="danger"] { border-left: 3px solid var(--danger); }
+  .attention-row[data-severity="warning"] { border-left: 3px solid var(--warning); }
+
+  /* Penguin */
+  .penguin { width: 100%; height: 130px; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 80%, rgba(31, 58, 104, 0.05), transparent 60%); position: relative; }
+  .penguin-body { width: 62px; height: 78px; position: relative; animation: penguin-dance 1.6s ease-in-out infinite; transform-origin: bottom center; }
+  @keyframes penguin-dance { 0%, 100% { transform: rotate(-8deg) translateY(0); } 25% { transform: rotate(8deg) translateY(-2px); } 50% { transform: rotate(-6deg) translateY(0); } 75% { transform: rotate(6deg) translateY(-1px); } }
+  .penguin-body::before { content: ''; position: absolute; inset: 0; background: #0F172A; border-radius: 50% 50% 45% 45% / 60% 60% 40% 40%; box-shadow: inset -6px -8px 0 rgba(255,255,255,0.06); }
+  .penguin-belly { position: absolute; top: 22%; left: 18%; width: 64%; height: 65%; background: white; border-radius: 50%; z-index: 2; }
+  .penguin-eye { position: absolute; top: 24%; width: 7px; height: 7px; background: white; border-radius: 50%; z-index: 3; }
+  .penguin-eye.left { left: 22%; }
+  .penguin-eye.right { right: 22%; }
+  .penguin-eye::before { content: ''; position: absolute; inset: 1px; background: #0F172A; border-radius: 50%; }
+  .penguin-beak { position: absolute; top: 38%; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 7px solid #F59E0B; z-index: 3; }
+  .penguin-feet { position: absolute; bottom: -4px; width: 100%; height: 6px; z-index: 0; }
+  .penguin-feet::before, .penguin-feet::after { content: ''; position: absolute; bottom: 0; width: 18px; height: 6px; background: #F59E0B; border-radius: 50%; }
+  .penguin-feet::before { left: 12%; }
+  .penguin-feet::after { right: 12%; }
+
+  /* Modals */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.5); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 50; display: none; align-items: center; justify-content: center; animation: overlay-in 0.2s ease; padding: 40px; }
+  .modal-overlay.active { display: flex; }
+  @keyframes overlay-in { from { opacity: 0; } to { opacity: 1; } }
+  .modal-card { width: 100%; max-width: 720px; background: white; border-radius: 16px; max-height: 92%; overflow-y: auto; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.4); animation: modal-in 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
+  .modal-card.narrow { max-width: 460px; }
+  @keyframes modal-in { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+  /* Toast */
+  .toast { position: absolute; left: 50%; transform: translateX(-50%); bottom: 32px; background: #0F172A; color: white; border-radius: 10px; padding: 12px 18px; font-size: 13px; font-weight: 500; z-index: 60; display: flex; align-items: center; gap: 10px; box-shadow: 0 10px 30px -10px rgba(15,23,42,0.4); animation: toast-in 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); }
+  @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 20px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+  /* Charts */
+  .bar-row { display: grid; grid-template-columns: 80px 1fr 140px; gap: 14px; align-items: center; padding: 8px 0; font-size: 12.5px; }
+  .bar-track { background: #F1F5F9; height: 24px; border-radius: 6px; position: relative; overflow: hidden; }
+  .bar-fill { height: 100%; background: linear-gradient(90deg, var(--fym-navy), var(--fym-navy-light)); border-radius: 6px; animation: bar-grow 1s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  @keyframes bar-grow { from { width: 0 !important; } }
+
+  .spark-bars { display: flex; align-items: flex-end; gap: 4px; height: 130px; padding: 12px 0 0; }
+  .spark-bar { flex: 1; background: linear-gradient(180deg, var(--fym-navy-light), var(--fym-navy)); border-radius: 3px 3px 0 0; min-height: 6px; transition: opacity 0.15s; animation: spark-grow 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; position: relative; }
+  @keyframes spark-grow { from { height: 0; } }
+  .spark-bar.today { background: var(--fym-navy); }
+  .spark-bar.today::after { content: 'Today'; position: absolute; top: -16px; left: 50%; transform: translateX(-50%); font-size: 9px; font-weight: 700; color: var(--fym-navy); white-space: nowrap; letter-spacing: 0.04em; text-transform: uppercase; }
+  .spark-bar.weekend { background: #CBD5E1; opacity: 0.4; }
+  .spark-bar:hover { opacity: 0.85; }
+
+  /* Leaderboard */
+  .lb-table { width: 100%; }
+  .lb-row { display: grid; grid-template-columns: 40px 2fr 1fr 1fr 1fr 1fr 1fr; gap: 12px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.12s; font-size: 13px; }
+  .lb-row:hover { background: var(--bg-subtle); }
+  .lb-row[data-self="true"] { background: linear-gradient(90deg, rgba(31, 58, 104, 0.06), transparent 70%); border-left: 3px solid var(--fym-navy); padding-left: 13px; }
+  .lb-row:last-child { border-bottom: 0; }
+  .lb-head { display: grid; grid-template-columns: 40px 2fr 1fr 1fr 1fr 1fr 1fr; gap: 12px; padding: 10px 16px; font-size: 10.5px; font-weight: 700; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.06em; background: var(--bg-subtle); border-bottom: 1px solid var(--border); }
+
+  /* H2H */
+  .h2h-bar-wrap { display: grid; grid-template-columns: 1fr 12px 1fr; gap: 0; align-items: center; height: 8px; }
+  .h2h-bar-left, .h2h-bar-right { height: 100%; background: #E2E8F0; position: relative; border-radius: 4px; }
+  .h2h-bar-left { transform: scaleX(-1); }
+  .h2h-bar-fill { height: 100%; background: var(--fym-navy); border-radius: 4px; animation: bar-grow 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+  /* Reviewer side panels */
+  .reviewer-panel { width: 240px; background: white; border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 1px 2px rgba(15,23,42,0.03), 0 12px 32px -8px rgba(15,23,42,0.08); max-height: 88vh; overflow-y: auto; flex-shrink: 0; }
+  .picker-btn { width: 100%; text-align: left; padding: 9px 14px; border-radius: 8px; font-size: 13px; color: var(--text-secondary); transition: all 0.15s; display: flex; align-items: center; gap: 10px; border: 1px solid transparent; cursor: pointer; }
+  .picker-btn:hover { background: var(--bg-subtle); color: var(--text-primary); }
+  .picker-btn[data-active="true"] { background: var(--fym-navy-50); color: var(--fym-navy); font-weight: 600; border-color: var(--fym-navy-100); }
+  .picker-btn[data-special="true"] { color: var(--warning-dark); }
+  .picker-btn[data-special="true"]:hover { background: var(--warning-bg); }
+
+  .notes-panel h4 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-tertiary); }
+  .notes-panel li { font-size: 12px; line-height: 1.55; color: var(--text-secondary); padding-left: 12px; position: relative; margin-top: 8px; }
+  .notes-panel li::before { content: ''; position: absolute; left: 0; top: 7px; width: 4px; height: 4px; background: var(--fym-navy); border-radius: 50%; }
+
+  /* Badges */
+  .ramp-badge { display: inline-flex; align-items: center; gap: 5px; background: linear-gradient(135deg, #1F3A68, #2D5290); color: white; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; letter-spacing: 0.02em; }
+
+  /* Live dot */
+  @keyframes live-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.4); } 50% { box-shadow: 0 0 0 6px rgba(22, 163, 74, 0); } }
+  .live-dot { display: inline-block; width: 7px; height: 7px; background: var(--success); border-radius: 50%; animation: live-pulse 2s infinite; }
+
+  /* Segmented control */
+  .seg-control { display: inline-flex; background: #F1F5F9; padding: 3px; border-radius: 10px; gap: 2px; }
+  .seg-btn { padding: 6px 14px; font-size: 12.5px; font-weight: 600; color: var(--text-secondary); border-radius: 7px; transition: all 0.18s; cursor: pointer; border: none; background: transparent; }
+  .seg-btn[data-active="true"] { background: white; color: var(--fym-navy); box-shadow: 0 1px 2px rgba(15,23,42,0.06); }
+  .seg-btn:hover:not([data-active="true"]) { color: var(--text-primary); }
+
+  /* Business-day dot */
+  .bd-dot { width: 22px; height: 22px; border-radius: 5px; background: #F1F5F9; display: flex; align-items: center; justify-content: center; font-size: 9.5px; font-weight: 600; color: var(--text-tertiary); }
+  .bd-dot.active { background: var(--fym-navy); color: white; }
+  .bd-dot.today { background: white; color: var(--fym-navy); border: 2px solid var(--fym-navy); font-weight: 700; }
+  .bd-dot.weekend { background: transparent; color: var(--text-tertiary); opacity: 0.4; font-size: 9px; }
+
+  /* Tile components */
+  .tile-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-tertiary); }
+  .tile-value { font-size: 26px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.02em; }
+  .tile-value-lg { font-size: 36px; font-weight: 800; letter-spacing: -0.03em; }
+  .tile-value-xl { font-size: 48px; font-weight: 800; letter-spacing: -0.035em; line-height: 1; }
+  .tile-delta { font-size: 11.5px; font-weight: 600; }
+  .tile-delta-up { color: var(--success-dark); }
+  .tile-delta-down { color: var(--danger-dark); }
+
+  /* Avatar */
+  .avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; color: white; font-size: 13px; background: linear-gradient(135deg, #1F3A68, #2D5290); cursor: pointer; transition: transform 0.15s; }
+  .avatar:hover { transform: scale(1.05); }
+
+  /* Tooltip helpers */
+  .tip { position: relative; }
+  .tip[data-tip]:hover::after { content: attr(data-tip); position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: #0F172A; color: white; font-size: 11px; padding: 5px 9px; border-radius: 5px; white-space: nowrap; z-index: 20; pointer-events: none; }
+
+  /* Filter chip */
+  .chip { padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid var(--border); color: var(--text-secondary); background: white; cursor: pointer; transition: all 0.15s; }
+  .chip:hover { border-color: var(--border-strong); }
+  .chip[data-active="true"] { background: var(--fym-navy); color: white; border-color: var(--fym-navy); }
+
+  /* Policy table */
+  .data-table { width: 100%; font-size: 12.5px; }
+  .data-table thead th { font-size: 10.5px; font-weight: 700; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.06em; text-align: left; padding: 10px 14px; background: var(--bg-subtle); border-bottom: 1px solid var(--border); }
+  .data-table tbody td { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+  .data-table tbody tr { transition: background 0.12s; cursor: pointer; }
+  .data-table tbody tr:hover { background: var(--bg-subtle); }
+  .data-table tbody tr:last-child td { border-bottom: 0; }
+
+  /* Notification side panel */
+  .notif-panel { position: absolute; top: 60px; right: 24px; background: white; border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 32px -8px rgba(15,23,42,0.15); width: 340px; z-index: 30; display: none; animation: notif-in 0.18s cubic-bezier(0.2, 0.8, 0.2, 1); }
+  .notif-panel.active { display: block; }
+  @keyframes notif-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* Avatar dropdown */
+  .avatar-menu { position: absolute; top: 60px; right: 24px; background: white; border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 12px 32px -8px rgba(15,23,42,0.15); min-width: 200px; padding: 6px; z-index: 30; display: none; animation: notif-in 0.18s cubic-bezier(0.2, 0.8, 0.2, 1); }
+  .avatar-menu.active { display: block; }
+  .avatar-menu button { width: 100%; text-align: left; padding: 8px 12px; border-radius: 6px; font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; gap: 9px; cursor: pointer; border: none; background: transparent; transition: background 0.12s, color 0.12s; }
+  .avatar-menu button:hover { background: var(--bg-subtle); color: var(--text-primary); }
+  .avatar-menu .divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+  /* Leaderboard executive summary KPI tile */
+  .kpi-summary-tile {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    text-align: left;
+    position: relative;
+  }
+  .kpi-summary-tile:hover { border-color: var(--fym-navy); transform: translateY(-1px); box-shadow: 0 4px 14px -4px rgba(31, 58, 104, 0.18); }
+  .kpi-summary-tile[data-active-sort="true"] { border-color: var(--fym-navy); background: var(--fym-navy-50); }
+  .kpi-summary-tile[data-active-sort="true"]::after {
+    content: '';
+    position: absolute;
+    top: -1px; left: -1px; right: -1px;
+    height: 3px;
+    background: var(--fym-navy);
+    border-radius: 10px 10px 0 0;
+  }
+  .kpi-rank-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--bg-subtle);
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+  .kpi-rank-chip.top-tier { background: var(--success-bg); color: var(--success-dark); border-color: rgba(22, 163, 74, 0.2); }
+  .kpi-rank-chip.mid-tier { background: var(--fym-navy-50); color: var(--fym-navy); border-color: var(--fym-navy-100); }
+  .kpi-rank-chip.low-tier { background: var(--warning-bg); color: var(--warning-dark); border-color: rgba(217, 119, 6, 0.2); }
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+        <!-- Persistent top nav (logo + nav links + right-side controls) -->
+        <header class="top-nav">
+          <div class="flex items-center gap-2.5 pr-6 border-r" style="border-color: var(--border); height: 100%;">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: var(--fym-navy);">
+              <span class="serif-display text-white text-lg leading-none">F</span>
+            </div>
+            <span class="font-bold text-[14px]" style="color: var(--fym-navy); letter-spacing: -0.01em;">FYM</span>
+          </div>
+
+          <nav class="flex items-center gap-7 h-full">
+            <a class="top-nav-link" data-jump="dashboard" data-active="true">Dashboard</a>
+            <a class="top-nav-link" data-jump="attention" style="display: flex; align-items: center; gap: 6px;">Needs Attention <span class="pill pill-danger" style="font-size: 10px; padding: 1px 6px;">5</span></a>
+            <a class="top-nav-link" data-jump="production">My Production</a>
+            <a class="top-nav-link" data-jump="goal">My Goal</a>
+            <a class="top-nav-link" data-jump="leaderboards">Leaderboards</a>
+          </nav>
+
+          <div class="ml-auto flex items-center gap-4">
+            <div class="text-[11px] flex items-center gap-1.5" style="color: var(--text-tertiary);">
+              <i data-lucide="clock" class="w-3 h-3"></i>
+              Data as of <span class="tnum font-semibold" style="color: var(--text-secondary);">May 12 · 6:14 AM ET</span>
+            </div>
+            <button class="relative w-9 h-9 rounded-full flex items-center justify-center hover:bg-slate-100 transition" data-action="toggle-notifs">
+              <i data-lucide="bell" class="w-4 h-4" style="color: var(--text-secondary);"></i>
+              <span class="absolute top-1.5 right-2 w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center text-white" style="background: var(--danger);">3</span>
+            </button>
+            <button class="avatar" data-action="toggle-avatar">MS</button>
+          </div>
+        </header>
+
+        <!-- Avatar dropdown -->
+        <div class="avatar-menu" id="avatar-menu">
+          <div class="px-3 py-2.5 border-b" style="border-color: var(--border);">
+            <div class="font-bold text-[13px]">Marco Secolo</div>
+            <div class="text-[11px]" style="color: var(--text-tertiary);">Bluegrass Brokerage · A-04471</div>
+          </div>
+          <button data-jump="profile"><i data-lucide="user-circle" class="w-4 h-4"></i> Profile &amp; Settings</button>
+          <button data-action="open-ghost"><i data-lucide="target" class="w-4 h-4"></i> Edit my goal</button>
+          <div class="divider"></div>
+          <button style="color: var(--danger-dark);"><i data-lucide="log-out" class="w-4 h-4"></i> Sign out</button>
+        </div>
+
+        <!-- App content (scrolls) -->
+        <div class="app-content" id="appContent">
+
+          <!-- ================ DASHBOARD ================ -->
+          <section class="view active" id="view-dashboard">
+            <!-- Page heading row -->
+            <div class="flex items-end justify-between mb-5">
+              <div>
+                <h1 class="text-[24px] font-extrabold tracking-tight">Welcome back, Marco</h1>
+                <div class="flex items-center gap-2 mt-1">
+                  <span class="ramp-badge"><i data-lucide="zap" class="w-3 h-3"></i> Ramp Up · Day 42 of 90</span>
+                  <span class="text-[12px]" style="color: var(--text-secondary);">48 days until graduation</span>
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <div class="seg-control">
+                  <button class="seg-btn" data-period="7d">7d</button>
+                  <button class="seg-btn" data-period="mtd" data-active="true">MTD</button>
+                  <button class="seg-btn" data-period="ytd">YTD</button>
+                  <button class="seg-btn" data-period="custom" style="display: inline-flex; align-items: center; gap: 4px;"><i data-lucide="calendar" class="w-3 h-3"></i> Custom</button>
+                </div>
+                <label class="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[12px] font-semibold cursor-pointer" style="border-color: var(--border); color: var(--text-secondary);">
+                  <span class="w-7 h-4 rounded-full relative" style="background: var(--border);"><span class="absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow"></span></span>
+                  Compare to prior
+                </label>
+                <button class="px-3 py-1.5 rounded-lg border text-[12px] font-semibold flex items-center gap-1.5" style="border-color: var(--border); color: var(--text-secondary);" data-jump="profile" data-scroll-to="dashboard-layout">
+                  <i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i> Customize
+                </button>
+              </div>
+            </div>
+
+            <!-- Hero row: 2 cards (60/40) -->
+            <div class="grid gap-4 mb-4" id="dash-hero-row" style="grid-template-columns: 1.6fr 1fr;">
+
+              <!-- MTD AP hero -->
+              <div class="card card-elevated p-6 relative overflow-hidden" data-widget="mtd-hero" style="background: linear-gradient(135deg, #1F3A68 0%, #2D5290 100%);">
+                <div class="absolute -top-12 -right-12 w-56 h-56 rounded-full opacity-10" style="background: white;"></div>
+                <div class="absolute top-20 -right-8 w-32 h-32 rounded-full opacity-10" style="background: white;"></div>
+                <div class="relative">
+                  <div class="flex items-center justify-between mb-3">
+                    <div class="text-[11px] font-semibold uppercase tracking-wider" style="color: rgba(255,255,255,0.7);">My MTD Production · May 2026</div>
+                    <span class="pill" style="background: rgba(134, 239, 172, 0.18); color: #86EFAC; border: 1px solid rgba(134, 239, 172, 0.3);">
+                      <i data-lucide="check" class="w-2.5 h-2.5"></i> ON TRACK
+                    </span>
+                  </div>
+                  <div class="flex items-baseline gap-3">
+                    <div class="text-white font-extrabold tnum tile-value-xl">$24,580</div>
+                    <div class="text-[13px] font-semibold flex items-center gap-1" style="color: #86EFAC;">
+                      <i data-lucide="trending-up" class="w-3.5 h-3.5"></i> +22% vs. April
+                    </div>
+                  </div>
+                  <div class="text-[12px] mt-1" style="color: rgba(255,255,255,0.7);">vs. $20,140 last month at this point</div>
+
+                  <div class="mt-5">
+                    <div class="flex items-center justify-between text-[12px] mb-2" style="color: rgba(255,255,255,0.85);">
+                      <span><strong class="text-white font-bold">62%</strong> of $40,000 monthly goal</span>
+                      <span class="tnum">Required pace: <strong class="text-white font-bold">1.4 apps/BD</strong> · next 5 BD</span>
+                    </div>
+                    <div class="progress-track" style="background: rgba(255,255,255,0.15); height: 10px;">
+                      <div class="progress-fill" style="width: 62%; background: linear-gradient(90deg, #86EFAC, #4ADE80);"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Year-end projection -->
+              <button class="card card-elevated p-6 text-left lift" data-widget="year-end" data-jump="goal">
+                <div class="flex items-center justify-between mb-1">
+                  <div class="tile-label">Year-end projection</div>
+                  <span class="pill pill-warning"><i data-lucide="alert-triangle" class="w-2.5 h-2.5"></i> CATCH-UP</span>
+                </div>
+                <div class="tile-value-lg tnum mt-2">$145K</div>
+                <div class="text-[12px] mt-1" style="color: var(--text-secondary);">at current linear pace</div>
+
+                <div class="mt-4 pt-4 border-t flex items-center gap-4" style="border-color: var(--border);">
+                  <div class="flex-1">
+                    <div class="text-[10px] uppercase font-bold tracking-wider" style="color: var(--text-tertiary);">Personal goal</div>
+                    <div class="font-bold tnum text-[15px] mt-0.5">$480K</div>
+                  </div>
+                  <div class="flex-1">
+                    <div class="text-[10px] uppercase font-bold tracking-wider" style="color: var(--text-tertiary);">Gap</div>
+                    <div class="font-bold tnum text-[15px] mt-0.5" style="color: var(--danger-dark);">−$335K</div>
+                  </div>
+                  <svg width="56" height="36" viewBox="0 0 60 40" style="flex-shrink: 0;">
+                    <defs>
+                      <linearGradient id="sparkGradient" x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="0%" stop-color="#1F3A68" stop-opacity="0.4"/>
+                        <stop offset="100%" stop-color="#1F3A68" stop-opacity="0"/>
+                      </linearGradient>
+                    </defs>
+                    <path fill="url(#sparkGradient)" d="M0,32 L8,28 L16,30 L24,22 L32,24 L40,16 L48,18 L56,10 L60,12 L60,40 L0,40 Z"/>
+                    <path stroke="#1F3A68" stroke-width="1.6" fill="none" d="M0,32 L8,28 L16,30 L24,22 L32,24 L40,16 L48,18 L56,10 L60,12"/>
+                  </svg>
+                </div>
+              </button>
+            </div>
+
+            <!-- 4 KPI tiles -->
+            <div class="grid grid-cols-4 gap-4 mb-5" data-widget="kpi-tiles">
+              <button class="card p-4 text-left lift" data-jump="production">
+                <div class="tile-label">App Count</div>
+                <div class="tile-value tnum mt-1">47</div>
+                <div class="tile-delta tile-delta-up mt-1 flex items-center gap-1"><i data-lucide="arrow-up" class="w-3 h-3"></i> +9 vs. last month</div>
+              </button>
+              <button class="card p-4 text-left lift" data-jump="production">
+                <div class="tile-label">Days submitted</div>
+                <div class="tile-value tnum mt-1">14 <span class="text-[15px] font-medium" style="color: var(--text-tertiary);">/ 19 BD</span></div>
+                <div class="text-[11.5px] mt-1" style="color: var(--text-secondary);">5 BD remaining in May</div>
+              </button>
+              <button class="card p-4 text-left lift" data-jump="production">
+                <div class="tile-label">Avg AP / App <span style="color: var(--text-tertiary);">(30d)</span></div>
+                <div class="tile-value tnum mt-1">$523</div>
+                <div class="tile-delta tile-delta-down mt-1 flex items-center gap-1"><i data-lucide="arrow-down" class="w-3 h-3"></i> −$36 vs. prior 30d</div>
+              </button>
+              <button class="card p-4 text-left lift" data-jump="production" data-tab="quality">
+                <div class="tile-label">Save Rate <span style="color: var(--text-tertiary);">(30d)</span></div>
+                <div class="tile-value tnum mt-1">78<span class="text-[18px]">%</span></div>
+                <div class="text-[11.5px] mt-1" style="color: var(--text-secondary);">11 of 14 confirmed Active</div>
+              </button>
+            </div>
+
+            <!-- REQUIRED row: Needs Attention + Quality (both locked-on per FYM) -->
+            <div class="grid gap-4 mb-4" style="grid-template-columns: 1.4fr 1fr;">
+
+              <!-- Needs Attention -->
+              <div class="card p-5" data-widget="needs-attention">
+                <div class="flex items-center justify-between mb-4">
+                  <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: var(--danger-bg);">
+                      <i data-lucide="bell" class="w-4 h-4" style="color: var(--danger);"></i>
+                    </div>
+                    <div>
+                      <div class="font-bold text-[14px]">Needs Attention</div>
+                      <div class="text-[11px]" style="color: var(--text-tertiary);">urgency-ranked · top 3 shown</div>
+                    </div>
+                    <span class="pill pill-danger ml-1">5</span>
+                  </div>
+                  <button class="text-[12px] font-semibold flex items-center gap-1" style="color: var(--fym-navy);" data-jump="attention">View all <i data-lucide="chevron-right" class="w-3 h-3"></i></button>
+                </div>
+
+                <div class="space-y-2.5">
+                  <div class="attention-row" data-severity="danger" data-action="open-policy">
+                    <div>
+                      <div class="text-[10.5px] font-bold uppercase tracking-wider flex items-center gap-1" style="color: var(--danger-dark);">
+                        <i data-lucide="zap" class="w-3 h-3"></i> Final 7 days
+                      </div>
+                      <div class="text-[10.5px] font-bold tnum mt-0.5" style="color: var(--danger-dark);">Day 41/45</div>
+                    </div>
+                    <div>
+                      <div class="font-bold text-[13.5px]">Whitfield, Linda K.</div>
+                      <div class="text-[11.5px]" style="color: var(--text-secondary);"><span class="mono">UTHHC</span> · Home Health Care · GA</div>
+                    </div>
+                    <div class="text-right">
+                      <div class="font-bold tnum text-[14px]">$2,184</div>
+                      <div class="text-[10.5px]" style="color: var(--text-tertiary);">annual</div>
+                    </div>
+                    <i data-lucide="chevron-right" class="w-4 h-4" style="color: var(--text-tertiary);"></i>
+                  </div>
+
+                  <div class="attention-row" data-severity="danger" data-action="open-policy">
+                    <div>
+                      <span class="pill pill-danger"><i data-lucide="alert-triangle" class="w-2.5 h-2.5"></i> Future Term</span>
+                      <div class="text-[10.5px] font-bold tnum mt-1" style="color: var(--danger-dark);">Day 38/45</div>
+                    </div>
+                    <div>
+                      <div class="font-bold text-[13.5px]">Tucker, Tina G.</div>
+                      <div class="text-[11.5px]" style="color: var(--text-secondary);"><span class="mono">UNCAN</span> · Final Expense · SC · grace exp <span class="tnum">6/26</span></div>
+                    </div>
+                    <div class="text-right">
+                      <div class="font-bold tnum text-[14px]">$1,599</div>
+                      <div class="text-[10.5px]" style="color: var(--text-tertiary);">annual</div>
+                    </div>
+                    <i data-lucide="chevron-right" class="w-4 h-4" style="color: var(--text-tertiary);"></i>
+                  </div>
+
+                  <div class="attention-row" data-severity="warning" data-action="open-policy">
+                    <div>
+                      <span class="pill pill-warning"><i data-lucide="pause-circle" class="w-2.5 h-2.5"></i> Pended</span>
+                      <div class="text-[10.5px] font-bold mt-1" style="color: var(--warning-dark);">9 days</div>
+                    </div>
+                    <div>
+                      <div class="font-bold text-[13.5px] flex items-center gap-2">Donaldson, Charles E. <span class="pill pill-slate" style="font-size: 10px;">✓ Got it</span></div>
+                      <div class="text-[11.5px]" style="color: var(--text-secondary);"><span class="mono">UGHIP</span> · Hospital Indemnity · MS · recv'd <span class="tnum">5/2</span></div>
+                    </div>
+                    <div class="text-right">
+                      <div class="font-bold tnum text-[14px]">$712</div>
+                      <div class="text-[10.5px]" style="color: var(--text-tertiary);">annual</div>
+                    </div>
+                    <i data-lucide="chevron-right" class="w-4 h-4" style="color: var(--text-tertiary);"></i>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Quality (LOCKED) -->
+              <div class="card p-5" data-widget="quality">
+                <div class="flex items-center justify-between mb-4">
+                  <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background: var(--success-bg);">
+                      <i data-lucide="award" class="w-4 h-4" style="color: var(--success-dark);"></i>
+                    </div>
+                    <div>
+                      <div class="font-bold text-[14px]">Quality</div>
+                      <div class="text-[11px]" style="color: var(--text-tertiary);">last 30 days</div>
+                    </div>
+                  </div>
+                  <button class="text-[12px] font-semibold flex items-center gap-1" style="color: var(--fym-navy);" data-jump="production" data-tab="quality">View all <i data-lucide="chevron-right" class="w-3 h-3"></i></button>
+                </div>
+
+                <div class="space-y-0">
+                  <div class="flex items-baseline justify-between py-2.5" style="border-bottom: 1px solid var(--border);">
+                    <div>
+                      <div class="text-[12.5px] font-semibold">Save Rate</div>
+                      <div class="text-[10.5px]" style="color: var(--text-tertiary);">11 of 14 confirmed</div>
+                    </div>
+                    <div class="font-bold tnum text-[20px]" style="color: var(--success-dark);">78<span class="text-[14px]">%</span></div>
+                  </div>
+                  <div class="flex items-baseline justify-between py-2.5" style="border-bottom: 1px solid var(--border);">
+                    <div>
+                      <div class="text-[12.5px] font-semibold">Policies Taken</div>
+                      <div class="text-[10.5px] tile-delta-up flex items-center gap-0.5"><i data-lucide="arrow-up" class="w-2.5 h-2.5"></i> +3pp vs. prior</div>
+                    </div>
+                    <div class="font-bold tnum text-[20px]">74<span class="text-[14px]">%</span></div>
+                  </div>
+                  <div class="flex items-baseline justify-between py-2.5" style="border-bottom: 1px solid var(--border);">
+                    <div>
+                      <div class="text-[12.5px] font-semibold">30-day Retention</div>
+                      <div class="text-[10.5px]" style="color: var(--text-tertiary);">n=98 policies</div>
+                    </div>
+                    <div class="font-bold tnum text-[20px]">91<span class="text-[14px]">%</span></div>
+                  </div>
+                  <div class="flex items-baseline justify-between py-2.5">
+                    <div>
+                      <div class="text-[12.5px] font-semibold">90-day Retention</div>
+                      <div class="text-[10.5px]" style="color: var(--text-tertiary);">n=63 policies</div>
+                    </div>
+                    <div class="font-bold tnum text-[20px]">84<span class="text-[14px]">%</span></div>
+                  </div>
+                </div>
+
+                <div class="mt-3 pt-3 border-t flex items-center gap-2 text-[10.5px]" style="border-color: var(--border); color: var(--text-tertiary);">
+                  <i data-lucide="clock" class="w-3 h-3"></i>
+                  13-mo persistency &amp; APR · measurement windows still pending
+                </div>
+              </div>
+
+            </div>
+
+            <!-- OPTIONAL: Recent Activity (full width) -->
+            <div data-widget="recent-activity">
+              <div class="card p-5">
+                <div class="flex items-center justify-between mb-4">
+                  <div>
+                    <div class="font-bold text-[14px]">Recent activity</div>
+                    <div class="text-[11px]" style="color: var(--text-tertiary);">last 7 days</div>
+                  </div>
+                  <button class="text-[12px] font-semibold flex items-center gap-1" style="color: var(--fym-navy);" data-jump="production" data-tab="policies">View all <i data-lucide="chevron-right" class="w-3 h-3"></i></button>
+                </div>
+                <div class="grid grid-cols-5 gap-3">
+                  <div class="p-2.5 rounded-lg" style="background: var(--bg-subtle);">
+                    <div class="font-semibold text-[12.5px]">Anderson, T.</div>
+                    <div class="text-[10.5px]" style="color: var(--text-tertiary);">May 11 · <span class="mono">UGHIP</span></div>
+                    <div class="flex items-center justify-between mt-1.5"><div class="font-bold tnum text-[13px]">$444</div><span class="pill pill-warning" style="font-size: 10px;">Pended</span></div>
+                  </div>
+                  <div class="p-2.5 rounded-lg" style="background: var(--bg-subtle);">
+                    <div class="font-semibold text-[12.5px]">Hayes, M.</div>
+                    <div class="text-[10.5px]" style="color: var(--text-tertiary);">May 11 · <span class="mono">UHIP2</span></div>
+                    <div class="flex items-center justify-between mt-1.5"><div class="font-bold tnum text-[13px]">$612</div><span class="pill pill-warning" style="font-size: 10px;">Pended</span></div>
+                  </div>
+                  <div class="p-2.5 rounded-lg" style="background: var(--bg-subtle);">
+                    <div class="font-semibold text-[12.5px]">Burke, J.</div>
+                    <div class="text-[10.5px]" style="color: var(--text-tertiary);">May 10 · <span class="mono">UTHHC</span></div>
+                    <div class="flex items-center justify-between mt-1.5"><div class="font-bold tnum text-[13px]">$890</div><span class="pill pill-success" style="font-size: 10px;">Active</span></div>
+                  </div>
+                  <div class="p-2.5 rounded-lg" style="background: var(--bg-subtle);">
+                    <div class="font-semibold text-[12.5px]">Lee, A.</div>
+                    <div class="text-[10.5px]" style="color: var(--text-tertiary);">May 10 · <span class="mono">UFGHI</span></div>
+                    <div class="flex items-center justify-between mt-1.5"><div class="font-bold tnum text-[13px]">$356</div><span class="pill pill-success" style="font-size: 10px;">Active</span></div>
+                  </div>
+                  <div class="p-2.5 rounded-lg" style="background: var(--bg-subtle);">
+                    <div class="font-semibold text-[12.5px]">Smith, K.</div>
+                    <div class="text-[10.5px]" style="color: var(--text-tertiary);">May 9 · <span class="mono">UTHHC</span></div>
+                    <div class="flex items-center justify-between mt-1.5"><div class="font-bold tnum text-[13px]">$1,200</div><span class="pill pill-success" style="font-size: 10px;">Active</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+          <!-- ================ ATTENTION ================ -->
+          <section class="view" id="view-attention">
+            <div class="flex items-end justify-between mb-5">
+              <div>
+                <h1 class="text-[24px] font-extrabold tracking-tight">Needs Attention</h1>
+                <div class="text-[12.5px] mt-1" style="color: var(--text-secondary);">5 currently flagged · urgency-sorted per §5.2</div>
+              </div>
+              <div class="flex items-center gap-3">
+                <div class="card px-4 py-2 flex items-center gap-3" style="background: var(--success-bg); border-color: rgba(22, 163, 74, 0.2);">
+                  <div class="text-[10.5px] font-bold uppercase tracking-wider" style="color: var(--success-dark);">Save Rate · 30d</div>
+                  <div class="text-[18px] font-bold tnum" style="color: var(--success-dark);">78%</div>
+                  <i data-lucide="info" class="w-3.5 h-3.5 tip" data-tip="Of 14 items marked Done in last 30 days, 11 confirmed Active" style="color: var(--success-dark);"></i>
+                </div>
+              </div>
+            </div>
+
+            <!-- Filter chips -->
+            <div class="flex items-center justify-between mb-5">
+              <div class="flex items-center gap-2">
+                <span class="text-[11.5px] font-semibold mr-1" style="color: var(--text-tertiary);">Filter</span>
+                <button class="chip" data-active="true">All · 5</button>
+                <button class="chip">Future Term · 3</button>
+                <button class="chip">Pended · 2</button>
+                <button class="chip">Suspended · 0</button>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-[11.5px] font-semibold mr-1" style="color: var(--text-tertiary);">My action</span>
+                <button class="chip" data-active="true">All</button>
+                <button class="chip">Unworked</button>
+                <button class="chip">Working</button>
+                <button class="chip">Done</button>
+              </div>
+            </div>
+
+            <!-- Critical FT card (final 7 days) -->
+            <div class="card mb-3" style="border-left: 4px solid var(--danger); overflow: hidden;">
+              <div class="px-4 py-1.5 flex items-center gap-2" style="background: var(--danger-bg);">
+                <i data-lucide="zap" class="w-3 h-3" style="color: var(--danger-dark);"></i>
+                <span class="text-[10.5px] font-bold uppercase tracking-wider" style="color: var(--danger-dark);">Final 7 days of grace · highest urgency</span>
+              </div>
+              <div class="p-4 flex items-center gap-4">
+                <div style="width: 110px; flex-shrink: 0;">
+                  <span class="pill pill-danger"><i data-lucide="alert-triangle" class="w-2.5 h-2.5"></i> FUTURE TERM</span>
+                  <div class="text-[11px] font-bold tnum mt-1" style="color: var(--danger-dark);">Day 41/45</div>
+                  <div class="text-[10.5px]" style="color: var(--text-tertiary);">grace exp 6/26</div>
+                </div>
+                <div class="flex-1">
+                  <div class="font-bold text-[15px]">Whitfield, Linda K.</div>
+                  <div class="text-[12px] mt-0.5" style="color: var(--text-secondary);">
+                    <span class="mono font-semibold">UTHHC</span> · Home Health Care · <span class="font-semibold" style="color: var(--text-primary);">GA</span> · policy <span class="mono">3104-19023</span>
+                  </div>
+                </div>
+                <div class="text-right" style="min-width: 100px;">
+                  <div class="font-bold tnum text-[18px]">$2,184</div>
+                  <div class="text-[10.5px]" style="color: var(--text-tertiary);">annual premium</div>
+                </div>
+                <div class="flex gap-1.5">
+                  <button class="action-btn" data-state="got-it" data-selected="false">Got it</button>
+                  <button class="action-btn" data-state="working" data-selected="false">Working</button>
+                  <button class="action-btn" data-state="done" data-selected="false">Done</button>
+                  <button class="action-btn" data-action="open-policy" style="border: none; background: transparent; padding-left: 4px; padding-right: 4px;"><i data-lucide="external-link" class="w-3.5 h-3.5"></i></button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Future Term Day 38 -->
+            <div class="attention-row mb-3" data-severity="danger" style="grid-template-columns: 110px 1fr 100px auto;">
+              <div>
+                <span class="pill pill-danger"><i data-lucide="alert-triangle" class="w-2.5 h-2.5"></i> FUTURE TERM</span>
+                <div class="text-[11px] font-bold tnum mt-1" style="color: var(--danger-dark);">Day 38/45</div>
+                <div class="text-[10.5px]" style="color: var(--text-tertiary);">grace exp 6/26</div>
+              </div>
+              <div>
+                <div class="font-bold text-[15px]">Tucker, Tina G.</div>
+                <div class="text-[12px] mt-0.5" style="color: var(--text-secondary);"><span class="mono font-semibold">UNCAN</span> · Final Expense · SC · policy <span class="mono">5001-22417</span></div>
+              </div>
+              <div class="text-right">
+                <div class="font-bold tnum text-[18px]">$1,599</div>
+                <div class="text-[10.5px]" style="color: var(--text-tertiary);">annual</div>
+              </div>
+              <div class="flex gap-1.5">
+                <button class="action-btn" data-state="got-it" data-selected="false">Got it</button>
+                <button class="action-btn" data-state="working" data-selected="false">Working</button>
+                <button class="action-btn" data-state="done" data-selected="false">Done</button>
+                <button class="action-btn" data-action="open-policy" style="border: none; background: transparent; padding-left: 4px; padding-right: 4px;"><i data-lucide="external-link" class="w-3.5 h-3.5"></i></button>
+              </div>
+            </div>
+
+            <!-- Pended 9d with manager note -->
+            <div class="card mb-3" style="border-left: 3px solid var(--warning);">
+              <div class="p-4 grid items-center gap-4" style="grid-template-columns: 110px 1fr 100px auto;">
+                <div>
+                  <span class="pill pill-warning"><i data-lucide="pause-circle" class="w-2.5 h-2.5"></i> PENDED</span>
+                  <div class="text-[11px] font-bold mt-1" style="color: var(--warning-dark);">9 days</div>
+                  <div class="text-[10.5px]" style="color: var(--text-tertiary);">recv'd 5/2</div>
+                </div>
+                <div>
+                  <div class="font-bold text-[15px]">Donaldson, Charles E.</div>
+                  <div class="text-[12px] mt-0.5" style="color: var(--text-secondary);"><span class="mono font-semibold">UGHIP</span> · Hospital Indemnity · MS · policy <span class="mono">4001-21567</span></div>
+                </div>
+                <div class="text-right">
+                  <div class="font-bold tnum text-[18px]">$712</div>
+                  <div class="text-[10.5px]" style="color: var(--text-tertiary);">annual</div>
+                </div>
+                <div class="flex gap-1.5">
+                  <button class="action-btn" data-state="got-it" data-selected="true">✓ Got it</button>
+                  <button class="action-btn" data-state="working" data-selected="false">Working</button>
+                  <button class="action-btn" data-state="done" data-selected="false">Done</button>
+                  <button class="action-btn" data-action="open-policy" style="border: none; background: transparent; padding-left: 4px; padding-right: 4px;"><i data-lucide="external-link" class="w-3.5 h-3.5"></i></button>
+                </div>
+              </div>
+              <!-- manager note -->
+              <div class="px-4 py-2 flex items-start gap-2.5" style="background: var(--bg-subtle); border-top: 1px solid var(--border);">
+                <i data-lucide="message-square" class="w-3.5 h-3.5 mt-0.5 flex-shrink-0" style="color: var(--fym-navy);"></i>
+                <div class="text-[12px] italic flex-1" style="color: var(--text-secondary);">"Carrier called for missing voided check. Faxed 5/8 — confirm receipt in next bank cycle." — <span class="font-semibold" style="color: var(--text-primary);">R. Coleman</span> · manager note · May 9</div>
+                <button class="text-[11px] font-semibold" style="color: var(--fym-navy);">Acknowledge</button>
+              </div>
+            </div>
+
+            <!-- FT Day 31 -->
+            <div class="attention-row mb-3" data-severity="danger" style="grid-template-columns: 110px 1fr 100px auto;">
+              <div>
+                <span class="pill pill-danger"><i data-lucide="alert-triangle" class="w-2.5 h-2.5"></i> FUTURE TERM</span>
+                <div class="text-[11px] font-bold tnum mt-1" style="color: var(--danger-dark);">Day 31/45</div>
+                <div class="text-[10.5px]" style="color: var(--text-tertiary);">grace exp 6/26</div>
+              </div>
+              <div>
+                <div class="font-bold text-[15px]">Spiller, Carla J.</div>
+                <div class="text-[12px] mt-0.5" style="color: var(--text-secondary);"><span class="mono font-semibold">UGHIP</span> · Hospital Indemnity · NC · policy <span class="mono">4001-19884</span></div>
+              </div>
+              <div class="text-right">
+                <div class="font-bold tnum text-[18px]">$463</div>
+                <div class="text-[10.5px]" style="color: var(--text-tertiary);">annual</div>
+              </div>
+              <div class="flex gap-1.5">
+                <button class="action-btn" data-state="got-it" data-selected="false">Got it</button>
+                <button class="action-btn" data-state="working" data-selected="true">Working</button>
+                <button class="action-btn" data-state="done" data-selected="false">Done</button>
+                <button class="action-btn" data-action="open-policy" style="border: none; background: transparent; padding-left: 4px; padding-right: 4px;"><i data-lucide="external-link" class="w-3.5 h-3.5"></i></button>
+              </div>
+            </div>
+
+            <!-- Pended 4d -->
+            <div class="attention-row mb-3" data-severity="warning" style="grid-template-columns: 110px 1fr 100px auto;">
+              <div>
+                <span class="pill pill-warning"><i data-lucide="pause-circle" class="w-2.5 h-2.5"></i> PENDED</span>
+                <div class="text-[11px] font-bold mt-1" style="color: var(--warning-dark);">4 days</div>
+                <div class="text-[10.5px]" style="color: var(--text-tertiary);">recv'd 5/7</div>
+              </div>
+              <div>
+                <div class="font-bold text-[15px]">Anderson, Tomas R.</div>
+                <div class="text-[12px] mt-0.5" style="color: var(--text-secondary);"><span class="mono font-semibold">UGHIP</span> · Hospital Indemnity · TX · policy <span class="mono">4001-78821</span></div>
+              </div>
+              <div class="text-right">
+                <div class="font-bold tnum text-[18px]">$444</div>
+                <div class="text-[10.5px]" style="color: var(--text-tertiary);">annual</div>
+              </div>
+              <div class="flex gap-1.5">
+                <button class="action-btn" data-state="got-it" data-selected="false">Got it</button>
+                <button class="action-btn" data-state="working" data-selected="false">Working</button>
+                <button class="action-btn" data-state="done" data-selected="false">Done</button>
+                <button class="action-btn" data-action="open-policy" style="border: none; background: transparent; padding-left: 4px; padding-right: 4px;"><i data-lucide="external-link" class="w-3.5 h-3.5"></i></button>
+              </div>
+            </div>
+          </section>
+
+          <!-- ================ PRODUCTION ================ -->
+          <section class="view" id="view-production">
+            <div class="flex items-end justify-between mb-5">
+              <div>
+                <h1 class="text-[24px] font-extrabold tracking-tight">My Production</h1>
+                <div class="text-[12.5px] mt-1" style="color: var(--text-secondary);">Volume, quality, and policy-level detail</div>
+              </div>
+              <div class="flex items-center gap-2">
+                <div class="seg-control">
+                  <button class="seg-btn" data-period="7d">7d</button>
+                  <button class="seg-btn" data-period="mtd" data-active="true">MTD</button>
+                  <button class="seg-btn" data-period="ytd">YTD</button>
+                  <button class="seg-btn" data-period="custom" style="display: inline-flex; align-items: center; gap: 4px;"><i data-lucide="calendar" class="w-3 h-3"></i> Custom</button>
+                </div>
+                <label class="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[12px] font-semibold cursor-pointer" style="border-color: var(--border); color: var(--text-secondary);">
+                  <span class="w-7 h-4 rounded-full relative" style="background: var(--border);"><span class="absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow"></span></span>
+                  Compare to prior
+                </label>
+                <button class="px-3 py-1.5 rounded-lg border text-[12px] font-semibold flex items-center gap-1.5" style="border-color: var(--border); color: var(--text-secondary);">
+                  <i data-lucide="download" class="w-3.5 h-3.5"></i> Export
+                </button>
+              </div>
+            </div>
+
+            <div class="seg-control mb-5">
+              <button class="seg-btn" data-pa-tab="volume" data-active="true">Volume</button>
+              <button class="seg-btn" data-pa-tab="quality">Quality</button>
+              <button class="seg-btn" data-pa-tab="policies">Policies</button>
+            </div>
+
+            <!-- VOLUME -->
+            <div data-pa-content="volume">
+              <!-- 3 hero KPIs -->
+              <div class="grid grid-cols-3 gap-4 mb-4">
+                <div class="card p-5">
+                  <div class="tile-label">AP Submitted</div>
+                  <div class="tile-value-lg tnum mt-1">$58,420</div>
+                  <div class="text-[11.5px] mt-1 tile-delta-up flex items-center gap-1"><i data-lucide="arrow-up" class="w-3 h-3"></i> +18% vs. prior 30d</div>
+                </div>
+                <div class="card p-5">
+                  <div class="tile-label">App Count</div>
+                  <div class="tile-value-lg tnum mt-1">112</div>
+                  <div class="text-[11.5px] mt-1 tile-delta-up flex items-center gap-1"><i data-lucide="arrow-up" class="w-3 h-3"></i> +24 vs. prior 30d</div>
+                </div>
+                <div class="card p-5">
+                  <div class="tile-label">Days Submitted</div>
+                  <div class="tile-value-lg tnum mt-1">23 <span class="text-[18px] font-medium" style="color: var(--text-tertiary);">/ 30</span></div>
+                  <div class="text-[11.5px] mt-1" style="color: var(--text-secondary);">21 active / 22 BD calendar</div>
+                </div>
+              </div>
+
+              <!-- Daily AP chart full-width -->
+              <div class="card p-5 mb-4">
+                <div class="flex items-center justify-between mb-2">
+                  <div>
+                    <div class="font-bold text-[14px]">Daily AP submitted</div>
+                    <div class="text-[11px] mt-0.5" style="color: var(--text-tertiary);">last 30 days · 7-day rolling avg overlay</div>
+                  </div>
+                  <div class="flex items-center gap-3 text-[11px]" style="color: var(--text-secondary);">
+                    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background: var(--fym-navy);"></span> Daily AP</span>
+                    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded" style="background: #CBD5E1; opacity: 0.6;"></span> Weekend</span>
+                    <span class="flex items-center gap-1.5"><svg width="20" height="6"><line x1="0" y1="3" x2="20" y2="3" stroke="#F59E0B" stroke-width="1.6" stroke-dasharray="3 2"/></svg> 7-day avg</span>
+                  </div>
+                </div>
+                <div class="spark-bars" style="position: relative;">
+                  <div class="spark-bar" style="height: 30%;"></div><div class="spark-bar" style="height: 55%;"></div><div class="spark-bar" style="height: 22%;"></div><div class="spark-bar" style="height: 65%;"></div><div class="spark-bar weekend" style="height: 8%;"></div><div class="spark-bar weekend" style="height: 8%;"></div><div class="spark-bar" style="height: 45%;"></div><div class="spark-bar" style="height: 70%;"></div><div class="spark-bar" style="height: 60%;"></div><div class="spark-bar" style="height: 80%;"></div><div class="spark-bar" style="height: 50%;"></div><div class="spark-bar weekend" style="height: 8%;"></div><div class="spark-bar weekend" style="height: 8%;"></div><div class="spark-bar" style="height: 75%;"></div><div class="spark-bar" style="height: 90%;"></div><div class="spark-bar" style="height: 40%;"></div><div class="spark-bar" style="height: 62%;"></div><div class="spark-bar" style="height: 55%;"></div><div class="spark-bar weekend" style="height: 8%;"></div><div class="spark-bar weekend" style="height: 8%;"></div><div class="spark-bar" style="height: 78%;"></div><div class="spark-bar" style="height: 48%;"></div><div class="spark-bar" style="height: 92%;"></div><div class="spark-bar" style="height: 35%;"></div><div class="spark-bar" style="height: 68%;"></div><div class="spark-bar weekend" style="height: 8%;"></div><div class="spark-bar weekend" style="height: 8%;"></div><div class="spark-bar" style="height: 50%;"></div><div class="spark-bar" style="height: 72%;"></div><div class="spark-bar today" style="height: 55%;"></div>
+                  <svg style="position: absolute; inset: 12px 0 0 0; pointer-events: none;" preserveAspectRatio="none" viewBox="0 0 100 100">
+                    <polyline points="2,70 7,62 12,55 17,50 22,46 27,42 32,40 37,38 42,40 47,42 52,38 57,35 62,32 67,30 72,28 77,30 82,32 87,34 92,38 97,42" stroke="#F59E0B" stroke-width="0.5" fill="none" stroke-dasharray="1 0.6" opacity="0.85"/>
+                  </svg>
+                </div>
+                <div class="flex justify-between text-[10.5px] mt-2" style="color: var(--text-tertiary);">
+                  <span class="tnum">Apr 13</span><span class="tnum">Apr 22</span><span class="tnum">May 1</span><span class="tnum">May 6</span><span class="tnum font-semibold" style="color: var(--fym-navy);">Today · May 12</span>
+                </div>
+              </div>
+
+              <!-- Product family + state breakdown -->
+              <div class="grid grid-cols-2 gap-4 mb-4">
+                <div class="card p-5">
+                  <div class="font-bold text-[14px] mb-3">AP by product family</div>
+                  <div class="bar-row"><div class="font-semibold mono text-[11.5px]">UTHHC</div><div class="bar-track"><div class="bar-fill" style="width: 90%;"></div></div><div class="text-right tnum font-bold">$26,400 <span style="color: var(--text-tertiary); font-weight: 400;">45%</span></div></div>
+                  <div class="bar-row"><div class="font-semibold mono text-[11.5px]">UHIP2</div><div class="bar-track"><div class="bar-fill" style="width: 62%;"></div></div><div class="text-right tnum font-bold">$18,200 <span style="color: var(--text-tertiary); font-weight: 400;">31%</span></div></div>
+                  <div class="bar-row"><div class="font-semibold mono text-[11.5px]">UGHIP</div><div class="bar-track"><div class="bar-fill" style="width: 30%;"></div></div><div class="text-right tnum font-bold">$8,920 <span style="color: var(--text-tertiary); font-weight: 400;">15%</span></div></div>
+                  <div class="bar-row"><div class="font-semibold mono text-[11.5px]">UNFEL</div><div class="bar-track"><div class="bar-fill" style="width: 17%;"></div></div><div class="text-right tnum font-bold">$4,900 <span style="color: var(--text-tertiary); font-weight: 400;">8%</span></div></div>
+                </div>
+
+                <div class="card p-5">
+                  <div class="font-bold text-[14px] mb-3">AP by issue state</div>
+                  <div class="flex flex-wrap gap-2">
+                    <span class="pill pill-navy" style="font-size: 13px; padding: 6px 14px;">TX <span class="font-bold ml-1.5 tnum">$19K</span></span>
+                    <span class="pill pill-navy" style="font-size: 13px; padding: 6px 14px;">GA <span class="font-bold ml-1.5 tnum">$12K</span></span>
+                    <span class="pill pill-navy" style="font-size: 13px; padding: 6px 14px;">NC <span class="font-bold ml-1.5 tnum">$8K</span></span>
+                    <span class="pill pill-navy" style="font-size: 13px; padding: 6px 14px;">SC <span class="font-bold ml-1.5 tnum">$7K</span></span>
+                    <span class="pill pill-navy" style="font-size: 13px; padding: 6px 14px;">MS <span class="font-bold ml-1.5 tnum">$5K</span></span>
+                    <span class="pill pill-slate" style="font-size: 13px; padding: 6px 14px;">AL <span class="font-bold ml-1.5 tnum">$3K</span></span>
+                    <span class="pill pill-slate" style="font-size: 13px; padding: 6px 14px;">FL <span class="font-bold ml-1.5 tnum">$2K</span></span>
+                    <span class="pill pill-slate" style="font-size: 13px; padding: 6px 14px;">LA <span class="font-bold ml-1.5 tnum">$1K</span></span>
+                    <span class="pill pill-slate" style="font-size: 13px; padding: 6px 14px;">+ 1 more</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- GI vs UW -->
+              <div class="card p-5">
+                <div class="flex items-center justify-between mb-3">
+                  <div>
+                    <div class="font-bold text-[14px]">GI vs Underwritten</div>
+                    <div class="text-[11px] mt-0.5" style="color: var(--text-tertiary);">HIP and HHC submissions only</div>
+                  </div>
+                  <div class="text-[11px]" style="color: var(--text-tertiary);">Of $44,600 in HIP+HHC</div>
+                </div>
+                <div class="flex h-12 rounded-lg overflow-hidden">
+                  <div class="flex items-center justify-center text-white text-[14px] font-bold gap-2" style="width: 72%; background: var(--fym-navy);">UW <span class="tnum">72%</span> <span class="text-[11px] font-medium opacity-80">($32,112)</span></div>
+                  <div class="flex items-center justify-center text-white text-[14px] font-bold gap-2" style="width: 28%; background: var(--fym-navy-light);">GI <span class="tnum">28%</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- QUALITY -->
+            <div data-pa-content="quality" style="display: none;">
+              <div class="grid grid-cols-3 gap-4 mb-4">
+                <div class="card p-5">
+                  <div class="tile-label flex items-center gap-1.5">Policies Taken <i data-lucide="info" class="w-3 h-3 tip" data-tip="Apps that became Active / total apps" style="color: var(--text-tertiary);"></i></div>
+                  <div class="tile-value tnum mt-1">74<span class="text-[16px]">%</span></div>
+                  <div class="text-[11.5px] mt-1 tile-delta-up flex items-center gap-1"><i data-lucide="arrow-up" class="w-3 h-3"></i> +3pp vs. prior</div>
+                </div>
+                <div class="card p-5">
+                  <div class="tile-label">Save Rate (30d)</div>
+                  <div class="tile-value tnum mt-1">78<span class="text-[16px]">%</span></div>
+                  <div class="text-[11.5px] mt-1" style="color: var(--text-secondary);">11 of 14 confirmed</div>
+                </div>
+                <div class="card p-5">
+                  <div class="tile-label">Avg AP / App</div>
+                  <div class="tile-value tnum mt-1">$523</div>
+                  <div class="text-[11.5px] mt-1 tile-delta-down">−$36 vs. prior 30d</div>
+                </div>
+                <div class="card p-5">
+                  <div class="tile-label">30-day Retention</div>
+                  <div class="tile-value tnum mt-1">91<span class="text-[16px]">%</span></div>
+                  <div class="text-[11.5px] mt-1" style="color: var(--text-secondary);">n=98</div>
+                </div>
+                <div class="card p-5">
+                  <div class="tile-label">90-day Retention</div>
+                  <div class="tile-value tnum mt-1">84<span class="text-[16px]">%</span></div>
+                  <div class="text-[11.5px] mt-1" style="color: var(--text-secondary);">n=63</div>
+                </div>
+                <div class="card p-5">
+                  <div class="tile-label">Avg Apps / Day</div>
+                  <div class="tile-value tnum mt-1">2.0 <span class="text-[14px] font-medium" style="color: var(--text-tertiary);">active</span></div>
+                  <div class="text-[11.5px] mt-1" style="color: var(--text-secondary);">1.6 calendar</div>
+                </div>
+              </div>
+
+              <!-- Two penguin tiles -->
+              <div class="grid grid-cols-2 gap-4">
+                <div class="card p-5" style="border: 1.5px dashed var(--border-strong); background: var(--bg-subtle);">
+                  <div class="flex items-center justify-between mb-2">
+                    <div>
+                      <div class="font-bold text-[14px]">13-month Persistency</div>
+                      <div class="text-[10.5px] mt-0.5" style="color: var(--text-tertiary);">Phase 1 §16.3.5 · time-based threshold</div>
+                    </div>
+                    <span class="pill pill-slate">0 eligible · 47 written</span>
+                  </div>
+                  <div class="penguin">
+                    <div class="penguin-body">
+                      <div class="penguin-belly"></div>
+                      <div class="penguin-eye left"></div>
+                      <div class="penguin-eye right"></div>
+                      <div class="penguin-beak"></div>
+                      <div class="penguin-feet"></div>
+                    </div>
+                  </div>
+                  <div class="text-center text-[12px] mt-2" style="color: var(--text-secondary);">
+                    None of your policies have reached the 13-month mark yet.<br>
+                    Your earliest crosses the window in <span class="font-semibold tnum" style="color: var(--text-primary);">April 2027</span>.<br>
+                    Enjoy the dancing penguin until then!
+                  </div>
+                </div>
+
+                <div class="card p-5" style="border: 1.5px dashed var(--border-strong); background: var(--bg-subtle);">
+                  <div class="flex items-center justify-between mb-2">
+                    <div>
+                      <div class="font-bold text-[14px]">Advance Period Retention <span style="color: var(--text-tertiary); font-weight: 500;">(9-mo)</span></div>
+                      <div class="text-[10.5px] mt-0.5" style="color: var(--text-tertiary);">Phase 1 §16.3.4 · time-based threshold</div>
+                    </div>
+                    <span class="pill pill-slate">0 eligible · 47 written</span>
+                  </div>
+                  <div class="penguin">
+                    <div class="penguin-body">
+                      <div class="penguin-belly"></div>
+                      <div class="penguin-eye left"></div>
+                      <div class="penguin-eye right"></div>
+                      <div class="penguin-beak"></div>
+                      <div class="penguin-feet"></div>
+                    </div>
+                  </div>
+                  <div class="text-center text-[12px] mt-2" style="color: var(--text-secondary);">
+                    Your policies are still inside the 9-month advance window.<br>
+                    Earliest exits in <span class="font-semibold tnum" style="color: var(--text-primary);">December 2026</span>.<br>
+                    Enjoy the dancing penguin until then!
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- POLICIES -->
+            <div data-pa-content="policies" style="display: none;">
+              <div class="flex items-center justify-between mb-4">
+                <div class="relative flex-1 max-w-xs">
+                  <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style="color: var(--text-tertiary);"></i>
+                  <input class="w-full pl-9 pr-3 py-2 rounded-lg border text-[13px]" style="border-color: var(--border);" placeholder="Search policy nbr, insured, or state">
+                </div>
+                <div class="text-[11.5px]" style="color: var(--text-tertiary);">Showing 7 of 112 policies</div>
+              </div>
+
+              <div class="card overflow-hidden">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Recv'd</th>
+                      <th>Policy #</th>
+                      <th>Insured</th>
+                      <th>Product</th>
+                      <th>State</th>
+                      <th class="text-right">AP</th>
+                      <th>Status</th>
+                      <th>Days since</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td class="tnum">5/11</td><td class="mono text-[11.5px]">4001-78821</td><td class="font-semibold">Anderson, T.</td><td><span class="mono text-[11px]">UGHIP</span></td><td>TX</td><td class="text-right font-bold tnum">$444</td><td><span class="pill pill-warning">Pended</span></td><td class="tnum">4d</td></tr>
+                    <tr><td class="tnum">5/11</td><td class="mono text-[11.5px]">4002-11534</td><td class="font-semibold">Hayes, M.</td><td><span class="mono text-[11px]">UHIP2</span></td><td>FL</td><td class="text-right font-bold tnum">$612</td><td><span class="pill pill-warning">Pended</span></td><td class="tnum">4d</td></tr>
+                    <tr><td class="tnum">5/10</td><td class="mono text-[11.5px]">3104-91204</td><td class="font-semibold">Burke, J.</td><td><span class="mono text-[11px]">UTHHC</span></td><td>GA</td><td class="text-right font-bold tnum">$890</td><td><span class="pill pill-success">Active</span></td><td class="tnum">5d</td></tr>
+                    <tr><td class="tnum">5/10</td><td class="mono text-[11.5px]">2104-32811</td><td class="font-semibold">Lee, A.</td><td><span class="mono text-[11px]">UFGHI</span></td><td>AL</td><td class="text-right font-bold tnum">$356</td><td><span class="pill pill-success">Active</span></td><td class="tnum">5d</td></tr>
+                    <tr><td class="tnum">5/9</td><td class="mono text-[11.5px]">3104-89102</td><td class="font-semibold">Smith, K.</td><td><span class="mono text-[11px]">UTHHC</span></td><td>NC</td><td class="text-right font-bold tnum">$1,200</td><td><span class="pill pill-success">Active</span></td><td class="tnum">6d</td></tr>
+                    <tr data-action="open-policy"><td class="tnum">5/9</td><td class="mono text-[11.5px]">5001-22417</td><td class="font-semibold">Tucker, T.</td><td><span class="mono text-[11px]">UNCAN</span></td><td>SC</td><td class="text-right font-bold tnum">$1,599</td><td><span class="pill pill-danger">Future Term</span></td><td class="tnum">6d</td></tr>
+                    <tr><td class="tnum">5/8</td><td class="mono text-[11.5px]">4002-77891</td><td class="font-semibold">Park, J.</td><td><span class="mono text-[11px]">UHIP2</span></td><td>TX</td><td class="text-right font-bold tnum">$534</td><td><span class="pill pill-success">Active</span></td><td class="tnum">7d</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+          <!-- ================ GOAL ================ -->
+          <section class="view" id="view-goal">
+            <div class="flex items-end justify-between mb-5">
+              <div>
+                <h1 class="text-[24px] font-extrabold tracking-tight">My Goal</h1>
+                <div class="text-[12.5px] mt-1" style="color: var(--text-secondary);">Goal, pace, calculator, and year-end projection</div>
+              </div>
+            </div>
+
+            <!-- 2-col layout -->
+            <div class="grid gap-4" style="grid-template-columns: 1.4fr 1fr;">
+
+              <!-- LEFT column -->
+              <div class="space-y-4">
+                <!-- Goal card -->
+                <div class="card card-elevated p-5">
+                  <div class="flex items-start justify-between mb-4">
+                    <div>
+                      <div class="tile-label">Monthly AP Goal · May 2026</div>
+                      <div class="flex items-baseline gap-3 mt-1">
+                        <span class="tile-value-xl tnum">$40,000</span>
+                        <button class="text-[12px] font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded-lg border" style="color: var(--fym-navy); border-color: var(--fym-navy-100); background: var(--fym-navy-50);" data-action="open-ghost">
+                          <i data-lucide="edit-3" class="w-3 h-3"></i> Edit
+                        </button>
+                      </div>
+                    </div>
+                    <span class="pill pill-success" style="padding: 5px 12px; font-size: 12px;"><i data-lucide="check" class="w-3 h-3"></i> ON TRACK</span>
+                  </div>
+
+                  <div>
+                    <div class="flex items-center justify-between text-[12.5px] mb-2">
+                      <span class="font-semibold">MTD <span class="tnum">$24,580</span></span>
+                      <span style="color: var(--text-secondary);">62% of goal · $15,420 remaining</span>
+                    </div>
+                    <div class="progress-track" style="height: 12px;">
+                      <div class="progress-fill" style="width: 62%;"></div>
+                    </div>
+                  </div>
+
+                  <div class="mt-5 pt-4 border-t grid grid-cols-3 gap-4" style="border-color: var(--border);">
+                    <div>
+                      <div class="text-[10.5px] font-bold uppercase tracking-wider" style="color: var(--text-tertiary);">Required pace</div>
+                      <div class="text-[16px] font-bold tnum mt-1">1.4 / BD</div>
+                      <div class="text-[11px]" style="color: var(--text-secondary);">next 5 BD</div>
+                    </div>
+                    <div>
+                      <div class="text-[10.5px] font-bold uppercase tracking-wider" style="color: var(--text-tertiary);">Current pace</div>
+                      <div class="text-[16px] font-bold tnum mt-1" style="color: var(--success-dark);">2.1 / BD</div>
+                      <div class="text-[11px]" style="color: var(--text-secondary);">+50% over required</div>
+                    </div>
+                    <div>
+                      <div class="text-[10.5px] font-bold uppercase tracking-wider" style="color: var(--text-tertiary);">Apps to goal</div>
+                      <div class="text-[16px] font-bold tnum mt-1">30 apps</div>
+                      <div class="text-[11px]" style="color: var(--text-secondary);">at $523/app avg</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- BD calendar -->
+                <div class="card p-5">
+                  <div class="flex items-center justify-between mb-3">
+                    <div>
+                      <div class="font-bold text-[14px]">May 2026 · business days</div>
+                      <div class="text-[11px] mt-0.5" style="color: var(--text-tertiary);">14 of 19 submitted · 5 remaining</div>
+                    </div>
+                    <div class="flex items-center gap-3 text-[10.5px]" style="color: var(--text-tertiary);">
+                      <span class="flex items-center gap-1.5"><span class="bd-dot active" style="width: 12px; height: 12px;"></span> submitted</span>
+                      <span class="flex items-center gap-1.5"><span class="bd-dot today" style="width: 12px; height: 12px; border-width: 1px;"></span> today</span>
+                      <span class="flex items-center gap-1.5"><span class="bd-dot" style="width: 12px; height: 12px;"></span> remaining</span>
+                    </div>
+                  </div>
+                  <div class="flex gap-1.5 flex-wrap">
+                    <div class="bd-dot active">1</div><div class="bd-dot weekend">2</div><div class="bd-dot weekend">3</div><div class="bd-dot active">4</div><div class="bd-dot active">5</div><div class="bd-dot active">6</div><div class="bd-dot active">7</div><div class="bd-dot active">8</div><div class="bd-dot weekend">9</div><div class="bd-dot weekend">10</div><div class="bd-dot active">11</div><div class="bd-dot today">12</div><div class="bd-dot">13</div><div class="bd-dot">14</div><div class="bd-dot">15</div><div class="bd-dot weekend">16</div><div class="bd-dot weekend">17</div><div class="bd-dot active">18</div><div class="bd-dot active">19</div><div class="bd-dot active">20</div><div class="bd-dot active">21</div><div class="bd-dot active">22</div><div class="bd-dot weekend">23</div><div class="bd-dot weekend">24</div><div class="bd-dot active">25</div><div class="bd-dot active">26</div><div class="bd-dot active">27</div><div class="bd-dot">28</div><div class="bd-dot">29</div><div class="bd-dot weekend">30</div><div class="bd-dot weekend">31</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- RIGHT column -->
+              <div class="space-y-4">
+                <!-- AP Calculator -->
+                <div class="card card-elevated p-5">
+                  <div class="flex items-center justify-between mb-3">
+                    <div class="font-bold text-[14px]">AP Calculator</div>
+                    <span class="text-[10.5px]" style="color: var(--text-tertiary);">30d avg <span class="tnum font-semibold" style="color: var(--text-primary);">$523/app</span></span>
+                  </div>
+                  <div class="space-y-3">
+                    <div class="p-3 rounded-xl" style="background: var(--bg-subtle); border: 1px solid var(--border);">
+                      <div class="text-[10.5px] font-bold uppercase tracking-wider mb-2" style="color: var(--fym-navy);">If I want to write</div>
+                      <div class="flex items-center gap-2">
+                        <span class="text-[20px] font-bold tnum">$</span>
+                        <input class="flex-1 bg-white rounded-lg px-3 py-2 text-[15px] font-bold tnum border" style="border-color: var(--border);" value="40,000">
+                        <span class="text-[12px]" style="color: var(--text-secondary);">AP</span>
+                      </div>
+                      <div class="mt-2.5 flex items-center gap-2 text-[13px]">
+                        <i data-lucide="arrow-right" class="w-4 h-4" style="color: var(--fym-navy);"></i>
+                        <span style="color: var(--text-secondary);">I need</span>
+                        <span class="font-bold tnum">77 apps</span>
+                        <span class="text-[11px]" style="color: var(--text-tertiary);">at current avg</span>
+                      </div>
+                    </div>
+
+                    <div class="p-3 rounded-xl" style="background: var(--bg-subtle); border: 1px solid var(--border);">
+                      <div class="text-[10.5px] font-bold uppercase tracking-wider mb-2" style="color: var(--fym-navy);">If I write</div>
+                      <div class="flex items-center gap-2">
+                        <input class="flex-1 bg-white rounded-lg px-3 py-2 text-[15px] font-bold tnum border" style="border-color: var(--border);" value="5">
+                        <span class="text-[12px]" style="color: var(--text-secondary);">apps / business day</span>
+                      </div>
+                      <div class="mt-2.5 flex items-center gap-2 text-[13px]">
+                        <i data-lucide="arrow-right" class="w-4 h-4" style="color: var(--fym-navy);"></i>
+                        <span style="color: var(--text-secondary);">I'll hit $40K in</span>
+                        <span class="font-bold tnum">15.4 BD</span>
+                        <span class="text-[11px]" style="color: var(--text-tertiary);">≈ 3 weeks</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Year-end projection -->
+                <div class="card p-5">
+                  <div class="flex items-start justify-between mb-3">
+                    <div>
+                      <div class="font-bold text-[14px]">Year-End Projection</div>
+                      <div class="text-[10.5px] mt-0.5" style="color: var(--text-tertiary);">Linear projection · §10.8 / §16.8.6</div>
+                    </div>
+                    <span class="pill pill-warning" style="padding: 4px 10px; font-size: 11.5px;"><i data-lucide="alert-triangle" class="w-2.5 h-2.5"></i> CATCH-UP</span>
+                  </div>
+
+                  <div class="grid grid-cols-3 gap-3 mb-3">
+                    <div>
+                      <div class="text-[10px] uppercase font-bold tracking-wider" style="color: var(--text-tertiary);">At pace</div>
+                      <div class="font-extrabold tnum text-[20px] mt-1">$145K</div>
+                    </div>
+                    <div>
+                      <div class="text-[10px] uppercase font-bold tracking-wider" style="color: var(--text-tertiary);">Annual goal</div>
+                      <div class="font-extrabold tnum text-[20px] mt-1">$480K</div>
+                    </div>
+                    <div>
+                      <div class="text-[10px] uppercase font-bold tracking-wider" style="color: var(--text-tertiary);">Gap</div>
+                      <div class="font-extrabold tnum text-[20px] mt-1" style="color: var(--danger-dark);">−$335K</div>
+                    </div>
+                  </div>
+
+                  <div class="text-[12px] p-3 rounded-lg leading-relaxed" style="background: var(--warning-bg); color: var(--warning-dark);">
+                    <i data-lucide="info" class="w-3.5 h-3.5 inline -mt-0.5"></i>
+                    You've written $58K in 92 BD this year · 158 BD remain · at this pace you'd finish at $145K.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ================ LEADERBOARDS ================ -->
+          <section class="view" id="view-leaderboards">
+            <div class="flex items-end justify-between mb-5">
+              <div>
+                <h1 class="text-[24px] font-extrabold tracking-tight">Leaderboards</h1>
+                <div class="text-[12.5px] mt-1" style="color: var(--text-secondary);">All 247 agents in your FYM scope · cross-agency rows masked per §7.5</div>
+              </div>
+              <div class="flex items-center gap-2">
+                <div class="seg-control">
+                  <button class="seg-btn" data-period="7d">7d</button>
+                  <button class="seg-btn" data-period="mtd" data-active="true">MTD</button>
+                  <button class="seg-btn" data-period="ytd">YTD</button>
+                  <button class="seg-btn" data-period="custom" style="display: inline-flex; align-items: center; gap: 4px;"><i data-lucide="calendar" class="w-3 h-3"></i> Custom</button>
+                </div>
+                <button class="px-3 py-1.5 rounded-lg border text-[12px] font-semibold flex items-center gap-1.5" style="border-color: var(--border);">
+                  <i data-lucide="arrow-down-wide-narrow" class="w-3.5 h-3.5"></i> Sort: AP Submitted <i data-lucide="chevron-down" class="w-3 h-3"></i>
+                </button>
+                <label class="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[12px] font-semibold cursor-pointer" style="border-color: var(--border); color: var(--text-secondary);">
+                  <span class="w-7 h-4 rounded-full relative" style="background: var(--border);"><span class="absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow"></span></span>
+                  My agency only
+                </label>
+              </div>
+            </div>
+
+            <div class="seg-control mb-4">
+              <button class="seg-btn" data-lb-board="all" data-active="true">All Agents <span class="ml-1" style="color: var(--text-tertiary); font-weight: 500;">247</span></button>
+              <button class="seg-btn" data-lb-board="rampup">Ramp Up <span class="ml-1" style="color: var(--text-tertiary); font-weight: 500;">38</span></button>
+            </div>
+
+            <!-- Executive summary card -->
+            <div class="card card-elevated p-5 mb-4" style="background: linear-gradient(135deg, var(--fym-navy-50), white); border-color: var(--fym-navy-100);">
+              <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-12 h-12 rounded-full flex items-center justify-center font-extrabold text-white text-[14px]" style="background: linear-gradient(135deg, #1F3A68, #2D5290);">MS</div>
+                  <div>
+                    <div class="text-[10.5px] font-bold uppercase tracking-wider" style="color: var(--fym-navy);">Your executive summary · MTD</div>
+                    <div class="flex items-baseline gap-2 mt-0.5">
+                      <span class="font-extrabold text-[18px]">Marco Secolo</span>
+                      <span class="text-[12px]" style="color: var(--text-secondary);">Bluegrass Brokerage · Ramp Up Day 42/90</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="text-[11px] flex items-center gap-1.5" style="color: var(--text-tertiary);">
+                  <i data-lucide="mouse-pointer-click" class="w-3 h-3"></i>
+                  Click any KPI to re-sort the board by that metric
+                </div>
+              </div>
+
+              <!-- KPI grid -->
+              <div class="grid grid-cols-6 gap-2.5">
+
+                <!-- AP MTD -->
+                <button class="kpi-summary-tile" data-sort-by="ap" data-active-sort="true">
+                  <div class="text-[10px] font-bold uppercase tracking-wider" style="color: var(--text-tertiary);">AP MTD</div>
+                  <div class="font-extrabold tnum text-[18px] mt-1" style="letter-spacing: -0.02em;">$24,580</div>
+                  <div class="flex items-center justify-between mt-1.5">
+                    <span class="kpi-rank-chip mid-tier">#14 of 247</span>
+                    <span class="text-[10px] tile-delta-up flex items-center gap-0.5"><i data-lucide="arrow-up" class="w-2.5 h-2.5"></i><span class="tnum">+22%</span></span>
+                  </div>
+                </button>
+
+                <!-- Apps -->
+                <button class="kpi-summary-tile" data-sort-by="apps">
+                  <div class="text-[10px] font-bold uppercase tracking-wider" style="color: var(--text-tertiary);">Apps</div>
+                  <div class="font-extrabold tnum text-[18px] mt-1" style="letter-spacing: -0.02em;">47</div>
+                  <div class="flex items-center justify-between mt-1.5">
+                    <span class="kpi-rank-chip mid-tier">#22 of 247</span>
+                    <span class="text-[10px] tile-delta-up flex items-center gap-0.5"><i data-lucide="arrow-up" class="w-2.5 h-2.5"></i><span class="tnum">+9</span></span>
+                  </div>
+                </button>
+
+                <!-- Save Rate -->
+                <button class="kpi-summary-tile" data-sort-by="save">
+                  <div class="text-[10px] font-bold uppercase tracking-wider" style="color: var(--text-tertiary);">Save Rate</div>
+                  <div class="font-extrabold tnum text-[18px] mt-1" style="letter-spacing: -0.02em;">78%</div>
+                  <div class="flex items-center justify-between mt-1.5">
+                    <span class="kpi-rank-chip top-tier">#6 of 247</span>
+                    <span class="text-[10px] tile-delta-up flex items-center gap-0.5"><i data-lucide="arrow-up" class="w-2.5 h-2.5"></i><span class="tnum">+4pp</span></span>
+                  </div>
+                </button>
+
+                <!-- % Taken -->
+                <button class="kpi-summary-tile" data-sort-by="taken">
+                  <div class="text-[10px] font-bold uppercase tracking-wider" style="color: var(--text-tertiary);">% Taken</div>
+                  <div class="font-extrabold tnum text-[18px] mt-1" style="letter-spacing: -0.02em;">74%</div>
+                  <div class="flex items-center justify-between mt-1.5">
+                    <span class="kpi-rank-chip mid-tier">#41 of 247</span>
+                    <span class="text-[10px] tile-delta-up flex items-center gap-0.5"><i data-lucide="arrow-up" class="w-2.5 h-2.5"></i><span class="tnum">+3pp</span></span>
+                  </div>
+                </button>
+
+                <!-- Avg AP/App -->
+                <button class="kpi-summary-tile" data-sort-by="avgap">
+                  <div class="text-[10px] font-bold uppercase tracking-wider" style="color: var(--text-tertiary);">Avg AP/App</div>
+                  <div class="font-extrabold tnum text-[18px] mt-1" style="letter-spacing: -0.02em;">$523</div>
+                  <div class="flex items-center justify-between mt-1.5">
+                    <span class="kpi-rank-chip low-tier">#118 of 247</span>
+                    <span class="text-[10px] tile-delta-down flex items-center gap-0.5"><i data-lucide="arrow-down" class="w-2.5 h-2.5"></i><span class="tnum">−$36</span></span>
+                  </div>
+                </button>
+
+                <!-- BD coverage -->
+                <button class="kpi-summary-tile" data-sort-by="bd">
+                  <div class="text-[10px] font-bold uppercase tracking-wider" style="color: var(--text-tertiary);">BD Coverage</div>
+                  <div class="font-extrabold tnum text-[18px] mt-1" style="letter-spacing: -0.02em;">74%</div>
+                  <div class="flex items-center justify-between mt-1.5">
+                    <span class="kpi-rank-chip top-tier">#9 of 247</span>
+                    <span class="text-[10px]" style="color: var(--text-tertiary);">14/19 BD</span>
+                  </div>
+                </button>
+
+              </div>
+
+              <!-- Footer summary line -->
+              <div class="mt-4 pt-4 border-t flex items-center justify-between" style="border-color: var(--border);">
+                <div class="text-[12px] flex items-center gap-2" style="color: var(--text-secondary);">
+                  <i data-lucide="trending-up" class="w-3.5 h-3.5" style="color: var(--success-dark);"></i>
+                  <span>Strongest finish: <span class="font-semibold" style="color: var(--text-primary);">Save Rate (top 3%)</span></span>
+                  <span style="color: var(--text-tertiary);">·</span>
+                  <i data-lucide="trending-down" class="w-3.5 h-3.5" style="color: var(--warning-dark);"></i>
+                  <span>Room to grow: <span class="font-semibold" style="color: var(--text-primary);">Avg AP/App (bottom half)</span></span>
+                </div>
+                <button class="text-[12px] font-semibold flex items-center gap-1" style="color: var(--fym-navy);" data-action="open-h2h">
+                  Compare to peer <i data-lucide="users" class="w-3 h-3"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- Board -->
+            <div class="card overflow-hidden">
+              <div class="lb-head">
+                <div>RANK</div>
+                <div>AGENT</div>
+                <div class="text-right">AP MTD</div>
+                <div class="text-right">APPS</div>
+                <div class="text-right">SAVE RATE</div>
+                <div class="text-right">% TAKEN</div>
+                <div class="text-right">VS PRIOR</div>
+              </div>
+
+              <div class="lb-row">
+                <span class="font-extrabold tnum" style="color: var(--text-tertiary);">1</span>
+                <div><div class="font-bold">J. Henderson</div><div class="text-[10.5px]" style="color: var(--text-tertiary);">Wealth Alliance Group</div></div>
+                <div class="text-right font-bold tnum">$54,820</div>
+                <div class="text-right tnum">98</div>
+                <div class="text-right tnum">73%</div>
+                <div class="text-right tnum">81%</div>
+                <div class="text-right tile-delta-up flex items-center justify-end gap-0.5"><i data-lucide="arrow-up" class="w-3 h-3"></i><span class="tnum">+14%</span></div>
+              </div>
+              <div class="lb-row" data-action="open-h2h">
+                <span class="font-extrabold tnum" style="color: var(--text-tertiary);">2</span>
+                <div><div class="font-bold flex items-center gap-1.5"><i data-lucide="venetian-mask" class="w-3.5 h-3.5" style="color: var(--text-tertiary);"></i> The Solitary Otter</div><div class="text-[10.5px] italic" style="color: var(--text-tertiary);">"Here, in the cool of morning, glides one of nature's most resourceful hunters."</div></div>
+                <div class="text-right font-bold tnum">$48,900</div>
+                <div class="text-right tnum">89</div>
+                <div class="text-right tnum">71%</div>
+                <div class="text-right tnum">78%</div>
+                <div class="text-right tile-delta-up flex items-center justify-end gap-0.5"><i data-lucide="arrow-up" class="w-3 h-3"></i><span class="tnum">+8%</span></div>
+              </div>
+              <div class="lb-row">
+                <span class="font-extrabold tnum" style="color: var(--text-tertiary);">3</span>
+                <div><div class="font-bold">M. Lopez</div><div class="text-[10.5px]" style="color: var(--text-tertiary);">Wealth Alliance Group</div></div>
+                <div class="text-right font-bold tnum">$47,210</div>
+                <div class="text-right tnum">82</div>
+                <div class="text-right tnum">69%</div>
+                <div class="text-right tnum">79%</div>
+                <div class="text-right tile-delta-down flex items-center justify-end gap-0.5"><i data-lucide="arrow-down" class="w-3 h-3"></i><span class="tnum">−5%</span></div>
+              </div>
+              <div class="lb-row" data-action="open-h2h">
+                <span class="font-extrabold tnum" style="color: var(--text-tertiary);">4</span>
+                <div><div class="font-bold flex items-center gap-1.5"><i data-lucide="venetian-mask" class="w-3.5 h-3.5" style="color: var(--text-tertiary);"></i> The Patient Heron</div><div class="text-[10.5px] italic" style="color: var(--text-tertiary);">"Stillness, perfected. A study in quiet anticipation."</div></div>
+                <div class="text-right font-bold tnum">$42,180</div>
+                <div class="text-right tnum">76</div>
+                <div class="text-right tnum">82%</div>
+                <div class="text-right tnum">84%</div>
+                <div class="text-right tile-delta-up flex items-center justify-end gap-0.5"><i data-lucide="arrow-up" class="w-3 h-3"></i><span class="tnum">+12%</span></div>
+              </div>
+              <div class="lb-row">
+                <span class="font-extrabold tnum" style="color: var(--text-tertiary);">5</span>
+                <div><div class="font-bold">R. Coleman</div><div class="text-[10.5px]" style="color: var(--text-tertiary);">Bluegrass Brokerage</div></div>
+                <div class="text-right font-bold tnum">$38,420</div>
+                <div class="text-right tnum">71</div>
+                <div class="text-right tnum">88%</div>
+                <div class="text-right tnum">82%</div>
+                <div class="text-right tile-delta-up flex items-center justify-end gap-0.5"><i data-lucide="arrow-up" class="w-3 h-3"></i><span class="tnum">+2%</span></div>
+              </div>
+
+              <div class="text-center py-2.5 text-[11px] font-semibold" style="color: var(--text-tertiary); background: var(--bg-subtle); letter-spacing: 0.06em;">· · ·  ranks 6–11 hidden  · · ·</div>
+
+              <div class="lb-row" data-action="open-h2h">
+                <span class="font-extrabold tnum" style="color: var(--text-tertiary);">12</span>
+                <div><div class="font-bold flex items-center gap-1.5"><i data-lucide="venetian-mask" class="w-3.5 h-3.5" style="color: var(--text-tertiary);"></i> The Watchful Marmot</div><div class="text-[10.5px] italic" style="color: var(--text-tertiary);">"From this sun-warmed perch, it surveys all that stirs in the valley below."</div></div>
+                <div class="text-right font-bold tnum">$26,140</div>
+                <div class="text-right tnum">52</div>
+                <div class="text-right tnum">75%</div>
+                <div class="text-right tnum">71%</div>
+                <div class="text-right tile-delta-up flex items-center justify-end gap-0.5"><i data-lucide="arrow-up" class="w-3 h-3"></i><span class="tnum">+18%</span></div>
+              </div>
+              <div class="lb-row">
+                <span class="font-extrabold tnum" style="color: var(--text-tertiary);">13</span>
+                <div><div class="font-bold">K. Bridges</div><div class="text-[10.5px]" style="color: var(--text-tertiary);">Bluegrass Brokerage</div></div>
+                <div class="text-right font-bold tnum">$25,300</div>
+                <div class="text-right tnum">49</div>
+                <div class="text-right tnum">82%</div>
+                <div class="text-right tnum">75%</div>
+                <div class="text-right tile-delta-down flex items-center justify-end gap-0.5"><i data-lucide="arrow-down" class="w-3 h-3"></i><span class="tnum">−3%</span></div>
+              </div>
+
+              <!-- SELF -->
+              <div class="lb-row" data-self="true">
+                <span class="font-extrabold tnum" style="color: var(--fym-navy);">14</span>
+                <div><div class="font-bold flex items-center gap-2"><span class="pill" style="background: var(--fym-navy); color: white; padding: 1px 7px; font-size: 9.5px;">YOU</span> Marco Secolo <span class="ramp-badge" style="font-size: 9px; padding: 1px 6px;"><i data-lucide="zap" class="w-2 h-2"></i> RU</span></div><div class="text-[10.5px]" style="color: var(--text-tertiary);">Bluegrass Brokerage</div></div>
+                <div class="text-right font-bold tnum">$24,580</div>
+                <div class="text-right tnum">47</div>
+                <div class="text-right tnum">78%</div>
+                <div class="text-right tnum">74%</div>
+                <div class="text-right tile-delta-up flex items-center justify-end gap-0.5"><i data-lucide="arrow-up" class="w-3 h-3"></i><span class="tnum">+22%</span></div>
+              </div>
+
+              <div class="lb-row" data-action="open-h2h">
+                <span class="font-extrabold tnum" style="color: var(--text-tertiary);">15</span>
+                <div><div class="font-bold flex items-center gap-1.5"><i data-lucide="venetian-mask" class="w-3.5 h-3.5" style="color: var(--text-tertiary);"></i> The Curious Aardvark</div><div class="text-[10.5px] italic" style="color: var(--text-tertiary);">"By night, it works with extraordinary persistence — a most singular creature."</div></div>
+                <div class="text-right font-bold tnum">$24,100</div>
+                <div class="text-right tnum">49</div>
+                <div class="text-right tnum">71%</div>
+                <div class="text-right tnum">82%</div>
+                <div class="text-right tile-delta-up flex items-center justify-end gap-0.5"><i data-lucide="arrow-up" class="w-3 h-3"></i><span class="tnum">+3%</span></div>
+              </div>
+              <div class="lb-row">
+                <span class="font-extrabold tnum" style="color: var(--text-tertiary);">16</span>
+                <div><div class="font-bold">T. Russell</div><div class="text-[10.5px]" style="color: var(--text-tertiary);">Bluegrass Brokerage</div></div>
+                <div class="text-right font-bold tnum">$23,180</div>
+                <div class="text-right tnum">44</div>
+                <div class="text-right tnum">80%</div>
+                <div class="text-right tnum">76%</div>
+                <div class="text-right tile-delta-up flex items-center justify-end gap-0.5"><i data-lucide="arrow-up" class="w-3 h-3"></i><span class="tnum">+6%</span></div>
+              </div>
+              <div class="lb-row" data-action="open-h2h">
+                <span class="font-extrabold tnum" style="color: var(--text-tertiary);">17</span>
+                <div><div class="font-bold flex items-center gap-1.5"><i data-lucide="venetian-mask" class="w-3.5 h-3.5" style="color: var(--text-tertiary);"></i> The Serene Capybara</div><div class="text-[10.5px] italic" style="color: var(--text-tertiary);">"The largest rodent on Earth — and perhaps the most amiable companion in the animal kingdom."</div></div>
+                <div class="text-right font-bold tnum">$21,800</div>
+                <div class="text-right tnum">41</div>
+                <div class="text-right tnum">68%</div>
+                <div class="text-right tnum">79%</div>
+                <div class="text-right tile-delta-down flex items-center justify-end gap-0.5"><i data-lucide="arrow-down" class="w-3 h-3"></i><span class="tnum">−2%</span></div>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between mt-4">
+              <span class="text-[11.5px]" style="color: var(--text-tertiary);">Showing top 5 + your neighborhood (#12–#17) · default viewport</span>
+              <button class="text-[12px] font-semibold flex items-center gap-1.5 px-3 py-1.5 rounded-lg border" style="color: var(--fym-navy); border-color: var(--border);">
+                See full board (247 agents) <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </section>
+
+          <!-- ================ PROFILE ================ -->
+          <section class="view" id="view-profile">
+            <div class="flex items-end justify-between mb-5">
+              <div>
+                <h1 class="text-[24px] font-extrabold tracking-tight">Profile &amp; Settings</h1>
+                <div class="text-[12.5px] mt-1" style="color: var(--text-secondary);">Personal info, notifications, and view defaults</div>
+              </div>
+            </div>
+
+            <div class="max-w-3xl space-y-4">
+              <!-- Personal Info -->
+              <div class="card card-elevated p-5">
+                <div class="flex items-center gap-4 pb-4 border-b" style="border-color: var(--border);">
+                  <div class="w-16 h-16 rounded-full flex items-center justify-center font-extrabold text-white text-[22px]" style="background: linear-gradient(135deg, #1F3A68, #2D5290);">MS</div>
+                  <div class="flex-1">
+                    <div class="font-extrabold text-[18px]">Marco Secolo</div>
+                    <div class="text-[12.5px] mt-0.5" style="color: var(--text-secondary);">marco.secolo@bluegrassbk.com · Bluegrass Brokerage</div>
+                    <div class="mt-1.5"><span class="ramp-badge"><i data-lucide="zap" class="w-3 h-3"></i> Ramp Up · Day 42 of 90 · graduates Jun 29, 2026</span></div>
+                  </div>
+                  <button class="text-[12px] font-semibold flex items-center gap-1.5 px-3 py-2 rounded-lg border" style="border-color: var(--border); color: var(--fym-navy);">
+                    <i data-lucide="mail" class="w-3.5 h-3.5"></i> Request update
+                  </button>
+                </div>
+
+                <dl class="text-[12.5px] grid grid-cols-2 gap-x-8 gap-y-2.5 mt-4">
+                  <div class="flex justify-between"><dt style="color: var(--text-tertiary);">Agent ID</dt><dd class="mono font-semibold">A-04471</dd></div>
+                  <div class="flex justify-between"><dt style="color: var(--text-tertiary);">NPN</dt><dd class="mono font-semibold tnum">21847562</dd></div>
+                  <div class="flex justify-between"><dt style="color: var(--text-tertiary);">Contract date</dt><dd class="font-semibold tnum">Mar 31, 2026</dd></div>
+                  <div class="flex justify-between"><dt style="color: var(--text-tertiary);">Tenure</dt><dd class="font-semibold">42 days</dd></div>
+                  <div class="flex justify-between"><dt style="color: var(--text-tertiary);">Rank</dt><dd class="font-semibold">Associate · Tier 3</dd></div>
+                  <div class="flex justify-between"><dt style="color: var(--text-tertiary);">Pay method</dt><dd class="font-semibold">FYM-paid (advance)</dd></div>
+                </dl>
+              </div>
+
+              <!-- Notifications -->
+              <div class="card p-5">
+                <div class="font-bold text-[14px] mb-4">Notifications</div>
+                <div class="space-y-3">
+                  <label class="flex items-center justify-between text-[13px]">
+                    <div>
+                      <span class="font-semibold">Daily attention digest</span>
+                      <span class="ml-2" style="color: var(--text-tertiary);">push</span>
+                      <div class="text-[11px]" style="color: var(--text-tertiary);">FT, pended, and suspended items needing your action</div>
+                    </div>
+                    <span class="w-10 h-5 rounded-full relative cursor-pointer" style="background: var(--fym-navy);"><span class="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-white shadow"></span></span>
+                  </label>
+                  <label class="flex items-center justify-between text-[13px] pt-3 border-t" style="border-color: var(--border);">
+                    <div>
+                      <span class="font-semibold">Daily attention digest</span>
+                      <span class="ml-2" style="color: var(--text-tertiary);">email</span>
+                      <div class="text-[11px]" style="color: var(--text-tertiary);">Same content as push, sent each morning</div>
+                    </div>
+                    <span class="w-10 h-5 rounded-full relative cursor-pointer" style="background: var(--border-strong);"><span class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow"></span></span>
+                  </label>
+                  <label class="flex items-center justify-between text-[13px] pt-3 border-t" style="border-color: var(--border);">
+                    <div>
+                      <span class="font-semibold">Save event confirmations</span>
+                      <div class="text-[11px]" style="color: var(--text-tertiary);">When a policy you saved is confirmed Active by the carrier</div>
+                    </div>
+                    <span class="w-10 h-5 rounded-full relative cursor-pointer" style="background: var(--fym-navy);"><span class="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-white shadow"></span></span>
+                  </label>
+                  <label class="flex items-center justify-between text-[13px] pt-3 border-t" style="border-color: var(--border);">
+                    <div>
+                      <span class="font-semibold">Pace coaching alerts</span>
+                      <div class="text-[11px]" style="color: var(--text-tertiary);">"You're behind pace" notifications</div>
+                    </div>
+                    <span class="w-10 h-5 rounded-full relative cursor-pointer" style="background: var(--border-strong);"><span class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow"></span></span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- View defaults -->
+              <div class="card p-5">
+                <div class="font-bold text-[14px] mb-4">View defaults</div>
+                <dl class="text-[13px] grid grid-cols-2 gap-x-8 gap-y-3">
+                  <div class="flex items-center justify-between">
+                    <dt style="color: var(--text-secondary);">Production landing tab</dt>
+                    <dd class="font-semibold flex items-center gap-1">Volume <i data-lucide="chevron-down" class="w-3 h-3" style="color: var(--text-tertiary);"></i></dd>
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <dt style="color: var(--text-secondary);">Default period</dt>
+                    <dd class="font-semibold flex items-center gap-1">Last 30 days <i data-lucide="chevron-down" class="w-3 h-3" style="color: var(--text-tertiary);"></i></dd>
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <dt style="color: var(--text-secondary);">Leaderboard board</dt>
+                    <dd class="font-semibold flex items-center gap-1">All Agents <i data-lucide="chevron-down" class="w-3 h-3" style="color: var(--text-tertiary);"></i></dd>
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <dt style="color: var(--text-secondary);">Leaderboard sort</dt>
+                    <dd class="font-semibold flex items-center gap-1">AP Submitted <i data-lucide="chevron-down" class="w-3 h-3" style="color: var(--text-tertiary);"></i></dd>
+                  </div>
+                </dl>
+              </div>
+
+              <!-- Home dashboard layout -->
+              <div class="card p-5" id="dashboard-layout">
+                <div class="flex items-start justify-between mb-1">
+                  <div>
+                    <div class="font-bold text-[14px] flex items-center gap-2">
+                      <i data-lucide="layout-dashboard" class="w-4 h-4" style="color: var(--fym-navy);"></i>
+                      Home dashboard layout
+                    </div>
+                    <div class="text-[11.5px] mt-1 leading-relaxed" style="color: var(--text-secondary);">
+                      Choose what appears on your home dashboard. Toggle changes apply immediately — flip a switch and tab back to Dashboard to see it land.
+                    </div>
+                  </div>
+                  <button class="text-[12px] font-semibold flex items-center gap-1 px-2.5 py-1.5 rounded-lg" style="background: var(--fym-navy-50); color: var(--fym-navy);" data-jump="dashboard">
+                    <i data-lucide="external-link" class="w-3 h-3"></i> View dashboard
+                  </button>
+                </div>
+
+                <div class="mt-4 rounded-xl overflow-hidden" style="border: 1px solid var(--border);">
+                  <!-- MTD AP hero -->
+                  <label class="flex items-center justify-between py-3 px-4 text-[13px] cursor-pointer" style="border-bottom: 1px solid var(--border);">
+                    <div>
+                      <span class="font-semibold">MTD AP hero card</span>
+                      <div class="text-[11px] mt-0.5" style="color: var(--text-tertiary);">Large navy card with current-period production and pace</div>
+                    </div>
+                    <span class="w-10 h-5 rounded-full relative" style="background: var(--fym-navy);" data-widget-toggle="mtd-hero" data-on="true">
+                      <span class="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-white shadow transition-all"></span>
+                    </span>
+                  </label>
+
+                  <!-- Year-end projection -->
+                  <label class="flex items-center justify-between py-3 px-4 text-[13px] cursor-pointer" style="border-bottom: 1px solid var(--border);">
+                    <div>
+                      <span class="font-semibold">Year-end projection</span>
+                      <div class="text-[11px] mt-0.5" style="color: var(--text-tertiary);">Linear projection vs. annual goal with gap callout</div>
+                    </div>
+                    <span class="w-10 h-5 rounded-full relative" style="background: var(--fym-navy);" data-widget-toggle="year-end" data-on="true">
+                      <span class="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-white shadow transition-all"></span>
+                    </span>
+                  </label>
+
+                  <!-- KPI tiles -->
+                  <label class="flex items-center justify-between py-3 px-4 text-[13px] cursor-pointer" style="border-bottom: 1px solid var(--border);">
+                    <div>
+                      <span class="font-semibold">KPI tiles</span>
+                      <div class="text-[11px] mt-0.5" style="color: var(--text-tertiary);">App count, days submitted, avg AP/app, save rate</div>
+                    </div>
+                    <span class="w-10 h-5 rounded-full relative" style="background: var(--fym-navy);" data-widget-toggle="kpi-tiles" data-on="true">
+                      <span class="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-white shadow transition-all"></span>
+                    </span>
+                  </label>
+
+                  <!-- Needs Attention — LOCKED -->
+                  <div class="flex items-center justify-between py-3 px-4 text-[13px]" style="background: var(--fym-navy-50); border-bottom: 1px solid var(--border);">
+                    <div>
+                      <span class="font-semibold flex items-center gap-1.5" style="color: var(--fym-navy);">
+                        <i data-lucide="lock" class="w-3.5 h-3.5"></i>
+                        Needs Attention
+                      </span>
+                      <div class="text-[11px] mt-0.5" style="color: var(--fym-navy);">Required by FYM — drives your top-priority workflow</div>
+                    </div>
+                    <span class="pill" style="background: var(--fym-navy); color: white; padding: 4px 10px; font-size: 10.5px;">Always shown</span>
+                  </div>
+
+                  <!-- Quality — LOCKED -->
+                  <div class="flex items-center justify-between py-3 px-4 text-[13px]" style="background: var(--fym-navy-50); border-bottom: 1px solid var(--border);">
+                    <div>
+                      <span class="font-semibold flex items-center gap-1.5" style="color: var(--fym-navy);">
+                        <i data-lucide="lock" class="w-3.5 h-3.5"></i>
+                        Quality snapshot
+                      </span>
+                      <div class="text-[11px] mt-0.5" style="color: var(--fym-navy);">Required by FYM — save rate, % taken, retention</div>
+                    </div>
+                    <span class="pill" style="background: var(--fym-navy); color: white; padding: 4px 10px; font-size: 10.5px;">Always shown</span>
+                  </div>
+
+                  <!-- Recent Activity -->
+                  <label class="flex items-center justify-between py-3 px-4 text-[13px] cursor-pointer">
+                    <div>
+                      <span class="font-semibold">Recent activity feed</span>
+                      <div class="text-[11px] mt-0.5" style="color: var(--text-tertiary);">Last 7 days of submissions and outcomes</div>
+                    </div>
+                    <span class="w-10 h-5 rounded-full relative" style="background: var(--fym-navy);" data-widget-toggle="recent-activity" data-on="true">
+                      <span class="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-white shadow transition-all"></span>
+                    </span>
+                  </label>
+                </div>
+
+                <div class="mt-4 p-3 rounded-lg flex items-start gap-2.5" style="background: var(--bg-subtle);">
+                  <i data-lucide="info" class="w-4 h-4 flex-shrink-0 mt-0.5" style="color: var(--fym-navy);"></i>
+                  <div class="text-[11.5px] leading-relaxed" style="color: var(--text-secondary);">
+                    Locked widgets cannot be removed. They surface the work and quality signals FYM monitors most closely. New widgets (goal-pace, leaderboard rank, head-to-head) will roll out as opt-in additions.
+                  </div>
+                </div>
+              </div>
+
+              <button class="w-full text-[13px] font-semibold py-3 rounded-xl border" style="border-color: var(--border); color: var(--danger-dark);">Sign out</button>
+            </div>
+          </section>
+        </div>
+        <!-- Notification panel (slides from bell) -->
+        <div class="notif-panel" id="notif-panel">
+          <div class="p-3 border-b flex items-center justify-between" style="border-color: var(--border);">
+            <div class="font-bold text-[13px]">Notifications</div>
+            <button class="text-[11px] font-semibold" style="color: var(--fym-navy);">Mark all read</button>
+          </div>
+          <div class="p-2">
+            <div class="px-3 py-2.5 rounded-lg hover:bg-slate-50 cursor-pointer">
+              <div class="flex items-center gap-2 mb-0.5">
+                <span class="w-1.5 h-1.5 rounded-full" style="background: var(--fym-navy);"></span>
+                <span class="text-[11px] font-bold uppercase tracking-wider" style="color: var(--fym-navy);">Save confirmed</span>
+                <span class="text-[10.5px] ml-auto" style="color: var(--text-tertiary);">2h ago</span>
+              </div>
+              <div class="text-[12px]" style="color: var(--text-secondary);">Burke, J. (UTHHC, $890) confirmed Active. Save event resolved.</div>
+            </div>
+            <div class="px-3 py-2.5 rounded-lg hover:bg-slate-50 cursor-pointer">
+              <div class="flex items-center gap-2 mb-0.5">
+                <span class="w-1.5 h-1.5 rounded-full" style="background: var(--danger);"></span>
+                <span class="text-[11px] font-bold uppercase tracking-wider" style="color: var(--danger-dark);">New FT</span>
+                <span class="text-[10.5px] ml-auto" style="color: var(--text-tertiary);">7h ago</span>
+              </div>
+              <div class="text-[12px]" style="color: var(--text-secondary);">Whitfield, Linda K. entered final 7 days of grace.</div>
+            </div>
+            <div class="px-3 py-2.5 rounded-lg hover:bg-slate-50 cursor-pointer">
+              <div class="flex items-center gap-2 mb-0.5">
+                <span class="w-1.5 h-1.5 rounded-full" style="background: var(--fym-navy);"></span>
+                <span class="text-[11px] font-bold uppercase tracking-wider" style="color: var(--fym-navy);">Manager note</span>
+                <span class="text-[10.5px] ml-auto" style="color: var(--text-tertiary);">1d ago</span>
+              </div>
+              <div class="text-[12px]" style="color: var(--text-secondary);">R. Coleman left a note on Donaldson, Charles E.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- MODAL: POLICY DETAIL -->
+        <div class="modal-overlay" id="modal-policy">
+          <div class="modal-card">
+            <div class="p-5 flex items-start justify-between" style="border-bottom: 1px solid var(--border);">
+              <div>
+                <div class="text-[10.5px] font-bold uppercase tracking-wider" style="color: var(--text-tertiary);">Policy detail</div>
+                <div class="flex items-baseline gap-3 mt-1">
+                  <span class="font-extrabold text-[20px] mono">5001-22417</span>
+                  <span class="text-[12px]" style="color: var(--text-secondary);">UNCAN · Final Expense</span>
+                </div>
+              </div>
+              <button class="w-8 h-8 rounded-full flex items-center justify-center" style="background: var(--bg-subtle);" data-action="close-modal">
+                <i data-lucide="x" class="w-4 h-4"></i>
+              </button>
+            </div>
+
+            <div class="p-5">
+              <div class="card p-4 mb-4 flex items-center gap-4" style="border-left: 4px solid var(--danger); background: var(--danger-bg);">
+                <i data-lucide="alert-triangle" class="w-8 h-8" style="color: var(--danger-dark);"></i>
+                <div class="flex-1">
+                  <div class="flex items-center gap-2">
+                    <span class="pill pill-danger" style="background: white;"><i data-lucide="alert-triangle" class="w-2.5 h-2.5"></i> FUTURE TERM</span>
+                    <span class="text-[11.5px] font-bold tnum" style="color: var(--danger-dark);">Day 38/45</span>
+                  </div>
+                  <div class="text-[12.5px] mt-1" style="color: var(--danger-dark);">Grace expires <span class="font-bold tnum">June 26, 2026</span> · 7 days remain</div>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-6 mb-5">
+                <div>
+                  <div class="text-[10.5px] font-bold uppercase tracking-wider mb-2.5" style="color: var(--text-tertiary);">Insured</div>
+                  <dl class="text-[13px] space-y-2">
+                    <div class="flex justify-between"><dt style="color: var(--text-secondary);">Name</dt><dd class="font-semibold">Tucker, Tina G.</dd></div>
+                    <div class="flex justify-between"><dt style="color: var(--text-secondary);">State / Zip</dt><dd class="font-semibold tnum">SC · 295••</dd></div>
+                    <div class="flex justify-between"><dt style="color: var(--text-secondary);">Phone</dt><dd class="font-semibold tnum">(803) 555-••44</dd></div>
+                  </dl>
+                </div>
+                <div>
+                  <div class="text-[10.5px] font-bold uppercase tracking-wider mb-2.5" style="color: var(--text-tertiary);">Financial</div>
+                  <dl class="text-[13px] space-y-2">
+                    <div class="flex justify-between"><dt style="color: var(--text-secondary);">Annual premium</dt><dd class="font-bold tnum">$1,599</dd></div>
+                    <div class="flex justify-between"><dt style="color: var(--text-secondary);">Modal premium</dt><dd class="font-semibold tnum">$399.75 / qtr</dd></div>
+                    <div class="flex justify-between"><dt style="color: var(--text-secondary);">Billing mode</dt><dd class="font-semibold">3 · Quarterly check</dd></div>
+                  </dl>
+                </div>
+              </div>
+
+              <div class="text-[10.5px] font-bold uppercase tracking-wider mb-2.5" style="color: var(--text-tertiary);">Dates</div>
+              <dl class="text-[13px] grid grid-cols-3 gap-4 mb-5">
+                <div>
+                  <dt style="color: var(--text-secondary);">App received</dt>
+                  <dd class="font-semibold tnum mt-0.5">Apr 2, 2026</dd>
+                </div>
+                <div>
+                  <dt style="color: var(--text-secondary);">Issue date</dt>
+                  <dd class="font-semibold tnum mt-0.5">Apr 18, 2026</dd>
+                </div>
+                <div>
+                  <dt style="color: var(--text-secondary);">Paid-to date</dt>
+                  <dd class="font-semibold tnum mt-0.5" style="color: var(--danger-dark);">Apr 4, 2026</dd>
+                </div>
+              </dl>
+
+              <div class="text-[10.5px] font-bold uppercase tracking-wider mb-2.5" style="color: var(--text-tertiary);">My action</div>
+              <div class="flex gap-2 mb-5">
+                <button class="action-btn" style="flex: 1;" data-state="got-it" data-selected="false">Got it</button>
+                <button class="action-btn" style="flex: 1;" data-state="working" data-selected="false">Working</button>
+                <button class="action-btn" style="flex: 1;" data-state="done" data-selected="false">Done</button>
+              </div>
+
+              <div class="text-[10.5px] font-bold uppercase tracking-wider mb-2.5" style="color: var(--text-tertiary);">Action history</div>
+              <ol class="text-[12.5px] space-y-2.5 mb-5">
+                <li class="flex gap-3 items-start">
+                  <div class="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style="background: var(--fym-navy);"></div>
+                  <div class="flex-1">
+                    <div class="font-semibold">Future Termination detected</div>
+                    <div class="text-[11px]" style="color: var(--text-tertiary);">May 4 · 6:14 AM ET · daily derivation job</div>
+                  </div>
+                </li>
+                <li class="flex gap-3 items-start">
+                  <div class="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style="background: var(--text-tertiary);"></div>
+                  <div class="flex-1">
+                    <div class="font-semibold">Policy issued by carrier</div>
+                    <div class="text-[11px]" style="color: var(--text-tertiary);">Apr 18</div>
+                  </div>
+                </li>
+                <li class="flex gap-3 items-start">
+                  <div class="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style="background: var(--text-tertiary);"></div>
+                  <div class="flex-1">
+                    <div class="font-semibold">Application received</div>
+                    <div class="text-[11px]" style="color: var(--text-tertiary);">Apr 2</div>
+                  </div>
+                </li>
+              </ol>
+
+              <div class="flex gap-2">
+                <button class="flex-1 py-2.5 rounded-lg font-semibold text-[13px]" style="background: var(--bg-subtle); color: var(--text-secondary);" data-action="close-modal">Close</button>
+                <button class="flex-1 py-2.5 rounded-lg font-semibold text-[13px]" style="background: var(--fym-navy); color: white;">Open full record</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- MODAL: GHOST MINIMUM -->
+        <div class="modal-overlay" id="modal-ghost">
+          <div class="modal-card narrow">
+            <div class="p-6 text-center" style="background: linear-gradient(135deg, var(--warning-bg), white); border-radius: 16px 16px 0 0;">
+              <div class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3" style="background: var(--warning); color: white;">
+                <i data-lucide="ghost" class="w-8 h-8"></i>
+              </div>
+              <div class="font-extrabold text-[18px]">Heads up</div>
+              <div class="text-[14px] mt-1.5 font-semibold" style="color: var(--warning-dark);">Your goal is below your manager's expectation.</div>
+            </div>
+            <div class="p-6">
+              <p class="text-[13px] leading-relaxed" style="color: var(--text-secondary);">
+                Your manager has set a minimum target for your tenure that's higher than the goal you entered. We won't share the exact number here, but they'll be notified of your goal so you can discuss it together.
+              </p>
+              <p class="text-[13px] leading-relaxed mt-3" style="color: var(--text-secondary);">
+                You can still save this goal if it's what you're committing to.
+              </p>
+              <div class="flex flex-col gap-2 mt-5">
+                <button class="w-full py-2.5 rounded-lg font-semibold text-[13px]" style="background: var(--fym-navy); color: white;" data-action="close-modal">
+                  Revise upward
+                </button>
+                <button class="w-full py-2.5 rounded-lg font-semibold text-[13px]" style="background: var(--bg-subtle); color: var(--text-secondary);" data-action="close-modal">
+                  Save anyway
+                </button>
+              </div>
+              <div class="text-center text-[11px] mt-4" style="color: var(--text-tertiary);">
+                The minimum amount stays hidden — Phase 1 §9.3
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- MODAL: HEAD-TO-HEAD -->
+        <div class="modal-overlay" id="modal-h2h">
+          <div class="modal-card" style="max-width: 760px;">
+            <div class="p-5 flex items-start justify-between" style="border-bottom: 1px solid var(--border);">
+              <div>
+                <div class="text-[10.5px] font-bold uppercase tracking-wider" style="color: var(--text-tertiary);">Head-to-Head Comparison</div>
+                <div class="text-[13px] mt-1" style="color: var(--text-secondary);">MTD · May 2026</div>
+              </div>
+              <button class="w-8 h-8 rounded-full flex items-center justify-center" style="background: var(--bg-subtle);" data-action="close-modal">
+                <i data-lucide="x" class="w-4 h-4"></i>
+              </button>
+            </div>
+
+            <div class="p-6">
+              <!-- Identity row -->
+              <div class="grid items-stretch gap-4 mb-6" style="grid-template-columns: 1fr auto 1fr;">
+                <div class="text-center p-3 rounded-xl" style="background: var(--fym-navy-50);">
+                  <div class="w-16 h-16 rounded-full flex items-center justify-center font-extrabold text-white text-[22px] mx-auto mb-2" style="background: linear-gradient(135deg, #1F3A68, #2D5290);">MS</div>
+                  <span class="pill" style="background: var(--fym-navy); color: white; padding: 2px 10px; font-size: 10px;">YOU</span>
+                  <div class="font-bold text-[15px] mt-2">Marco Secolo</div>
+                  <div class="text-[11px]" style="color: var(--text-secondary);">Bluegrass Brokerage</div>
+                  <div class="text-[11px] font-semibold mt-1" style="color: var(--fym-navy);">Ramp Up · Day 42/90</div>
+                </div>
+                <div class="flex flex-col items-center justify-center px-2">
+                  <div class="font-extrabold serif-display" style="font-size: 28px; color: var(--text-tertiary);">vs</div>
+                </div>
+                <div class="text-center p-3 rounded-xl" style="background: var(--bg-subtle);">
+                  <div class="w-16 h-16 rounded-full flex items-center justify-center text-white mx-auto mb-2" style="background: linear-gradient(135deg, #475569, #64748B);">
+                    <i data-lucide="venetian-mask" class="w-8 h-8"></i>
+                  </div>
+                  <span class="pill pill-slate" style="padding: 2px 10px; font-size: 10px;">CROSS-AGENCY</span>
+                  <div class="font-bold text-[15px] mt-2">The Curious Aardvark</div>
+                  <div class="text-[11px] italic px-2 mt-1" style="color: var(--text-secondary);">"By night, it works with extraordinary persistence — a most singular creature, content in its own company."</div>
+                  <div class="text-[11px] font-semibold mt-2" style="color: var(--text-secondary);">Experienced</div>
+                </div>
+              </div>
+
+              <!-- Metric rows -->
+              <div class="space-y-4">
+                <div>
+                  <div class="text-[10.5px] font-bold uppercase tracking-wider mb-2 text-center" style="color: var(--text-tertiary);">AP Submitted (MTD)</div>
+                  <div class="grid items-center gap-3" style="grid-template-columns: 1fr 100px 1fr;">
+                    <div class="text-right"><span class="font-bold tnum text-[18px]">$24,580</span> <span class="ml-1.5 text-[12px]" style="color: var(--danger-dark);">▼</span></div>
+                    <div class="h2h-bar-wrap"><div class="h2h-bar-left"><div class="h2h-bar-fill" style="width: 45%;"></div></div><div></div><div class="h2h-bar-right"><div class="h2h-bar-fill" style="width: 100%;"></div></div></div>
+                    <div><span class="font-bold tnum text-[18px]">$54,820</span></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="text-[10.5px] font-bold uppercase tracking-wider mb-2 text-center" style="color: var(--text-tertiary);">App Count (MTD)</div>
+                  <div class="grid items-center gap-3" style="grid-template-columns: 1fr 100px 1fr;">
+                    <div class="text-right"><span class="font-bold tnum text-[18px]">47</span> <span class="ml-1.5 text-[12px]" style="color: var(--danger-dark);">▼</span></div>
+                    <div class="h2h-bar-wrap"><div class="h2h-bar-left"><div class="h2h-bar-fill" style="width: 48%;"></div></div><div></div><div class="h2h-bar-right"><div class="h2h-bar-fill" style="width: 100%;"></div></div></div>
+                    <div><span class="font-bold tnum text-[18px]">98</span></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="text-[10.5px] font-bold uppercase tracking-wider mb-2 text-center" style="color: var(--text-tertiary);">Avg AP / App (30d)</div>
+                  <div class="grid items-center gap-3" style="grid-template-columns: 1fr 100px 1fr;">
+                    <div class="text-right"><span class="font-bold tnum text-[18px]">$523</span> <span class="ml-1.5 text-[12px]" style="color: var(--danger-dark);">▼</span></div>
+                    <div class="h2h-bar-wrap"><div class="h2h-bar-left"><div class="h2h-bar-fill" style="width: 94%;"></div></div><div></div><div class="h2h-bar-right"><div class="h2h-bar-fill" style="width: 100%;"></div></div></div>
+                    <div><span class="font-bold tnum text-[18px]">$559</span></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="text-[10.5px] font-bold uppercase tracking-wider mb-2 text-center" style="color: var(--text-tertiary);">Save Rate (30d)</div>
+                  <div class="grid items-center gap-3" style="grid-template-columns: 1fr 100px 1fr;">
+                    <div class="text-right"><span class="font-bold tnum text-[18px]">78%</span> <span class="ml-1.5 text-[12px]" style="color: var(--success-dark);">▲</span></div>
+                    <div class="h2h-bar-wrap"><div class="h2h-bar-left"><div class="h2h-bar-fill" style="width: 100%;"></div></div><div></div><div class="h2h-bar-right"><div class="h2h-bar-fill" style="width: 91%;"></div></div></div>
+                    <div><span class="font-bold tnum text-[18px]">71%</span></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="text-[10.5px] font-bold uppercase tracking-wider mb-2 text-center" style="color: var(--text-tertiary);">Policies Taken %</div>
+                  <div class="grid items-center gap-3" style="grid-template-columns: 1fr 100px 1fr;">
+                    <div class="text-right"><span class="font-bold tnum text-[18px]">74%</span> <span class="ml-1.5 text-[12px]" style="color: var(--danger-dark);">▼</span></div>
+                    <div class="h2h-bar-wrap"><div class="h2h-bar-left"><div class="h2h-bar-fill" style="width: 90%;"></div></div><div></div><div class="h2h-bar-right"><div class="h2h-bar-fill" style="width: 100%;"></div></div></div>
+                    <div><span class="font-bold tnum text-[18px]">82%</span></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="text-[10.5px] font-bold uppercase tracking-wider mb-2 text-center" style="color: var(--text-tertiary);">13-month Persistency</div>
+                  <div class="grid items-center gap-3" style="grid-template-columns: 1fr 100px 1fr;">
+                    <div class="flex justify-end items-center">
+                      <div style="width: 64px; height: 64px;" class="penguin">
+                        <div class="penguin-body" style="width: 36px; height: 46px;">
+                          <div class="penguin-belly"></div>
+                          <div class="penguin-eye left"></div>
+                          <div class="penguin-eye right"></div>
+                          <div class="penguin-beak"></div>
+                          <div class="penguin-feet"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div></div>
+                    <div><span class="font-bold tnum text-[18px]">89%</span></div>
+                  </div>
+                  <div class="text-[10.5px] text-center mt-1" style="color: var(--text-tertiary);">You're below the 10-policy cohort threshold</div>
+                </div>
+              </div>
+
+              <div class="flex gap-2 mt-6 pt-4 border-t" style="border-color: var(--border);">
+                <button class="flex-1 py-2.5 rounded-lg border text-[13px] font-semibold flex items-center justify-center gap-1.5" style="border-color: var(--border); color: var(--text-secondary);">
+                  <i data-lucide="chevron-left" class="w-4 h-4"></i> Previous on board · Rank 13
+                </button>
+                <button class="flex-1 py-2.5 rounded-lg border text-[13px] font-semibold flex items-center justify-center gap-1.5" style="border-color: var(--border); color: var(--text-secondary);">
+                  Next on board · Rank 15 <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+<script id="appScript">
+  const views = {
+    dashboard:    { label: "Dashboard" },
+    attention:    { label: "Needs Attention" },
+    production:   { label: "My Production" },
+    goal:         { label: "My Goal" },
+    leaderboards: { label: "Leaderboards" },
+    profile:      { label: "Profile & Settings" }
+  };
+
+  const sectionFor = name => document.getElementById('view-' + name);
+
+  function showView(name, scrollToId) {
+    Object.keys(views).forEach(k => {
+      const el = sectionFor(k);
+      if (el) el.classList.toggle('active', k === name);
+    });
+    document.querySelectorAll('.top-nav-link[data-jump]').forEach(btn => {
+      btn.setAttribute('data-active', btn.getAttribute('data-jump') === name ? 'true' : 'false');
+    });
+    const ac = document.getElementById('appContent');
+    if (ac) ac.scrollTop = 0;
+    closeDropdowns();
+    if (scrollToId) {
+      setTimeout(() => {
+        const target = document.getElementById(scrollToId);
+        if (target && ac) {
+          ac.scrollTo({ top: target.offsetTop - 80, behavior: 'smooth' });
+          target.style.boxShadow = '0 0 0 3px var(--fym-navy-100)';
+          setTimeout(() => target.style.boxShadow = '', 1600);
+        }
+      }, 100);
+    }
+  }
+
+  function openModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('active');
+    closeDropdowns();
+  }
+  function closeAllModals() {
+    document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
+  }
+  function closeDropdowns() {
+    document.getElementById('notif-panel')?.classList.remove('active');
+    document.getElementById('avatar-menu')?.classList.remove('active');
+  }
+
+  function showToast(text) {
+    document.querySelectorAll('.toast').forEach(t => t.remove());
+    const shell = document.querySelector('.app-shell');
+    if (!shell) return;
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span>' + text + '</span>';
+    shell.appendChild(toast);
+    setTimeout(() => toast.style.opacity = '0', 2200);
+    setTimeout(() => toast.remove(), 2600);
+  }
+
+  function switchPATab(tab) {
+    document.querySelectorAll('[data-pa-tab]').forEach(b => {
+      b.setAttribute('data-active', b.getAttribute('data-pa-tab') === tab ? 'true' : 'false');
+    });
+    document.querySelectorAll('[data-pa-content]').forEach(c => {
+      c.style.display = c.getAttribute('data-pa-content') === tab ? '' : 'none';
+    });
+  }
+
+  document.addEventListener('click', (e) => {
+    const jump = e.target.closest('[data-jump]');
+    if (jump) {
+      const view = jump.getAttribute('data-jump');
+      if (views[view]) {
+        const scrollTo = jump.getAttribute('data-scroll-to');
+        showView(view, scrollTo);
+        const tab = jump.getAttribute('data-tab');
+        if (tab && view === 'production') setTimeout(() => switchPATab(tab), 50);
+        e.preventDefault();
+        return;
+      }
+    }
+    const widgetToggle = e.target.closest('[data-widget-toggle]');
+    if (widgetToggle) {
+      const widget = widgetToggle.getAttribute('data-widget-toggle');
+      const isOn = widgetToggle.getAttribute('data-on') === 'true';
+      const next = !isOn;
+      widgetToggle.setAttribute('data-on', next ? 'true' : 'false');
+      widgetToggle.style.background = next ? 'var(--fym-navy)' : 'var(--border-strong)';
+      const knob = widgetToggle.querySelector('span');
+      if (knob) {
+        if (next) {
+          knob.style.right = '2px';
+          knob.style.left = 'auto';
+        } else {
+          knob.style.left = '2px';
+          knob.style.right = 'auto';
+        }
+      }
+      document.querySelectorAll('[data-widget="' + widget + '"]').forEach(el => {
+        el.style.display = next ? '' : 'none';
+      });
+      // Handle hero row collapse if both children hidden
+      const heroRow = document.getElementById('dash-hero-row');
+      if (heroRow) {
+        const mtd = document.querySelector('[data-widget="mtd-hero"]');
+        const ye  = document.querySelector('[data-widget="year-end"]');
+        const mtdOn = mtd && mtd.style.display !== 'none';
+        const yeOn  = ye  && ye.style.display !== 'none';
+        heroRow.style.display = (mtdOn || yeOn) ? '' : 'none';
+        if (mtdOn && !yeOn) heroRow.style.gridTemplateColumns = '1fr';
+        else if (!mtdOn && yeOn) heroRow.style.gridTemplateColumns = '1fr';
+        else heroRow.style.gridTemplateColumns = '1.6fr 1fr';
+      }
+      const labelMap = { 'mtd-hero': 'MTD hero', 'year-end': 'Year-end projection', 'kpi-tiles': 'KPI tiles', 'recent-activity': 'Recent activity' };
+      showToast((labelMap[widget] || widget) + ' ' + (next ? 'shown' : 'hidden') + ' on dashboard');
+      e.stopPropagation();
+      return;
+    }
+    const action = e.target.closest('[data-action]');
+    if (action) {
+      const a = action.getAttribute('data-action');
+      if (a === 'open-policy') openModal('modal-policy');
+      else if (a === 'open-ghost') openModal('modal-ghost');
+      else if (a === 'open-h2h') openModal('modal-h2h');
+      else if (a === 'open-penguin') {
+        showView('production');
+        setTimeout(() => switchPATab('quality'), 50);
+      }
+      else if (a === 'close-modal') closeAllModals();
+      else if (a === 'toggle-notifs') {
+        document.getElementById('avatar-menu')?.classList.remove('active');
+        document.getElementById('notif-panel')?.classList.toggle('active');
+      }
+      else if (a === 'toggle-avatar') {
+        document.getElementById('notif-panel')?.classList.remove('active');
+        document.getElementById('avatar-menu')?.classList.toggle('active');
+      }
+      e.stopPropagation();
+      return;
+    }
+    const actBtn = e.target.closest('.action-btn');
+    if (actBtn && actBtn.hasAttribute('data-state')) {
+      const group = actBtn.parentElement;
+      group.querySelectorAll('.action-btn[data-state]').forEach(b => b.setAttribute('data-selected', 'false'));
+      actBtn.setAttribute('data-selected', 'true');
+      const state = actBtn.getAttribute('data-state');
+      const map = {
+        'got-it': "Marked as Got it — we'll keep watching this one.",
+        'working': "Marked as Working — timer started.",
+        'done': "Marked as Done — we'll let you know what the carrier confirms."
+      };
+      showToast(map[state] || 'Updated');
+      e.stopPropagation();
+      return;
+    }
+    const paTab = e.target.closest('[data-pa-tab]');
+    if (paTab) { switchPATab(paTab.getAttribute('data-pa-tab')); return; }
+    const lbTab = e.target.closest('[data-lb-board]');
+    if (lbTab) {
+      document.querySelectorAll('[data-lb-board]').forEach(b => b.setAttribute('data-active', 'false'));
+      lbTab.setAttribute('data-active', 'true');
+      return;
+    }
+    const kpiTile = e.target.closest('[data-sort-by]');
+    if (kpiTile) {
+      const metric = kpiTile.getAttribute('data-sort-by');
+      document.querySelectorAll('[data-sort-by]').forEach(t => t.setAttribute('data-active-sort', 'false'));
+      kpiTile.setAttribute('data-active-sort', 'true');
+      const labelMap = {
+        'ap':    { label: 'AP Submitted', rank: '#14 of 247' },
+        'apps':  { label: 'App Count',    rank: '#22 of 247' },
+        'save':  { label: 'Save Rate',    rank: '#6 of 247'  },
+        'taken': { label: '% Taken',      rank: '#41 of 247' },
+        'avgap': { label: 'Avg AP/App',   rank: '#118 of 247'},
+        'bd':    { label: 'BD Coverage',  rank: '#9 of 247'  }
+      };
+      const m = labelMap[metric];
+      if (m) showToast('Board re-sorted by ' + m.label + ' · you are ' + m.rank);
+      return;
+    }
+    const periodBtn = e.target.closest('[data-period]');
+    if (periodBtn) {
+      const group = periodBtn.parentElement;
+      group.querySelectorAll('[data-period]').forEach(b => b.setAttribute('data-active', 'false'));
+      periodBtn.setAttribute('data-active', 'true');
+      const label = periodBtn.textContent.trim();
+      showToast('Period changed to ' + label);
+      return;
+    }
+    const chip = e.target.closest('.chip');
+    if (chip) {
+      const siblings = chip.parentElement.querySelectorAll('.chip');
+      siblings.forEach(c => c.setAttribute('data-active', 'false'));
+      chip.setAttribute('data-active', 'true');
+      return;
+    }
+    if (e.target.classList.contains('modal-overlay')) closeAllModals();
+    if (!e.target.closest('#notif-panel') && !e.target.closest('#avatar-menu') && !e.target.closest('[data-action="toggle-notifs"]') && !e.target.closest('[data-action="toggle-avatar"]')) {
+      closeDropdowns();
+    }
+  });
+
+  window.addEventListener('DOMContentLoaded', () => {
+    if (window.lucide) lucide.createIcons();
+    showView('dashboard');
+  });
+
+  const observer = new MutationObserver(() => { if (window.lucide) lucide.createIcons(); });
+  observer.observe(document.body, { childList: true, subtree: true });
+</script>
+</body>
+</html>
