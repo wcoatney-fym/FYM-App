@@ -45,7 +45,8 @@ const agentNav: NavItem[] = [
 
 const managerNav: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/people/agents', label: 'Agents', icon: Users, activePrefix: '/people' },
+  { to: '/my-team', label: 'My Team', icon: Users },
+  { to: '/people/agents', label: 'Agents', icon: FileSpreadsheet, activePrefix: '/people' },
   { to: '/production', label: 'Production', icon: TrendingUp, activePrefix: '/production' },
   { to: '/quality/retention', label: 'Quality', icon: ShieldCheck, activePrefix: '/quality' },
   { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
