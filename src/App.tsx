@@ -25,7 +25,7 @@ import { ActivationPage } from '@/pages/ActivationPage';
 import { AgencyDetailPage } from '@/pages/AgencyDetailPage';
 import { ProductionPage } from '@/pages/ProductionPage';
 import { AgencyProductionPage } from '@/pages/AgencyProductionPage';
-import { AgentProductionPage } from '@/pages/AgentProductionPage';
+import { AgentDetailPage } from '@/pages/agent-detail';
 import { BookOfBusinessPage } from '@/pages/BookOfBusinessPage';
 import { RetentionPage } from '@/pages/RetentionPage';
 import { CoachingPage } from '@/pages/CoachingPage';
@@ -79,7 +79,7 @@ function App() {
             </Route>
             {/* Production drill-downs stay at existing paths */}
             <Route path="/production/:agencyId" element={<RoleGuard allow={['admin', 'manager']}><AgencyProductionPage /></RoleGuard>} />
-            <Route path="/production/:agencyId/agent/:agentId" element={<RoleGuard allow={['admin', 'manager']}><AgentProductionPage /></RoleGuard>} />
+            <Route path="/production/:agencyId/agent/:agentId" element={<RoleGuard allow={['admin', 'manager']}><AgentDetailPage /></RoleGuard>} />
 
             {/* ── Quality group (Retention, At-Risk, Coaching) ── */}
             <Route path="/quality" element={<QualityGroupPage />}>
