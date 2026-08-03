@@ -42,13 +42,6 @@ function retentionStatusColor(pct: number | null): string {
   return 'text-red-400';
 }
 
-function retentionBgColor(pct: number | null): string {
-  if (pct === null) return 'bg-muted/10';
-  if (pct >= 90) return 'bg-emerald-500/10';
-  if (pct >= 85) return 'bg-amber-500/10';
-  return 'bg-red-500/10';
-}
-
 function TrendArrow({ direction }: { direction: 'up' | 'down' | 'flat' }) {
   if (direction === 'up') return <ArrowUpRight size={12} className="text-emerald-400" />;
   if (direction === 'down') return <ArrowDownRight size={12} className="text-red-400" />;
@@ -112,19 +105,16 @@ export function QualityCard({ filterAgencyId, loading: parentLoading }: QualityC
     // -- 30-Day Retention --
     let ret30dPct: number | null = null;
     let ret30dEligible = 0;
-    let ret30dRetained = 0;
     if (retention30d) {
       if (filterAgencyId && !filterAgencyId.startsWith('no-data:')) {
         const agencyData = retention30d.data.agencies.find((a) => a.agency_id === filterAgencyId);
         if (agencyData) {
           ret30dPct = agencyData.retention_pct;
           ret30dEligible = agencyData.eligible_90d; // field name is generic, value reflects 30d
-          ret30dRetained = agencyData.retained_90d;
         }
       } else {
         ret30dPct = retention30d.data.org_wide.retention_pct;
         ret30dEligible = retention30d.data.org_wide.eligible_90d;
-        ret30dRetained = retention30d.data.org_wide.retained_90d;
       }
     }
 
