@@ -17,7 +17,7 @@ import { Link, Navigate } from 'react-router-dom';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useOrgData } from '@/contexts/OrgDataCache';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { ShieldCheck, AlertTriangle, Building2, ChevronRight, ArrowUpRight, ArrowDownRight, XCircle } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Building2, ChevronRight, XCircle } from 'lucide-react';
 import { type DatePreset, type DateRange, type TrendPoint, DEFAULT_PRESET, getDateRange, getGranularity, bucketKey, fmtBucketLabel, fmtMonth } from '@/lib/dateUtils';
 
 // ── Types ──────────────────────────────────────────────────────────────────
