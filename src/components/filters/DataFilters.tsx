@@ -128,6 +128,10 @@ export function DataFilters({
             onAgencyChange(val);
             // Reset agent when agency changes
             onAgentChange?.(null);
+            // Blur after selection so the browser repaints immediately.
+            // Some browsers defer layout/paint while a <select> retains focus,
+            // especially when CSS transitions or GPU-composited layers are active.
+            e.target.blur();
           }}
           className="h-8 rounded-md border border-border bg-card px-2 pr-7 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 min-w-[180px] appearance-none"
           style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center' }}
@@ -147,7 +151,10 @@ export function DataFilters({
           <User size={14} className="text-muted-foreground shrink-0" />
           <select
             value={selectedAgentId ?? ''}
-            onChange={(e) => onAgentChange?.(e.target.value || null)}
+            onChange={(e) => {
+              onAgentChange?.(e.target.value || null);
+              e.target.blur();
+            }}
             disabled={!selectedAgencyId}
             className="h-8 rounded-md border border-border bg-card px-2 pr-7 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 min-w-[180px] appearance-none disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center' }}

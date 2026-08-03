@@ -158,7 +158,10 @@ export function AdminFinancialsPage() {
       setLoading(false);
     }
     load();
-  }, [effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide, filterAgencyId]);
+  // Note: filterAgencyId intentionally excluded — the fetch always pulls org-wide
+  // data; filtering happens client-side in the useMemo below.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide]);
 
   // ── Derived stats from pre-computed views ────────────────────────────────
   const stats = useMemo(() => {
