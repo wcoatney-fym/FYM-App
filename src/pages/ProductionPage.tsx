@@ -11,9 +11,9 @@ import {
   fetchDailyProduction,
   fetchMonthlyProduction,
 } from '@/lib/prod-api';
-// scopeToAgency removed — reads now go through prod-api edge functions
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
+import { useOrgData } from '@/contexts/OrgDataCache';
 import {
   Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ComposedChart, Legend,
@@ -108,105 +108,128 @@ function fmtMonth(iso: string) {
 export function ProductionPage() {
   const { effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide } = useEffectiveAuth();
   const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
-  const [stats, setStats] = useState<OrgStats | null>(null);
-  const [agencies, setAgencies] = useState<AgencyRow[]>([]);
-  const [rawMonthly, setRawMonthly] = useState<RawMonthlyRow[]>([]);
-  const [dailyRows, setDailyRows] = useState<DailyRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const orgData = useOrgData();
+
+  // Local state for date-filtered data (only when user picks a custom date range)
+  const [localAgencies, setLocalAgencies] = useState<AgencyRow[]>([]);
+  const [localMonthly, setLocalMonthly] = useState<RawMonthlyRow[]>([]);
+  const [localDaily, setLocalDaily] = useState<DailyRow[]>([]);
+  const [dateLoading, setDateLoading] = useState(false);
   const [sortBy, setSortBy] = useState<'ap' | 'policies' | 'growth'>('ap');
   const [filterAgentId, setFilterAgentId] = useState<string | null>(null);
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
 
+  const useRpc = datePreset !== 'allTime';
+  const loading = orgData.initialLoading || dateLoading;
+
+  // Map org cache agency production to AgencyRow for all-time view
+  const cachedAgencies = useMemo((): AgencyRow[] => {
+    return orgData.agencyProduction.map(a => ({
+      agency_id: a.agency_id,
+      agency_name: null,
+      total_policies: a.total_policies,
+      active_policies: a.active_policies,
+      terminated_policies: a.terminated_policies,
+      pending_policies: a.pending_policies,
+      active_annual_premium: a.active_annual_premium,
+      avg_annual_premium: a.avg_annual_premium,
+      policies_this_month: a.policies_this_month,
+      ap_this_month: a.ap_this_month,
+      policies_last_month: a.policies_last_month,
+      ap_last_month: a.ap_last_month,
+      at_risk_policies: a.at_risk_policies,
+    }));
+  }, [orgData.agencyProduction]);
+
+  // Map org cache monthly production to RawMonthlyRow
+  const cachedMonthly = useMemo((): RawMonthlyRow[] => {
+    return orgData.monthlyProduction.map(m => ({
+      month: m.month,
+      agency_id: m.agency_id,
+      agent_id: null,
+      writing_number: null,
+      product_type: '',
+      policies: m.policies,
+      annual_premium: m.annual_premium,
+    }));
+  }, [orgData.monthlyProduction]);
+
+  // Use cache for all-time; local fetch for custom date ranges
+  const agencies = useRpc ? localAgencies : cachedAgencies;
+  const rawMonthly = useRpc ? localMonthly : cachedMonthly;
+  const dailyRows = useRpc ? localDaily : [];
+
+  // Org-wide stats derived from agencies
+  const stats = useMemo((): OrgStats | null => {
+    if (loading && agencies.length === 0) return null;
+    return {
+      totalPolicies: agencies.reduce((s, a) => s + (a.total_policies || 0), 0),
+      activePolicies: agencies.reduce((s, a) => s + (a.active_policies || 0), 0),
+      terminatedPolicies: agencies.reduce((s, a) => s + (a.terminated_policies || 0), 0),
+      pendingPolicies: agencies.reduce((s, a) => s + (a.pending_policies || 0), 0),
+      atRiskPolicies: agencies.reduce((s, a) => s + (a.at_risk_policies || 0), 0),
+      activeMonthlyPremium: agencies.reduce((s, a) => s + Number(a.active_annual_premium || 0) / 12, 0),
+      activeAnnualPremium: agencies.reduce((s, a) => s + Number(a.active_annual_premium || 0), 0),
+      policiesThisMonth: agencies.reduce((s, a) => s + (a.policies_this_month || 0), 0),
+      apThisMonth: agencies.reduce((s, a) => s + Number(a.ap_this_month || 0), 0),
+      policiesLastMonth: agencies.reduce((s, a) => s + (a.policies_last_month || 0), 0),
+      apLastMonth: agencies.reduce((s, a) => s + Number(a.ap_last_month || 0), 0),
+      activeAgencies: agencies.filter(a => a.active_policies > 0).length,
+    };
+  }, [loading, agencies]);
+
+  // Fetch date-filtered data only when user changes date range
   useEffect(() => {
-    async function load() {
-      setLoading(true);
-        if (!supabase) { setLoading(false); return; }
-      try {
-        const startDate = dateRange.startDate.split('T')[0];
-        const endDate = dateRange.endDate.split('T')[0];
-        const useRpc = datePreset !== 'allTime';
-
-        // Fetch agency production from prod DB edge function
-        const agencyParam = !isOrgWide && effectiveAgencyWritingNumber ? { agency_id: effectiveAgencyWritingNumber } : {};
-        const dateParams = useRpc
-          ? { ...agencyParam, start_date: startDate, end_date: endDate }
-          : agencyParam;
-        const prodAgencies = await fetchAgencyProduction(dateParams);
-        const allAgencies: AgencyRow[] = prodAgencies.map(a => ({
-          agency_id: a.agency_id,
-          agency_name: null,
-          total_policies: a.total_policies,
-          active_policies: a.active_policies,
-          terminated_policies: a.terminated_policies,
-          pending_policies: a.pending_policies,
-          active_annual_premium: a.active_annual_premium,
-          avg_annual_premium: a.avg_annual_premium,
-          policies_this_month: a.policies_this_month,
-          ap_this_month: a.ap_this_month,
-          policies_last_month: a.policies_last_month,
-          ap_last_month: a.ap_last_month,
-          at_risk_policies: a.at_risk_policies,
-        }));
-        setAgencies(allAgencies);
-
-        // Compute org-wide stats from agencies
-        const org: OrgStats = {
-          totalPolicies: allAgencies.reduce((s, a) => s + (a.total_policies || 0), 0),
-          activePolicies: allAgencies.reduce((s, a) => s + (a.active_policies || 0), 0),
-          terminatedPolicies: allAgencies.reduce((s, a) => s + (a.terminated_policies || 0), 0),
-          pendingPolicies: allAgencies.reduce((s, a) => s + (a.pending_policies || 0), 0),
-          atRiskPolicies: allAgencies.reduce((s, a) => s + (a.at_risk_policies || 0), 0),
-          activeMonthlyPremium: allAgencies.reduce((s, a) => s + Number(a.active_annual_premium || 0) / 12, 0),
-          activeAnnualPremium: allAgencies.reduce((s, a) => s + Number(a.active_annual_premium || 0), 0),
-          policiesThisMonth: allAgencies.reduce((s, a) => s + (a.policies_this_month || 0), 0),
-          apThisMonth: allAgencies.reduce((s, a) => s + Number(a.ap_this_month || 0), 0),
-          policiesLastMonth: allAgencies.reduce((s, a) => s + (a.policies_last_month || 0), 0),
-          apLastMonth: allAgencies.reduce((s, a) => s + Number(a.ap_last_month || 0), 0),
-          activeAgencies: allAgencies.filter(a => a.active_policies > 0).length,
-        };
-        setStats(org);
-
-        // Fetch trend data from prod DB edge function
-        if (useRpc) {
-          const dailyData = await fetchDailyProduction({
-            ...agencyParam,
-            start_date: startDate,
-            end_date: endDate,
-          });
-          const rows: DailyRow[] = dailyData.map(d => ({
-            agency_id: d.agency_id,
-            agent_id: null,
-            writing_number: null,
-            product_type: '',
-            day: d.day,
-            policies: d.policies,
-            annual_premium: d.annual_premium,
-          }));
-          setDailyRows(rows);
-          setRawMonthly([]); // clear monthly fallback
-        } else {
-          const monthlyData = await fetchMonthlyProduction(agencyParam);
-          const allMonthly: RawMonthlyRow[] = monthlyData.map(m => ({
-            month: m.month,
-            agency_id: m.agency_id,
-            agent_id: null,
-            writing_number: null,
-            product_type: '',
-            policies: m.policies,
-            annual_premium: m.annual_premium,
-          }));
-          setRawMonthly(allMonthly);
-          setDailyRows([]); // clear daily
-        }
-      } catch (err) {
-        console.error('Production load error:', err);
-      } finally {
-        setLoading(false);
-      }
+    if (!useRpc) {
+      setLocalAgencies([]);
+      setLocalDaily([]);
+      setLocalMonthly([]);
+      return;
     }
-    load();
-  }, [effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide, dateRange, datePreset]);
+    if (!supabase) return;
+    const startDate = dateRange.startDate.split('T')[0];
+    const endDate = dateRange.endDate.split('T')[0];
+    const agencyParam = !isOrgWide && effectiveAgencyWritingNumber ? { agency_id: effectiveAgencyWritingNumber } : {};
+    const dateParams = { ...agencyParam, start_date: startDate, end_date: endDate };
+
+    setDateLoading(true);
+    Promise.all([
+      fetchAgencyProduction(dateParams),
+      fetchDailyProduction(dateParams),
+    ]).then(([prodAgencies, dailyData]) => {
+      setLocalAgencies(prodAgencies.map(a => ({
+        agency_id: a.agency_id,
+        agency_name: null,
+        total_policies: a.total_policies,
+        active_policies: a.active_policies,
+        terminated_policies: a.terminated_policies,
+        pending_policies: a.pending_policies,
+        active_annual_premium: a.active_annual_premium,
+        avg_annual_premium: a.avg_annual_premium,
+        policies_this_month: a.policies_this_month,
+        ap_this_month: a.ap_this_month,
+        policies_last_month: a.policies_last_month,
+        ap_last_month: a.ap_last_month,
+        at_risk_policies: a.at_risk_policies,
+      })));
+      setLocalDaily(dailyData.map(d => ({
+        agency_id: d.agency_id,
+        agent_id: null,
+        writing_number: null,
+        product_type: '',
+        day: d.day,
+        policies: d.policies,
+        annual_premium: d.annual_premium,
+      })));
+      setLocalMonthly([]);
+      setDateLoading(false);
+    }).catch(err => {
+      console.error('Production date-filtered fetch error:', err);
+      setDateLoading(false);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange, datePreset, effectiveAgencyWritingNumber, isOrgWide]);
 
   // Filter + sort agencies
   const filteredAgencies = useMemo(() => {
