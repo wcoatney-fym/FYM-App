@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -72,67 +72,49 @@ function retentionColor(pct: number | null) {
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
+// ── Raw data types for server response (stored once, filtered via useMemo) ──
+interface RawRetentionAgency {
+  agency_id: string;
+  active_policies: number;
+  active_premium: number;
+  at_risk_count: number;
+  retained_90d: number;
+  eligible_90d: number;
+  retention_pct: number | null;
+}
+
 export function DashboardPage() {
   const { effectiveRole, effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide } = useEffectiveAuth();
   const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
-  const [stats, setStats] = useState<DashStats | null>(null);
-  const [trend, setTrend] = useState<CohortPoint[]>([]);
-  const [bottomAgencies, setBottomAgencies] = useState<AgencyRisk[]>([]);
-  const [production, setProduction] = useState<ProductionSnap | null>(null);
+
+  // ── Raw data from server (fetched once, not re-fetched on filter change) ──
+  const [rawAgencies, setRawAgencies] = useState<RawRetentionAgency[]>([]);
+  const [rawCohorts, setRawCohorts] = useState<CohortPoint[]>([]);
+  const [rawDailyProd, setRawDailyProd] = useState<Array<{ day: string; agency_id: string; policies: number; annual_premium: number }>>([]);
+  const [rawMonthlyProd, setRawMonthlyProd] = useState<Array<{ month: string; agency_id: string; policies: number; annual_premium: number }>>([]);
+  const [nameMap, setNameMap] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
-  const [noDataAgency, setNoDataAgency] = useState(false); // true when selected agency has no writing_number
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
 
+  // Whether date-filtered or all-time
+  const useRpc = datePreset !== 'allTime';
+
+  // ── Fetch org-wide data once (on mount + date/auth changes only) ──
   useEffect(() => {
     async function load() {
       try {
-        // ── Resolve the agency filter to a writing_number for edge functions ──
-        // filterAgencyId from DataFilters is either:
-        //   - a writing_number (e.g. '202NEW00') for agencies with prod data
-        //   - 'no-data:<uuid>' for agencies without a writing_number mapping
-        // For scoped users, use effectiveAgencyWritingNumber.
-        const isNoDataAgency = filterAgencyId?.startsWith('no-data:') ?? false;
-        setNoDataAgency(isNoDataAgency);
-
-        if (isNoDataAgency) {
-          // Agency has no writing_number — no production data exists.
-          // Show empty state instead of querying edge functions with a bad ID.
-          setStats({
-            active_policies: 0,
-            active_premium: 0,
-            at_risk_count: 0,
-            at_risk_premium: 0,
-            retention_pct: null,
-            agencies_below_target: 0,
-            total_agencies: 0,
-          });
-          setBottomAgencies([]);
-          setTrend([]);
-          setProduction({ policiesThisMonth: 0, apThisMonth: 0, policiesLastMonth: 0, apLastMonth: 0, trend: [] });
-          setLoading(false);
-          return;
-        }
-
-        const edgeFnAgencyId = filterAgencyId
-          ?? (!isOrgWide && effectiveAgencyWritingNumber ? effectiveAgencyWritingNumber : null);
-        const agencyParam = edgeFnAgencyId ? { agency_id: edgeFnAgencyId } : {};
-
-        // ── Parallel fetch: retention + cohorts + production + agency names ──
-        const useRpc = datePreset !== 'allTime';
+        const agencyParam = !isOrgWide && effectiveAgencyWritingNumber
+          ? { agency_id: effectiveAgencyWritingNumber } : {};
         const startDateStr = dateRange.startDate.split('T')[0];
         const endDateStr = dateRange.endDate.split('T')[0];
 
         const [retRes, cohortRes, prodResult, agencyNameData] = await Promise.all([
-          // 1. Retention summary
           fetchRetentionSummary(agencyParam),
-          // 2. Cohort retention trend
           fetchRetentionCohorts(agencyParam),
-          // 3. Production data (daily for date-filtered, monthly for all-time)
           useRpc
             ? fetchDailyProduction({ ...agencyParam, start_date: startDateStr, end_date: endDateStr })
             : fetchMonthlyProduction(agencyParam),
-          // 4. Agency names from rcbzag (local DB, fast)
           supabase
             ? scopeToAgency(
                 (supabase as any).from('agencies').select('tracker_id, writing_number, name'),
@@ -141,138 +123,47 @@ export function DashboardPage() {
             : Promise.resolve(null),
         ]);
 
-        // ── 1. Aggregate stats from retention response ──
-        const allAgencies = retRes.data.agencies;
+        // Store raw retention data
+        setRawAgencies(retRes.data.agencies.map((a: any) => ({
+          agency_id: a.agency_id,
+          active_policies: a.active_policies,
+          active_premium: a.active_premium,
+          at_risk_count: a.at_risk_count,
+          retained_90d: a.retained_90d,
+          eligible_90d: a.eligible_90d,
+          retention_pct: a.retention_pct,
+        })));
 
-        let totalActive = 0, totalPremium = 0, totalAtRisk = 0, totalAtRiskPremium = 0;
-        let totalRetained = 0, totalEligible = 0;
-        let belowTarget = 0;
-        const agencyRows: AgencyRisk[] = [];
-
-        for (const a of allAgencies) {
-          totalActive += a.active_policies;
-          totalPremium += a.active_premium;
-          totalAtRisk += a.at_risk_count;
-          totalRetained += a.retained_90d;
-          totalEligible += a.eligible_90d;
-          if (a.retention_pct !== null && a.retention_pct < 90) belowTarget++;
-          agencyRows.push({
-            agency_id: a.agency_id,
-            name: null,
-            active_policies: a.active_policies,
-            active_premium: a.active_premium,
-            at_risk_count: a.at_risk_count,
-            retention_pct: a.retention_pct,
-          });
+        // Store raw cohort data
+        if (cohortRes.data.cohorts.length > 0) {
+          setRawCohorts(cohortRes.data.cohorts.slice(-12).map((c: any) => ({
+            month: fmtMonth(c.month + '-01'),
+            hi: null,
+            hhc: null,
+            combined: c.retention_pct,
+          })));
+        } else {
+          setRawCohorts([]);
         }
 
-        totalAtRiskPremium = totalPremium > 0 && totalActive > 0
-          ? Math.round((totalAtRisk * (totalPremium / totalActive)) * 100) / 100
-          : 0;
+        // Store raw production data
+        if (useRpc) {
+          setRawDailyProd(prodResult as any);
+          setRawMonthlyProd([]);
+        } else {
+          setRawMonthlyProd(prodResult as any);
+          setRawDailyProd([]);
+        }
 
-        const overallRetention = totalEligible > 0
-          ? Math.round((totalRetained / totalEligible) * 1000) / 10
-          : null;
-
-        setStats({
-          active_policies: totalActive,
-          active_premium: totalPremium,
-          at_risk_count: totalAtRisk,
-          at_risk_premium: totalAtRiskPremium,
-          retention_pct: overallRetention,
-          agencies_below_target: belowTarget,
-          total_agencies: agencyRows.length,
-        });
-
-        // ── Agency name enrichment ──
-        const nameMap = new Map<string, string>();
+        // Build name map
+        const nm = new Map<string, string>();
         if (agencyNameData) {
           for (const a of agencyNameData as any[]) {
-            if (a.writing_number) nameMap.set(a.writing_number, a.name);
-            if (a.tracker_id) nameMap.set(a.tracker_id, a.name);
+            if (a.writing_number) nm.set(a.writing_number, a.name);
+            if (a.tracker_id) nm.set(a.tracker_id, a.name);
           }
         }
-
-        const bottom = agencyRows
-          .filter(a => a.retention_pct !== null)
-          .map(a => ({ ...a, name: nameMap.get(a.agency_id) ?? null }))
-          .sort((a, b) => (a.retention_pct ?? 100) - (b.retention_pct ?? 100))
-          .slice(0, 8);
-        setBottomAgencies(bottom);
-
-        // ── 2. Cohort retention trend ──
-        if (cohortRes.data.cohorts.length > 0) {
-          const trendPoints: CohortPoint[] = cohortRes.data.cohorts
-            .slice(-12)
-            .map(c => ({
-              month: fmtMonth(c.month + '-01'),
-              hi: null,
-              hhc: null,
-              combined: c.retention_pct,
-            }));
-          setTrend(trendPoints);
-        }
-
-        // ── 3. Production snapshot ──
-        const gran = getGranularity(dateRange);
-
-        if (useRpc) {
-          const dailyData = prodResult as Awaited<ReturnType<typeof fetchDailyProduction>>;
-
-          const byBucket = new Map<string, { policies: number; ap: number }>();
-          dailyData.forEach(r => {
-            const key = bucketKey(r.day, gran);
-            const existing = byBucket.get(key) || { policies: 0, ap: 0 };
-            existing.policies += r.policies;
-            existing.ap += r.annual_premium;
-            byBucket.set(key, existing);
-          });
-          const trendArr: TrendPoint[] = Array.from(byBucket.entries())
-            .map(([b, v]) => ({ bucket: b, label: fmtBucketLabel(b, gran), policies: v.policies, ap: v.ap }))
-            .sort((a, b) => a.bucket.localeCompare(b.bucket));
-
-          const totalPolicies = dailyData.reduce((s, r) => s + r.policies, 0);
-          const totalAp = dailyData.reduce((s, r) => s + r.annual_premium, 0);
-
-          setProduction({
-            policiesThisMonth: totalPolicies,
-            apThisMonth: totalAp,
-            policiesLastMonth: 0,
-            apLastMonth: 0,
-            trend: trendArr,
-          });
-        } else {
-          const monthlyData = prodResult as Awaited<ReturnType<typeof fetchMonthlyProduction>>;
-
-          const byMonth = new Map<string, { policies: number; ap: number }>();
-          for (const r of monthlyData) {
-            const existing = byMonth.get(r.month) || { policies: 0, ap: 0 };
-            existing.policies += r.policies;
-            existing.ap += r.annual_premium;
-            byMonth.set(r.month, existing);
-          }
-
-          const now = new Date();
-          const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-          const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-          const lastMonthKey = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`;
-
-          const thisM = byMonth.get(thisMonthKey) || { policies: 0, ap: 0 };
-          const lastM = byMonth.get(lastMonthKey) || { policies: 0, ap: 0 };
-
-          const trendArr: TrendPoint[] = Array.from(byMonth.entries())
-            .map(([month, v]) => ({ bucket: month, label: fmtMonth(month), policies: v.policies, ap: v.ap }))
-            .sort((a, b) => a.bucket.localeCompare(b.bucket))
-            .slice(-6);
-
-          setProduction({
-            policiesThisMonth: thisM.policies,
-            apThisMonth: thisM.ap,
-            policiesLastMonth: lastM.policies,
-            apLastMonth: lastM.ap,
-            trend: trendArr,
-          });
-        }
+        setNameMap(nm);
 
         setLoading(false);
       } catch (err) {
@@ -280,9 +171,130 @@ export function DashboardPage() {
         setLoading(false);
       }
     }
-
     load();
-  }, [effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide, dateRange, datePreset, filterAgencyId]);
+  // filterAgencyId intentionally excluded — filtering is client-side via useMemo
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide, dateRange, datePreset]);
+
+  // ── Detect no-data agencies (no writing_number) ──
+  const noDataAgency = filterAgencyId?.startsWith('no-data:') ?? false;
+
+  // ── Derive stats from raw data, filtered by agency (instant) ──
+  const stats = useMemo((): DashStats | null => {
+    if (loading) return null;
+    if (noDataAgency) return {
+      active_policies: 0, active_premium: 0, at_risk_count: 0, at_risk_premium: 0,
+      retention_pct: null, agencies_below_target: 0, total_agencies: 0,
+    };
+
+    const agencies = filterAgencyId
+      ? rawAgencies.filter(a => a.agency_id === filterAgencyId)
+      : rawAgencies;
+
+    let totalActive = 0, totalPremium = 0, totalAtRisk = 0;
+    let totalRetained = 0, totalEligible = 0;
+    let belowTarget = 0;
+    for (const a of agencies) {
+      totalActive += a.active_policies;
+      totalPremium += a.active_premium;
+      totalAtRisk += a.at_risk_count;
+      totalRetained += a.retained_90d;
+      totalEligible += a.eligible_90d;
+      if (a.retention_pct !== null && a.retention_pct < 90) belowTarget++;
+    }
+    const totalAtRiskPremium = totalPremium > 0 && totalActive > 0
+      ? Math.round((totalAtRisk * (totalPremium / totalActive)) * 100) / 100 : 0;
+    const overallRetention = totalEligible > 0
+      ? Math.round((totalRetained / totalEligible) * 1000) / 10 : null;
+
+    return {
+      active_policies: totalActive,
+      active_premium: totalPremium,
+      at_risk_count: totalAtRisk,
+      at_risk_premium: totalAtRiskPremium,
+      retention_pct: overallRetention,
+      agencies_below_target: belowTarget,
+      total_agencies: agencies.length,
+    };
+  }, [loading, noDataAgency, filterAgencyId, rawAgencies]);
+
+  // ── Bottom agencies (coaching signals) — filtered + sorted ──
+  const bottomAgencies = useMemo((): AgencyRisk[] => {
+    if (loading || noDataAgency) return [];
+    const agencies = filterAgencyId
+      ? rawAgencies.filter(a => a.agency_id === filterAgencyId)
+      : rawAgencies;
+    return agencies
+      .filter(a => a.retention_pct !== null)
+      .map(a => ({
+        agency_id: a.agency_id,
+        name: nameMap.get(a.agency_id) ?? null,
+        active_policies: a.active_policies,
+        active_premium: a.active_premium,
+        at_risk_count: a.at_risk_count,
+        retention_pct: a.retention_pct,
+      }))
+      .sort((a, b) => (a.retention_pct ?? 100) - (b.retention_pct ?? 100))
+      .slice(0, 8);
+  }, [loading, noDataAgency, filterAgencyId, rawAgencies, nameMap]);
+
+  // ── Cohort trend — pass through (cohorts are org-wide, not agency-filtered) ──
+  const trend = rawCohorts;
+
+  // ── Production snapshot — filtered by agency ──
+  const production = useMemo((): ProductionSnap | null => {
+    if (loading) return null;
+    if (noDataAgency) return { policiesThisMonth: 0, apThisMonth: 0, policiesLastMonth: 0, apLastMonth: 0, trend: [] };
+
+    const gran = getGranularity(dateRange);
+
+    if (rawDailyProd.length > 0) {
+      const filtered = filterAgencyId
+        ? rawDailyProd.filter(r => r.agency_id === filterAgencyId)
+        : rawDailyProd;
+      const byBucket = new Map<string, { policies: number; ap: number }>();
+      filtered.forEach(r => {
+        const key = bucketKey(r.day, gran);
+        const existing = byBucket.get(key) || { policies: 0, ap: 0 };
+        existing.policies += r.policies;
+        existing.ap += r.annual_premium;
+        byBucket.set(key, existing);
+      });
+      const trendArr: TrendPoint[] = Array.from(byBucket.entries())
+        .map(([b, v]) => ({ bucket: b, label: fmtBucketLabel(b, gran), policies: v.policies, ap: v.ap }))
+        .sort((a, b) => a.bucket.localeCompare(b.bucket));
+      const totalPolicies = filtered.reduce((s, r) => s + r.policies, 0);
+      const totalAp = filtered.reduce((s, r) => s + r.annual_premium, 0);
+      return { policiesThisMonth: totalPolicies, apThisMonth: totalAp, policiesLastMonth: 0, apLastMonth: 0, trend: trendArr };
+    }
+
+    // All-time fallback: monthly data
+    const filtered = filterAgencyId
+      ? rawMonthlyProd.filter(r => r.agency_id === filterAgencyId)
+      : rawMonthlyProd;
+    const byMonth = new Map<string, { policies: number; ap: number }>();
+    for (const r of filtered) {
+      const existing = byMonth.get(r.month) || { policies: 0, ap: 0 };
+      existing.policies += r.policies;
+      existing.ap += r.annual_premium;
+      byMonth.set(r.month, existing);
+    }
+    const now = new Date();
+    const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthKey = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`;
+    const thisM = byMonth.get(thisMonthKey) || { policies: 0, ap: 0 };
+    const lastM = byMonth.get(lastMonthKey) || { policies: 0, ap: 0 };
+    const trendArr: TrendPoint[] = Array.from(byMonth.entries())
+      .map(([month, v]) => ({ bucket: month, label: fmtMonth(month), policies: v.policies, ap: v.ap }))
+      .sort((a, b) => a.bucket.localeCompare(b.bucket))
+      .slice(-6);
+    return {
+      policiesThisMonth: thisM.policies, apThisMonth: thisM.ap,
+      policiesLastMonth: lastM.policies, apLastMonth: lastM.ap,
+      trend: trendArr,
+    };
+  }, [loading, noDataAgency, filterAgencyId, rawDailyProd, rawMonthlyProd, dateRange]);
 
   const s = stats;
 
