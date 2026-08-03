@@ -44,12 +44,16 @@ async function callEdgeFunction<T>(
 export interface AgencyProduction {
   agency_id: string;
   total_policies: number;
+  total_annual_premium: number;
   active_policies: number;
   terminated_policies: number;
   pending_policies: number;
   at_risk_policies: number;
   active_monthly_premium: number;
   active_annual_premium: number;
+  terminated_annual_premium: number;
+  pending_annual_premium: number;
+  at_risk_annual_premium: number;
   policies_this_month: number;
   ap_this_month: number;
   policies_last_month: number;

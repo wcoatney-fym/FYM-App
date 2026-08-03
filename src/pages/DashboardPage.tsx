@@ -23,10 +23,15 @@ import { type DatePreset, type DateRange, type TrendPoint, DEFAULT_PRESET, getDa
 // ── Types ──────────────────────────────────────────────────────────────────
 interface StatusSnapshot {
   totalWritten: number;
+  totalAP: number;
   active: number;
+  activeAP: number;
   pending: number;
+  pendingAP: number;
   atRisk: number;
+  atRiskAP: number;
   terminated: number;
+  terminatedAP: number;
   trend: TrendPoint[];
 }
 
@@ -230,20 +235,27 @@ export function DashboardPage() {
   // ── Production status snapshot — aggregated from agency production, filtered by agency ──
   const snapshot = useMemo((): StatusSnapshot | null => {
     if (loading) return null;
-    if (noDataAgency) return { totalWritten: 0, active: 0, pending: 0, atRisk: 0, terminated: 0, trend: [] };
+    if (noDataAgency) return { totalWritten: 0, totalAP: 0, active: 0, activeAP: 0, pending: 0, pendingAP: 0, atRisk: 0, atRiskAP: 0, terminated: 0, terminatedAP: 0, trend: [] };
 
     // Status breakdown from agency production data
     const agencies = filterAgencyId
       ? rawAgencyProd.filter(a => a.agency_id === filterAgencyId)
       : rawAgencyProd;
 
-    let totalWritten = 0, active = 0, pending = 0, atRisk = 0, terminated = 0;
+    let totalWritten = 0, totalAP = 0, active = 0, activeAP = 0;
+    let pending = 0, pendingAP = 0, atRisk = 0, atRiskAP = 0;
+    let terminated = 0, terminatedAP = 0;
     for (const a of agencies) {
       totalWritten += a.total_policies;
+      totalAP += a.total_annual_premium ?? 0;
       active += a.active_policies;
+      activeAP += a.active_annual_premium ?? 0;
       pending += a.pending_policies;
+      pendingAP += a.pending_annual_premium ?? 0;
       atRisk += a.at_risk_policies;
+      atRiskAP += a.at_risk_annual_premium ?? 0;
       terminated += a.terminated_policies;
+      terminatedAP += a.terminated_annual_premium ?? 0;
     }
 
     // Trend chart from daily/monthly production data
@@ -282,7 +294,7 @@ export function DashboardPage() {
         .slice(-12);
     }
 
-    return { totalWritten, active, pending, atRisk, terminated, trend: trendArr };
+    return { totalWritten, totalAP, active, activeAP, pending, pendingAP, atRisk, atRiskAP, terminated, terminatedAP, trend: trendArr };
   }, [loading, noDataAgency, filterAgencyId, rawAgencyProd, rawDailyProd, rawMonthlyProd, dateRange]);
 
   const s = stats;
@@ -496,22 +508,27 @@ export function DashboardPage() {
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">Total Written</p>
                     <p className="text-2xl font-bold text-foreground font-data">{snapshot.totalWritten.toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground/70 font-data">{fmt$(snapshot.totalAP)} AP</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">Active</p>
                     <p className="text-2xl font-bold text-cyan-400 font-data">{snapshot.active.toLocaleString()}</p>
+                    <p className="text-xs text-cyan-400/70 font-data">{fmt$(snapshot.activeAP)} AP</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">Pending</p>
                     <p className="text-2xl font-bold text-amber-400 font-data">{snapshot.pending.toLocaleString()}</p>
+                    <p className="text-xs text-amber-400/70 font-data">{fmt$(snapshot.pendingAP)} AP</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">At Risk</p>
                     <p className="text-2xl font-bold text-red-400 font-data">{snapshot.atRisk.toLocaleString()}</p>
+                    <p className="text-xs text-red-400/70 font-data">{fmt$(snapshot.atRiskAP)} AP</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">Terminated</p>
                     <p className="text-2xl font-bold text-purple-400 font-data">{snapshot.terminated.toLocaleString()}</p>
+                    <p className="text-xs text-purple-400/70 font-data">{fmt$(snapshot.terminatedAP)} AP</p>
                   </div>
                 </div>
                 {/* Trend chart */}
