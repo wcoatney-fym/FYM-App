@@ -1,8 +1,13 @@
 /**
- * OrgDataCache — Shared edge-function data cache
+ * OrgDataCache — Shared edge-function data cache with localStorage persistence
  *
  * Fetches core org-wide datasets once and caches them in context so
  * page navigations don't re-fetch and flash shimmer skeletons.
+ *
+ * On hard refresh / initial load, hydrates instantly from localStorage
+ * (stale-while-revalidate) so there is zero shimmer — data renders
+ * immediately from the last-known state, then silently refreshes in
+ * the background.
  *
  * Cached datasets:
  *   - retentionSummary (agencies + org-wide retention)
@@ -10,8 +15,6 @@
  *   - agencyProduction (per-agency production stats)
  *   - dailyProduction (day-level production)
  *   - monthlyProduction (month-level production)
- *
- * Cache key: `${authScope}|${dateKey}` — invalidates on auth or date change.
  *
  * Pages read from cache via useOrgData(). If data is present, they
  * render immediately (no loading state). The cache refreshes silently
@@ -33,6 +36,47 @@ import {
 } from '@/lib/prod-api';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 
+// ── localStorage persistence ───────────────────────────────────────────────
+
+const CACHE_KEY = 'fym_org_data_cache';
+const CACHE_VERSION = 1;
+
+interface PersistedCache {
+  version: number;
+  timestamp: number;
+  retentionSummary: RetentionSummaryResponse | null;
+  cohorts: CohortEntry[];
+  agencyProduction: AgencyProduction[];
+  monthlyProduction: MonthlyProduction[];
+}
+
+function readPersistedCache(): PersistedCache | null {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PersistedCache;
+    if (parsed.version !== CACHE_VERSION) return null;
+    // Expire after 24 hours — stale data older than that gets shimmer
+    if (Date.now() - parsed.timestamp > 24 * 60 * 60 * 1000) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writePersistedCache(data: Omit<PersistedCache, 'version' | 'timestamp'>) {
+  try {
+    const payload: PersistedCache = {
+      version: CACHE_VERSION,
+      timestamp: Date.now(),
+      ...data,
+    };
+    localStorage.setItem(CACHE_KEY, JSON.stringify(payload));
+  } catch {
+    // localStorage full or unavailable — silently skip
+  }
+}
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export interface OrgDataState {
@@ -48,7 +92,7 @@ export interface OrgDataState {
   dailyProduction: DailyProduction[];
   /** Month-level production rows (all agencies) */
   monthlyProduction: MonthlyProduction[];
-  /** True only on very first load — never true again after initial data arrives */
+  /** True only on very first load when no persisted cache exists */
   initialLoading: boolean;
   /** Trigger a full re-fetch (e.g., after date range change) */
   refresh: (params?: { startDate?: string; endDate?: string; allTime?: boolean }) => void;
@@ -76,13 +120,28 @@ export function useOrgData() {
 export function OrgDataProvider({ children }: { children: ReactNode }) {
   const { effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide } = useEffectiveAuth();
 
-  const [retentionAgencies, setRetentionAgencies] = useState<AgencyRetentionSummary[]>([]);
-  const [retentionSummary, setRetentionSummary] = useState<RetentionSummaryResponse | null>(null);
-  const [cohorts, setCohorts] = useState<CohortEntry[]>([]);
-  const [agencyProduction, setAgencyProduction] = useState<AgencyProduction[]>([]);
+  // Hydrate from localStorage on first render — if data exists, skip shimmer
+  const persisted = useRef(readPersistedCache());
+  const hasPersistedData = persisted.current !== null;
+
+  const [retentionAgencies, setRetentionAgencies] = useState<AgencyRetentionSummary[]>(
+    hasPersistedData ? persisted.current!.retentionSummary?.data.agencies ?? [] : []
+  );
+  const [retentionSummary, setRetentionSummary] = useState<RetentionSummaryResponse | null>(
+    hasPersistedData ? persisted.current!.retentionSummary : null
+  );
+  const [cohorts, setCohorts] = useState<CohortEntry[]>(
+    hasPersistedData ? persisted.current!.cohorts : []
+  );
+  const [agencyProduction, setAgencyProduction] = useState<AgencyProduction[]>(
+    hasPersistedData ? persisted.current!.agencyProduction : []
+  );
   const [dailyProduction, setDailyProduction] = useState<DailyProduction[]>([]);
-  const [monthlyProduction, setMonthlyProduction] = useState<MonthlyProduction[]>([]);
-  const [initialLoading, setInitialLoading] = useState(true);
+  const [monthlyProduction, setMonthlyProduction] = useState<MonthlyProduction[]>(
+    hasPersistedData ? persisted.current!.monthlyProduction : []
+  );
+  // If we have persisted data, start with initialLoading = false (instant render)
+  const [initialLoading, setInitialLoading] = useState(!hasPersistedData);
   const hasLoaded = useRef(false);
 
   // Track the last fetch params to avoid redundant fetches
@@ -120,6 +179,14 @@ export function OrgDataProvider({ children }: { children: ReactNode }) {
       if (allTime) {
         setMonthlyProduction(trendRes as MonthlyProduction[]);
         setDailyProduction([]);
+
+        // Persist to localStorage for instant hydration on next page load
+        writePersistedCache({
+          retentionSummary: retRes,
+          cohorts: cohortRes.data.cohorts,
+          agencyProduction: prodRes,
+          monthlyProduction: trendRes as MonthlyProduction[],
+        });
       } else {
         setDailyProduction(trendRes as DailyProduction[]);
         setMonthlyProduction([]);
