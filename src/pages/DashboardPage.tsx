@@ -15,7 +15,7 @@ import { Link, Navigate } from 'react-router-dom';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useOrgData } from '@/contexts/OrgDataCache';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { ShieldCheck, AlertTriangle, Building2, ChevronRight, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Building2, ChevronRight, ArrowUpRight, ArrowDownRight, XCircle } from 'lucide-react';
 import { type DatePreset, type DateRange, type TrendPoint, DEFAULT_PRESET, getDateRange, getGranularity, bucketKey, fmtBucketLabel, fmtMonth } from '@/lib/dateUtils';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -30,6 +30,7 @@ interface ProductionSnap {
 interface DashStats {
   active_policies: number;
   active_premium: number;
+  terminated_policies: number;
   at_risk_count: number;
   at_risk_premium: number;
   retention_pct: number | null;
@@ -156,7 +157,7 @@ export function DashboardPage() {
   const stats = useMemo((): DashStats | null => {
     if (loading) return null;
     if (noDataAgency) return {
-      active_policies: 0, active_premium: 0, at_risk_count: 0, at_risk_premium: 0,
+      active_policies: 0, active_premium: 0, terminated_policies: 0, at_risk_count: 0, at_risk_premium: 0,
       retention_pct: null, agencies_below_target: 0, total_agencies: 0,
     };
 
@@ -164,11 +165,12 @@ export function DashboardPage() {
       ? rawAgencies.filter(a => a.agency_id === filterAgencyId)
       : rawAgencies;
 
-    let totalActive = 0, totalPremium = 0, totalAtRisk = 0;
+    let totalActive = 0, totalPremium = 0, totalTerminated = 0, totalAtRisk = 0;
     let totalRetained = 0, totalEligible = 0;
     let belowTarget = 0;
     for (const a of agencies) {
       totalActive += a.active_policies;
+      totalTerminated += a.terminated_policies ?? 0;
       totalPremium += a.active_premium;
       totalAtRisk += a.at_risk_count;
       totalRetained += a.retained_90d;
@@ -183,13 +185,14 @@ export function DashboardPage() {
     return {
       active_policies: totalActive,
       active_premium: totalPremium,
+      terminated_policies: totalTerminated,
       at_risk_count: totalAtRisk,
       at_risk_premium: totalAtRiskPremium,
       retention_pct: overallRetention,
       agencies_below_target: belowTarget,
       total_agencies: agencies.length,
     };
-  }, [orgData.initialLoading, noDataAgency, filterAgencyId, rawAgencies]);
+  }, [loading, noDataAgency, filterAgencyId, rawAgencies]);
 
   // ── Bottom agencies (coaching signals) — filtered + sorted ──
   const bottomAgencies = useMemo((): AgencyRisk[] => {
@@ -305,7 +308,7 @@ export function DashboardPage() {
         )}
 
         {/* ── KPI strip with HUD frames + animations ── */}
-        <StaggerContainer className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StaggerContainer className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Active Policies */}
           <StaggerItem>
             <HudFrame>
@@ -386,6 +389,32 @@ export function DashboardPage() {
                       </div>
                       <div className="p-2.5 rounded-lg bg-red-500/10">
                         <AlertTriangle size={20} className="text-red-400" />
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </HudFrame>
+          </StaggerItem>
+
+          {/* Terminated Policies */}
+          <StaggerItem>
+            <HudFrame accentColor="hsl(280 60% 50% / 0.5)">
+              <Card className="border-border">
+                <CardContent className="p-5">
+                  {loading ? (
+                    <div className="h-14 rounded shimmer" />
+                  ) : (
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">Terminated</p>
+                        <CountUp
+                          end={s?.terminated_policies ?? 0}
+                          className="text-2xl font-bold text-foreground mt-1 block"
+                        />
+                      </div>
+                      <div className="p-2.5 rounded-lg bg-purple-500/10">
+                        <XCircle size={20} className="text-purple-400" />
                       </div>
                     </div>
                   )}
