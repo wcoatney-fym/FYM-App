@@ -1,23 +1,19 @@
 /**
- * At-Risk Policies Page (Quality → At-Risk tab)
+ * Needs Attention Page (formerly At-Risk)
  *
- * Read-only insight view for admins to monitor how managers are working
- * the at-risk book. Shows bucket counts per pipeline stage with drill-down
- * into individual client cards.
- *
- * NOT a pipeline — no drag-and-drop, no stage transitions.
- * The interactive pipeline lives on ManagerWorkboardPage (Workboard nav item).
+ * Urgency-ranked at-risk policy list with tri-state action buttons
+ * (Got it / Working / Done). Replaces the old bucket-view insight panel.
  *
  * Scoping:
- * - FYM admins: default to FYM data, can select another agency or All Agencies
- * - Agency admins: locked to their own agency
+ * - FYM admins: default to FYM-wide, can filter by agency
+ * - Agency admins/managers: locked to their agency
  * - Agents: see only their own at-risk policies
  */
 import { Header } from '@/components/layout/Header';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { DataFilters } from '@/components/filters/DataFilters';
-import { AtRiskInsight } from '@/components/at-risk/AtRiskInsight';
+import { NeedsAttentionList } from '@/components/needs-attention/NeedsAttentionList';
 
 export function AtRiskPage() {
   const { isAgent } = useEffectiveAuth();
@@ -25,7 +21,7 @@ export function AtRiskPage() {
 
   return (
     <div>
-      <Header title={isAgent ? 'Your At-Risk Policies' : 'At-Risk Overview'} />
+      <Header title="Needs Attention" />
       <div className="p-6 space-y-6 max-w-screen-2xl mx-auto">
 
         {/* Filters — agency filter for FYM admins only */}
@@ -38,8 +34,8 @@ export function AtRiskPage() {
           />
         )}
 
-        {/* Read-only insight view — bucket counts with drill-down */}
-        <AtRiskInsight filterAgencyId={filterAgencyId} />
+        {/* Urgency-ranked attention list with action buttons */}
+        <NeedsAttentionList filterAgencyId={filterAgencyId} />
 
       </div>
     </div>
