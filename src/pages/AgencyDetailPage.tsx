@@ -446,7 +446,6 @@ export function AgencyDetailPage() {
                         <span className="text-center">
                           <Badge className={`text-[10px] px-1.5 py-0 border ${
                             p.flag_type === 'at_risk' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
-                            p.flag_type === 'payment_failed' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
                             'bg-background text-muted-foreground border-border'
                           }`}>{p.flag_type ?? '—'}</Badge>
                         </span>

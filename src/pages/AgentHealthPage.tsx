@@ -63,9 +63,9 @@ const MOCK_HEALTH: HealthRow = {
 const MOCK_POLICIES: PolicyRow[] = [
   { policy_number: 'POL-2024-1001', agent_id: 'mock', agency_id: 'fym', product_type: 'HI',  status: 'active', plan_premium: 87.40,  billing_mode: 'monthly',   policy_effective_date: '2024-01-15', paid_to_date: '2026-07-01', draft_count: 7, last_contact_date: '2026-07-10', flag_type: null,             is_at_risk: false, synced_at: '' },
   { policy_number: 'POL-2024-1002', agent_id: 'mock', agency_id: 'fym', product_type: 'HHC', status: 'active', plan_premium: 124.60, billing_mode: 'monthly',   policy_effective_date: '2024-02-01', paid_to_date: '2026-07-01', draft_count: 6, last_contact_date: '2026-06-28', flag_type: null,             is_at_risk: false, synced_at: '' },
-  { policy_number: 'POL-2024-1003', agent_id: 'mock', agency_id: 'fym', product_type: 'HI',  status: 'active', plan_premium: 56.20,  billing_mode: 'quarterly', policy_effective_date: '2024-03-10', paid_to_date: '2026-06-15', draft_count: 5, last_contact_date: '2026-05-20', flag_type: 'no_contact',     is_at_risk: true,  synced_at: '' },
+  { policy_number: 'POL-2024-1003', agent_id: 'mock', agency_id: 'fym', product_type: 'HI',  status: 'active', plan_premium: 56.20,  billing_mode: 'quarterly', policy_effective_date: '2024-03-10', paid_to_date: '2026-06-15', draft_count: 5, last_contact_date: '2026-05-20', flag_type: 'at_risk',       is_at_risk: true,  synced_at: '' },
   { policy_number: 'POL-2024-1004', agent_id: 'mock', agency_id: 'fym', product_type: 'HHC', status: 'active', plan_premium: 198.00, billing_mode: 'monthly',   policy_effective_date: '2024-04-01', paid_to_date: '2026-07-01', draft_count: 4, last_contact_date: '2026-07-15', flag_type: null,             is_at_risk: false, synced_at: '' },
-  { policy_number: 'POL-2024-1005', agent_id: 'mock', agency_id: 'fym', product_type: 'HI',  status: 'active', plan_premium: 72.80,  billing_mode: 'monthly',   policy_effective_date: '2024-05-15', paid_to_date: '2026-06-01', draft_count: 2, last_contact_date: '2026-06-10', flag_type: 'payment_failed', is_at_risk: true,  synced_at: '' },
+  { policy_number: 'POL-2024-1005', agent_id: 'mock', agency_id: 'fym', product_type: 'HI',  status: 'active', plan_premium: 72.80,  billing_mode: 'monthly',   policy_effective_date: '2024-05-15', paid_to_date: '2026-06-01', draft_count: 2, last_contact_date: '2026-06-10', flag_type: 'at_risk',       is_at_risk: true,  synced_at: '' },
   { policy_number: 'POL-2024-1006', agent_id: 'mock', agency_id: 'fym', product_type: 'HI',  status: 'lapsed', plan_premium: 91.50,  billing_mode: 'monthly',   policy_effective_date: '2024-06-01', paid_to_date: '2026-04-01', draft_count: 1, last_contact_date: '2026-04-05', flag_type: null,             is_at_risk: false, synced_at: '' },
 ];
 
@@ -93,14 +93,13 @@ function totalScoreBg(score: number) {
 
 function flagLabel(flag: string | null) {
   if (!flag) return null;
-  const map: Record<string, string> = { payment_failed: 'Payment Failed', no_contact: 'No Contact', rate_action: 'Rate Action' };
-  return map[flag] ?? flag;
+  if (flag === 'at_risk') return 'At Risk';
+  return flag;
 }
 
 function flagColor(flag: string | null) {
   if (!flag) return '';
-  if (flag === 'payment_failed') return 'bg-red-500/10 text-red-400 border-red-500/20';
-  if (flag === 'no_contact') return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+  if (flag === 'at_risk') return 'bg-red-500/10 text-red-400 border-red-500/20';
   return 'bg-orange-500/10 text-amber-400 border-orange-500/20';
 }
 

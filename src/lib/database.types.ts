@@ -1,6 +1,6 @@
 export type UserRole = 'agent' | 'manager' | 'admin';
 export type AtRiskStatus = 'new' | 'assigned' | 'contacted' | 'saved' | 'lost';
-export type FlagType = 'payment_failed' | 'no_contact' | 'rate_action' | null;
+export type FlagType = 'at_risk' | null;
 export type AgencyVariant = 'brent_melanie' | 'fym_direct';
 export type CompTier = '60' | '65' | '70' | '75';
 export type BattleType = 'agent_vs_agent' | 'agency_vs_agency';
@@ -354,8 +354,6 @@ export interface Database {
           at_risk_count: number;
           at_risk_monthly_premium: number | null;
           recoverable_premium: number | null;
-          no_contact_premium: number | null;
-          rate_action_premium: number | null;
         };
         Relationships: [];
       };
