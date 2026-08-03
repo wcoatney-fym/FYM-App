@@ -13,7 +13,7 @@ import {
   Search, ChevronLeft, ChevronRight, Download,
   Filter, X,
 } from 'lucide-react';
-import { TimePeriodSelector } from '@/components/filters/TimePeriodSelector';
+import { PeriodPills } from '@/components/filters/PeriodPills';
 import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -303,10 +303,13 @@ export function BookOfBusinessPage() {
               </button>
 
               {/* Time Period */}
-              <TimePeriodSelector
+              <PeriodPills
                 preset={datePreset}
                 dateRange={dateRange}
                 onChange={(range, preset) => { setDateRange(range); setDatePreset(preset); }}
+                showCompare={false}
+                storageKey="book-of-business"
+                compact
               />
 
               {/* Export */}

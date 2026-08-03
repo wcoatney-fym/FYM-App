@@ -22,7 +22,7 @@ import {
   ChevronRight, Search,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { TimePeriodSelector } from '@/components/filters/TimePeriodSelector';
+import { PeriodPills } from '@/components/filters/PeriodPills';
 import { type DatePreset, type DateRange, type DailyRow, type TrendPoint, DEFAULT_PRESET, getDateRange, getGranularity, aggregateTrend, fmtMonth } from '@/lib/dateUtils';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -233,10 +233,13 @@ export function AgencyProductionPage() {
           >
             <ArrowLeft size={14} /> Back to Production
           </Link>
-          <TimePeriodSelector
+          <PeriodPills
             preset={datePreset}
             dateRange={dateRange}
             onChange={(range, preset) => { setDateRange(range); setDatePreset(preset); }}
+            showCompare={false}
+            storageKey="agency-production"
+            compact
           />
         </div>
 
