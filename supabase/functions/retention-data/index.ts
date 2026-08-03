@@ -54,6 +54,7 @@ Deno.serve(async (req) => {
       agency_id: string;
       total_policies: number;
       active_policies: number;
+      terminated_policies: number;
       active_premium: number;
       at_risk_count: number;
       eligible: number;   // policies old enough to be measured
@@ -169,6 +170,7 @@ Deno.serve(async (req) => {
             agency_id: agencyId,
             total_policies: 0,
             active_policies: 0,
+            terminated_policies: 0,
             active_premium: 0,
             at_risk_count: 0,
             eligible: 0,
@@ -182,6 +184,9 @@ Deno.serve(async (req) => {
         if (status === "active") {
           bucket.active_policies++;
           bucket.active_premium += monthlyPremium;
+        }
+        if (status === "terminated") {
+          bucket.terminated_policies++;
         }
         if (isAtRisk) {
           bucket.at_risk_count++;
@@ -240,6 +245,7 @@ Deno.serve(async (req) => {
         const summaries = Array.from(buckets.values()).map((b) => ({
           agency_id: b.agency_id,
           active_policies: b.active_policies,
+          terminated_policies: b.terminated_policies,
           active_premium: Math.round(b.active_premium * 100) / 100,
           at_risk_count: b.at_risk_count,
           retained_90d: b.retained,
@@ -257,6 +263,7 @@ Deno.serve(async (req) => {
           org_wide: {
             total_agencies: summaries.length,
             total_active_policies: summaries.reduce((s, a) => s + a.active_policies, 0),
+            total_terminated_policies: summaries.reduce((s, a) => s + a.terminated_policies, 0),
             total_active_premium: Math.round(summaries.reduce((s, a) => s + a.active_premium, 0) * 100) / 100,
             total_at_risk: summaries.reduce((s, a) => s + a.at_risk_count, 0),
             eligible_90d: orgEligible,

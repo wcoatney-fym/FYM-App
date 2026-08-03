@@ -118,22 +118,18 @@ export function estimateDraftCount(
 }
 
 // ── Resolve at-risk flag ──────────────────────────────────────────────
+// At-risk = UNL's own at_risk_policy flag on ACTIVE policies only.
+// Payment-lag heuristics (paid_to_date < today) removed 2026-08-03 —
+// that was tool-side definition drift (AGENTS.md standing rule: metric
+// definitions live in Max's DB, not edge functions).
 export function resolveRiskFlag(
   atRiskPolicy: boolean | null,
   status: string,
-  paidToDate: string | null
+  _paidToDate: string | null
 ): { isAtRisk: boolean; flagType: string | null } {
-  if (atRiskPolicy === true) return { isAtRisk: true, flagType: "at_risk" };
-  if (status !== "active") return { isAtRisk: false, flagType: null };
-  if (paidToDate) {
-    const paid = new Date(paidToDate);
-    const lagDays = (new Date().getTime() - paid.getTime()) / (1000 * 60 * 60 * 24);
-    if (lagDays > 0) {
-      return {
-        isAtRisk: true,
-        flagType: lagDays >= 30 ? "payment_failed" : "payment_watch",
-      };
-    }
+  // Only count UNL's flag, and only for active policies
+  if (atRiskPolicy === true && status === "active") {
+    return { isAtRisk: true, flagType: "at_risk" };
   }
   return { isAtRisk: false, flagType: null };
 }
