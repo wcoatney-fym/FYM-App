@@ -7,6 +7,8 @@ import { StaggerContainer, StaggerItem, FadeIn, CountUp, RadialGauge } from '@/c
 import { supabase } from '@/lib/supabase';
 import {
   fetchDailyProduction,
+  fetchAgencyProduction,
+  type AgencyProduction,
 } from '@/lib/prod-api';
 import { scopeToAgency } from '@/lib/query-helpers';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
@@ -15,15 +17,16 @@ import { Link, Navigate } from 'react-router-dom';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useOrgData } from '@/contexts/OrgDataCache';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { ShieldCheck, AlertTriangle, Building2, ChevronRight, ArrowUpRight, ArrowDownRight, XCircle } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Building2, ChevronRight, XCircle } from 'lucide-react';
 import { type DatePreset, type DateRange, type TrendPoint, DEFAULT_PRESET, getDateRange, getGranularity, bucketKey, fmtBucketLabel, fmtMonth } from '@/lib/dateUtils';
 
 // ── Types ──────────────────────────────────────────────────────────────────
-interface ProductionSnap {
-  policiesThisMonth: number;
-  apThisMonth: number;
-  policiesLastMonth: number;
-  apLastMonth: number;
+interface StatusSnapshot {
+  totalWritten: number;
+  active: number;
+  pending: number;
+  atRisk: number;
+  terminated: number;
   trend: TrendPoint[];
 }
 
@@ -79,6 +82,7 @@ export function DashboardPage() {
   // ── Local state for date-filtered production (only when user changes date) ──
   const [localDailyProd, setLocalDailyProd] = useState<Array<{ day: string; agency_id: string; policies: number; annual_premium: number }>>([]);
   const [localMonthlyProd, setLocalMonthlyProd] = useState<Array<{ month: string; agency_id: string; policies: number; annual_premium: number }>>([]);
+  const [localAgencyProd, setLocalAgencyProd] = useState<AgencyProduction[]>([]);
   const [nameMap, setNameMap] = useState<Map<string, string>>(new Map());
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
@@ -93,6 +97,9 @@ export function DashboardPage() {
   const hasLocalProd = localDailyProd.length > 0 || localMonthlyProd.length > 0;
   const rawDailyProd = useRpc && hasLocalProd ? localDailyProd : orgData.dailyProduction;
   const rawMonthlyProd = useRpc && hasLocalProd ? localMonthlyProd : orgData.monthlyProduction;
+  // Agency production for status snapshot: date-filtered local data or cache
+  const hasLocalAgencyProd = localAgencyProd.length > 0;
+  const rawAgencyProd = useRpc && hasLocalAgencyProd ? localAgencyProd : orgData.agencyProduction;
   // Show loading only when we have no data at all (cache + local both empty)
   const hasAnyData = rawAgencies.length > 0 || rawDailyProd.length > 0 || rawMonthlyProd.length > 0;
   const loading = orgData.initialLoading && !hasAnyData;
@@ -130,6 +137,7 @@ export function DashboardPage() {
     if (!useRpc) {
       setLocalDailyProd([]);
       setLocalMonthlyProd([]);
+      setLocalAgencyProd([]);
       return;
     }
     const agencyParam = !isOrgWide && effectiveAgencyWritingNumber
@@ -137,10 +145,15 @@ export function DashboardPage() {
     const startDateStr = dateRange.startDate.split('T')[0];
     const endDateStr = dateRange.endDate.split('T')[0];
     setDateLoading(true);
-    fetchDailyProduction({ ...agencyParam, start_date: startDateStr, end_date: endDateStr })
-      .then(data => {
-        setLocalDailyProd(data);
+    const dateParams = { ...agencyParam, start_date: startDateStr, end_date: endDateStr };
+    Promise.all([
+      fetchDailyProduction(dateParams),
+      fetchAgencyProduction(dateParams),
+    ])
+      .then(([dailyData, agencyData]) => {
+        setLocalDailyProd(dailyData);
         setLocalMonthlyProd([]);
+        setLocalAgencyProd(agencyData);
         setDateLoading(false);
       })
       .catch(err => {
@@ -214,12 +227,28 @@ export function DashboardPage() {
       .slice(0, 8);
   }, [orgData.initialLoading, noDataAgency, filterAgencyId, rawAgencies, nameMap]);
 
-  // ── Production snapshot — filtered by agency ──
-  const production = useMemo((): ProductionSnap | null => {
+  // ── Production status snapshot — aggregated from agency production, filtered by agency ──
+  const snapshot = useMemo((): StatusSnapshot | null => {
     if (loading) return null;
-    if (noDataAgency) return { policiesThisMonth: 0, apThisMonth: 0, policiesLastMonth: 0, apLastMonth: 0, trend: [] };
+    if (noDataAgency) return { totalWritten: 0, active: 0, pending: 0, atRisk: 0, terminated: 0, trend: [] };
 
+    // Status breakdown from agency production data
+    const agencies = filterAgencyId
+      ? rawAgencyProd.filter(a => a.agency_id === filterAgencyId)
+      : rawAgencyProd;
+
+    let totalWritten = 0, active = 0, pending = 0, atRisk = 0, terminated = 0;
+    for (const a of agencies) {
+      totalWritten += a.total_policies;
+      active += a.active_policies;
+      pending += a.pending_policies;
+      atRisk += a.at_risk_policies;
+      terminated += a.terminated_policies;
+    }
+
+    // Trend chart from daily/monthly production data
     const gran = getGranularity(dateRange);
+    let trendArr: TrendPoint[] = [];
 
     if (rawDailyProd.length > 0) {
       const filtered = filterAgencyId
@@ -233,41 +262,28 @@ export function DashboardPage() {
         existing.ap += r.annual_premium;
         byBucket.set(key, existing);
       });
-      const trendArr: TrendPoint[] = Array.from(byBucket.entries())
+      trendArr = Array.from(byBucket.entries())
         .map(([b, v]) => ({ bucket: b, label: fmtBucketLabel(b, gran), policies: v.policies, ap: v.ap }))
         .sort((a, b) => a.bucket.localeCompare(b.bucket));
-      const totalPolicies = filtered.reduce((s, r) => s + r.policies, 0);
-      const totalAp = filtered.reduce((s, r) => s + r.annual_premium, 0);
-      return { policiesThisMonth: totalPolicies, apThisMonth: totalAp, policiesLastMonth: 0, apLastMonth: 0, trend: trendArr };
+    } else if (rawMonthlyProd.length > 0) {
+      const filtered = filterAgencyId
+        ? rawMonthlyProd.filter(r => r.agency_id === filterAgencyId)
+        : rawMonthlyProd;
+      const byMonth = new Map<string, { policies: number; ap: number }>();
+      for (const r of filtered) {
+        const existing = byMonth.get(r.month) || { policies: 0, ap: 0 };
+        existing.policies += r.policies;
+        existing.ap += r.annual_premium;
+        byMonth.set(r.month, existing);
+      }
+      trendArr = Array.from(byMonth.entries())
+        .map(([month, v]) => ({ bucket: month, label: fmtMonth(month), policies: v.policies, ap: v.ap }))
+        .sort((a, b) => a.bucket.localeCompare(b.bucket))
+        .slice(-12);
     }
 
-    // All-time fallback: monthly data
-    const filtered = filterAgencyId
-      ? rawMonthlyProd.filter(r => r.agency_id === filterAgencyId)
-      : rawMonthlyProd;
-    const byMonth = new Map<string, { policies: number; ap: number }>();
-    for (const r of filtered) {
-      const existing = byMonth.get(r.month) || { policies: 0, ap: 0 };
-      existing.policies += r.policies;
-      existing.ap += r.annual_premium;
-      byMonth.set(r.month, existing);
-    }
-    const now = new Date();
-    const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const lastMonthKey = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`;
-    const thisM = byMonth.get(thisMonthKey) || { policies: 0, ap: 0 };
-    const lastM = byMonth.get(lastMonthKey) || { policies: 0, ap: 0 };
-    const trendArr: TrendPoint[] = Array.from(byMonth.entries())
-      .map(([month, v]) => ({ bucket: month, label: fmtMonth(month), policies: v.policies, ap: v.ap }))
-      .sort((a, b) => a.bucket.localeCompare(b.bucket))
-      .slice(-6);
-    return {
-      policiesThisMonth: thisM.policies, apThisMonth: thisM.ap,
-      policiesLastMonth: lastM.policies, apLastMonth: lastM.ap,
-      trend: trendArr,
-    };
-  }, [orgData.initialLoading, noDataAgency, filterAgencyId, rawDailyProd, rawMonthlyProd, dateRange]);
+    return { totalWritten, active, pending, atRisk, terminated, trend: trendArr };
+  }, [loading, noDataAgency, filterAgencyId, rawAgencyProd, rawDailyProd, rawMonthlyProd, dateRange]);
 
   const s = stats;
 
@@ -456,14 +472,16 @@ export function DashboardPage() {
         </StaggerContainer>
 
         {/* ── Production Snapshot ── */}
-        {production && (
+        {snapshot && (
           <FadeIn delay={0.35}>
             <Card className="border-border">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="text-base font-semibold text-foreground">Production Snapshot</CardTitle>
-                    <p className="text-xs text-muted-foreground/70 mt-0.5">This month vs last month</p>
+                    <p className="text-xs text-muted-foreground/70 mt-0.5">
+                      {datePreset === 'allTime' ? 'All time' : `Policies issued in selected period`}
+                    </p>
                   </div>
                   <Link
                     to="/production"
@@ -474,50 +492,48 @@ export function DashboardPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                   <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">Policies This Month</p>
-                    <p className="text-2xl font-bold text-foreground font-data">{production.policiesThisMonth.toLocaleString()}</p>
-                    <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${production.policiesThisMonth >= production.policiesLastMonth ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {production.policiesThisMonth >= production.policiesLastMonth ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                      {production.policiesLastMonth > 0 ? Math.abs(Math.round(((production.policiesThisMonth - production.policiesLastMonth) / production.policiesLastMonth) * 100)) : 100}% vs last month
-                    </span>
+                    <p className="text-xs text-muted-foreground">Total Written</p>
+                    <p className="text-2xl font-bold text-foreground font-data">{snapshot.totalWritten.toLocaleString()}</p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">AP This Month</p>
-                    <p className="text-2xl font-bold text-foreground font-data">{fmt$(production.apThisMonth)}</p>
-                    <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${production.apThisMonth >= production.apLastMonth ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {production.apThisMonth >= production.apLastMonth ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                      {production.apLastMonth > 0 ? Math.abs(Math.round(((production.apThisMonth - production.apLastMonth) / production.apLastMonth) * 100)) : 100}% vs last month
-                    </span>
+                    <p className="text-xs text-muted-foreground">Active</p>
+                    <p className="text-2xl font-bold text-cyan-400 font-data">{snapshot.active.toLocaleString()}</p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">Policies Last Month</p>
-                    <p className="text-xl font-semibold text-muted-foreground font-data">{production.policiesLastMonth.toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground">Pending</p>
+                    <p className="text-2xl font-bold text-amber-400 font-data">{snapshot.pending.toLocaleString()}</p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">AP Last Month</p>
-                    <p className="text-xl font-semibold text-muted-foreground font-data">{fmt$(production.apLastMonth)}</p>
+                    <p className="text-xs text-muted-foreground">At Risk</p>
+                    <p className="text-2xl font-bold text-red-400 font-data">{snapshot.atRisk.toLocaleString()}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Terminated</p>
+                    <p className="text-2xl font-bold text-purple-400 font-data">{snapshot.terminated.toLocaleString()}</p>
                   </div>
                 </div>
-                {/* Mini 6-month trend */}
-                <div className="mt-4 h-24">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={production.trend}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 33% 17%)" />
-                      <XAxis
-                        dataKey="label"
-                        stroke="hsl(215 20% 55%)"
-                        fontSize={10}
-                      />
-                      <Tooltip
-                        contentStyle={{ borderRadius: '8px', border: '1px solid hsl(217 33% 20%)', background: 'hsl(222 47% 9%)', color: 'hsl(210 40% 98%)', fontSize: 11 }}
-                        formatter={(v: number, name: string) => [name === 'policies' ? v.toLocaleString() : fmt$(v), name === 'policies' ? 'Policies' : 'AP']}
-                      />
-                      <Line type="monotone" dataKey="policies" stroke="hsl(142 71% 45%)" strokeWidth={2} dot={false} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
+                {/* Trend chart */}
+                {snapshot.trend.length > 1 && (
+                  <div className="mt-4 h-24">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={snapshot.trend}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 33% 17%)" />
+                        <XAxis
+                          dataKey="label"
+                          stroke="hsl(215 20% 55%)"
+                          fontSize={10}
+                        />
+                        <Tooltip
+                          contentStyle={{ borderRadius: '8px', border: '1px solid hsl(217 33% 20%)', background: 'hsl(222 47% 9%)', color: 'hsl(210 40% 98%)', fontSize: 11 }}
+                          formatter={(v: number, name: string) => [name === 'policies' ? v.toLocaleString() : fmt$(v), name === 'policies' ? 'Policies' : 'AP']}
+                        />
+                        <Line type="monotone" dataKey="policies" stroke="hsl(142 71% 45%)" strokeWidth={2} dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </FadeIn>
