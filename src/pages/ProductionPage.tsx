@@ -113,7 +113,7 @@ export function ProductionPage() {
   const [localAgencies, setLocalAgencies] = useState<AgencyRow[]>([]);
   const [localMonthly, setLocalMonthly] = useState<RawMonthlyRow[]>([]);
   const [localDaily, setLocalDaily] = useState<DailyRow[]>([]);
-  const [dateLoading, setDateLoading] = useState(false);
+  const [_dateLoading, setDateLoading] = useState(false);
   const [sortBy, setSortBy] = useState<'ap' | 'policies' | 'growth'>('ap');
   const [filterAgentId, setFilterAgentId] = useState<string | null>(null);
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);

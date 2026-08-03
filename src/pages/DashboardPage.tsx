@@ -81,7 +81,7 @@ export function DashboardPage() {
   const [nameMap, setNameMap] = useState<Map<string, string>>(new Map());
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
-  const [dateLoading, setDateLoading] = useState(false);
+  const [_dateLoading, setDateLoading] = useState(false);
 
   const useRpc = datePreset !== 'allTime';
 
