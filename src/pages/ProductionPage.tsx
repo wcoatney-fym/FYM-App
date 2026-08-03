@@ -113,14 +113,13 @@ export function ProductionPage() {
   const [localAgencies, setLocalAgencies] = useState<AgencyRow[]>([]);
   const [localMonthly, setLocalMonthly] = useState<RawMonthlyRow[]>([]);
   const [localDaily, setLocalDaily] = useState<DailyRow[]>([]);
-  const [dateLoading, setDateLoading] = useState(false);
+  const [_dateLoading, setDateLoading] = useState(false);
   const [sortBy, setSortBy] = useState<'ap' | 'policies' | 'growth'>('ap');
   const [filterAgentId, setFilterAgentId] = useState<string | null>(null);
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
 
   const useRpc = datePreset !== 'allTime';
-  const loading = orgData.initialLoading || dateLoading;
 
   // Map org cache agency production to AgencyRow for all-time view
   const cachedAgencies = useMemo((): AgencyRow[] => {
@@ -154,10 +153,15 @@ export function ProductionPage() {
     }));
   }, [orgData.monthlyProduction]);
 
-  // Use cache for all-time; local fetch for custom date ranges
-  const agencies = useRpc ? localAgencies : cachedAgencies;
-  const rawMonthly = useRpc ? localMonthly : cachedMonthly;
-  const dailyRows = useRpc ? localDaily : [];
+  // Use date-filtered local data when available; fall back to cache data
+  // so we never render zeros while the date-filtered fetch is in flight.
+  const hasLocalData = localAgencies.length > 0;
+  const agencies = useRpc && hasLocalData ? localAgencies : cachedAgencies;
+  const rawMonthly = useRpc && hasLocalData ? localMonthly : cachedMonthly;
+  const dailyRows = useRpc && hasLocalData ? localDaily : [];
+  // Show loading only when we have no data at all
+  const hasAnyData = agencies.length > 0 || rawMonthly.length > 0 || dailyRows.length > 0;
+  const loading = orgData.initialLoading && !hasAnyData;
 
   // Org-wide stats derived from agencies
   const stats = useMemo((): OrgStats | null => {

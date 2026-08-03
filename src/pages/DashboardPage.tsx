@@ -81,15 +81,20 @@ export function DashboardPage() {
   const [nameMap, setNameMap] = useState<Map<string, string>>(new Map());
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
-  const [dateLoading, setDateLoading] = useState(false);
+  const [_dateLoading, setDateLoading] = useState(false);
 
   const useRpc = datePreset !== 'allTime';
 
-  // Use org cache data for all-time; local fetch only for custom date ranges
+  // Use org cache data for all-time; for date-filtered views, fall back to
+  // cache data while the date-filtered fetch is still in flight so we never
+  // render zeros during the loading gap.
   const rawAgencies = orgData.retentionAgencies;
-  const rawDailyProd = useRpc ? localDailyProd : orgData.dailyProduction;
-  const rawMonthlyProd = useRpc ? localMonthlyProd : orgData.monthlyProduction;
-  const loading = orgData.initialLoading || dateLoading;
+  const hasLocalProd = localDailyProd.length > 0 || localMonthlyProd.length > 0;
+  const rawDailyProd = useRpc && hasLocalProd ? localDailyProd : orgData.dailyProduction;
+  const rawMonthlyProd = useRpc && hasLocalProd ? localMonthlyProd : orgData.monthlyProduction;
+  // Show loading only when we have no data at all (cache + local both empty)
+  const hasAnyData = rawAgencies.length > 0 || rawDailyProd.length > 0 || rawMonthlyProd.length > 0;
+  const loading = orgData.initialLoading && !hasAnyData;
 
   // ── Cohort trend from cache (org-wide, not date-filtered) ──
   const trend = useMemo((): CohortPoint[] => {
@@ -149,7 +154,7 @@ export function DashboardPage() {
 
   // ── Derive stats from raw data, filtered by agency (instant) ──
   const stats = useMemo((): DashStats | null => {
-    if (orgData.initialLoading) return null;
+    if (loading) return null;
     if (noDataAgency) return {
       active_policies: 0, active_premium: 0, at_risk_count: 0, at_risk_premium: 0,
       retention_pct: null, agencies_below_target: 0, total_agencies: 0,
@@ -188,7 +193,7 @@ export function DashboardPage() {
 
   // ── Bottom agencies (coaching signals) — filtered + sorted ──
   const bottomAgencies = useMemo((): AgencyRisk[] => {
-    if (orgData.initialLoading || noDataAgency) return [];
+    if (loading || noDataAgency) return [];
     const agencies = filterAgencyId
       ? rawAgencies.filter(a => a.agency_id === filterAgencyId)
       : rawAgencies;
@@ -208,7 +213,7 @@ export function DashboardPage() {
 
   // ── Production snapshot — filtered by agency ──
   const production = useMemo((): ProductionSnap | null => {
-    if (orgData.initialLoading) return null;
+    if (loading) return null;
     if (noDataAgency) return { policiesThisMonth: 0, apThisMonth: 0, policiesLastMonth: 0, apLastMonth: 0, trend: [] };
 
     const gran = getGranularity(dateRange);
