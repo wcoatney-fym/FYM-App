@@ -6,16 +6,14 @@ import { HudFrame } from '@/components/ui/hud-frame';
 import { StaggerContainer, StaggerItem, FadeIn, CountUp, RadialGauge } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
 import {
-  fetchRetentionSummary,
-  fetchRetentionCohorts,
   fetchDailyProduction,
-  fetchMonthlyProduction,
 } from '@/lib/prod-api';
 import { scopeToAgency } from '@/lib/query-helpers';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { DataFilters } from '@/components/filters/DataFilters';
 import { Link, Navigate } from 'react-router-dom';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
+import { useOrgData } from '@/contexts/OrgDataCache';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ShieldCheck, AlertTriangle, Building2, ChevronRight, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { type DatePreset, type DateRange, type TrendPoint, DEFAULT_PRESET, getDateRange, getGranularity, bucketKey, fmtBucketLabel, fmtMonth } from '@/lib/dateUtils';
@@ -72,116 +70,86 @@ function retentionColor(pct: number | null) {
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
-// ── Raw data types for server response (stored once, filtered via useMemo) ──
-interface RawRetentionAgency {
-  agency_id: string;
-  active_policies: number;
-  active_premium: number;
-  at_risk_count: number;
-  retained_90d: number;
-  eligible_90d: number;
-  retention_pct: number | null;
-}
-
 export function DashboardPage() {
   const { effectiveRole, effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide } = useEffectiveAuth();
   const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
+  const orgData = useOrgData();
 
-  // ── Raw data from server (fetched once, not re-fetched on filter change) ──
-  const [rawAgencies, setRawAgencies] = useState<RawRetentionAgency[]>([]);
-  const [rawCohorts, setRawCohorts] = useState<CohortPoint[]>([]);
-  const [rawDailyProd, setRawDailyProd] = useState<Array<{ day: string; agency_id: string; policies: number; annual_premium: number }>>([]);
-  const [rawMonthlyProd, setRawMonthlyProd] = useState<Array<{ month: string; agency_id: string; policies: number; annual_premium: number }>>([]);
+  // ── Local state for date-filtered production (only when user changes date) ──
+  const [localDailyProd, setLocalDailyProd] = useState<Array<{ day: string; agency_id: string; policies: number; annual_premium: number }>>([]);
+  const [localMonthlyProd, setLocalMonthlyProd] = useState<Array<{ month: string; agency_id: string; policies: number; annual_premium: number }>>([]);
   const [nameMap, setNameMap] = useState<Map<string, string>>(new Map());
-  const [loading, setLoading] = useState(true);
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
+  const [dateLoading, setDateLoading] = useState(false);
 
-  // Whether date-filtered or all-time
   const useRpc = datePreset !== 'allTime';
 
-  // ── Fetch org-wide data once (on mount + date/auth changes only) ──
+  // Use org cache data for all-time; local fetch only for custom date ranges
+  const rawAgencies = orgData.retentionAgencies;
+  const rawDailyProd = useRpc ? localDailyProd : orgData.dailyProduction;
+  const rawMonthlyProd = useRpc ? localMonthlyProd : orgData.monthlyProduction;
+  const loading = orgData.initialLoading || dateLoading;
+
+  // ── Cohort trend from cache (org-wide, not date-filtered) ──
+  const trend = useMemo((): CohortPoint[] => {
+    return orgData.cohorts.slice(-12).map(c => ({
+      month: fmtMonth(c.month + '-01'),
+      hi: null,
+      hhc: null,
+      combined: c.retention_pct,
+    }));
+  }, [orgData.cohorts]);
+
+  // ── Agency name map from local Supabase ──
   useEffect(() => {
-    async function load() {
-      try {
-        const agencyParam = !isOrgWide && effectiveAgencyWritingNumber
-          ? { agency_id: effectiveAgencyWritingNumber } : {};
-        const startDateStr = dateRange.startDate.split('T')[0];
-        const endDateStr = dateRange.endDate.split('T')[0];
-
-        const [retRes, cohortRes, prodResult, agencyNameData] = await Promise.all([
-          fetchRetentionSummary(agencyParam),
-          fetchRetentionCohorts(agencyParam),
-          useRpc
-            ? fetchDailyProduction({ ...agencyParam, start_date: startDateStr, end_date: endDateStr })
-            : fetchMonthlyProduction(agencyParam),
-          supabase
-            ? scopeToAgency(
-                (supabase as any).from('agencies').select('tracker_id, writing_number, name'),
-                isOrgWide, effectiveAgencyId, 'tracker_id'
-              ).then((r: { data: any }) => r.data)
-            : Promise.resolve(null),
-        ]);
-
-        // Store raw retention data
-        setRawAgencies(retRes.data.agencies.map((a: any) => ({
-          agency_id: a.agency_id,
-          active_policies: a.active_policies,
-          active_premium: a.active_premium,
-          at_risk_count: a.at_risk_count,
-          retained_90d: a.retained_90d,
-          eligible_90d: a.eligible_90d,
-          retention_pct: a.retention_pct,
-        })));
-
-        // Store raw cohort data
-        if (cohortRes.data.cohorts.length > 0) {
-          setRawCohorts(cohortRes.data.cohorts.slice(-12).map((c: any) => ({
-            month: fmtMonth(c.month + '-01'),
-            hi: null,
-            hhc: null,
-            combined: c.retention_pct,
-          })));
-        } else {
-          setRawCohorts([]);
+    if (!supabase) return;
+    scopeToAgency(
+      (supabase as any).from('agencies').select('tracker_id, writing_number, name'),
+      isOrgWide, effectiveAgencyId, 'tracker_id'
+    ).then((r: { data: any }) => {
+      const nm = new Map<string, string>();
+      if (r.data) {
+        for (const a of r.data as any[]) {
+          if (a.writing_number) nm.set(a.writing_number, a.name);
+          if (a.tracker_id) nm.set(a.tracker_id, a.name);
         }
-
-        // Store raw production data
-        if (useRpc) {
-          setRawDailyProd(prodResult as any);
-          setRawMonthlyProd([]);
-        } else {
-          setRawMonthlyProd(prodResult as any);
-          setRawDailyProd([]);
-        }
-
-        // Build name map
-        const nm = new Map<string, string>();
-        if (agencyNameData) {
-          for (const a of agencyNameData as any[]) {
-            if (a.writing_number) nm.set(a.writing_number, a.name);
-            if (a.tracker_id) nm.set(a.tracker_id, a.name);
-          }
-        }
-        setNameMap(nm);
-
-        setLoading(false);
-      } catch (err) {
-        console.error('Dashboard load error:', err);
-        setLoading(false);
       }
+      setNameMap(nm);
+    });
+  }, [effectiveAgencyId, isOrgWide]);
+
+  // ── Only fetch production data when date range changes from all-time ──
+  useEffect(() => {
+    if (!useRpc) {
+      setLocalDailyProd([]);
+      setLocalMonthlyProd([]);
+      return;
     }
-    load();
-  // filterAgencyId intentionally excluded — filtering is client-side via useMemo
+    const agencyParam = !isOrgWide && effectiveAgencyWritingNumber
+      ? { agency_id: effectiveAgencyWritingNumber } : {};
+    const startDateStr = dateRange.startDate.split('T')[0];
+    const endDateStr = dateRange.endDate.split('T')[0];
+    setDateLoading(true);
+    fetchDailyProduction({ ...agencyParam, start_date: startDateStr, end_date: endDateStr })
+      .then(data => {
+        setLocalDailyProd(data);
+        setLocalMonthlyProd([]);
+        setDateLoading(false);
+      })
+      .catch(err => {
+        console.error('Dashboard date-filtered fetch error:', err);
+        setDateLoading(false);
+      });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide, dateRange, datePreset]);
+  }, [dateRange, datePreset, effectiveAgencyWritingNumber, isOrgWide]);
 
   // ── Detect no-data agencies (no writing_number) ──
   const noDataAgency = filterAgencyId?.startsWith('no-data:') ?? false;
 
   // ── Derive stats from raw data, filtered by agency (instant) ──
   const stats = useMemo((): DashStats | null => {
-    if (loading) return null;
+    if (orgData.initialLoading) return null;
     if (noDataAgency) return {
       active_policies: 0, active_premium: 0, at_risk_count: 0, at_risk_premium: 0,
       retention_pct: null, agencies_below_target: 0, total_agencies: 0,
@@ -216,11 +184,11 @@ export function DashboardPage() {
       agencies_below_target: belowTarget,
       total_agencies: agencies.length,
     };
-  }, [loading, noDataAgency, filterAgencyId, rawAgencies]);
+  }, [orgData.initialLoading, noDataAgency, filterAgencyId, rawAgencies]);
 
   // ── Bottom agencies (coaching signals) — filtered + sorted ──
   const bottomAgencies = useMemo((): AgencyRisk[] => {
-    if (loading || noDataAgency) return [];
+    if (orgData.initialLoading || noDataAgency) return [];
     const agencies = filterAgencyId
       ? rawAgencies.filter(a => a.agency_id === filterAgencyId)
       : rawAgencies;
@@ -236,14 +204,11 @@ export function DashboardPage() {
       }))
       .sort((a, b) => (a.retention_pct ?? 100) - (b.retention_pct ?? 100))
       .slice(0, 8);
-  }, [loading, noDataAgency, filterAgencyId, rawAgencies, nameMap]);
-
-  // ── Cohort trend — pass through (cohorts are org-wide, not agency-filtered) ──
-  const trend = rawCohorts;
+  }, [orgData.initialLoading, noDataAgency, filterAgencyId, rawAgencies, nameMap]);
 
   // ── Production snapshot — filtered by agency ──
   const production = useMemo((): ProductionSnap | null => {
-    if (loading) return null;
+    if (orgData.initialLoading) return null;
     if (noDataAgency) return { policiesThisMonth: 0, apThisMonth: 0, policiesLastMonth: 0, apLastMonth: 0, trend: [] };
 
     const gran = getGranularity(dateRange);
@@ -294,7 +259,7 @@ export function DashboardPage() {
       policiesLastMonth: lastM.policies, apLastMonth: lastM.ap,
       trend: trendArr,
     };
-  }, [loading, noDataAgency, filterAgencyId, rawDailyProd, rawMonthlyProd, dateRange]);
+  }, [orgData.initialLoading, noDataAgency, filterAgencyId, rawDailyProd, rawMonthlyProd, dateRange]);
 
   const s = stats;
 

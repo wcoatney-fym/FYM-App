@@ -11,9 +11,10 @@ import { Header } from '@/components/layout/Header';
 import { Card, CardContent } from '@/components/ui/card';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
-import { fetchRetentionSummary, fetchAgencyProduction } from '@/lib/prod-api';
+import { fetchAgencyProduction } from '@/lib/prod-api';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
+import { useOrgData } from '@/contexts/OrgDataCache';
 import { DataFilters } from '@/components/filters/DataFilters';
 import {
   Trophy, TrendingUp, ShieldCheck, AlertTriangle, ChevronRight,
@@ -104,8 +105,9 @@ function periodStart(p: Period): string | null {
 export function LeaderboardPage() {
   const { effectiveAgencyWritingNumber, isOrgWide } = useEffectiveAuth();
   const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
+  const orgData = useOrgData();
   const [rows, setRows] = useState<AgencyLeaderRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const loading = orgData.initialLoading;
   const [sortKey, setSortKey] = useState<SortKey>('rank');
   const [sortAsc, setSortAsc] = useState(true);
   const [filter, setFilter] = useState<'all' | 'above' | 'below'>('all');
@@ -144,86 +146,102 @@ export function LeaderboardPage() {
     }
   }, []);
 
+
+  // Derive rows from org cache + enrich with names
   useEffect(() => {
-    async function load() {
-      try {
-        // Retention summary from prod DB edge function
-        const retRes = await fetchRetentionSummary();
-        const summaryData = retRes.data.agencies;
+    const summaryData = orgData.retentionAgencies;
+    if (!summaryData || summaryData.length === 0) return;
 
-        if (!summaryData || summaryData.length === 0) { setLoading(false); return; }
-
-        // Agency names from rcbzag (stays — not policy_cache dependent)
-        const nameMap = new Map<string, string>();
-        if (supabase) {
-          const { data: agencyNames } = await (supabase as any)
-            .from('agencies')
-            .select('tracker_id, writing_number, name');
+    // Agency names from rcbzag
+    const nameMap = new Map<string, string>();
+    if (supabase) {
+      (supabase as any)
+        .from('agencies')
+        .select('tracker_id, writing_number, name')
+        .then(({ data: agencyNames }: { data: any }) => {
           if (agencyNames) {
             for (const a of agencyNames as any[]) {
               if (a.writing_number) nameMap.set(a.writing_number, a.name);
               if (a.tracker_id) nameMap.set(a.tracker_id, a.name);
             }
           }
-        }
 
-        // Build ranked rows
-        const ranked = summaryData
-          .map(r => ({
-            agency_id: r.agency_id,
-            name: nameMap.get(r.agency_id) ?? null,
-            active_policies: r.active_policies,
-            active_premium: r.active_premium,
-            at_risk_count: r.at_risk_count,
-            retained_90d: r.retained_90d,
-            eligible_90d: r.eligible_90d,
-            retention_pct: r.retention_pct,
-            rank: 0,
-            period_policies: 0,
-            period_ap: 0,
-          }))
-          .sort((a, b) => {
-            const retA = a.retention_pct ?? -1;
-            const retB = b.retention_pct ?? -1;
-            if (retB !== retA) return retB - retA;
-            return b.active_premium - a.active_premium;
-          });
+          const ranked = summaryData
+            .map(r => ({
+              agency_id: r.agency_id,
+              name: nameMap.get(r.agency_id) ?? null,
+              active_policies: r.active_policies,
+              active_premium: r.active_premium,
+              at_risk_count: r.at_risk_count,
+              retained_90d: r.retained_90d,
+              eligible_90d: r.eligible_90d,
+              retention_pct: r.retention_pct,
+              rank: 0,
+              period_policies: 0,
+              period_ap: 0,
+            }))
+            .sort((a, b) => {
+              const retA = a.retention_pct ?? -1;
+              const retB = b.retention_pct ?? -1;
+              if (retB !== retA) return retB - retA;
+              return b.active_premium - a.active_premium;
+            });
 
-        ranked.forEach((r, i) => { r.rank = i + 1; });
-        setRows(ranked);
-        setLoading(false);
-
-        // Battle wins per agency — light-touch trophy badge (stays — gamification table)
-        if (supabase) {
-          const PAGE = 100;
-          let offset = 0;
-          let done = false;
-          const winMap = new Map<string, number>();
-          while (!done) {
-            const { data: winData } = await (supabase as any)
-              .from('battle_participants')
-              .select('agency_id')
-              .eq('is_winner', true)
-              .not('agency_id', 'is', null)
-              .range(offset, offset + PAGE - 1);
-            if (!winData || winData.length === 0) { done = true; break; }
-            for (const w of winData as any[]) {
-              if (!w.agency_id) continue;
-              winMap.set(w.agency_id, (winMap.get(w.agency_id) || 0) + 1);
-            }
-            if (winData.length < PAGE) done = true;
-            else offset += PAGE;
-          }
-          setAgencyBattleWins(winMap);
-        }
-      } catch (err) {
-        console.error('Leaderboard load error:', err);
-        setLoading(false);
-      }
+          ranked.forEach((r, i) => { r.rank = i + 1; });
+          setRows(ranked);
+        });
+    } else {
+      const ranked = summaryData
+        .map(r => ({
+          agency_id: r.agency_id,
+          name: null,
+          active_policies: r.active_policies,
+          active_premium: r.active_premium,
+          at_risk_count: r.at_risk_count,
+          retained_90d: r.retained_90d,
+          eligible_90d: r.eligible_90d,
+          retention_pct: r.retention_pct,
+          rank: 0,
+          period_policies: 0,
+          period_ap: 0,
+        }))
+        .sort((a, b) => {
+          const retA = a.retention_pct ?? -1;
+          const retB = b.retention_pct ?? -1;
+          if (retB !== retA) return retB - retA;
+          return b.active_premium - a.active_premium;
+        });
+      ranked.forEach((r, i) => { r.rank = i + 1; });
+      setRows(ranked);
     }
 
-    load();
-  }, []);
+    // Battle wins per agency — light-touch trophy badge
+    if (supabase) {
+      const PAGE = 100;
+      let offset = 0;
+      const winMap = new Map<string, number>();
+      const loadWins = async () => {
+        let done = false;
+        while (!done) {
+          const { data: winData } = await (supabase as any)
+            .from('battle_participants')
+            .select('agency_id')
+            .eq('is_winner', true)
+            .not('agency_id', 'is', null)
+            .range(offset, offset + PAGE - 1);
+          if (!winData || winData.length === 0) { done = true; break; }
+          for (const w of winData as any[]) {
+            if (!w.agency_id) continue;
+            winMap.set(w.agency_id, (winMap.get(w.agency_id) || 0) + 1);
+          }
+          if (winData.length < PAGE) done = true;
+          else offset += PAGE;
+        }
+        setAgencyBattleWins(winMap);
+      };
+      loadWins();
+    }
+  }, [orgData.retentionAgencies]);
 
   // Load period data when period changes
   useEffect(() => {

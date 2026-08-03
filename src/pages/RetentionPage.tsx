@@ -5,9 +5,9 @@ import { Badge } from '@/components/ui/badge';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { HudFrame } from '@/components/ui/hud-frame';
 import { supabase } from '@/lib/supabase';
-import { fetchRetentionSummary, fetchRetentionCohorts } from '@/lib/prod-api';
-import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
+// prod-api fetch functions now handled by OrgDataCache
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
+import { useOrgData } from '@/contexts/OrgDataCache';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine, Legend,
@@ -111,56 +111,51 @@ function TrendBadge({ recent, prior }: { recent: number | null; prior: number | 
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function RetentionPage() {
-  const { effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide } = useEffectiveAuth();
   const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
-  const [orgCohorts, setOrgCohorts] = useState<CohortRow[]>([]);
+  const orgData = useOrgData();
+
   const [agencies, setAgencies] = useState<AgencyOverviewRow[]>([]);
   const [agencyCohorts, setAgencyCohorts] = useState<AgencyCohortRow[]>([]);
-  const [loading, setLoading] = useState(true);
   const [sortKey, setSortKey] = useState<SortKey>('retention');
   const [sortAsc, setSortAsc] = useState(true);
   const [expandedAgency, setExpandedAgency] = useState<string | null>(null);
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
 
+  const loading = orgData.initialLoading;
+
+  // Derive cohort rows from cache
+  const orgCohorts = useMemo((): CohortRow[] => {
+    return orgData.cohorts.map(c => ({
+      product_type: 'HI' as const,
+      cohort_month: c.month,
+      cohort_size: c.eligible,
+      drafted_first: c.eligible,
+      retained: c.retained,
+      retention_pct: c.retention_pct,
+      active_premium: null,
+    }));
+  }, [orgData.cohorts]);
+
+  // Derive agency overview from cache + enrich with names
   useEffect(() => {
-    async function load() {
-      setLoading(true);
-      try {
-        const agencyParam = !isOrgWide && effectiveAgencyWritingNumber ? { agency_id: effectiveAgencyWritingNumber } : {};
+    const allAgencies: AgencyOverviewRow[] = orgData.retentionAgencies.map(a => ({
+      agency_id: a.agency_id,
+      agency_name: null,
+      active_policies: a.active_policies,
+      active_premium: a.active_premium,
+      at_risk_count: a.at_risk_count,
+      retained_90d: a.retained_90d,
+      eligible_90d: a.eligible_90d,
+      retention_pct: a.retention_pct,
+    }));
 
-        // Cohort data from prod DB edge function
-        const cohortRes = await fetchRetentionCohorts(agencyParam);
-        // Map cohort data to CohortRow format (combined, not per-product)
-        const cohortRows: CohortRow[] = cohortRes.data.cohorts.map(c => ({
-          product_type: 'HI' as const, // combined cohort
-          cohort_month: c.month,
-          cohort_size: c.eligible,
-          drafted_first: c.eligible,
-          retained: c.retained,
-          retention_pct: c.retention_pct,
-          active_premium: null,
-        }));
-        setOrgCohorts(cohortRows);
-
-        // Agency overview from prod DB edge function
-        const retRes = await fetchRetentionSummary(agencyParam);
-        const allAgencies: AgencyOverviewRow[] = retRes.data.agencies.map(a => ({
-          agency_id: a.agency_id,
-          agency_name: null,
-          active_policies: a.active_policies,
-          active_premium: a.active_premium,
-          at_risk_count: a.at_risk_count,
-          retained_90d: a.retained_90d,
-          eligible_90d: a.eligible_90d,
-          retention_pct: a.retention_pct,
-        }));
-
-        // Enrich with agency names from rcbzag
-        if (supabase) {
-          const { data: nameData } = await (supabase as any)
-            .from('agencies')
-            .select('tracker_id, writing_number, name');
+    // Enrich with agency names from rcbzag
+    if (supabase && allAgencies.length > 0) {
+      (supabase as any)
+        .from('agencies')
+        .select('tracker_id, writing_number, name')
+        .then(({ data: nameData }: { data: any }) => {
           if (nameData) {
             const nameMap = new Map<string, string>();
             for (const a of nameData as any[]) {
@@ -171,20 +166,14 @@ export function RetentionPage() {
               a.agency_name = nameMap.get(a.agency_id) ?? null;
             });
           }
-        }
-        setAgencies(allAgencies);
-
-        // Agency cohort detail — build from per-agency retention cohort calls
-        // For now, set empty — will be populated on expand
-        setAgencyCohorts([]);
-      } catch (err) {
-        console.error('Retention load error:', err);
-      } finally {
-        setLoading(false);
-      }
+          setAgencies([...allAgencies]);
+        });
+    } else {
+      setAgencies(allAgencies);
     }
-    load();
-  }, [effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide]);
+
+    setAgencyCohorts([]);
+  }, [orgData.retentionAgencies]);
 
   // Cohort retention is always a historical lookback — the time filter controls
   // which *issue-date cohorts* appear. For "This Month" or very narrow ranges

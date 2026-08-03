@@ -6,6 +6,7 @@ import { useAppStore } from '@/store/app-store';
 import { useAuth } from '@/contexts/AuthContext';
 import { useViewAsStore } from '@/store/view-as-store';
 import { AgencyFilterProvider } from '@/contexts/AgencyFilterContext';
+import { OrgDataProvider } from '@/contexts/OrgDataCache';
 import { cn } from '@/lib/utils';
 
 export function AppLayout() {
@@ -36,7 +37,9 @@ export function AppLayout() {
       >
         <StatusBar />
         <AgencyFilterProvider>
-          <Outlet />
+          <OrgDataProvider>
+            <Outlet />
+          </OrgDataProvider>
         </AgencyFilterProvider>
       </main>
     </div>
