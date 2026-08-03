@@ -194,7 +194,7 @@ export function AtRiskDetailPanel({ policy, onClose }: AtRiskDetailPanelProps) {
             valueClass={isCodeRed ? 'text-red-400 font-bold' : isHeating ? 'text-amber-400 font-bold' : ''}
           />
           <InfoCell icon={<Calendar size={13} />} label="Paid To Date" value={formatDate(policy.paid_to_date)} />
-          <InfoCell icon={<Calendar size={13} />} label="Effective Date" value={formatDate(policy.policy_effective_date)} />
+          <InfoCell icon={<Calendar size={13} />} label="Submit Date" value={formatDate(policy.policy_effective_date)} />
           <InfoCell icon={<FileText size={13} />} label="Draft Count" value={String(policy.draft_count)} />
         </div>
       </div>

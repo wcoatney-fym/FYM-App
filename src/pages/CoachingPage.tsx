@@ -544,7 +544,7 @@ export function CoachingPage() {
                     <span className="text-foreground font-medium font-data">{selectedRow.draft_count ?? '—'}</span>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Effective:</span>{' '}
+                    <span className="text-muted-foreground">Submitted:</span>{' '}
                     <span className="text-foreground font-medium font-data">{fmtDate(selectedRow.policy_effective_date)}</span>
                   </div>
                   <div>

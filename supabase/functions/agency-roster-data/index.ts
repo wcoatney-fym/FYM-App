@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
           TRIM(policy_nbr) AS policy_nbr,
           TRIM(plan_code) AS plan_code,
           TRIM(cntrct_code) AS cntrct_code,
-          issue_date,
+          app_recvd_date,
           paid_to_date,
           term_date,
           annual_premium,
@@ -144,8 +144,8 @@ Deno.serve(async (req) => {
         const annualPremium = Number(row.annual_premium) || 0;
         const monthlyPremium = Math.round((annualPremium / 12) * 100) / 100;
 
-        const issueDate = row.issue_date
-          ? new Date(row.issue_date as string).toISOString().split("T")[0]
+        const appRecvdDate = row.app_recvd_date
+          ? new Date(row.app_recvd_date as string).toISOString().split("T")[0]
           : null;
         const paidToDate = row.paid_to_date
           ? new Date(row.paid_to_date as string).toISOString().split("T")[0]
@@ -158,7 +158,7 @@ Deno.serve(async (req) => {
         );
 
         const draftCount = estimateDraftCount(
-          issueDate,
+          appRecvdDate,
           paidToDate,
           row.billing_mode as number | null
         );
@@ -177,7 +177,7 @@ Deno.serve(async (req) => {
           is_at_risk: isAtRisk,
           flag_type: flagType,
           draft_count: draftCount,
-          policy_effective_date: issueDate,
+          policy_effective_date: appRecvdDate,
           paid_to_date: paidToDate,
           client_name: clientName,
         };

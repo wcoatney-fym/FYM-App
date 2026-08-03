@@ -100,12 +100,12 @@ export function extractAgentWritingNumber(
 
 // ── Estimate draft count from dates + billing mode ────────────────────
 export function estimateDraftCount(
-  issueDate: string | null,
+  appRecvdDate: string | null,
   paidToDate: string | null,
   billingMode: number | null
 ): number {
-  if (!issueDate || !paidToDate) return 0;
-  const eff = new Date(issueDate);
+  if (!appRecvdDate || !paidToDate) return 0;
+  const eff = new Date(appRecvdDate);
   const paid = new Date(paidToDate);
   const diffMs = paid.getTime() - eff.getTime();
   if (diffMs < 0) return 0;
