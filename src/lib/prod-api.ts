@@ -134,6 +134,7 @@ export async function fetchAgentProduction(params?: {
 
 export async function fetchDailyProduction(params?: {
   agency_id?: string;
+  agent_id?: string;
   start_date?: string;
   end_date?: string;
 }): Promise<DailyProduction[]> {
@@ -146,6 +147,7 @@ export async function fetchDailyProduction(params?: {
 
 export async function fetchMonthlyProduction(params?: {
   agency_id?: string;
+  agent_id?: string;
   start_date?: string;
   end_date?: string;
 }): Promise<MonthlyProduction[]> {

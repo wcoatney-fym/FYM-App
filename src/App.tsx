@@ -12,6 +12,7 @@ import { CrmCommandPage } from '@/pages/CrmCommandPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { LeaderboardPage } from '@/pages/LeaderboardPage';
 import { AgentHealthPage } from '@/pages/AgentHealthPage';
+import { AgentDashboardPage } from '@/pages/AgentDashboardPage';
 import { AgentProvisioningPage } from '@/pages/AgentProvisioningPage';
 import { AdminFinancialsPage } from '@/pages/AdminFinancialsPage';
 import { ManagerWorkboardPage } from '@/pages/ManagerWorkboardPage';
@@ -50,6 +51,7 @@ function App() {
             <Route path="/compete" element={<GamificationPage />} />
             <Route path="/agents/:agentId/health" element={<RoleGuard allow={['admin', 'manager']}><AgentHealthPage /></RoleGuard>} />
             <Route path="/my-health" element={<AgentHealthPage />} />
+            <Route path="/my-dashboard" element={<AgentDashboardPage />} />
             <Route path="/settings" element={<SettingsPage />} />
 
             {/* ── People group (Agencies & Agents) ── */}

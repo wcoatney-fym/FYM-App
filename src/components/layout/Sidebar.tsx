@@ -32,8 +32,9 @@ interface NavItem {
 }
 
 const agentNav: NavItem[] = [
-  { to: '/my-health', label: 'My Book Health', icon: ShieldCheck },
+  { to: '/my-dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/at-risk', label: 'Needs Attention', icon: AlertTriangle },
+  { to: '/my-health', label: 'Book Health', icon: ShieldCheck },
   { to: '/coaching', label: 'Coaching', icon: HeartPulse },
   { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { to: '/compete', label: 'Compete', icon: Swords },
