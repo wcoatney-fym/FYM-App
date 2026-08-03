@@ -93,8 +93,25 @@ export function CountUp({
   const [display, setDisplay] = useState('0');
   const rafRef = useRef<number>(0);
   const startRef = useRef<number | null>(null);
+  const hasAnimated = useRef(false);
 
   useEffect(() => {
+    // Only animate on initial mount. After that, snap instantly so
+    // filter changes feel immediate instead of waiting 1.2s.
+    if (hasAnimated.current) {
+      if (format) {
+        setDisplay(format(end));
+      } else {
+        setDisplay(
+          end.toLocaleString('en-US', {
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals,
+          })
+        );
+      }
+      return;
+    }
+
     startRef.current = null;
 
     function step(ts: number) {
@@ -119,6 +136,7 @@ export function CountUp({
       if (progress < 1) {
         rafRef.current = requestAnimationFrame(step);
       } else {
+        hasAnimated.current = true;
         // Snap to final value
         if (format) {
           setDisplay(format(end));
