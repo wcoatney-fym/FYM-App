@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { NotificationBell } from '@/components/notifications/NotificationPanel';
 
 /** Jarvis-style status bar — live clock + system indicator */
 export function StatusBar() {
@@ -20,6 +21,7 @@ export function StatusBar() {
         <span>FYM COMMAND v2.0</span>
       </div>
       <div className="flex items-center gap-4">
+        <NotificationBell />
         <span className="text-border">│</span>
         <span className="tabular-nums">{time}</span>
       </div>
