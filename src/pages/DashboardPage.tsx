@@ -508,7 +508,6 @@ export function DashboardPage() {
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">Total Written</p>
                     <p className="text-2xl font-bold text-foreground font-data">{snapshot.totalWritten.toLocaleString()}</p>
-                    <p className="text-xs text-muted-foreground/70 font-data">{fmt$(snapshot.totalAP)} AP</p>
                   </div>
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">Active</p>
@@ -528,7 +527,6 @@ export function DashboardPage() {
                   <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">Terminated</p>
                     <p className="text-2xl font-bold text-purple-400 font-data">{snapshot.terminated.toLocaleString()}</p>
-                    <p className="text-xs text-purple-400/70 font-data">{fmt$(snapshot.terminatedAP)} AP</p>
                   </div>
                 </div>
                 {/* Trend chart */}
