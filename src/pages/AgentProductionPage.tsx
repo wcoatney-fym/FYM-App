@@ -166,7 +166,7 @@ export function AgentProductionPage() {
         while (true) {
           const bobRes = await fetchBookOfBusiness({
             agent_wn: agentId!,
-            sort: 'issue_date',
+            sort: 'submit_date',
             order: 'desc',
             page,
             page_size: PAGE_SIZE,
@@ -282,7 +282,7 @@ export function AgentProductionPage() {
 
   // CSV export
   function exportCSV() {
-    const headers = ['Policy #', 'Product', 'Status', 'Monthly Premium', 'Annual Premium', 'Effective Date', 'Paid To Date', 'Drafts', 'At Risk', 'Flag', 'Days Since Paid'];
+    const headers = ['Policy #', 'Product', 'Status', 'Monthly Premium', 'Annual Premium', 'Submit Date', 'Paid To Date', 'Drafts', 'At Risk', 'Flag', 'Days Since Paid'];
     const csvRows = [headers.join(',')];
     displayed.forEach(p => {
       csvRows.push([
@@ -606,7 +606,7 @@ export function AgentProductionPage() {
                     <span
                       className="text-right cursor-pointer hover:text-foreground"
                       onClick={() => toggleSort('effective')}
-                    >Effective <SortArrow k="effective" /></span>
+                    >Submitted <SortArrow k="effective" /></span>
                     <span
                       className="text-right cursor-pointer hover:text-foreground"
                       onClick={() => toggleSort('paid')}

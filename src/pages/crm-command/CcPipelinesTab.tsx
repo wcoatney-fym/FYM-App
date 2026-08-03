@@ -66,7 +66,7 @@ export function CcPipelinesTab() {
       try {
         const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
         const res = await fetchBookOfBusiness({
-          sort: 'issue_date',
+          sort: 'submit_date',
           order: 'desc',
           page_size: 200,
         });
@@ -224,7 +224,7 @@ function PlacementsView({ data }: { data: PlacementRow[] | null }) {
               <th className="text-left py-3 px-4 font-medium text-muted-foreground">Agent</th>
               <th className="text-left py-3 px-4 font-medium text-muted-foreground">Product</th>
               <th className="text-right py-3 px-4 font-medium text-muted-foreground">Annual Premium</th>
-              <th className="text-left py-3 px-4 font-medium text-muted-foreground">Issued</th>
+              <th className="text-left py-3 px-4 font-medium text-muted-foreground">Submitted</th>
               <th className="text-left py-3 px-4 font-medium text-muted-foreground">Status</th>
             </tr>
           </thead>

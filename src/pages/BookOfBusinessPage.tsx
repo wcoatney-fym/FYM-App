@@ -123,7 +123,7 @@ export function BookOfBusinessPage() {
         status: statusFilter !== 'all' ? statusFilter : undefined,
         product_type: productFilter !== 'all' ? productFilter : undefined,
         search: search || undefined,
-        sort: 'issue_date',
+        sort: 'submit_date',
         order: 'desc',
         page,
         page_size: PAGE_SIZE,
@@ -180,7 +180,7 @@ export function BookOfBusinessPage() {
           status: statusFilter !== 'all' ? statusFilter : undefined,
           product_type: productFilter !== 'all' ? productFilter : undefined,
           search: search || undefined,
-          sort: 'issue_date',
+          sort: 'submit_date',
           order: 'desc',
           page: pg,
           page_size: PG,
@@ -210,7 +210,7 @@ export function BookOfBusinessPage() {
       } catch { break; }
     }
 
-    const headers = ['Policy #', 'Client', 'Agent', 'Writing #', 'Agency', 'Product', 'Status', 'Monthly Premium', 'Annual Premium', 'Effective Date', 'Paid To', 'Drafts', 'At Risk', 'Flag'];
+    const headers = ['Policy #', 'Client', 'Agent', 'Writing #', 'Agency', 'Product', 'Status', 'Monthly Premium', 'Annual Premium', 'Submit Date', 'Paid To', 'Drafts', 'At Risk', 'Flag'];
     const rows = all.map(p => [
       p.policy_number, (p as any).client_name || '', p.agent_name || '', p.writing_number || '', p.agency_name || '',
       p.product_type, p.status, p.monthly_premium, p.annual_premium,
@@ -381,7 +381,7 @@ export function BookOfBusinessPage() {
                   <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">Status</th>
                   <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground font-data">Monthly</th>
                   <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground font-data">Annual</th>
-                  <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">Effective</th>
+                  <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">Submitted</th>
                   <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">Paid To</th>
                   <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground font-data">Drafts</th>
                   <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">Flag</th>

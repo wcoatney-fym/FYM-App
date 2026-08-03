@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
           TRIM(policy_nbr) AS policy_nbr,
           TRIM(plan_code) AS plan_code,
           TRIM(cntrct_code) AS cntrct_code,
-          issue_date,
+          app_recvd_date,
           paid_to_date,
           term_date,
           annual_premium,
@@ -116,8 +116,8 @@ Deno.serve(async (req) => {
         const annualPremium = Number(row.annual_premium) || 0;
         const monthlyPremium = Math.round((annualPremium / 12) * 100) / 100;
 
-        const issueDate = row.issue_date
-          ? new Date(row.issue_date as string).toISOString().split("T")[0]
+        const appRecvdDate = row.app_recvd_date
+          ? new Date(row.app_recvd_date as string).toISOString().split("T")[0]
           : null;
         const paidToDate = row.paid_to_date
           ? new Date(row.paid_to_date as string).toISOString().split("T")[0]
@@ -148,7 +148,7 @@ Deno.serve(async (req) => {
         );
 
         const draftCount = estimateDraftCount(
-          issueDate,
+          appRecvdDate,
           paidToDate,
           row.billing_mode as number | null
         );
@@ -196,7 +196,7 @@ Deno.serve(async (req) => {
             status,
             plan_premium: monthlyPremium,
             paid_to_date: paidToDate,
-            policy_effective_date: issueDate,
+            policy_effective_date: appRecvdDate,
             draft_count: draftCount,
             flag_type: flagType,
             agent_writing_number: agentWn,
@@ -206,10 +206,10 @@ Deno.serve(async (req) => {
         }
 
         // Retention eligibility: policy must be old enough
-        if (issueDate) {
-          const issueDateObj = new Date(issueDate);
+        if (appRecvdDate) {
+          const appRecvdDateObj = new Date(appRecvdDate);
 
-          if (issueDateObj <= retentionCutoff) {
+          if (appRecvdDateObj <= retentionCutoff) {
             bucket.eligible++;
 
             // Retained = drafted ≥3 for monthly, or ≥1 successful draft for non-monthly
@@ -221,7 +221,7 @@ Deno.serve(async (req) => {
 
             // Cohort tracking
             if (type === "cohort") {
-              const monthKey = issueDate.slice(0, 7);
+              const monthKey = appRecvdDate.slice(0, 7);
               if (!cohortMap.has(monthKey)) {
                 cohortMap.set(monthKey, { eligible: 0, retained: 0 });
               }

@@ -131,7 +131,7 @@ export function AgentHealthPage() {
       }
       // Fetch policies from prod DB via edge function
       const [bobRes, profileRes] = await Promise.all([
-        fetchBookOfBusiness({ agent_wn: targetId as string, sort: 'issue_date', order: 'desc', page_size: 500 }),
+        fetchBookOfBusiness({ agent_wn: targetId as string, sort: 'submit_date', order: 'desc', page_size: 500 }),
         supabase.from('profiles').select('id, full_name, writing_number').eq('id', targetId as string).maybeSingle(),
       ]);
 

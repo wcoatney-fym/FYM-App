@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
 
     // Build the base query with optional date filter
     const dateFilter = startDate && endDate
-      ? sql`AND issue_date >= ${startDate}::date AND issue_date < ${endDate}::date`
+      ? sql`AND app_recvd_date >= ${startDate}::date AND app_recvd_date < ${endDate}::date`
       : sql``;
 
     // Fetch all policies in one sweep (paginated for memory safety)
@@ -111,7 +111,7 @@ Deno.serve(async (req) => {
           TRIM(policy_nbr) AS policy_nbr,
           TRIM(plan_code) AS plan_code,
           TRIM(cntrct_code) AS cntrct_code,
-          issue_date,
+          app_recvd_date,
           paid_to_date,
           term_date,
           annual_premium,
@@ -140,8 +140,8 @@ Deno.serve(async (req) => {
         const annualPremium = Number(row.annual_premium) || 0;
         const monthlyPremium = Math.round((annualPremium / 12) * 100) / 100;
 
-        const issueDate = row.issue_date
-          ? new Date(row.issue_date as string).toISOString().split("T")[0]
+        const appRecvdDate = row.app_recvd_date
+          ? new Date(row.app_recvd_date as string).toISOString().split("T")[0]
           : null;
         const paidToDate = row.paid_to_date
           ? new Date(row.paid_to_date as string).toISOString().split("T")[0]
@@ -176,8 +176,8 @@ Deno.serve(async (req) => {
           paidToDate
         );
 
-        const draftCount = estimateDraftCount(issueDate, paidToDate, row.billing_mode as number | null);
-        const issueDateMonth = issueDate ? issueDate.slice(0, 7) : null;
+        const draftCount = estimateDraftCount(appRecvdDate, paidToDate, row.billing_mode as number | null);
+        const appRecvdDateMonth = appRecvdDate ? appRecvdDate.slice(0, 7) : null;
         const clientName = [row.first_name as string, row.last_name as string]
           .filter(Boolean)
           .map((s) => s.trim())
@@ -211,11 +211,11 @@ Deno.serve(async (req) => {
           if (status === "terminated") ag.terminated_policies++;
           if (status === "pending") ag.pending_policies++;
           if (isAtRisk) ag.at_risk_policies++;
-          if (issueDateMonth === thisMonthKey) {
+          if (appRecvdDateMonth === thisMonthKey) {
             ag.policies_this_month++;
             ag.ap_this_month += annualPremium;
           }
-          if (issueDateMonth === lastMonthKey) {
+          if (appRecvdDateMonth === lastMonthKey) {
             ag.policies_last_month++;
             ag.ap_last_month += annualPremium;
           }
@@ -252,7 +252,7 @@ Deno.serve(async (req) => {
           if (status === "terminated") agt.terminated_policies++;
           if (status === "pending") agt.pending_policies++;
           if (isAtRisk) agt.at_risk_policies++;
-          if (issueDateMonth === thisMonthKey) {
+          if (appRecvdDateMonth === thisMonthKey) {
             agt.policies_this_month++;
             agt.ap_this_month += annualPremium;
           }
@@ -261,23 +261,23 @@ Deno.serve(async (req) => {
         }
 
         // ── Daily accumulation ──
-        if (type === "daily" && issueDate) {
+        if (type === "daily" && appRecvdDate) {
           if (!dailyMap.has(agencyId)) dailyMap.set(agencyId, new Map());
           const dm = dailyMap.get(agencyId)!;
-          const existing = dm.get(issueDate) || { policies: 0, annual_premium: 0 };
+          const existing = dm.get(appRecvdDate) || { policies: 0, annual_premium: 0 };
           existing.policies++;
           existing.annual_premium += annualPremium;
-          dm.set(issueDate, existing);
+          dm.set(appRecvdDate, existing);
         }
 
         // ── Monthly accumulation ──
-        if (type === "monthly" && issueDateMonth) {
+        if (type === "monthly" && appRecvdDateMonth) {
           if (!monthlyMap.has(agencyId)) monthlyMap.set(agencyId, new Map());
           const mm = monthlyMap.get(agencyId)!;
-          const existing = mm.get(issueDateMonth) || { policies: 0, annual_premium: 0 };
+          const existing = mm.get(appRecvdDateMonth) || { policies: 0, annual_premium: 0 };
           existing.policies++;
           existing.annual_premium += annualPremium;
-          mm.set(issueDateMonth, existing);
+          mm.set(appRecvdDateMonth, existing);
         }
 
         // ── Product mix ──

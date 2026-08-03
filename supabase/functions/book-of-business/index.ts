@@ -15,7 +15,7 @@
  *   product_type:   "HI" | "HHC" | "all" (default: "all")
  *   at_risk:        "true" to show only at-risk policies
  *   search:         search policy_nbr or client name
- *   sort:           "premium" | "issue_date" | "paid_to_date" | "policy_nbr" (default: "premium")
+ *   sort:           "premium" | "submit_date" | "paid_to_date" | "policy_nbr" (default: "premium")
  *   order:          "asc" | "desc" (default: "desc")
  *   page:           0-based page number (default: 0)
  *   page_size:      rows per page, max 500 (default: 100)
@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
           TRIM(policy_nbr) AS policy_nbr,
           TRIM(plan_code) AS plan_code,
           TRIM(cntrct_code) AS cntrct_code,
-          issue_date,
+          app_recvd_date,
           paid_to_date,
           term_date,
           annual_premium,
@@ -129,8 +129,8 @@ Deno.serve(async (req) => {
         const annualPremium = Number(row.annual_premium) || 0;
         const monthlyPremium = Math.round((annualPremium / 12) * 100) / 100;
 
-        const issueDate = row.issue_date
-          ? new Date(row.issue_date as string).toISOString().split("T")[0]
+        const appRecvdDate = row.app_recvd_date
+          ? new Date(row.app_recvd_date as string).toISOString().split("T")[0]
           : null;
         const paidToDate = row.paid_to_date
           ? new Date(row.paid_to_date as string).toISOString().split("T")[0]
@@ -177,7 +177,7 @@ Deno.serve(async (req) => {
         if (atRiskOnly && !isAtRisk) continue;
 
         const draftCount = estimateDraftCount(
-          issueDate,
+          appRecvdDate,
           paidToDate,
           row.billing_mode as number | null
         );
@@ -204,7 +204,7 @@ Deno.serve(async (req) => {
           plan_premium: monthlyPremium,
           annual_premium: annualPremium,
           paid_to_date: paidToDate,
-          policy_effective_date: issueDate,
+          policy_effective_date: appRecvdDate,
           term_date: termDate,
           draft_count: draftCount,
           is_at_risk: isAtRisk,
@@ -227,7 +227,7 @@ Deno.serve(async (req) => {
       switch (sortField) {
         case "premium":
           return dir * (a.plan_premium - b.plan_premium);
-        case "issue_date":
+        case "submit_date":
           return dir * ((a.policy_effective_date || "").localeCompare(b.policy_effective_date || ""));
         case "paid_to_date":
           return dir * ((a.paid_to_date || "").localeCompare(b.paid_to_date || ""));
