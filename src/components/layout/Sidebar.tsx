@@ -17,6 +17,7 @@ import {
   HeartPulse,
   Swords,
   FileSpreadsheet,
+  Target,
 } from 'lucide-react';
 import { useAppStore } from '@/store/app-store';
 import { useAuth } from '@/contexts/AuthContext';
@@ -34,6 +35,7 @@ interface NavItem {
 const agentNav: NavItem[] = [
   { to: '/my-dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/at-risk', label: 'Needs Attention', icon: AlertTriangle },
+  { to: '/my-goal', label: 'My Goal', icon: Target },
   { to: '/my-health', label: 'Book Health', icon: ShieldCheck },
   { to: '/coaching', label: 'Coaching', icon: HeartPulse },
   { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },

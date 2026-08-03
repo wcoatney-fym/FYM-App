@@ -26,6 +26,7 @@ import {
   type AtRiskPolicy,
 } from '@/lib/prod-api';
 import { QualityCard } from '@/components/dashboard/QualityCard';
+import { getGoal, type AgentGoal } from '@/lib/goals-api';
 import {
   XAxis,
   YAxis,
@@ -79,11 +80,12 @@ function urgencyLabel(flag: string | null, daysIdle: number | null): { label: st
 // ── Component ──────────────────────────────────────────────────────────
 
 export function AgentDashboardPage() {
-  const { effectiveWritingNumber, profile, effectiveAgencyWritingNumber } = useEffectiveAuth();
+  const { user, effectiveWritingNumber, profile, effectiveAgencyWritingNumber } = useEffectiveAuth();
 
   const [stats, setStats] = useState<AgentProduction | null>(null);
   const [monthlyData, setMonthlyData] = useState<MonthlyProduction[]>([]);
   const [atRiskPolicies, setAtRiskPolicies] = useState<AtRiskPolicy[]>([]);
+  const [currentGoal, setCurrentGoal] = useState<AgentGoal | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -95,8 +97,12 @@ export function AgentDashboardPage() {
     setLoading(true);
     setError(null);
 
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+
     try {
-      const [agentData, monthly, atRisk] = await Promise.all([
+      const [agentData, monthly, atRisk, goal] = await Promise.all([
         fetchAgentProduction({ agent_id: effectiveWritingNumber }),
         fetchMonthlyProduction({ agent_id: effectiveWritingNumber }),
         fetchAtRiskPolicies(
@@ -104,12 +110,14 @@ export function AgentDashboardPage() {
             ? { agency_id: effectiveAgencyWritingNumber }
             : undefined
         ),
+        user?.id ? getGoal(user.id, currentMonth, currentYear) : Promise.resolve(null),
       ]);
 
       // Find this agent in agent data
       const me = agentData.find(a => a.writing_number === effectiveWritingNumber || a.agent_id === effectiveWritingNumber);
       setStats(me || null);
       setMonthlyData(monthly);
+      setCurrentGoal(goal);
 
       // Filter at-risk to only this agent's policies
       const myAtRisk = (atRisk?.data?.policies || []).filter(
@@ -245,10 +253,39 @@ export function AgentDashboardPage() {
                   <span className="text-3xl font-extrabold text-white tabular-nums tracking-tight">
                     {fmtCurrency(stats.ap_this_month)}
                   </span>
+                  {currentGoal && (
+                    <span className="text-sm text-white/60">
+                      of {fmtCurrency(currentGoal.target_ap)}
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-white/50 mt-1">
                   {stats.policies_this_month} policies written · Avg {fmtCurrency(stats.policies_this_month > 0 ? stats.ap_this_month / stats.policies_this_month : 0)}/app
                 </p>
+                {currentGoal && (() => {
+                  const pct = Math.min(100, (stats.ap_this_month / currentGoal.target_ap) * 100);
+                  return (
+                    <div className="mt-3">
+                      <div className="flex items-center justify-between text-xs text-white/70 mb-1">
+                        <span><strong className="text-white font-bold">{Math.round(pct)}%</strong> of goal</span>
+                        <Link to="/my-goal" className="text-white/60 hover:text-white/90 flex items-center gap-0.5 text-[10px]">
+                          View goal <ChevronRight className="w-3 h-3" />
+                        </Link>
+                      </div>
+                      <div className="w-full h-2 rounded-full bg-white/15 overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-1000 ease-out"
+                          style={{
+                            width: `${pct}%`,
+                            background: pct >= 80 ? 'linear-gradient(90deg, #86EFAC, #4ADE80)'
+                              : pct >= 50 ? 'linear-gradient(90deg, #FDE68A, #F59E0B)'
+                              : 'linear-gradient(90deg, #FCA5A5, #EF4444)',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           </StaggerItem>
