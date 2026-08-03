@@ -302,7 +302,7 @@ export function DashboardPage() {
 
   // Agents don't get the org/agency dashboard — redirect AFTER all hooks.
   if (effectiveRole === 'agent') {
-    return <Navigate to="/my-health" replace />;
+    return <Navigate to="/my-dashboard" replace />;
   }
 
   return (
