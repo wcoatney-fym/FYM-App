@@ -33,7 +33,7 @@ interface NavItem {
 
 const agentNav: NavItem[] = [
   { to: '/my-health', label: 'My Book Health', icon: ShieldCheck },
-  { to: '/at-risk', label: 'At-Risk', icon: AlertTriangle },
+  { to: '/at-risk', label: 'Needs Attention', icon: AlertTriangle },
   { to: '/coaching', label: 'Coaching', icon: HeartPulse },
   { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { to: '/compete', label: 'Compete', icon: Swords },
