@@ -148,10 +148,12 @@ function generateCampaignPerf(campaign: Campaign): CampaignPerformance {
   });
 
   const totalLeads = campaign.totalLeads;
-  const contacted = Math.floor(totalLeads * campaign.contactRate);
-  const quoted = Math.floor(contacted * 0.55);
-  const placed = campaign.placedPolicies;
-  const lost = Math.floor(quoted * 0.3);
+  const attendees = Math.floor(totalLeads * campaign.contactRate);
+  const hired = Math.floor(attendees * 0.55);
+  const contracting = Math.floor(hired * 0.8);
+  const rts = Math.floor(contracting * 0.7);
+  const producing = campaign.placedPolicies;
+  const lost = Math.floor(totalLeads * 0.3);
 
   const adSets: AdSet[] = [
     { id: `${campaign.id}-as1`, name: 'Broad — 65+ Medicare', spend: campaign.totalSpend * 0.4, impressions: Math.floor(campaign.totalLeads * 120), clicks: Math.floor(campaign.totalLeads * 8), leads: Math.floor(campaign.totalLeads * 0.4), cpl: campaign.cpl * 0.95, ctr: 0.067 },
@@ -159,7 +161,7 @@ function generateCampaignPerf(campaign: Campaign): CampaignPerformance {
     { id: `${campaign.id}-as3`, name: 'Interest — Health Insurance', spend: campaign.totalSpend * 0.25, impressions: Math.floor(campaign.totalLeads * 150), clicks: Math.floor(campaign.totalLeads * 5), leads: Math.floor(campaign.totalLeads * 0.25), cpl: campaign.cpl * 1.22, ctr: 0.033 },
   ];
 
-  return { campaignId: campaign.id, campaignName: campaign.name, dailyData, funnel: { leads: totalLeads, contacted, quoted, placed, lost }, adSets };
+  return { campaignId: campaign.id, campaignName: campaign.name, dailyData, funnel: { leads: totalLeads, attendees, hired, contracting, rts, producing, lost }, adSets };
 }
 
 export const MOCK_CAMPAIGN_PERFORMANCE: CampaignPerformance[] = MOCK_CAMPAIGNS.map(generateCampaignPerf);

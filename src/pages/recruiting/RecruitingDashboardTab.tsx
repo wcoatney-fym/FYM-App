@@ -20,11 +20,10 @@ import {
   fetchRecruitingFunnel, fetchStageTimings,
 } from '@/lib/recruiting';
 import type {
-  Campaign, CampaignStatus, RecruitingKpis, DailySpend,
+  Campaign, CampaignStatus,
   RecruitingFunnel, StageTiming, RecruitingDateFilter,
 } from '@/lib/recruiting';
 import { RECRUITING_STAGES } from '@/lib/recruiting/types';
-import { useCachedFetch } from '@/hooks/useCachedFetch';
 import { useCachedMultiFetch } from '@/hooks/useCachedFetch';
 
 // ── KPI Card ───────────────────────────────────────────────────────────────
@@ -72,12 +71,12 @@ function KpiCard({ label, value, prefix, suffix, delta, icon: Icon }: {
 // ── Pipeline Funnel ────────────────────────────────────────────────────────
 function PipelineFunnel({ funnel }: { funnel: RecruitingFunnel }) {
   const stages = [
-    { key: 'leads', label: 'Leads', value: funnel.leads, ...RECRUITING_STAGES[0] },
-    { key: 'attendees', label: 'Attendees', value: funnel.attendees, ...RECRUITING_STAGES[1] },
-    { key: 'hired', label: 'Hired', value: funnel.hired, ...RECRUITING_STAGES[2] },
-    { key: 'contracting', label: 'Contracting', value: funnel.contracting, ...RECRUITING_STAGES[3] },
-    { key: 'rts', label: 'RTS', value: funnel.rts, ...RECRUITING_STAGES[4] },
-    { key: 'producing', label: 'Producing', value: funnel.producing, ...RECRUITING_STAGES[5] },
+    { key: 'leads', label: 'Leads', value: funnel.leads, color: RECRUITING_STAGES[0].color },
+    { key: 'attendees', label: 'Attendees', value: funnel.attendees, color: RECRUITING_STAGES[1].color },
+    { key: 'hired', label: 'Hired', value: funnel.hired, color: RECRUITING_STAGES[2].color },
+    { key: 'contracting', label: 'Contracting', value: funnel.contracting, color: RECRUITING_STAGES[3].color },
+    { key: 'rts', label: 'RTS', value: funnel.rts, color: RECRUITING_STAGES[4].color },
+    { key: 'producing', label: 'Producing', value: funnel.producing, color: RECRUITING_STAGES[5].color },
   ];
 
   return (

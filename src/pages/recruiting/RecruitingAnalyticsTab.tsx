@@ -24,7 +24,7 @@ import {
 } from '@/lib/recruiting';
 import type {
   RecruitingFunnel, StageTiming, RecruitingDateFilter,
-  CampaignPerformance, RoiByAgency, RoiByAgent, Campaign,
+  Campaign,
 } from '@/lib/recruiting';
 import { RECRUITING_STAGES } from '@/lib/recruiting/types';
 import { useCachedFetch, useCachedMultiFetch } from '@/hooks/useCachedFetch';

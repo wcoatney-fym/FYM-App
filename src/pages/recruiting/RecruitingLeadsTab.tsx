@@ -19,10 +19,10 @@ import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@
 import { MOCK_RECRUITING_LEADS, MOCK_CAMPAIGNS } from '@/lib/recruiting';
 import { fetchRecruitingLeads, fetchCampaigns } from '@/lib/recruiting';
 import type {
-  RecruitingLead, RecruitingStage, RecruitingDateFilter,
+  RecruitingLead, RecruitingDateFilter,
 } from '@/lib/recruiting';
-import { RECRUITING_STAGES, RECRUITING_STAGE_ORDER } from '@/lib/recruiting/types';
-import { useCachedFetch, useCachedMultiFetch } from '@/hooks/useCachedFetch';
+
+import { useCachedMultiFetch } from '@/hooks/useCachedFetch';
 
 // ── Stage config ───────────────────────────────────────────────────────────
 const STAGE_CONFIG: Record<string, { label: string; className: string; order: number }> = {
