@@ -26,6 +26,7 @@ import { AgencyDetailPage } from '@/pages/AgencyDetailPage';
 import { ProductionPage } from '@/pages/ProductionPage';
 import { AgencyProductionPage } from '@/pages/AgencyProductionPage';
 import { AgentDetailPage } from '@/pages/agent-detail';
+import { MyProductionPage } from '@/pages/my-production';
 import { BookOfBusinessPage } from '@/pages/BookOfBusinessPage';
 import { RetentionPage } from '@/pages/RetentionPage';
 import { CoachingPage } from '@/pages/CoachingPage';
@@ -54,6 +55,7 @@ function App() {
             <Route path="/agents/:agentId/health" element={<RoleGuard allow={['admin', 'manager']}><AgentHealthPage /></RoleGuard>} />
             <Route path="/my-health" element={<AgentHealthPage />} />
             <Route path="/my-dashboard" element={<AgentDashboardPage />} />
+            <Route path="/my-production" element={<MyProductionPage />} />
             <Route path="/my-goal" element={<GoalPage />} />
             <Route path="/my-team" element={<RoleGuard allow={['admin', 'manager']}><ManagerTeamPage /></RoleGuard>} />
             <Route path="/settings" element={<SettingsPage />} />

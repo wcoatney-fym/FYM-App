@@ -34,6 +34,7 @@ interface NavItem {
 
 const agentNav: NavItem[] = [
   { to: '/my-dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/my-production', label: 'My Production', icon: TrendingUp },
   { to: '/at-risk', label: 'Needs Attention', icon: AlertTriangle },
   { to: '/my-goal', label: 'My Goal', icon: Target },
   { to: '/my-health', label: 'Book Health', icon: ShieldCheck },
