@@ -12,7 +12,9 @@ import {
   ResponsiveContainer, ComposedChart, Legend,
 } from 'recharts';
 import { MOCK_KPIS, MOCK_DAILY_SPEND, MOCK_CAMPAIGNS } from '@/lib/recruiting';
-import type { Campaign, CampaignStatus } from '@/lib/recruiting';
+import { fetchRecruitingKpis, fetchDailySpendData, fetchCampaigns } from '@/lib/recruiting';
+import type { Campaign, CampaignStatus, RecruitingKpis, DailySpend } from '@/lib/recruiting';
+import { useCachedFetch } from '@/hooks/useCachedFetch';
 
 // ── KPI Card ───────────────────────────────────────────────────────────────
 function KpiCard({ label, value, prefix, suffix, delta, icon: Icon }: {
@@ -71,14 +73,18 @@ function StatusBadge({ status }: { status: CampaignStatus }) {
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function RecruitingDashboardTab() {
-  const kpis = MOCK_KPIS;
-  const dailySpend = MOCK_DAILY_SPEND;
-  const campaigns = MOCK_CAMPAIGNS;
+  const { data: kpis } = useCachedFetch<RecruitingKpis>('recruiting-kpis', fetchRecruitingKpis, { maxAge: 60 * 60 * 1000 });
+  const { data: dailySpend } = useCachedFetch<DailySpend[]>('recruiting-daily-spend', fetchDailySpendData, { maxAge: 60 * 60 * 1000 });
+  const { data: campaigns } = useCachedFetch<Campaign[]>('recruiting-campaigns', fetchCampaigns, { maxAge: 60 * 60 * 1000 });
   const [sortKey, setSortKey] = useState<keyof Campaign>('totalSpend');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
+  const effectiveKpis = kpis ?? MOCK_KPIS;
+  const effectiveDailySpend = dailySpend ?? MOCK_DAILY_SPEND;
+  const effectiveCampaigns = campaigns ?? MOCK_CAMPAIGNS;
+
   const sorted = useMemo(() => {
-    return [...campaigns].sort((a, b) => {
+    return [...effectiveCampaigns].sort((a, b) => {
       const av = a[sortKey];
       const bv = b[sortKey];
       if (typeof av === 'number' && typeof bv === 'number') {
@@ -86,7 +92,7 @@ export function RecruitingDashboardTab() {
       }
       return 0;
     });
-  }, [campaigns, sortKey, sortDir]);
+  }, [effectiveCampaigns, sortKey, sortDir]);
 
   function toggleSort(key: keyof Campaign) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -98,32 +104,36 @@ export function RecruitingDashboardTab() {
 
   // Chart formatting
   const chartData = useMemo(() =>
-    dailySpend.map(d => ({
+    effectiveDailySpend.map(d => ({
       ...d,
       dateLabel: new Date(d.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    })), [dailySpend]);
+    })), [effectiveDailySpend]);
+
+  const isLive = Boolean(kpis && kpis.totalSpend > 0);
 
   return (
     <div className="p-6 space-y-6">
-      {/* Mock data banner */}
-      <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs">
-        <Activity size={14} />
-        <span>Displaying sample data — connect Meta Ads API to see live campaign metrics</span>
-      </div>
+      {/* Data source banner */}
+      {(!kpis || kpis.totalSpend === 0) && (
+        <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs">
+          <Activity size={14} />
+          <span>No live data yet — run the Meta Ads sync to populate campaign metrics</span>
+        </div>
+      )}
 
       {/* KPI Strip */}
       <StaggerContainer className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StaggerItem><KpiCard label="Total Spend" value={kpis.totalSpend} prefix="$" icon={DollarSign} delta={kpis.spendDelta} /></StaggerItem>
-        <StaggerItem><KpiCard label="Total Leads" value={kpis.totalLeads} icon={Users} delta={kpis.leadsDelta} /></StaggerItem>
-        <StaggerItem><KpiCard label="CPL" value={kpis.cpl} prefix="$" icon={Target} delta={kpis.cplDelta} /></StaggerItem>
-        <StaggerItem><KpiCard label="CPA" value={kpis.cpa} prefix="$" icon={BarChart3} delta={kpis.cpaDelta} /></StaggerItem>
+        <StaggerItem><KpiCard label="Total Spend" value={effectiveKpis.totalSpend} prefix="$" icon={DollarSign} delta={isLive ? effectiveKpis.spendDelta : undefined} /></StaggerItem>
+        <StaggerItem><KpiCard label="Total Leads" value={effectiveKpis.totalLeads} icon={Users} delta={isLive ? effectiveKpis.leadsDelta : undefined} /></StaggerItem>
+        <StaggerItem><KpiCard label="CPL" value={effectiveKpis.cpl} prefix="$" icon={Target} delta={isLive ? effectiveKpis.cplDelta : undefined} /></StaggerItem>
+        <StaggerItem><KpiCard label="CPA" value={effectiveKpis.cpa} prefix="$" icon={BarChart3} delta={isLive ? effectiveKpis.cpaDelta : undefined} /></StaggerItem>
       </StaggerContainer>
 
       <StaggerContainer className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StaggerItem><KpiCard label="Contact Rate" value={kpis.contactRate * 100} suffix="%" icon={Megaphone} /></StaggerItem>
-        <StaggerItem><KpiCard label="Close Ratio" value={kpis.closeRatio * 100} suffix="%" icon={Target} /></StaggerItem>
-        <StaggerItem><KpiCard label="Placed Policies" value={kpis.placedPolicies} icon={TrendingUp} /></StaggerItem>
-        <StaggerItem><KpiCard label="Active Ad Sets" value={kpis.activeAdSets} icon={Activity} /></StaggerItem>
+        <StaggerItem><KpiCard label="Contact Rate" value={effectiveKpis.contactRate * 100} suffix="%" icon={Megaphone} /></StaggerItem>
+        <StaggerItem><KpiCard label="Close Ratio" value={effectiveKpis.closeRatio * 100} suffix="%" icon={Target} /></StaggerItem>
+        <StaggerItem><KpiCard label="Placed Policies" value={effectiveKpis.placedPolicies} icon={TrendingUp} /></StaggerItem>
+        <StaggerItem><KpiCard label="Active Ad Sets" value={effectiveKpis.activeAdSets} icon={Activity} /></StaggerItem>
       </StaggerContainer>
 
       {/* Spend vs Leads trend */}
