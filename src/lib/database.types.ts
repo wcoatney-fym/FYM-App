@@ -313,6 +313,37 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['agency_rosters']['Insert']>;
         Relationships: [];
       };
+      manager_notes: {
+        Row: {
+          id: string;
+          author_id: string;
+          author_name: string | null;
+          policy_number: string | null;
+          agent_writing_number: string | null;
+          agent_name: string | null;
+          body: string;
+          notify_agent: boolean;
+          acknowledged_at: string | null;
+          acknowledged_by: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          author_id: string;
+          body: string;
+          author_name?: string | null;
+          policy_number?: string | null;
+          agent_writing_number?: string | null;
+          agent_name?: string | null;
+          notify_agent?: boolean;
+          acknowledged_at?: string | null;
+          acknowledged_by?: string | null;
+          deleted_at?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['manager_notes']['Insert']>;
+        Relationships: [];
+      };
     };
     Views: {
       agent_health_scores: {

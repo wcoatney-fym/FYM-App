@@ -4,9 +4,13 @@
  * Displays urgency-ranked policy info with Got it / Working / Done buttons.
  * Action state is persisted to `atrisk_tasks` in the FYM App DB.
  */
-import { useState } from 'react';
-import { ChevronRight, Zap, AlertTriangle, PauseCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ChevronRight, Zap, AlertTriangle, PauseCircle, MessageSquarePlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ManagerNoteComposer } from '@/components/notes/ManagerNoteComposer';
+import { NoteDisplay } from '@/components/notes/NoteDisplay';
+import { fetchNotesForPolicy, type ManagerNote } from '@/lib/notes-api';
+import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -33,6 +37,8 @@ interface AttentionCardProps {
   policy: AttentionPolicy;
   showAgent?: boolean;
   onActionChange: (policyNumber: string, state: ActionState) => void;
+  /** Pre-loaded notes for this policy (optional — fetches own if not provided) */
+  notes?: ManagerNote[];
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -69,12 +75,21 @@ function flagIcon(flagType: string | null) {
 
 // ── Component ──────────────────────────────────────────────────────────────
 
-export function AttentionCard({ policy, showAgent = false, onActionChange }: AttentionCardProps) {
+export function AttentionCard({ policy, showAgent = false, onActionChange, notes: externalNotes }: AttentionCardProps) {
   const [localState, setLocalState] = useState<ActionState>(policy.action_state);
+  const { isAgent } = useEffectiveAuth();
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [notes, setNotes] = useState<ManagerNote[]>(externalNotes ?? []);
   const urgency = urgencyLevel(policy.days_idle);
   const remaining = daysRemaining(policy.days_idle);
   const isFinal7 = urgency === 'final7';
   const FlagIcon = flagIcon(policy.flag_type);
+
+  // Load notes for this policy if not provided externally
+  useEffect(() => {
+    if (externalNotes) { setNotes(externalNotes); return; }
+    fetchNotesForPolicy(policy.policy_number).then(setNotes);
+  }, [policy.policy_number, externalNotes]);
 
   const handleAction = (state: ActionState) => {
     const newState = localState === state ? 'none' : state;
@@ -194,8 +209,51 @@ export function AttentionCard({ policy, showAgent = false, onActionChange }: Att
           </button>
         </div>
 
+        {/* Note button (managers/admins only) */}
+        {!isAgent && (
+          <button
+            onClick={() => setNoteOpen(true)}
+            className="p-1.5 rounded-lg border border-border bg-card text-muted-foreground hover:bg-muted hover:text-primary transition-colors flex-shrink-0"
+            title="Add manager note"
+          >
+            <MessageSquarePlus size={14} />
+          </button>
+        )}
+
         <ChevronRight size={16} className="text-muted-foreground/30 flex-shrink-0" />
       </div>
+
+      {/* Inline notes display */}
+      {notes.length > 0 && (
+        <div className="border-t border-border/30">
+          {notes.slice(0, 2).map(note => (
+            <NoteDisplay
+              key={note.id}
+              note={note}
+              compact
+              onAcknowledged={() => fetchNotesForPolicy(policy.policy_number).then(setNotes)}
+            />
+          ))}
+          {notes.length > 2 && (
+            <div className="px-4 py-1 text-[10px] text-muted-foreground/50">
+              +{notes.length - 2} more notes
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Note composer modal */}
+      <ManagerNoteComposer
+        open={noteOpen}
+        onOpenChange={setNoteOpen}
+        context={{
+          subject: `${policy.client_name || 'Unknown'} · ${policy.product_type}`,
+          policyNumber: policy.policy_number,
+          agentWritingNumber: policy.agent_writing_number ?? undefined,
+          agentName: policy.agent_writing_number ?? undefined,
+        }}
+        onNoteCreated={() => fetchNotesForPolicy(policy.policy_number).then(setNotes)}
+      />
     </div>
   );
 }

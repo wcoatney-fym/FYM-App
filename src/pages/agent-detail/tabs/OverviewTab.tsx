@@ -5,6 +5,7 @@
  * - Left: daily AP sparkline (production trend)
  * - Right: performance scorecard (vs goal, retention, attention items)
  */
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StaggerContainer, StaggerItem } from '@/components/ui/animated';
 import {
@@ -13,11 +14,15 @@ import {
 } from 'recharts';
 import {
   TrendingUp, ShieldCheck, AlertTriangle,
-  DollarSign,
+  DollarSign, MessageSquarePlus,
 } from 'lucide-react';
 import type { AgentStats, PolicyRow, TrendPoint } from '../types';
 import { fmt$, fmtNum, retentionColor } from '../helpers';
 import type { DateRange } from '@/lib/dateUtils';
+import { NoteList } from '@/components/notes/NoteDisplay';
+import { ManagerNoteComposer } from '@/components/notes/ManagerNoteComposer';
+import { fetchNotesForAgent, type ManagerNote } from '@/lib/notes-api';
+import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 
 interface OverviewTabProps {
   stats: AgentStats;
@@ -27,6 +32,15 @@ interface OverviewTabProps {
 }
 
 export function OverviewTab({ stats, trend, policies, dateRange }: OverviewTabProps) {
+  const { isAgent } = useEffectiveAuth();
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [notes, setNotes] = useState<ManagerNote[]>([]);
+
+  const agentWn = stats.writing_number || stats.agent_id;
+
+  useEffect(() => {
+    if (agentWn) fetchNotesForAgent(agentWn).then(setNotes);
+  }, [agentWn]);
   const atRiskCount = policies.filter(p => p.is_at_risk).length;
   const avgAP = stats.active_policies > 0
     ? Number(stats.active_annual_premium) / stats.active_policies
@@ -177,6 +191,30 @@ export function OverviewTab({ stats, trend, policies, dateRange }: OverviewTabPr
           </Card>
         </StaggerItem>
 
+        {/* Manager Notes */}
+        <StaggerItem>
+          <Card className="border-border">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Manager Notes</p>
+                {!isAgent && (
+                  <button
+                    onClick={() => setNoteOpen(true)}
+                    className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary hover:text-primary/80 transition-colors"
+                  >
+                    <MessageSquarePlus size={12} /> Add note
+                  </button>
+                )}
+              </div>
+              <NoteList
+                notes={notes}
+                emptyMessage="No notes on this agent yet."
+                onRefresh={() => fetchNotesForAgent(agentWn).then(setNotes)}
+              />
+            </CardContent>
+          </Card>
+        </StaggerItem>
+
         {/* Active Book Stats */}
         <StaggerItem>
           <Card className="border-border">
@@ -204,6 +242,17 @@ export function OverviewTab({ stats, trend, policies, dateRange }: OverviewTabPr
           </Card>
         </StaggerItem>
       </StaggerContainer>
+
+      {/* Note composer modal */}
+      <ManagerNoteComposer
+        open={noteOpen}
+        onOpenChange={setNoteOpen}
+        context={{
+          agentWritingNumber: agentWn,
+          agentName: stats.agent_name ?? undefined,
+        }}
+        onNoteCreated={() => fetchNotesForAgent(agentWn).then(setNotes)}
+      />
     </div>
   );
 }
