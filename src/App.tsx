@@ -36,6 +36,7 @@ import { AgencyRosterPage } from '@/pages/AgencyRosterPage';
 import { PeopleGroupPage } from '@/pages/groups/PeopleGroupPage';
 import { ProductionGroupPage } from '@/pages/groups/ProductionGroupPage';
 import { QualityGroupPage } from '@/pages/groups/QualityGroupPage';
+import { RecruitingGroupPage, RecruitingDashboardTab, RecruitingLeadsTab, RecruitingAnalyticsTab } from '@/pages/recruiting';
 
 function App() {
   return (
@@ -96,6 +97,13 @@ function App() {
             <Route path="/contracting" element={<RoleGuard allow={['admin']}><ContractingPage /></RoleGuard>} />
             <Route path="/crm-ops" element={<RoleGuard allow={['admin', 'manager']}><CrmOpsPage /></RoleGuard>} />
             <Route path="/crm-command" element={<RoleGuard allow={['admin']}><CrmCommandPage /></RoleGuard>} />
+
+            {/* ── Recruiting (FYM admin only) ── */}
+            <Route path="/recruiting" element={<RoleGuard allow={[]} allowFymAdmin={true}><RecruitingGroupPage /></RoleGuard>}>
+              <Route index element={<RecruitingDashboardTab />} />
+              <Route path="leads" element={<RecruitingLeadsTab />} />
+              <Route path="analytics" element={<RecruitingAnalyticsTab />} />
+            </Route>
             <Route path="/rosters" element={<RoleGuard allow={['admin', 'manager']}><AgencyRosterPage /></RoleGuard>} />
 
             {/* ── Legacy redirects — preserve old bookmarks ── */}
