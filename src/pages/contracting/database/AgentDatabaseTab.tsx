@@ -27,7 +27,6 @@ import {
   Eye,
 } from 'lucide-react';
 import { useAgentDirectory, type UnifiedAgent } from '@/hooks/useAgentDirectory';
-import { AgentDetailModal } from './AgentDetailModal';
 
 const PAGE_SIZE = 50;
 

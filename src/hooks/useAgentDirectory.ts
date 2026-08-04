@@ -14,7 +14,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { fetchAgentDirectory, type DirectoryAgent } from '@/lib/prod-api';
+import { fetchAgentDirectory } from '@/lib/prod-api';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
