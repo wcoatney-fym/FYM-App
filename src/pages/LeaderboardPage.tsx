@@ -12,6 +12,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
 import { fetchAgencyProduction, fetchAgentProduction } from '@/lib/prod-api';
+import { useCachedFetch } from '@/hooks/useCachedFetch';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { useOrgData } from '@/contexts/OrgDataCache';

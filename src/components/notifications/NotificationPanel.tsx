@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Bell, X, AlertTriangle, Zap, CheckCircle2, Target, TrendingDown, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { fetchAtRiskPolicies } from '@/lib/prod-api';
 import type { AtRiskPolicy } from '@/lib/prod-api';
+import { useCachedFetch } from '@/hooks/useCachedFetch';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -93,31 +94,23 @@ function buildNotificationsFromAtRisk(policies: AtRiskPolicy[]): Notification[] 
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const { effectiveAgencyId, effectiveRole } = useEffectiveAuth();
 
-  // Load notifications from at-risk data
-  const loadNotifications = useCallback(async () => {
-    setLoading(true);
-    try {
-      const agencyParam = effectiveRole === 'agent' ? undefined : effectiveAgencyId ?? undefined;
-      const resp = await fetchAtRiskPolicies(agencyParam ? { agency_id: agencyParam } : undefined);
-      const notifs = buildNotificationsFromAtRisk(resp.data.policies);
-      setNotifications(notifs);
-    } catch {
-      // silent — notifications are supplementary
-    } finally {
-      setLoading(false);
-    }
-  }, [effectiveAgencyId, effectiveRole]);
+  // Cached at-risk fetch — instant render from localStorage
+  const agencyParam = effectiveRole === 'agent' ? undefined : effectiveAgencyId ?? undefined;
+  const cacheKey = `notif-atrisk-${agencyParam || 'org'}`;
+  const { data: atRiskResp, loading } = useCachedFetch(
+    cacheKey,
+    () => fetchAtRiskPolicies(agencyParam ? { agency_id: agencyParam } : undefined),
+    { deps: [agencyParam] }
+  );
 
-  // Load on mount and when panel opens
-  useEffect(() => {
-    loadNotifications();
-  }, [loadNotifications]);
+  const notifications = useMemo((): Notification[] => {
+    if (!atRiskResp) return [];
+    return buildNotificationsFromAtRisk(atRiskResp.data.policies);
+  }, [atRiskResp]);
 
   // Close on click outside
   useEffect(() => {

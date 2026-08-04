@@ -5,17 +5,17 @@
  * Reads from agent_production view + policy_cache + monthly_production.
  * Route: /production/:agencyId/agent/:agentId
  */
-import { useEffect, useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams, Link, Navigate } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
-// supabase import removed — reads now go through prod-api edge functions
 import {
   fetchAgentProduction,
   fetchBookOfBusiness,
 } from '@/lib/prod-api';
+import { useCachedMultiFetch } from '@/hooks/useCachedFetch';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -107,11 +107,6 @@ const PIE_COLORS = ['hsl(199 89% 48%)', 'hsl(142 71% 45%)'];
 export function AgentProductionPage() {
   const { agencyId, agentId } = useParams<{ agencyId: string; agentId: string }>();
   const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
-  const [stats, setStats] = useState<AgentStats | null>(null);
-  const [policies, setPolicies] = useState<PolicyRow[]>([]);
-  const [trend, setTrend] = useState<TrendPoint[]>([]);
-  const [productMix, setProductMix] = useState<ProductMix[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'terminated' | 'pending' | 'at_risk'>('all');
   const [sortKey, setSortKey] = useState<PolicySort>('effective');
@@ -119,116 +114,106 @@ export function AgentProductionPage() {
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
 
-  useEffect(() => {
-    if (!agentId) return;
-    async function load() {
-      setLoading(true);
-      try {
-        const startDate = dateRange.startDate.split('T')[0];
-        const endDate = dateRange.endDate.split('T')[0];
-        const useRpc = datePreset !== 'allTime';
+  const startDate = dateRange.startDate.split('T')[0];
+  const endDate = dateRange.endDate.split('T')[0];
+  const useRpc = datePreset !== 'allTime';
+  const dateParams = useRpc
+    ? { agent_id: agentId!, start_date: startDate, end_date: endDate }
+    : { agent_id: agentId! };
 
-        // Agent stats from prod DB edge function
-        const dateParams = useRpc
-          ? { agent_id: agentId!, start_date: startDate, end_date: endDate }
-          : { agent_id: agentId! };
-        const agentData = await fetchAgentProduction(dateParams);
-        const match = agentData.find(r => r.agent_id === agentId);
-        if (match) {
-          setStats({
-            agent_id: match.agent_id,
-            agent_name: match.agent_name,
-            writing_number: match.writing_number,
-            agency_id: match.agency_id,
-            agency_name: null,
-            total_policies: match.total_policies,
-            active_policies: match.active_policies,
-            terminated_policies: match.terminated_policies,
-            pending_policies: match.pending_policies,
-            at_risk_policies: match.at_risk_policies,
-            active_monthly_premium: match.active_monthly_premium,
-            active_annual_premium: match.active_annual_premium,
-            avg_annual_premium: match.avg_annual_premium,
-            policies_this_month: match.policies_this_month,
-            ap_this_month: match.ap_this_month,
-            retained_policies: match.retained_policies,
-            ever_drafted: match.ever_drafted,
-            retention_pct: match.retention_pct,
-          });
-        } else {
-          setStats(null);
-        }
+  // Cached multi-fetch — instant render from localStorage on back-nav
+  const cacheKey = `agent-prod-${agentId}-${datePreset}-${startDate}-${endDate}`;
+  const { data: cached, loading } = useCachedMultiFetch(
+    cacheKey,
+    {
+      agentData: () => fetchAgentProduction(dateParams),
+      bobData: () => fetchBookOfBusiness({
+        agent_wn: agentId!,
+        sort: 'submit_date',
+        order: 'desc',
+        page_size: 500,
+        ...(useRpc ? { start_date: startDate, end_date: endDate } : {}),
+      } as any),
+    },
+    { skip: !agentId, deps: [agentId, datePreset, startDate, endDate] }
+  );
 
-        // Policies from prod DB edge function (paginated)
-        const allPolicies: PolicyRow[] = [];
-        const PAGE_SIZE = 500;
-        let page = 0;
-        while (true) {
-          const bobRes = await fetchBookOfBusiness({
-            agent_wn: agentId!,
-            sort: 'submit_date',
-            order: 'desc',
-            page,
-            page_size: PAGE_SIZE,
-            ...(useRpc ? { start_date: startDate, end_date: endDate } : {}),
-          } as any);
-          for (const p of bobRes.data) {
-            const daysIdle = p.paid_to_date
-              ? Math.max(0, Math.floor((Date.now() - new Date(p.paid_to_date).getTime()) / 86400000))
-              : null;
-            allPolicies.push({
-              policy_number: p.policy_number,
-              product_type: p.product_type,
-              status: p.status,
-              monthly_premium: p.plan_premium,
-              annual_premium: p.annual_premium,
-              policy_effective_date: p.policy_effective_date,
-              paid_to_date: p.paid_to_date,
-              draft_count: p.draft_count,
-              is_at_risk: p.is_at_risk,
-              flag_type: p.flag_type,
-              days_since_paid: daysIdle,
-            });
-          }
-          if (bobRes.data.length < PAGE_SIZE) break;
-          page++;
-        }
-        setPolicies(allPolicies);
+  const stats = useMemo((): AgentStats | null => {
+    if (!cached) return null;
+    const agentData = cached.agentData as any[];
+    const match = agentData.find((r: any) => r.agent_id === agentId);
+    if (!match) return null;
+    return {
+      agent_id: match.agent_id,
+      agent_name: match.agent_name,
+      writing_number: match.writing_number,
+      agency_id: match.agency_id,
+      agency_name: null,
+      total_policies: match.total_policies,
+      active_policies: match.active_policies,
+      terminated_policies: match.terminated_policies,
+      pending_policies: match.pending_policies,
+      at_risk_policies: match.at_risk_policies,
+      active_monthly_premium: match.active_monthly_premium,
+      active_annual_premium: match.active_annual_premium,
+      avg_annual_premium: match.avg_annual_premium,
+      policies_this_month: match.policies_this_month,
+      ap_this_month: match.ap_this_month,
+      retained_policies: match.retained_policies,
+      ever_drafted: match.ever_drafted,
+      retention_pct: match.retention_pct,
+    };
+  }, [cached, agentId]);
 
-        // Trend — computed from policies with adaptive granularity
-        const gran = getGranularity(dateRange);
-        const byBucket = new Map<string, { policies: number; ap: number }>();
-        allPolicies.forEach((p) => {
-          if (!p.policy_effective_date) return;
-          const key = bucketKey(p.policy_effective_date, gran);
-          const existing = byBucket.get(key) || { policies: 0, ap: 0 };
-          existing.policies += 1;
-          existing.ap += Number(p.annual_premium) || 0;
-          byBucket.set(key, existing);
-        });
-        setTrend(
-          Array.from(byBucket.entries())
-            .map(([bucket, v]) => ({ bucket, label: fmtBucketLabel(bucket, gran), policies: v.policies, ap: v.ap }))
-            .sort((a, b) => a.bucket.localeCompare(b.bucket))
-        );
+  const policies = useMemo((): PolicyRow[] => {
+    if (!cached) return [];
+    const bobRes = cached.bobData as any;
+    return bobRes.data.map((p: any) => {
+      const daysIdle = p.paid_to_date
+        ? Math.max(0, Math.floor((Date.now() - new Date(p.paid_to_date).getTime()) / 86400000))
+        : null;
+      return {
+        policy_number: p.policy_number,
+        product_type: p.product_type,
+        status: p.status,
+        monthly_premium: p.plan_premium,
+        annual_premium: p.annual_premium,
+        policy_effective_date: p.policy_effective_date,
+        paid_to_date: p.paid_to_date,
+        draft_count: p.draft_count,
+        is_at_risk: p.is_at_risk,
+        flag_type: p.flag_type,
+        days_since_paid: daysIdle,
+      };
+    });
+  }, [cached]);
 
-        // Product mix from active policies
-        const mixMap = new Map<string, number>();
-        allPolicies
-          .filter(p => p.status === 'active')
-          .forEach(p => {
-            mixMap.set(p.product_type, (mixMap.get(p.product_type) || 0) + 1);
-          });
-        setProductMix(Array.from(mixMap.entries()).map(([product_type, count]) => ({ product_type, count })));
+  const trend = useMemo((): TrendPoint[] => {
+    if (policies.length === 0) return [];
+    const gran = getGranularity(dateRange);
+    const byBucket = new Map<string, { policies: number; ap: number }>();
+    policies.forEach((p) => {
+      if (!p.policy_effective_date) return;
+      const key = bucketKey(p.policy_effective_date, gran);
+      const existing = byBucket.get(key) || { policies: 0, ap: 0 };
+      existing.policies += 1;
+      existing.ap += Number(p.annual_premium) || 0;
+      byBucket.set(key, existing);
+    });
+    return Array.from(byBucket.entries())
+      .map(([bucket, v]) => ({ bucket, label: fmtBucketLabel(bucket, gran), policies: v.policies, ap: v.ap }))
+      .sort((a, b) => a.bucket.localeCompare(b.bucket));
+  }, [policies, dateRange]);
 
-      } catch (err) {
-        console.error('Agent production load error:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, [agentId, dateRange, datePreset]);
+  const productMix = useMemo((): ProductMix[] => {
+    const mixMap = new Map<string, number>();
+    policies
+      .filter(p => p.status === 'active')
+      .forEach(p => {
+        mixMap.set(p.product_type, (mixMap.get(p.product_type) || 0) + 1);
+      });
+    return Array.from(mixMap.entries()).map(([product_type, count]) => ({ product_type, count }));
+  }, [policies]);
 
   // Filtered + sorted policies
   const displayed = useMemo(() => {

@@ -7,8 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
-import { fetchRetentionSummary } from '@/lib/prod-api';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
+import { useOrgData } from '@/contexts/OrgDataCache';
 import { Search, Building2, ChevronRight } from 'lucide-react';
 
 interface AgencyRow {
@@ -45,57 +45,46 @@ function fmt$(n: number) {
 
 export function AgenciesPage() {
   const { effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide } = useEffectiveAuth();
-  const [rows, setRows] = useState<AgencyRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const orgData = useOrgData();
+  const [nameMap, setNameMap] = useState<Map<string, { name: string; slug?: string; is_active: boolean }>>(new Map());
   const [search, setSearch] = useState('');
 
+  // Load agency names from local Supabase (lightweight, not from Max's DB)
   useEffect(() => {
-    if (!supabase) { setLoading(false); return; }
-    async function load() {
-      try {
-        // Live agency retention summary from prod DB edge function
-        const retRes = await fetchRetentionSummary();
-        const stats = retRes.data.agencies;
-
-        if (!stats || stats.length === 0) { setLoading(false); return; }
-
-        // Enrich with name from agencies table (stays in rcbzag)
-        const nameMap = new Map<string, { name: string; slug?: string; is_active: boolean }>();
-        if (supabase) {
-          const { data: agencyNames } = await (supabase as any)
-            .from('agencies')
-            .select('tracker_id, writing_number, name, slug, is_active');
-          if (agencyNames) {
-            for (const a of agencyNames as any[]) {
-              // Key by writing_number (matches edge function agency_id)
-              if (a.writing_number) nameMap.set(a.writing_number, { name: a.name, slug: a.slug ?? undefined, is_active: a.is_active });
-              // Also key by tracker_id as fallback
-              if (a.tracker_id) nameMap.set(a.tracker_id, { name: a.name, slug: a.slug ?? undefined, is_active: a.is_active });
-            }
-          }
+    if (!supabase) return;
+    (async () => {
+      const { data: agencyNames } = await (supabase as any)
+        .from('agencies')
+        .select('tracker_id, writing_number, name, slug, is_active');
+      if (agencyNames) {
+        const nm = new Map<string, { name: string; slug?: string; is_active: boolean }>();
+        for (const a of agencyNames as any[]) {
+          if (a.writing_number) nm.set(a.writing_number, { name: a.name, slug: a.slug ?? undefined, is_active: a.is_active });
+          if (a.tracker_id) nm.set(a.tracker_id, { name: a.name, slug: a.slug ?? undefined, is_active: a.is_active });
         }
-
-        const enriched: AgencyRow[] = stats
-          .map(s => ({
-            agency_id: s.agency_id,
-            active_policies: s.active_policies,
-            active_premium: s.active_premium,
-            at_risk_count: s.at_risk_count,
-            eligible_90d: s.eligible_90d,
-            retained_90d: s.retained_90d,
-            retention_pct: s.retention_pct,
-            ...(nameMap.get(s.agency_id) ?? {}),
-          }))
-          .sort((a, b) => b.active_premium - a.active_premium);
-
-        setRows(enriched);
-      } catch (err) {
-        console.error('Agencies load error:', err);
+        setNameMap(nm);
       }
-      setLoading(false);
-    }
-    load();
+    })();
   }, []);
+
+  // Derive rows from OrgDataCache (instant — no fetch, no shimmer)
+  const loading = orgData.initialLoading && orgData.retentionAgencies.length === 0;
+  const rows = useMemo((): AgencyRow[] => {
+    const stats = orgData.retentionAgencies;
+    if (!stats || stats.length === 0) return [];
+    return stats
+      .map(s => ({
+        agency_id: s.agency_id,
+        active_policies: s.active_policies,
+        active_premium: s.active_premium,
+        at_risk_count: s.at_risk_count,
+        eligible_90d: s.eligible_90d,
+        retained_90d: s.retained_90d,
+        retention_pct: s.retention_pct,
+        ...(nameMap.get(s.agency_id) ?? {}),
+      }))
+      .sort((a, b) => b.active_premium - a.active_premium);
+  }, [orgData.retentionAgencies, nameMap]);
 
   // Managers / agency admins: redirect to their own agency detail
   // Placed AFTER all hooks to satisfy React's rules of hooks.

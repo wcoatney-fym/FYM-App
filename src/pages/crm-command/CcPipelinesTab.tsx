@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
   TrendingUp, XCircle, DollarSign, Shield, TrendingDown, Minus, Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { fetchBookOfBusiness, fetchRetentionSummary, fetchMonthlyProduction } from '@/lib/prod-api';
+import { fetchBookOfBusiness } from '@/lib/prod-api';
+import { useOrgData } from '@/contexts/OrgDataCache';
+import { useCachedFetch } from '@/hooks/useCachedFetch';
 
 type PipelineTab = 'placements' | 'cancellations' | 'retention' | 'revenue';
 
@@ -54,108 +56,81 @@ function fmt$(n: number) {
 }
 
 export function CcPipelinesTab() {
-  const [activeTab, setActiveTab] = useState<PipelineTab>('placements');
-  const [placements, setPlacements] = useState<PlacementRow[] | null>(null);
-  const [cancellations, setCancellations] = useState<CancellationRow[] | null>(null);
-  const [retentionAgencies, setRetentionAgencies] = useState<RetentionAgencyRow[] | null>(null);
-  const [revenue, setRevenue] = useState<RevenueMonthRow[] | null>(null);
+  const [activeTab, setActiveTab] = React.useState<PipelineTab>('placements');
+  const orgData = useOrgData();
 
-  // Placements — recent policies from prod DB
-  useEffect(() => {
-    (async () => {
-      try {
-        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-        const res = await fetchBookOfBusiness({
-          sort: 'submit_date',
-          order: 'desc',
-          page_size: 200,
-        });
-        // Filter to last 30 days client-side
-        const recent = res.data
-          .filter(p => p.policy_effective_date && p.policy_effective_date >= thirtyDaysAgo)
-          .map(p => ({
-            policy_number: p.policy_number,
-            agent_name: null,
-            agency_name: null,
-            product_type: p.product_type,
-            status: p.status,
-            annual_premium: p.annual_premium,
-            policy_effective_date: p.policy_effective_date,
-          }));
-        setPlacements(recent);
-      } catch { setPlacements([]); }
-    })();
-  }, []);
+  // Placements — cached book-of-business fetch
+  const { data: bobRecent } = useCachedFetch(
+    'cc-placements',
+    () => fetchBookOfBusiness({ sort: 'submit_date', order: 'desc', page_size: 200 }),
+  );
+  const placements = useMemo((): PlacementRow[] | null => {
+    if (!bobRecent) return null;
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    return bobRecent.data
+      .filter(p => p.policy_effective_date && p.policy_effective_date >= thirtyDaysAgo)
+      .map(p => ({
+        policy_number: p.policy_number,
+        agent_name: null,
+        agency_name: null,
+        product_type: p.product_type,
+        status: p.status,
+        annual_premium: p.annual_premium,
+        policy_effective_date: p.policy_effective_date,
+      }));
+  }, [bobRecent]);
 
-  // Cancellations — terminated policies from prod DB
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetchBookOfBusiness({
-          status: 'terminated',
-          sort: 'paid_to_date',
-          order: 'desc',
-          page_size: 200,
-        });
-        setCancellations(
-          res.data.map(p => ({
-            policy_number: p.policy_number,
-            agent_name: null,
-            agency_name: null,
-            annual_premium: p.annual_premium,
-            paid_to_date: p.paid_to_date,
-          }))
-        );
-      } catch { setCancellations([]); }
-    })();
-  }, []);
+  // Cancellations — cached book-of-business fetch
+  const { data: bobTerminated } = useCachedFetch(
+    'cc-cancellations',
+    () => fetchBookOfBusiness({ status: 'terminated', sort: 'paid_to_date', order: 'desc', page_size: 200 }),
+  );
+  const cancellations = useMemo((): CancellationRow[] | null => {
+    if (!bobTerminated) return null;
+    return bobTerminated.data.map(p => ({
+      policy_number: p.policy_number,
+      agent_name: null,
+      agency_name: null,
+      annual_premium: p.annual_premium,
+      paid_to_date: p.paid_to_date,
+    }));
+  }, [bobTerminated]);
 
-  // Retention agencies — below 90% from prod DB
-  useEffect(() => {
-    (async () => {
-      try {
-        const retRes = await fetchRetentionSummary();
-        const below90 = retRes.data.agencies
-          .filter(a => a.retention_pct !== null && a.retention_pct < 90)
-          .sort((a, b) => (a.retention_pct ?? 100) - (b.retention_pct ?? 100))
-          .slice(0, 50)
-          .map(a => ({
-            agency_id: a.agency_id,
-            agency_name: null,
-            active_policies: a.active_policies,
-            at_risk_count: a.at_risk_count,
-            retention_pct: a.retention_pct,
-          }));
-        setRetentionAgencies(below90);
-      } catch { setRetentionAgencies([]); }
-    })();
-  }, []);
+  // Retention agencies — from OrgDataCache (instant)
+  const retentionAgencies = useMemo((): RetentionAgencyRow[] | null => {
+    if (orgData.retentionAgencies.length === 0 && orgData.initialLoading) return null;
+    return orgData.retentionAgencies
+      .filter(a => a.retention_pct !== null && a.retention_pct < 90)
+      .sort((a, b) => (a.retention_pct ?? 100) - (b.retention_pct ?? 100))
+      .slice(0, 50)
+      .map(a => ({
+        agency_id: a.agency_id,
+        agency_name: null,
+        active_policies: a.active_policies,
+        at_risk_count: a.at_risk_count,
+        retention_pct: a.retention_pct,
+      }));
+  }, [orgData.retentionAgencies, orgData.initialLoading]);
 
-  // Revenue — monthly production from prod DB
-  useEffect(() => {
-    (async () => {
-      try {
-        const monthlyData = await fetchMonthlyProduction();
-        const sixMonthsAgo = new Date();
-        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-        const monthKey = sixMonthsAgo.toISOString().slice(0, 7);
-        const byMonth = new Map<string, { policies: number; annual_premium: number }>();
-        monthlyData
-          .filter(m => m.month >= monthKey)
-          .forEach(m => {
-            const existing = byMonth.get(m.month) || { policies: 0, annual_premium: 0 };
-            existing.policies += m.policies;
-            existing.annual_premium += m.annual_premium;
-            byMonth.set(m.month, existing);
-          });
-        setRevenue(
-          Array.from(byMonth.entries())
-            .map(([month, v]) => ({ month, ...v }))
-            .sort((a, b) => a.month.localeCompare(b.month))
-        );
-      } catch { setRevenue([]); }
-    })();
-  }, []);
+  // Revenue — from OrgDataCache (instant)
+  const revenue = useMemo((): RevenueMonthRow[] | null => {
+    if (orgData.monthlyProduction.length === 0 && orgData.initialLoading) return null;
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const monthKey = sixMonthsAgo.toISOString().slice(0, 7);
+    const byMonth = new Map<string, { policies: number; annual_premium: number }>();
+    orgData.monthlyProduction
+      .filter(m => m.month >= monthKey)
+      .forEach(m => {
+        const existing = byMonth.get(m.month) || { policies: 0, annual_premium: 0 };
+        existing.policies += m.policies;
+        existing.annual_premium += m.annual_premium;
+        byMonth.set(m.month, existing);
+      });
+    return Array.from(byMonth.entries())
+      .map(([month, v]) => ({ month, ...v }))
+      .sort((a, b) => a.month.localeCompare(b.month));
+  }, [orgData.monthlyProduction, orgData.initialLoading]);
 
   return (
     <div className="space-y-4">

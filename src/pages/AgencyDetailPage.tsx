@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 import { fetchRetentionSummary, fetchBookOfBusiness } from '@/lib/prod-api';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
+import { useCachedMultiFetch } from '@/hooks/useCachedFetch';
 import {
   ShieldCheck, TrendingUp, AlertTriangle, DollarSign,
   ArrowLeft, ChevronDown, ChevronUp,
@@ -76,106 +77,82 @@ export function AgencyDetailPage() {
   const { agencyId } = useParams<{ agencyId: string }>();
   const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
   const [info, setInfo] = useState<AgencyInfo | null>(null);
-  const [summary, setSummary] = useState<AgencySummary | null>(null);
-  const [policies, setPolicies] = useState<PolicyRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [resolvedWritingNumber, setResolvedWritingNumber] = useState<string>(agencyId || '');
   const [showAtRisk, setShowAtRisk] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>('premium');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [togglingTask, setTogglingTask] = useState<string | null>(null);
 
+  // Resolve agency name from local Supabase (not Max's DB)
   useEffect(() => {
-    if (!supabase || !agencyId) { setLoading(false); return; }
-    const targetId = agencyId;
-
-    async function load() {
-      // Agency name from agencies table (stays in rcbzag)
-      // Resolve by writing_number first (edge function links), then tracker_id (legacy links)
-      let resolvedWritingNumber = targetId;
-      if (supabase) {
-        let agencyData = null;
-        // Try writing_number first (new links from edge function data)
-        const { data: byWn } = await (supabase as any)
+    if (!supabase || !agencyId) return;
+    (async () => {
+      let resolved = agencyId;
+      const { data: byWn } = await (supabase as any)
+        .from('agencies')
+        .select('tracker_id, writing_number, name, slug, is_active')
+        .eq('writing_number', agencyId)
+        .maybeSingle();
+      if (byWn) {
+        setInfo(byWn as AgencyInfo);
+        resolved = byWn.writing_number;
+      } else {
+        const { data: byTracker } = await (supabase as any)
           .from('agencies')
           .select('tracker_id, writing_number, name, slug, is_active')
-          .eq('writing_number', targetId)
+          .eq('tracker_id', agencyId)
           .maybeSingle();
-        if (byWn) {
-          agencyData = byWn;
-          resolvedWritingNumber = byWn.writing_number;
-        } else {
-          // Fallback: try tracker_id (legacy links)
-          const { data: byTracker } = await (supabase as any)
-            .from('agencies')
-            .select('tracker_id, writing_number, name, slug, is_active')
-            .eq('tracker_id', targetId)
-            .maybeSingle();
-          if (byTracker) {
-            agencyData = byTracker;
-            resolvedWritingNumber = byTracker.writing_number || targetId;
-          }
+        if (byTracker) {
+          setInfo(byTracker as AgencyInfo);
+          resolved = byTracker.writing_number || agencyId;
         }
-        if (agencyData) setInfo(agencyData as AgencyInfo);
       }
-
-      // Retention summary from prod DB edge function (use writing_number)
-      try {
-        const retRes = await fetchRetentionSummary({ agency_id: resolvedWritingNumber });
-        const agencySummary = retRes.data.agencies.find((a) => a.agency_id === resolvedWritingNumber);
-        if (agencySummary) {
-          setSummary({
-            agency_id: agencySummary.agency_id,
-            active_policies: agencySummary.active_policies,
-            active_premium: agencySummary.active_premium,
-            at_risk_count: agencySummary.at_risk_count,
-            retained_90d: agencySummary.retained_90d,
-            eligible_90d: agencySummary.eligible_90d,
-            retention_pct: agencySummary.retention_pct,
-          });
-        }
-      } catch (err) {
-        console.error('Retention summary load error:', err);
-      }
-
-      // All policies for this agency from prod DB edge function
-      try {
-        const allPolicies: PolicyRow[] = [];
-        let page = 0;
-        const PAGE_SIZE = 500;
-        while (true) {
-          const bobRes = await fetchBookOfBusiness({
-            agency_id: resolvedWritingNumber,
-            sort: 'premium',
-            order: 'desc',
-            page,
-            page_size: PAGE_SIZE,
-          });
-          for (const p of bobRes.data) {
-            allPolicies.push({
-              policy_number: p.policy_number,
-              product_type: p.product_type,
-              status: p.status,
-              plan_premium: p.plan_premium,
-              paid_to_date: p.paid_to_date,
-              policy_effective_date: p.policy_effective_date,
-              draft_count: p.draft_count,
-              is_at_risk: p.is_at_risk,
-              flag_type: p.flag_type,
-            });
-          }
-          if (bobRes.data.length < PAGE_SIZE) break;
-          page++;
-        }
-        setPolicies(allPolicies);
-      } catch (err) {
-        console.error('Book of business load error:', err);
-      }
-
-      setLoading(false);
-    }
-
-    load();
+      setResolvedWritingNumber(resolved);
+    })();
   }, [agencyId]);
+
+  // Cached edge function data — instant render from localStorage
+  const cacheKey = `agency-detail-${resolvedWritingNumber}`;
+  const { data: cached, loading } = useCachedMultiFetch(
+    cacheKey,
+    {
+      retRes: () => fetchRetentionSummary({ agency_id: resolvedWritingNumber }),
+      bobRes: () => fetchBookOfBusiness({ agency_id: resolvedWritingNumber, sort: 'premium', order: 'desc', page_size: 500 }),
+    },
+    { skip: !resolvedWritingNumber, deps: [resolvedWritingNumber] }
+  );
+
+  const summary = useMemo((): AgencySummary | null => {
+    if (!cached) return null;
+    const retRes = cached.retRes as any;
+    const agencySummary = retRes.data.agencies.find((a: any) => a.agency_id === resolvedWritingNumber);
+    if (!agencySummary) return null;
+    return {
+      agency_id: agencySummary.agency_id,
+      active_policies: agencySummary.active_policies,
+      active_premium: agencySummary.active_premium,
+      at_risk_count: agencySummary.at_risk_count,
+      retained_90d: agencySummary.retained_90d,
+      eligible_90d: agencySummary.eligible_90d,
+      retention_pct: agencySummary.retention_pct,
+    };
+  }, [cached, resolvedWritingNumber]);
+
+  const policies = useMemo((): PolicyRow[] => {
+    if (!cached) return [];
+    const bobRes = cached.bobRes as any;
+    return bobRes.data.map((p: any) => ({
+      policy_number: p.policy_number,
+      product_type: p.product_type,
+      status: p.status,
+      plan_premium: p.plan_premium,
+      paid_to_date: p.paid_to_date,
+      policy_effective_date: p.policy_effective_date,
+      draft_count: p.draft_count,
+      is_at_risk: p.is_at_risk,
+      flag_type: p.flag_type,
+    }));
+  }, [cached]);
 
   // Product breakdown
   const productBreakdown = useMemo(() => {

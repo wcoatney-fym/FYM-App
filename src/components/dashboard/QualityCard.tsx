@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { HudFrame } from '@/components/ui/hud-frame';
 import { FadeIn } from '@/components/ui/animated';
 import { fetchRetentionSummary, type RetentionSummaryResponse } from '@/lib/prod-api';
+import { useCachedFetch } from '@/hooks/useCachedFetch';
 import { useOrgData } from '@/contexts/OrgDataCache';
 import { Award, Lock, ChevronRight, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -86,26 +87,18 @@ function PenguinPlaceholder({ reason }: { reason?: string }) {
 
 export function QualityCard({ filterAgencyId, loading: parentLoading }: QualityCardProps) {
   const orgData = useOrgData();
-  const [retention30d, setRetention30d] = useState<RetentionSummaryResponse | null>(null);
-  const [loading30d, setLoading30d] = useState(true);
-
-  // Fetch 30-day retention data
-  useEffect(() => {
-    setLoading30d(true);
-    const params: { days: number; agency_id?: string } = { days: 30 };
-    if (filterAgencyId && !filterAgencyId.startsWith('no-data:')) {
-      params.agency_id = filterAgencyId;
-    }
-    fetchRetentionSummary(params)
-      .then((data) => {
-        setRetention30d(data);
-        setLoading30d(false);
-      })
-      .catch((err) => {
-        console.error('QualityCard: 30d retention fetch error:', err);
-        setLoading30d(false);
-      });
-  }, [filterAgencyId]);
+  // Cached 30-day retention fetch — instant render from localStorage
+  const ret30dAgencyId = (filterAgencyId && !filterAgencyId.startsWith('no-data:')) ? filterAgencyId : undefined;
+  const ret30dCacheKey = `quality-ret30d-${ret30dAgencyId || 'org'}`;
+  const { data: retention30d, loading: loading30d } = useCachedFetch(
+    ret30dCacheKey,
+    () => {
+      const params: { days: number; agency_id?: string } = { days: 30 };
+      if (ret30dAgencyId) params.agency_id = ret30dAgencyId;
+      return fetchRetentionSummary(params);
+    },
+    { deps: [ret30dAgencyId] }
+  );
 
   // Derive the full 8-metric priority list
   const metrics = useMemo((): QualityMetric[] => {

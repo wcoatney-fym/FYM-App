@@ -5,10 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
-import { fetchRetentionSummary, fetchRetentionCohorts } from '@/lib/prod-api';
 import { scopeToAgency } from '@/lib/query-helpers';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
+import { useOrgData } from '@/contexts/OrgDataCache';
 import { DataFilters } from '@/components/filters/DataFilters';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -73,95 +73,80 @@ function fmtMonth(iso: string) {
 export function AdminFinancialsPage() {
   const { effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide } = useEffectiveAuth();
   const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
-  const [cohorts, setCohorts] = useState<CohortRow[]>([]);
-  const [concentration, setConcentration] = useState<ConcentrationRow[]>([]);
-  const [agencySummaries, setAgencySummaries] = useState<AgencySummaryRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const orgData = useOrgData();
+  const [nameMap, setNameMap] = useState<Map<string, string>>(new Map());
 
+  // Agency names from local Supabase (lightweight, not Max's DB)
   useEffect(() => {
-    async function load() {
-      try {
-        const agencyParam = !isOrgWide && effectiveAgencyWritingNumber ? { agency_id: effectiveAgencyWritingNumber } : {};
-
-        // Agency names map from rcbzag (stays)
-        const nameMap = new Map<string, string>();
-        if (supabase) {
-          const { data: agencyNames } = await scopeToAgency(
-            (supabase as any)
-              .from('agencies')
-              .select('tracker_id, writing_number, name'),
-            isOrgWide,
-            effectiveAgencyId,
-            'tracker_id'
-          );
-          if (agencyNames) {
-            for (const a of agencyNames as any[]) {
-              if (a.writing_number) nameMap.set(a.writing_number, a.name);
-              if (a.tracker_id) nameMap.set(a.tracker_id, a.name);
-            }
-          }
+    if (!supabase) return;
+    (async () => {
+      const { data: agencyNames } = await scopeToAgency(
+        (supabase as any)
+          .from('agencies')
+          .select('tracker_id, writing_number, name'),
+        isOrgWide,
+        effectiveAgencyId,
+        'tracker_id'
+      );
+      if (agencyNames) {
+        const nm = new Map<string, string>();
+        for (const a of agencyNames as any[]) {
+          if (a.writing_number) nm.set(a.writing_number, a.name);
+          if (a.tracker_id) nm.set(a.tracker_id, a.name);
         }
-
-        // Agency retention summary from prod DB edge function
-        const retRes = await fetchRetentionSummary(agencyParam);
-        setAgencySummaries(
-          retRes.data.agencies.map(r => ({
-            agency_id: r.agency_id,
-            active_policies: r.active_policies,
-            active_premium: r.active_premium,
-            at_risk_count: r.at_risk_count,
-            retained_90d: r.retained_90d,
-            eligible_90d: r.eligible_90d,
-            retention_pct: r.retention_pct,
-          }))
-        );
-
-        // Cohort retention from prod DB edge function
-        const cohortRes = await fetchRetentionCohorts(agencyParam);
-        setCohorts(
-          cohortRes.data.cohorts.slice(-24).reverse().map(c => ({
-            product_type: 'combined',
-            cohort_month: c.month,
-            cohort_size: c.eligible,
-            drafted_first: c.eligible,
-            retained: c.retained,
-            retention_pct: c.retention_pct ?? 0,
-            active_premium: 0,
-          }))
-        );
-
-        // Concentration — derive from retention summary
-        const totalPremium = retRes.data.agencies.reduce((s, a) => s + a.active_premium, 0);
-        setConcentration(
-          retRes.data.agencies
-            .map(r => {
-              const atRiskPremium = r.active_policies > 0
-                ? Math.round((r.at_risk_count / r.active_policies) * r.active_premium * 100) / 100
-                : 0;
-              return {
-                agency_id: r.agency_id,
-                name: nameMap.get(r.agency_id) ?? null,
-                active_count: r.active_policies,
-                active_premium: r.active_premium,
-                at_risk_count: r.at_risk_count,
-                at_risk_premium: atRiskPremium,
-                at_risk_pct: r.active_policies > 0 ? Math.round((r.at_risk_count / r.active_policies) * 1000) / 10 : 0,
-                premium_concentration_pct: totalPremium > 0 ? Math.round((r.active_premium / totalPremium) * 1000) / 10 : 0,
-              };
-            })
-            .sort((a, b) => b.active_premium - a.active_premium)
-            .slice(0, 20)
-        );
-      } catch (err) {
-        console.error('Admin financials load error:', err);
+        setNameMap(nm);
       }
-      setLoading(false);
-    }
-    load();
-  // Note: filterAgencyId intentionally excluded — the fetch always pulls org-wide
-  // data; filtering happens client-side in the useMemo below.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide]);
+    })();
+  }, [effectiveAgencyId, isOrgWide]);
+
+  // Derive from OrgDataCache — instant, no fetch, no shimmer
+  const loading = orgData.initialLoading && orgData.retentionAgencies.length === 0;
+
+  const agencySummaries = useMemo((): AgencySummaryRow[] =>
+    orgData.retentionAgencies.map(r => ({
+      agency_id: r.agency_id,
+      active_policies: r.active_policies,
+      active_premium: r.active_premium,
+      at_risk_count: r.at_risk_count,
+      retained_90d: r.retained_90d,
+      eligible_90d: r.eligible_90d,
+      retention_pct: r.retention_pct,
+    })),
+  [orgData.retentionAgencies]);
+
+  const cohorts = useMemo((): CohortRow[] =>
+    orgData.cohorts.slice(-24).reverse().map(c => ({
+      product_type: 'combined',
+      cohort_month: c.month,
+      cohort_size: c.eligible,
+      drafted_first: c.eligible,
+      retained: c.retained,
+      retention_pct: c.retention_pct ?? 0,
+      active_premium: 0,
+    })),
+  [orgData.cohorts]);
+
+  const concentration = useMemo((): ConcentrationRow[] => {
+    const totalPremium = orgData.retentionAgencies.reduce((s, a) => s + a.active_premium, 0);
+    return orgData.retentionAgencies
+      .map(r => {
+        const atRiskPremium = r.active_policies > 0
+          ? Math.round((r.at_risk_count / r.active_policies) * r.active_premium * 100) / 100
+          : 0;
+        return {
+          agency_id: r.agency_id,
+          name: nameMap.get(r.agency_id) ?? null,
+          active_count: r.active_policies,
+          active_premium: r.active_premium,
+          at_risk_count: r.at_risk_count,
+          at_risk_premium: atRiskPremium,
+          at_risk_pct: r.active_policies > 0 ? Math.round((r.at_risk_count / r.active_policies) * 1000) / 10 : 0,
+          premium_concentration_pct: totalPremium > 0 ? Math.round((r.active_premium / totalPremium) * 1000) / 10 : 0,
+        };
+      })
+      .sort((a, b) => b.active_premium - a.active_premium)
+      .slice(0, 20);
+  }, [orgData.retentionAgencies, nameMap]);
 
   // ── Derived stats from pre-computed views ────────────────────────────────
   const stats = useMemo(() => {

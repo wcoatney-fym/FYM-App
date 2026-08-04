@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams, Link, Navigate } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,7 +11,11 @@ import {
   fetchDailyProduction,
   fetchMonthlyProduction,
   fetchProductMix,
+  type AgencyProduction,
+  type DailyProduction,
+  type MonthlyProduction,
 } from '@/lib/prod-api';
+import { useCachedMultiFetch } from '@/hooks/useCachedFetch';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -74,112 +78,104 @@ const PIE_COLORS = ['hsl(199 89% 48%)', 'hsl(142 71% 45%)'];
 export function AgencyProductionPage() {
   const { agencyId } = useParams<{ agencyId: string }>();
   const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
-  const [stats, setStats] = useState<AgencyStats | null>(null);
-  const [agents, setAgents] = useState<AgentRow[]>([]);
-  const [trend, setTrend] = useState<TrendPoint[]>([]);
-  const [productMix, setProductMix] = useState<ProductMix[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
 
-  useEffect(() => {
-    if (!agencyId || !supabase) return;
-    async function load() {
-      setLoading(true);
-        if (!supabase) { setLoading(false); return; }
-      try {
-        const startDate = dateRange.startDate.split('T')[0];
-        const endDate = dateRange.endDate.split('T')[0];
-        const useRpc = datePreset !== 'allTime';
+  const startDate = dateRange.startDate.split('T')[0];
+  const endDate = dateRange.endDate.split('T')[0];
+  const useRpc = datePreset !== 'allTime';
+  const dateParams = useRpc
+    ? { agency_id: agencyId!, start_date: startDate, end_date: endDate }
+    : { agency_id: agencyId! };
 
-        // Agency stats from prod DB edge function
-        const dateParams = useRpc
-          ? { agency_id: agencyId!, start_date: startDate, end_date: endDate }
-          : { agency_id: agencyId! };
+  // Cached multi-fetch — instant render from localStorage on back-nav
+  const cacheKey = `agency-prod-${agencyId}-${datePreset}-${startDate}-${endDate}`;
+  const { data: cached, loading } = useCachedMultiFetch(
+    cacheKey,
+    {
+      agencyData: () => fetchAgencyProduction(dateParams),
+      agentData: () => fetchAgentProduction(dateParams),
+      trendData: () => useRpc ? fetchDailyProduction(dateParams) : fetchMonthlyProduction({ agency_id: agencyId! }),
+      mixData: () => fetchProductMix({ agency_id: agencyId! }),
+    },
+    { skip: !agencyId || !supabase, deps: [agencyId, datePreset, startDate, endDate] }
+  );
 
-        const agencyData = await fetchAgencyProduction(dateParams);
-        const match = agencyData.find(r => r.agency_id === agencyId);
-        if (match) {
-          setStats({
-            agency_id: match.agency_id,
-            agency_name: null,
-            total_policies: match.total_policies,
-            active_policies: match.active_policies,
-            terminated_policies: match.terminated_policies,
-            pending_policies: match.pending_policies,
-            at_risk_policies: match.at_risk_policies,
-            active_monthly_premium: match.active_monthly_premium,
-            active_annual_premium: match.active_annual_premium,
-            avg_annual_premium: match.avg_annual_premium,
-            policies_this_month: match.policies_this_month,
-            ap_this_month: match.ap_this_month,
-            policies_last_month: match.policies_last_month,
-            ap_last_month: match.ap_last_month,
-          });
-        } else {
-          setStats(null);
-        }
+  const stats = useMemo((): AgencyStats | null => {
+    if (!cached) return null;
+    const agencyData = cached.agencyData as AgencyProduction[];
+    if (!match) return null;
+    return {
+      agency_id: match.agency_id,
+      agency_name: null,
+      total_policies: match.total_policies,
+      active_policies: match.active_policies,
+      terminated_policies: match.terminated_policies,
+      pending_policies: match.pending_policies,
+      at_risk_policies: match.at_risk_policies,
+      active_monthly_premium: match.active_monthly_premium,
+      active_annual_premium: match.active_annual_premium,
+      avg_annual_premium: match.avg_annual_premium,
+      policies_this_month: match.policies_this_month,
+      ap_this_month: match.ap_this_month,
+      policies_last_month: match.policies_last_month,
+      ap_last_month: match.ap_last_month,
+    };
+  }, [cached, agencyId]);
 
-        // Agent breakdown from prod DB edge function
-        const agentData = await fetchAgentProduction(dateParams);
-        setAgents(agentData.map(a => ({
-          agency_id: a.agency_id,
-          agent_id: a.agent_id,
-          agent_name: a.agent_name,
-          writing_number: a.writing_number,
-          active_policies: a.active_policies,
-          active_annual_premium: a.active_annual_premium,
-          avg_annual_premium: a.avg_annual_premium,
-          policies_this_month: a.policies_this_month,
-          ap_this_month: a.ap_this_month,
-          at_risk_policies: a.at_risk_policies,
-          retention_pct: a.retention_pct,
-        })));
+  const agents = useMemo((): AgentRow[] => {
+    if (!cached) return [];
+    return (cached.agentData as any[]).map((a: any) => ({
+      agency_id: a.agency_id,
+      agent_id: a.agent_id,
+      agent_name: a.agent_name,
+      writing_number: a.writing_number,
+      active_policies: a.active_policies,
+      active_annual_premium: a.active_annual_premium,
+      avg_annual_premium: a.avg_annual_premium,
+      policies_this_month: a.policies_this_month,
+      ap_this_month: a.ap_this_month,
+      at_risk_policies: a.at_risk_policies,
+      retention_pct: a.retention_pct,
+    }));
+  }, [cached]);
 
-        // Trend data from prod DB edge function
-        const gran = getGranularity(dateRange);
-        if (useRpc) {
-          const dailyData = await fetchDailyProduction(dateParams);
-          const rows: DailyRow[] = dailyData.map(d => ({
-            agency_id: d.agency_id,
-            agent_id: null,
-            writing_number: null,
-            product_type: '',
-            day: d.day,
-            policies: d.policies,
-            annual_premium: d.annual_premium,
-          }));
-          setTrend(aggregateTrend(rows, gran));
-        } else {
-          const monthlyData = await fetchMonthlyProduction({ agency_id: agencyId! });
-          const byMonth = new Map<string, { policies: number; ap: number }>();
-          monthlyData.forEach(r => {
-            const existing = byMonth.get(r.month) || { policies: 0, ap: 0 };
-            existing.policies += r.policies;
-            existing.ap += r.annual_premium;
-            byMonth.set(r.month, existing);
-          });
-          setTrend(
-            Array.from(byMonth.entries())
-              .map(([month, v]) => ({ bucket: month, label: fmtMonth(month), policies: v.policies, ap: v.ap }))
-              .sort((a, b) => a.bucket.localeCompare(b.bucket))
-              .slice(-12)
-          );
-        }
-
-        // Product mix from prod DB edge function
-        const mixData = await fetchProductMix({ agency_id: agencyId! });
-        setProductMix(mixData.map(m => ({ product_type: m.product_type, count: m.count })));
-
-      } catch (err) {
-        console.error('Agency production load error:', err);
-      } finally {
-        setLoading(false);
-      }
+  const trend = useMemo((): TrendPoint[] => {
+    if (!cached) return [];
+    const gran = getGranularity(dateRange);
+    if (useRpc) {
+      const dailyData = cached.trendData as DailyProduction[];
+      const rows: DailyRow[] = dailyData.map(d => ({
+        agency_id: d.agency_id,
+        agent_id: null,
+        writing_number: null,
+        product_type: '',
+        day: d.day,
+        policies: d.policies,
+        annual_premium: d.annual_premium,
+      }));
+      return aggregateTrend(rows, gran);
+    } else {
+      const monthlyData = cached.trendData as MonthlyProduction[];
+      const byMonth = new Map<string, { policies: number; ap: number }>();
+      monthlyData.forEach(r => {
+        const existing = byMonth.get(r.month) || { policies: 0, ap: 0 };
+        existing.policies += r.policies;
+        existing.ap += r.annual_premium;
+        byMonth.set(r.month, existing);
+      });
+      return Array.from(byMonth.entries())
+        .map(([month, v]) => ({ bucket: month, label: fmtMonth(month), policies: v.policies, ap: v.ap }))
+        .sort((a, b) => a.bucket.localeCompare(b.bucket))
+        .slice(-12);
     }
-    load();
-  }, [agencyId, dateRange, datePreset]);
+  }, [cached, dateRange, useRpc]);
+
+  const productMix = useMemo((): ProductMix[] => {
+    if (!cached) return [];
+    return (cached.mixData as any[]).map((m: any) => ({ product_type: m.product_type, count: m.count }));
+  }, [cached]);
 
   const filteredAgents = useMemo(() => {
     if (!search) return agents;

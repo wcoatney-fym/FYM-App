@@ -20,6 +20,7 @@ import { StaggerContainer, StaggerItem } from '@/components/ui/animated';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { fetchAgentProduction, fetchMonthlyProduction, type AgentProduction, type MonthlyProduction } from '@/lib/prod-api';
 import { getGoal, getYearGoals, upsertGoal, type AgentGoal } from '@/lib/goals-api';
+import { useCachedMultiFetch } from '@/hooks/useCachedFetch';
 import {
   Target,
   TrendingUp,
@@ -111,9 +112,6 @@ export function GoalPage() {
 
   const [currentGoal, setCurrentGoal] = useState<AgentGoal | null>(null);
   const [yearGoals, setYearGoals] = useState<AgentGoal[]>([]);
-  const [stats, setStats] = useState<AgentProduction | null>(null);
-  const [monthlyData, setMonthlyData] = useState<MonthlyProduction[]>([]);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   // Edit state
@@ -122,31 +120,45 @@ export function GoalPage() {
 
   const userId = user?.id ?? '';
 
-  const loadData = useCallback(async () => {
-    if (!userId || !effectiveWritingNumber) return;
-    setLoading(true);
+  // Cached fetch for Max's DB data — instant render from localStorage
+  const prodCacheKey = `goal-page-${effectiveWritingNumber || 'none'}`;
+  const { data: cached, loading: cacheLoading, refresh: refreshProd } = useCachedMultiFetch(
+    prodCacheKey,
+    {
+      agentData: () => fetchAgentProduction({ agent_id: effectiveWritingNumber! }),
+      monthly: () => fetchMonthlyProduction({ agent_id: effectiveWritingNumber! }),
+    },
+    { skip: !effectiveWritingNumber, deps: [effectiveWritingNumber] }
+  );
+
+  const stats = useMemo((): AgentProduction | null => {
+    if (!cached?.agentData) return null;
+    return (cached.agentData as AgentProduction[]).find(
+      a => a.writing_number === effectiveWritingNumber || a.agent_id === effectiveWritingNumber
+    ) || null;
+  }, [cached?.agentData, effectiveWritingNumber]);
+  const monthlyData = (cached?.monthly || []) as MonthlyProduction[];
+  const loading = cacheLoading;
+
+  // Goal data from local Supabase (not Max's DB)
+  const loadGoals = useCallback(async () => {
+    if (!userId) return;
     try {
-      const [goal, goals, agentData, monthly] = await Promise.all([
+      const [goal, goals] = await Promise.all([
         getGoal(userId, currentMonth, currentYear),
         getYearGoals(userId, currentYear),
-        fetchAgentProduction({ agent_id: effectiveWritingNumber }),
-        fetchMonthlyProduction({ agent_id: effectiveWritingNumber }),
       ]);
-
       setCurrentGoal(goal);
       setYearGoals(goals);
-
-      const me = agentData.find(
-        (a) => a.writing_number === effectiveWritingNumber || a.agent_id === effectiveWritingNumber
-      );
-      setStats(me || null);
-      setMonthlyData(monthly);
     } catch (err) {
-      console.error('[GoalPage] load error:', err);
-    } finally {
-      setLoading(false);
+      console.error('[GoalPage] goal load error:', err);
     }
-  }, [userId, effectiveWritingNumber, currentMonth, currentYear]);
+  }, [userId, currentMonth, currentYear]);
+
+  const loadData = useCallback(async () => {
+    await loadGoals();
+    refreshProd();
+  }, [loadGoals, refreshProd]);
 
   useEffect(() => {
     loadData();
