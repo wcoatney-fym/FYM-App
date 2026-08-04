@@ -366,7 +366,7 @@ export const CrossSellSection: React.FC<CrossSellSectionProps> = ({ agencyId, ag
   if (loading) {
     return (
       <div className="glass rounded-xl p-5">
-        <div className="flex items-center gap-2 text-muted-foreground/70">
+        <div className="flex items-center gap-2 text-muted-foreground">
           <Loader2 className="w-4 h-4 animate-spin" />
           <span className="text-sm">Loading cross-sell products...</span>
         </div>
@@ -439,7 +439,7 @@ export const CrossSellSection: React.FC<CrossSellSectionProps> = ({ agencyId, ag
                         onChange={(e) => updateProductName(product.product_number, e.target.value)}
                         className="w-full max-w-md px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm"
                       />
-                      <p className="text-[11px] text-muted-foreground/70 mt-1">Changing this generates an AI prompt for content</p>
+                      <p className="text-[11px] text-muted-foreground mt-1">Changing this generates an AI prompt for content</p>
                     </div>
 
                     {FIELD_GROUPS.filter((group) => !group.productOnly || group.productOnly === product.product_number).map((group) => (
@@ -622,7 +622,7 @@ const UploadDefaultsModal: React.FC<{ onClose: () => void; onUploaded: () => voi
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="text-lg font-bold text-foreground">Upload Cross-Sell Defaults</h2>
           <button onClick={onClose} className="p-1 hover:bg-secondary rounded transition-colors">
-            <X className="w-5 h-5 text-muted-foreground/70" />
+            <X className="w-5 h-5 text-muted-foreground" />
           </button>
         </div>
         <div className="px-6 py-5 space-y-4">
@@ -642,7 +642,7 @@ const UploadDefaultsModal: React.FC<{ onClose: () => void; onUploaded: () => voi
           </div>
 
           <div className="border-2 border-dashed border-border rounded-xl p-6 text-center hover:border-primary transition-colors">
-            <FileSpreadsheet className="w-8 h-8 text-muted-foreground/60 mx-auto mb-2" />
+            <FileSpreadsheet className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
             <p className="text-sm text-muted-foreground mb-3">Upload CSV file</p>
             <input
               ref={fileRef}

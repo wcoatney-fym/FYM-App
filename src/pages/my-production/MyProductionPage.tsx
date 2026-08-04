@@ -211,9 +211,9 @@ export function MyProductionPage() {
         <div className="p-6">
           <Card>
             <CardContent className="pt-6 text-center">
-              <FileText className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+              <FileText className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
               <p className="text-sm text-muted-foreground">No production data found for your writing number.</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 Writing number: {effectiveWritingNumber || 'not set'}
               </p>
             </CardContent>
@@ -260,7 +260,7 @@ export function MyProductionPage() {
                   format={fmt$}
                   className="text-2xl font-bold mt-1 block text-foreground"
                 />
-                <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+                <p className="text-[10px] text-muted-foreground mt-0.5">
                   {fmtNum(stats.policies_this_month || 0)} apps
                 </p>
                 <DollarSign size={14} className="absolute top-3 right-3 text-cyan-500/30" />
@@ -277,7 +277,7 @@ export function MyProductionPage() {
                         format={fmtNum}
                         className="text-2xl font-bold mt-1 block text-foreground"
                       />
-                      <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
                         {fmtNum(stats.total_policies)} total
                       </p>
                     </div>
@@ -299,7 +299,7 @@ export function MyProductionPage() {
                         format={(n: number) => retPct !== null ? `${n.toFixed(1)}%` : '—'}
                         className={`text-2xl font-bold mt-1 block ${retentionColor(retPct)}`}
                       />
-                      <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
                         {stats.ever_drafted > 0 ? `${stats.retained_policies}/${stats.ever_drafted}` : 'No drafts'}
                       </p>
                     </div>
@@ -319,14 +319,14 @@ export function MyProductionPage() {
                       <CountUp
                         end={stats.at_risk_policies}
                         format={fmtNum}
-                        className={`text-2xl font-bold mt-1 block ${stats.at_risk_policies > 0 ? 'text-red-400' : 'text-muted-foreground/70'}`}
+                        className={`text-2xl font-bold mt-1 block ${stats.at_risk_policies > 0 ? 'text-red-400' : 'text-muted-foreground'}`}
                       />
-                      <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
                         {stats.terminated_policies} terminated
                       </p>
                     </div>
                     <div className={`p-1.5 rounded-lg ${stats.at_risk_policies > 0 ? 'bg-red-500/10' : 'bg-secondary'}`}>
-                      <AlertTriangle size={14} className={stats.at_risk_policies > 0 ? 'text-red-400' : 'text-muted-foreground/40'} />
+                      <AlertTriangle size={14} className={stats.at_risk_policies > 0 ? 'text-red-400' : 'text-muted-foreground'} />
                     </div>
                   </div>
                 </CardContent>

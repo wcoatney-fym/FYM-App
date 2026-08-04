@@ -254,7 +254,7 @@ export function CcDashboardTab() {
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Bot className="w-10 h-10 text-muted-foreground/30 mb-3" />
+              <Bot className="w-10 h-10 text-muted-foreground mb-3" />
               <p className="text-sm text-muted-foreground">No at-risk signals to surface right now.</p>
             </div>
           )}
@@ -281,7 +281,7 @@ export function CcDashboardTab() {
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Clock className="w-10 h-10 text-muted-foreground/30 mb-3" />
+              <Clock className="w-10 h-10 text-muted-foreground mb-3" />
               <p className="text-sm text-muted-foreground">No recent activity</p>
             </div>
           )}

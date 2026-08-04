@@ -231,7 +231,7 @@ export function PipelineDetailModal({
                         }`}
                       >
                         {togglingStep === step.id ? (
-                          <Loader2 className="w-3 h-3 animate-spin text-muted-foreground/70" />
+                          <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
                         ) : doneAt ? (
                           <Check className="w-3.5 h-3.5 text-white" />
                         ) : null}
@@ -244,7 +244,7 @@ export function PipelineDetailModal({
                         {step.label}
                       </span>
                       {doneAt && (
-                        <span className="text-[10px] text-muted-foreground/70 flex-shrink-0">
+                        <span className="text-[10px] text-muted-foreground flex-shrink-0">
                           {new Date(doneAt).toLocaleDateString('en-US', {
                             month: 'short',
                             day: 'numeric',
@@ -316,26 +316,26 @@ export function PipelineDetailModal({
             <div className="grid grid-cols-1 gap-2">
               {record.email && (
                 <div className="flex items-center gap-3 p-3 bg-background rounded-lg">
-                  <Mail className="w-4 h-4 text-muted-foreground/70" />
+                  <Mail className="w-4 h-4 text-muted-foreground" />
                   <span className="text-sm text-foreground/80">{record.email}</span>
                 </div>
               )}
               {record.phone && (
                 <div className="flex items-center gap-3 p-3 bg-background rounded-lg">
-                  <Phone className="w-4 h-4 text-muted-foreground/70" />
+                  <Phone className="w-4 h-4 text-muted-foreground" />
                   <span className="text-sm text-foreground/80">{record.phone}</span>
                 </div>
               )}
               {record.agency && (
                 <div className="flex items-center gap-3 p-3 bg-background rounded-lg">
-                  <Building2 className="w-4 h-4 text-muted-foreground/70" />
+                  <Building2 className="w-4 h-4 text-muted-foreground" />
                   <span className="text-sm text-foreground/80">
                     {record.agency}
                   </span>
                 </div>
               )}
               <div className="flex items-center gap-3 p-3 bg-background rounded-lg">
-                <Clock className="w-4 h-4 text-muted-foreground/70" />
+                <Clock className="w-4 h-4 text-muted-foreground" />
                 <span className="text-sm text-foreground/80">
                   In stage since {stageEnteredDate}
                 </span>

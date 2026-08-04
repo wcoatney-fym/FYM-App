@@ -66,7 +66,7 @@ export function QualityTab({ stats, policies }: QualityTabProps) {
                     format={fmtNum}
                     className="text-xl font-bold mt-1 block text-foreground"
                   />
-                  <p className="text-[10px] text-muted-foreground/60">{fmtNum(stats.total_policies)} total</p>
+                  <p className="text-[10px] text-muted-foreground">{fmtNum(stats.total_policies)} total</p>
                 </div>
                 <div className="p-1.5 rounded-lg bg-cyan-500/10">
                   <FileText size={14} className="text-primary" />
@@ -88,7 +88,7 @@ export function QualityTab({ stats, policies }: QualityTabProps) {
                     format={(n: number) => retPct !== null ? `${n.toFixed(1)}%` : '—'}
                     className={`text-xl font-bold mt-1 block ${retentionColor(retPct)}`}
                   />
-                  <p className="text-[10px] text-muted-foreground/60">
+                  <p className="text-[10px] text-muted-foreground">
                     {stats.ever_drafted > 0 ? `${stats.retained_policies}/${stats.ever_drafted}` : 'No eligible'}
                   </p>
                 </div>
@@ -110,11 +110,11 @@ export function QualityTab({ stats, policies }: QualityTabProps) {
                     <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">9-mo Persistency</p>
                     <Badge className="bg-amber-500/15 text-amber-400 border-amber-500/20 text-[8px] px-1 py-0">INTERIM</Badge>
                   </div>
-                  <p className="text-xl font-bold mt-1 text-muted-foreground/50">—</p>
-                  <p className="text-[10px] text-muted-foreground/60">Pending prod DB view</p>
+                  <p className="text-xl font-bold mt-1 text-muted-foreground">—</p>
+                  <p className="text-[10px] text-muted-foreground">Pending prod DB view</p>
                 </div>
                 <div className="p-1.5 rounded-lg bg-secondary">
-                  <HelpCircle size={14} className="text-muted-foreground/40" />
+                  <HelpCircle size={14} className="text-muted-foreground" />
                 </div>
               </div>
             </CardContent>
@@ -131,11 +131,11 @@ export function QualityTab({ stats, policies }: QualityTabProps) {
                     <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">UW Share</p>
                     <Badge className="bg-amber-500/15 text-amber-400 border-amber-500/20 text-[8px] px-1 py-0">INTERIM</Badge>
                   </div>
-                  <p className="text-xl font-bold mt-1 text-muted-foreground/50">—</p>
-                  <p className="text-[10px] text-muted-foreground/60">Pending prod DB view</p>
+                  <p className="text-xl font-bold mt-1 text-muted-foreground">—</p>
+                  <p className="text-[10px] text-muted-foreground">Pending prod DB view</p>
                 </div>
                 <div className="p-1.5 rounded-lg bg-secondary">
-                  <HelpCircle size={14} className="text-muted-foreground/40" />
+                  <HelpCircle size={14} className="text-muted-foreground" />
                 </div>
               </div>
             </CardContent>

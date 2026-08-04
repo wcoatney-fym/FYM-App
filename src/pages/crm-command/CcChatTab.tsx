@@ -120,7 +120,7 @@ export function CcChatTab() {
       <div className="border-t border-border/50 pt-4">
         <div className="flex items-end gap-3">
           <div className="flex-1 glass rounded-xl p-1">
-            <textarea value={note} onChange={(e) => setNote(e.target.value)} onKeyDown={handleKeyDown} placeholder="Add a note to the command log..." rows={1} className="w-full bg-transparent px-3 py-2.5 text-sm resize-none outline-none placeholder:text-muted-foreground/50" style={{ minHeight: '40px', maxHeight: '120px' }} />
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} onKeyDown={handleKeyDown} placeholder="Add a note to the command log..." rows={1} className="w-full bg-transparent px-3 py-2.5 text-sm resize-none outline-none placeholder:text-muted-foreground" style={{ minHeight: '40px', maxHeight: '120px' }} />
           </div>
           <button onClick={() => void handleAddNote()} disabled={!note.trim() || submitting} className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity">
             {submitting ? <Loader2 className="w-4 h-4 text-background animate-spin" /> : <Send className="w-4 h-4 text-background" />}

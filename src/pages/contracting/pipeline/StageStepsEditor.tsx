@@ -134,7 +134,7 @@ export function StageStepsEditor({ onClose }: StageStepsEditorProps) {
                 <Loader2 className="w-5 h-5 animate-spin text-primary" />
               </div>
             ) : stageSteps.length === 0 ? (
-              <p className="text-sm text-muted-foreground/70 py-4 text-center">
+              <p className="text-sm text-muted-foreground py-4 text-center">
                 No steps yet — add the first one below.
               </p>
             ) : (
@@ -159,7 +159,7 @@ export function StageStepsEditor({ onClose }: StageStepsEditorProps) {
                     <button
                       onClick={() => deleteStep(step.id)}
                       disabled={busyId === step.id}
-                      className="p-1.5 text-muted-foreground/70 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors flex-shrink-0"
+                      className="p-1.5 text-muted-foreground hover:text-red-400 hover:bg-red-500/10 rounded transition-colors flex-shrink-0"
                     >
                       {busyId === step.id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />

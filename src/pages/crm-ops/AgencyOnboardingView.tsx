@@ -219,7 +219,7 @@ const StepperBar: React.FC<{ agency: CrmAgency; currentIdx: number }> = ({ agenc
                     ? 'bg-amber-400/10 text-amber-400 ring-2 ring-amber-300'
                     : state === 'active'
                     ? 'gradient-primary text-background ring-2 ring-primary/20'
-                    : 'bg-secondary text-muted-foreground/70'
+                    : 'bg-secondary text-muted-foreground'
                 }`}
               >
                 {state === 'complete' ? (
@@ -241,12 +241,12 @@ const StepperBar: React.FC<{ agency: CrmAgency; currentIdx: number }> = ({ agenc
                       ? 'text-amber-400'
                       : state === 'active'
                       ? 'text-primary'
-                      : 'text-muted-foreground/70'
+                      : 'text-muted-foreground'
                   }`}
                 >
                   {step.label}
                 </p>
-                <p className="text-xs text-muted-foreground/70">
+                <p className="text-xs text-muted-foreground">
                   {state === 'complete'
                     ? 'Confirmed'
                     : state === 'awaiting'
@@ -275,11 +275,11 @@ const LockedStepCard: React.FC<{ step: typeof STEPS[number] }> = ({ step }) => (
   <div className="bg-muted rounded-xl border border-border p-6 opacity-60">
     <div className="flex items-center gap-3">
       <div className="w-9 h-9 rounded-lg bg-secondary/80 flex items-center justify-center">
-        <Lock className="w-4 h-4 text-muted-foreground/70" />
+        <Lock className="w-4 h-4 text-muted-foreground" />
       </div>
       <div>
         <h3 className="font-semibold text-muted-foreground">{step.label}</h3>
-        <p className="text-xs text-muted-foreground/70">This step will unlock after the previous step is confirmed</p>
+        <p className="text-xs text-muted-foreground">This step will unlock after the previous step is confirmed</p>
       </div>
     </div>
   </div>
@@ -581,7 +581,7 @@ const CsrStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
 
           <div className="sm:w-1/2">
             <label className="block text-sm font-medium text-foreground/80 mb-1">
-              NPN <span className="text-muted-foreground/70 font-normal">(optional)</span>
+              NPN <span className="text-muted-foreground font-normal">(optional)</span>
             </label>
             <input
               type="text"
@@ -605,7 +605,7 @@ const CsrStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
           {agency.csr_first_name?.trim() && agency.csr_last_name?.trim() && (
             <div className="pt-4 border-t border-border/50">
               <div className="flex items-center gap-2 mb-3">
-                <Shield className="w-4 h-4 text-muted-foreground/70" />
+                <Shield className="w-4 h-4 text-muted-foreground" />
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">CRM Team Action</span>
               </div>
               <button
@@ -615,7 +615,7 @@ const CsrStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
                 <CheckCircle2 className="w-4 h-4" />
                 Confirm CSR Assignment
               </button>
-              <p className="text-xs text-muted-foreground/70 mt-2">This will lock in the CSR and unlock Step 2</p>
+              <p className="text-xs text-muted-foreground mt-2">This will lock in the CSR and unlock Step 2</p>
             </div>
           )}
         </div>
@@ -772,7 +772,7 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
         <div className="space-y-6">
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <Shield className="w-4 h-4 text-muted-foreground/70" />
+              <Shield className="w-4 h-4 text-muted-foreground" />
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Agency Phone Number</span>
             </div>
             <div className="flex items-center gap-3">
@@ -799,12 +799,12 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
                 </span>
               )}
             </div>
-            <p className="text-xs text-muted-foreground/70 mt-1.5">This will be used as the Agent CRM # in the roster</p>
+            <p className="text-xs text-muted-foreground mt-1.5">This will be used as the Agent CRM # in the roster</p>
           </div>
 
           <div className="border-t border-border/50 pt-5">
             <div className="flex items-center gap-2 mb-3">
-              <Settings className="w-4 h-4 text-muted-foreground/70" />
+              <Settings className="w-4 h-4 text-muted-foreground" />
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Subaccount Setup</span>
             </div>
             <div className="space-y-3">
@@ -849,7 +849,7 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
           {agency.setup_snapshot && (
             <div className="border-t border-border/50 pt-5">
               <div className="flex items-center gap-2 mb-3">
-                <Building2 className="w-4 h-4 text-muted-foreground/70" />
+                <Building2 className="w-4 h-4 text-muted-foreground" />
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Business Details</span>
               </div>
               <div className="space-y-4">
@@ -865,7 +865,7 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-sm font-medium text-foreground/80">Business Logo URL <span className="text-muted-foreground/70 font-normal">(optional)</span></label>
+                    <label className="block text-sm font-medium text-foreground/80">Business Logo URL <span className="text-muted-foreground font-normal">(optional)</span></label>
                     <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
                       <input
                         type="checkbox"
@@ -881,7 +881,7 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
                     value={businessLogoUrl}
                     onChange={(e) => setBusinessLogoUrl(e.target.value)}
                     disabled={logoUnavailable}
-                    className="w-full px-4 py-2.5 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm disabled:bg-secondary disabled:text-muted-foreground/70"
+                    className="w-full px-4 py-2.5 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm disabled:bg-secondary disabled:text-muted-foreground"
                     placeholder={logoUnavailable ? 'Marked unavailable' : 'https://example.com/logo.png'}
                   />
                   {!logoUnavailable && businessLogoUrl.trim() && (
@@ -895,7 +895,7 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
                           onLoad={(e) => { (e.target as HTMLImageElement).style.display = 'block'; }}
                         />
                       </div>
-                      <span className="text-xs text-muted-foreground/70">Preview</span>
+                      <span className="text-xs text-muted-foreground">Preview</span>
                     </div>
                   )}
                 </div>
@@ -927,7 +927,7 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
           {agency.setup_snapshot && (
             <div className="border-t border-border/50 pt-5">
               <div className="flex items-center gap-2 mb-3">
-                <Calendar className="w-4 h-4 text-muted-foreground/70" />
+                <Calendar className="w-4 h-4 text-muted-foreground" />
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Calendar & Agency URL</span>
               </div>
               <div className="space-y-4">
@@ -940,7 +940,7 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
                     className="w-full px-4 py-2.5 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm font-mono"
                     placeholder='<iframe src="https://..." ...></iframe>'
                   />
-                  <p className="text-xs text-muted-foreground/70 mt-1">This will be applied to all 200 roster rows</p>
+                  <p className="text-xs text-muted-foreground mt-1">This will be applied to all 200 roster rows</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground/80 mb-1.5">Agency URL Prefix</label>
@@ -957,7 +957,7 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
                   {urlPrefix.trim() && (
                     <div className="mt-2 p-3 bg-muted rounded-lg border border-border">
                       <div className="flex items-center gap-1.5 mb-1.5">
-                        <Globe className="w-3.5 h-3.5 text-muted-foreground/70" />
+                        <Globe className="w-3.5 h-3.5 text-muted-foreground" />
                         <span className="text-xs font-medium text-muted-foreground">URL Preview (Seat 1)</span>
                       </div>
                       <p className="text-xs text-muted-foreground font-mono">{urlPrefix.trim()}.my-agent-appt.com/r1-click-to-schedule</p>
@@ -988,7 +988,7 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
 
           <div className="border-t border-border/50 pt-5">
             <div className="flex items-center gap-2 mb-3">
-              <Zap className="w-4 h-4 text-muted-foreground/70" />
+              <Zap className="w-4 h-4 text-muted-foreground" />
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Cross-Sell Products</span>
             </div>
             {!crossSellReady ? (
@@ -1033,7 +1033,7 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
                   <span className={`text-sm font-medium flex-1 text-left ${crossSellConfirmed ? 'text-emerald-400 line-through' : 'text-foreground/80'}`}>
                     Confirm Cross-Sell Products
                   </span>
-                  <ChevronDown className={`w-4 h-4 text-muted-foreground/70 transition-transform ${crossSellExpanded ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${crossSellExpanded ? 'rotate-180' : ''}`} />
                 </button>
                 {crossSellExpanded && (
                   <div className="px-3 pb-4 border-t border-border">
@@ -1061,7 +1061,7 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
             >
               Complete & Unlock Roster Upload
             </button>
-            <p className="text-xs text-muted-foreground/70 mt-2 text-center">Requires phone number, all setup tasks, calendar/URL, and cross-sell confirmation</p>
+            <p className="text-xs text-muted-foreground mt-2 text-center">Requires phone number, all setup tasks, calendar/URL, and cross-sell confirmation</p>
           </div>
         </div>
       </div>
@@ -1468,7 +1468,7 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
 
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <FileSpreadsheet className="w-4 h-4 text-muted-foreground/70" />
+              <FileSpreadsheet className="w-4 h-4 text-muted-foreground" />
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Agency Action</span>
             </div>
             <input ref={fileRef} type="file" accept=".csv" onChange={handleUpload} className="hidden" />
@@ -1478,7 +1478,7 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
                 disabled={uploading}
                 className="w-full flex flex-col items-center justify-center py-8 border-2 border-dashed border-border rounded-lg hover:border-primary/40 hover:bg-cyan-500/30 transition-colors cursor-pointer disabled:opacity-50"
               >
-                <Upload className="w-8 h-8 text-muted-foreground/70 mb-2" />
+                <Upload className="w-8 h-8 text-muted-foreground mb-2" />
                 <p className="text-sm font-medium text-muted-foreground">
                   {uploading ? 'Uploading...' : 'Click to upload agent roster CSV'}
                 </p>
@@ -1505,7 +1505,7 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
           {uploadedFile && (
             <div className="pt-4 border-t border-border/50">
               <div className="flex items-center gap-2 mb-3">
-                <Shield className="w-4 h-4 text-muted-foreground/70" />
+                <Shield className="w-4 h-4 text-muted-foreground" />
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">CRM Team Action</span>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -1546,7 +1546,7 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
                 )}
               </div>
               {!agency.roster_confirmed && (
-                <p className="text-xs text-muted-foreground/70 mt-2">Confirm will lock in the roster and unlock Step 3</p>
+                <p className="text-xs text-muted-foreground mt-2">Confirm will lock in the roster and unlock Step 3</p>
               )}
 
               {zapSending && zapProgress.total > 0 && (
@@ -1721,7 +1721,7 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
                   <tbody className="divide-y divide-border/50">
                     {viewData.rows.map((row, i) => (
                       <tr key={i} className="hover:bg-muted">
-                        <td className="px-4 py-2.5 text-muted-foreground/70 text-xs">{i + 1}</td>
+                        <td className="px-4 py-2.5 text-muted-foreground text-xs">{i + 1}</td>
                         {viewData.headers.map((h) => (
                           <td key={h} className="px-4 py-2.5 text-foreground/80 whitespace-nowrap">{String(row[h] ?? '')}</td>
                         ))}
@@ -2035,7 +2035,7 @@ const DbaStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
 
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <FileSpreadsheet className="w-4 h-4 text-muted-foreground/70" />
+              <FileSpreadsheet className="w-4 h-4 text-muted-foreground" />
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Agency Action</span>
             </div>
             <input ref={fileRef} type="file" accept=".csv" onChange={handleUpload} className="hidden" />
@@ -2045,7 +2045,7 @@ const DbaStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
                 disabled={uploading}
                 className="w-full flex flex-col items-center justify-center py-8 border-2 border-dashed border-border rounded-lg hover:border-primary/40 hover:bg-cyan-500/30 transition-colors cursor-pointer disabled:opacity-50"
               >
-                <Upload className="w-8 h-8 text-muted-foreground/70 mb-2" />
+                <Upload className="w-8 h-8 text-muted-foreground mb-2" />
                 <p className="text-sm font-medium text-muted-foreground">
                   {uploading ? 'Uploading...' : 'Click to upload DBA client roster CSV'}
                 </p>
@@ -2072,7 +2072,7 @@ const DbaStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
           {uploadedFile && (
             <div className="pt-4 border-t border-border/50">
               <div className="flex items-center gap-2 mb-3">
-                <Shield className="w-4 h-4 text-muted-foreground/70" />
+                <Shield className="w-4 h-4 text-muted-foreground" />
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">CRM Team Action</span>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -2101,7 +2101,7 @@ const DbaStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
                 </button>
               </div>
               {!agency.dba_confirmed && (
-                <p className="text-xs text-muted-foreground/70 mt-2">Confirm will complete the onboarding process</p>
+                <p className="text-xs text-muted-foreground mt-2">Confirm will complete the onboarding process</p>
               )}
             </div>
           )}
@@ -2203,7 +2203,7 @@ const DbaStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
                   <tbody className="divide-y divide-border/50">
                     {viewData.rows.map((row, i) => (
                       <tr key={i} className="hover:bg-muted">
-                        <td className="px-4 py-2.5 text-muted-foreground/70 text-xs">{i + 1}</td>
+                        <td className="px-4 py-2.5 text-muted-foreground text-xs">{i + 1}</td>
                         {viewData.headers.map((h) => (
                           <td key={h} className="px-4 py-2.5 text-foreground/80 whitespace-nowrap">{String(row[h] ?? '')}</td>
                         ))}

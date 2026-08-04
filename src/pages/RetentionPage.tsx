@@ -75,7 +75,7 @@ function fmtMonth(iso: string) {
   return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' });
 }
 function retentionColor(pct: number | null): string {
-  if (pct === null) return 'text-muted-foreground/40';
+  if (pct === null) return 'text-muted-foreground';
   if (pct >= 90) return 'text-emerald-400';
   if (pct >= 85) return 'text-amber-400';
   return 'text-red-400';
@@ -83,12 +83,12 @@ function retentionColor(pct: number | null): string {
 
 function TrendBadge({ recent, prior }: { recent: number | null; prior: number | null }) {
   if (recent === null || prior === null) {
-    return <span className="text-xs text-muted-foreground/40">—</span>;
+    return <span className="text-xs text-muted-foreground">—</span>;
   }
   const diff = recent - prior;
   if (Math.abs(diff) < 0.5) {
     return (
-      <span className="inline-flex items-center gap-0.5 text-xs font-medium text-muted-foreground/60">
+      <span className="inline-flex items-center gap-0.5 text-xs font-medium text-muted-foreground">
         <Minus size={12} /> Flat
       </span>
     );
@@ -381,7 +381,7 @@ export function RetentionPage() {
               fmt: fmtNum,
               sub: `of ${filteredAgencies.length} agencies`,
               icon: AlertTriangle,
-              color: summary.atRiskAgencies > 0 ? 'text-red-400' : 'text-muted-foreground/70',
+              color: summary.atRiskAgencies > 0 ? 'text-red-400' : 'text-muted-foreground',
               bg: summary.atRiskAgencies > 0 ? 'bg-red-500/10' : 'bg-secondary',
               accent: summary.atRiskAgencies > 0 ? 'hsl(0 84% 60%)' : 'hsl(215 20% 55%)',
             },
@@ -398,7 +398,7 @@ export function RetentionPage() {
                           format={card.fmt}
                           className="text-2xl font-bold text-foreground mt-1 block font-data"
                         />
-                        {card.sub && <p className="text-xs text-muted-foreground/70 mt-0.5">{card.sub}</p>}
+                        {card.sub && <p className="text-xs text-muted-foreground mt-0.5">{card.sub}</p>}
                       </div>
                       <div className={`p-2.5 rounded-lg ${card.bg}`}>
                         <card.icon size={20} className={card.color} />
@@ -530,9 +530,9 @@ export function RetentionPage() {
                       >
                         <div className="col-span-2 flex items-center gap-1.5 min-w-0">
                           {isExpanded ? (
-                            <ChevronDown size={14} className="text-muted-foreground/50 flex-shrink-0" />
+                            <ChevronDown size={14} className="text-muted-foreground flex-shrink-0" />
                           ) : (
-                            <ChevronRight size={14} className="text-muted-foreground/50 flex-shrink-0" />
+                            <ChevronRight size={14} className="text-muted-foreground flex-shrink-0" />
                           )}
                           <span className="font-medium text-foreground truncate">
                             {agency.agency_name || agency.agency_id.slice(0, 12) + '…'}
@@ -557,7 +557,7 @@ export function RetentionPage() {
                           {agency.active_premium !== null ? fmt$(Number(agency.active_premium)) : '—'}
                         </span>
                         <span className={`text-right font-data self-center ${
-                          agency.at_risk_count > 0 ? 'text-red-400 font-medium' : 'text-muted-foreground/40'
+                          agency.at_risk_count > 0 ? 'text-red-400 font-medium' : 'text-muted-foreground'
                         }`}>
                           {agency.at_risk_count || '—'}
                         </span>

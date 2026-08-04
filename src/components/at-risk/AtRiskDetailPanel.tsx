@@ -223,7 +223,7 @@ export function AtRiskDetailPanel({ policy, onClose }: AtRiskDetailPanelProps) {
           {STAGE_LABELS[currentStage] || currentStage}
         </span>
         {policy.task_created_at && (
-          <p className="text-[10px] text-muted-foreground/60 mt-1">
+          <p className="text-[10px] text-muted-foreground mt-1">
             Task created {formatDateTime(policy.task_created_at)}
           </p>
         )}
@@ -236,7 +236,7 @@ export function AtRiskDetailPanel({ policy, onClose }: AtRiskDetailPanelProps) {
           Stage History
         </h4>
         {!policy.task_id ? (
-          <p className="text-xs text-muted-foreground/50 italic">
+          <p className="text-xs text-muted-foreground italic">
             No task created yet — policy hasn't entered the pipeline.
           </p>
         ) : loadingHistory ? (
@@ -245,7 +245,7 @@ export function AtRiskDetailPanel({ policy, onClose }: AtRiskDetailPanelProps) {
             <span className="text-xs text-muted-foreground">Loading history…</span>
           </div>
         ) : history.length === 0 ? (
-          <p className="text-xs text-muted-foreground/50 italic">
+          <p className="text-xs text-muted-foreground italic">
             No stage transitions recorded yet.
           </p>
         ) : (
@@ -271,18 +271,18 @@ export function AtRiskDetailPanel({ policy, onClose }: AtRiskDetailPanelProps) {
                           <span className={`text-[11px] font-medium ${fromColor.text}`}>
                             {STAGE_LABELS[entry.from_stage!] || entry.from_stage}
                           </span>
-                          <ArrowRight size={10} className="text-muted-foreground/40" />
+                          <ArrowRight size={10} className="text-muted-foreground" />
                         </>
                       )}
                       <span className={`text-[11px] font-semibold ${toColor.text}`}>
                         {STAGE_LABELS[entry.to_stage] || entry.to_stage}
                       </span>
                     </div>
-                    <p className="text-[10px] text-muted-foreground/50 mt-0.5">
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
                       {formatDateTime(entry.changed_at)}
                     </p>
                     {entry.note && (
-                      <p className="text-xs text-muted-foreground/80 mt-1 bg-secondary/30 rounded px-2 py-1">
+                      <p className="text-xs text-muted-foreground mt-1 bg-secondary/30 rounded px-2 py-1">
                         {entry.note}
                       </p>
                     )}
@@ -301,7 +301,7 @@ export function AtRiskDetailPanel({ policy, onClose }: AtRiskDetailPanelProps) {
           Notes & Communications
         </h4>
         {!policy.task_id ? (
-          <p className="text-xs text-muted-foreground/50 italic">
+          <p className="text-xs text-muted-foreground italic">
             No task created yet.
           </p>
         ) : loadingHistory ? (
@@ -310,7 +310,7 @@ export function AtRiskDetailPanel({ policy, onClose }: AtRiskDetailPanelProps) {
             <span className="text-xs text-muted-foreground">Loading notes…</span>
           </div>
         ) : notes.length === 0 ? (
-          <p className="text-xs text-muted-foreground/50 italic">
+          <p className="text-xs text-muted-foreground italic">
             No notes or communications yet.
           </p>
         ) : (
@@ -318,7 +318,7 @@ export function AtRiskDetailPanel({ policy, onClose }: AtRiskDetailPanelProps) {
             {notes.map(note => (
               <div key={note.id} className="bg-secondary/20 border border-border rounded-lg p-3">
                 <p className="text-xs text-foreground/90 whitespace-pre-wrap">{note.body}</p>
-                <p className="text-[10px] text-muted-foreground/50 mt-1.5">
+                <p className="text-[10px] text-muted-foreground mt-1.5">
                   {formatDateTime(note.created_at)}
                 </p>
               </div>

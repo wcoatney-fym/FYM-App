@@ -159,7 +159,7 @@ export function AttentionCard({ policy, showAgent = false, onActionChange, notes
             {' · '}
             {policy.status}
             {showAgent && policy.agent_writing_number && (
-              <span className="text-muted-foreground/50"> · Agent {policy.agent_writing_number}</span>
+              <span className="text-muted-foreground"> · Agent {policy.agent_writing_number}</span>
             )}
           </div>
         </div>
@@ -169,7 +169,7 @@ export function AttentionCard({ policy, showAgent = false, onActionChange, notes
           <div className="font-bold font-mono text-sm">
             ${Math.round(policy.plan_premium * 12).toLocaleString()}
           </div>
-          <div className="text-[10.5px] text-muted-foreground/50">annual</div>
+          <div className="text-[10.5px] text-muted-foreground">annual</div>
         </div>
 
         {/* Action buttons */}
@@ -220,7 +220,7 @@ export function AttentionCard({ policy, showAgent = false, onActionChange, notes
           </button>
         )}
 
-        <ChevronRight size={16} className="text-muted-foreground/30 flex-shrink-0" />
+        <ChevronRight size={16} className="text-muted-foreground flex-shrink-0" />
       </div>
 
       {/* Inline notes display */}
@@ -235,7 +235,7 @@ export function AttentionCard({ policy, showAgent = false, onActionChange, notes
             />
           ))}
           {notes.length > 2 && (
-            <div className="px-4 py-1 text-[10px] text-muted-foreground/50">
+            <div className="px-4 py-1 text-[10px] text-muted-foreground">
               +{notes.length - 2} more notes
             </div>
           )}

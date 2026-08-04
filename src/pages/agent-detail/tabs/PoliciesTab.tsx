@@ -131,7 +131,7 @@ export function PoliciesTab({ policies, agentId, writingNumber }: PoliciesTabPro
               ))}
             </div>
             <div className="relative w-40">
-              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/50" />
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search..."
                 value={search}
@@ -217,7 +217,7 @@ export function PoliciesTab({ policies, agentId, writingNumber }: PoliciesTabPro
                           )}
                         </span>
                         <span className={`text-center font-data text-xs ${
-                          p.draft_count >= 3 ? 'text-emerald-400' : p.draft_count > 0 ? 'text-foreground/70' : 'text-muted-foreground/40'
+                          p.draft_count >= 3 ? 'text-emerald-400' : p.draft_count > 0 ? 'text-foreground/70' : 'text-muted-foreground'
                         }`}>
                           {p.draft_count}
                         </span>
@@ -225,7 +225,7 @@ export function PoliciesTab({ policies, agentId, writingNumber }: PoliciesTabPro
                           {p.flag_type ? (
                             <span className="text-xs text-amber-400">{p.flag_type.replace(/_/g, ' ')}</span>
                           ) : (
-                            <span className="text-muted-foreground/30">—</span>
+                            <span className="text-muted-foreground">—</span>
                           )}
                         </span>
                       </div>

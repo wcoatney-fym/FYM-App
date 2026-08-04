@@ -111,7 +111,7 @@ export function SettingsPage() {
                 </span>
               )}
             </div>
-            <p className="text-xs text-muted-foreground/70">
+            <p className="text-xs text-muted-foreground">
               Credentials are stored in localStorage. They override .env values when set.
             </p>
           </CardContent>
@@ -279,7 +279,7 @@ function FymAdminManagementCard({ currentUserId }: { currentUserId: string | nul
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-xs text-muted-foreground/80">
+        <p className="text-xs text-muted-foreground">
           Users listed here get org-wide, unrestricted access regardless of their profile role.
         </p>
 
@@ -298,7 +298,7 @@ function FymAdminManagementCard({ currentUserId }: { currentUserId: string | nul
                   <p className="text-sm font-medium text-foreground">
                     {a.full_name ?? 'Unknown user'}
                   </p>
-                  <p className="text-xs text-muted-foreground/70">
+                  <p className="text-xs text-muted-foreground">
                     Added {new Date(a.created_at).toLocaleDateString()}
                     {a.added_by ? ` by ${a.added_by}` : ''}
                   </p>
@@ -400,7 +400,7 @@ function FymAdminManagementCard({ currentUserId }: { currentUserId: string | nul
               />
             </div>
           </div>
-          <p className="text-xs text-muted-foreground/70 mt-2">
+          <p className="text-xs text-muted-foreground mt-2">
             Account will be created with the standard FYM admin password.
           </p>
           <Button
@@ -497,7 +497,7 @@ function ViewAsCard() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-xs text-muted-foreground/80">
+        <p className="text-xs text-muted-foreground">
           Impersonate an agency admin, manager, or agent view to see exactly what
           they see. Data scoping is enforced automatically for the duration of the
           session.

@@ -142,7 +142,7 @@ export function NoteList({ notes, compact = false, onRefresh, emptyMessage }: No
   if (notes.length === 0 && emptyMessage) {
     return (
       <div className={compact ? 'px-4 py-2 bg-secondary/20 border-t border-border/30' : 'p-3'}>
-        <p className="text-xs text-muted-foreground/50 italic flex items-center gap-1.5">
+        <p className="text-xs text-muted-foreground italic flex items-center gap-1.5">
           <MessageSquare size={12} />
           {emptyMessage}
         </p>

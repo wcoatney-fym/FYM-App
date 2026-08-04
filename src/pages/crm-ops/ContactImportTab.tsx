@@ -401,7 +401,7 @@ export const ContactImportTab: React.FC = () => {
               </div>
               <div>
                 <p className="text-sm font-semibold text-foreground">Drop GHL export CSV here or click to browse</p>
-                <p className="text-xs text-muted-foreground/70 mt-1">Expected columns: Contact Id, First Name, Last Name, Phone, Email, Tags, Agent NPN</p>
+                <p className="text-xs text-muted-foreground mt-1">Expected columns: Contact Id, First Name, Last Name, Phone, Email, Tags, Agent NPN</p>
               </div>
             </div>
           )}
@@ -450,7 +450,7 @@ export const ContactImportTab: React.FC = () => {
               onChange={(e) => setCustomTag(e.target.value)}
               placeholder="Enter tag to apply (e.g. cancelled policy | launch)"
               disabled={tagApplied}
-              className="flex-1 px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-primary/60 disabled:bg-muted disabled:text-muted-foreground/70"
+              className="flex-1 px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-primary/60 disabled:bg-muted disabled:text-muted-foreground"
             />
             {!tagApplied ? (
               <button
@@ -607,7 +607,7 @@ export const ContactImportTab: React.FC = () => {
                           {row.tags ? (
                             <span className="text-xs text-primary bg-primary/5 px-1.5 py-0.5 rounded">{row.tags}</span>
                           ) : (
-                            <span className="text-xs text-muted-foreground/70">--</span>
+                            <span className="text-xs text-muted-foreground">--</span>
                           )}
                         </td>
                         <td className="px-3 py-2 text-foreground/80 font-medium whitespace-nowrap">{row.agentName}</td>

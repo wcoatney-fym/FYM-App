@@ -319,7 +319,7 @@ export const AgenciesTab: React.FC = () => {
                           <div>
                             <span className="font-semibold text-foreground">{agency.name}</span>
                             {parentName && (
-                              <p className="text-xs text-muted-foreground/70 mt-0.5">under {parentName}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5">under {parentName}</p>
                             )}
                           </div>
                           {agency.is_test && (
@@ -348,7 +348,7 @@ export const AgenciesTab: React.FC = () => {
                             <ExternalLink className="w-3 h-3" />
                           </a>
                         ) : (
-                          <span className="text-sm text-muted-foreground/70">--</span>
+                          <span className="text-sm text-muted-foreground">--</span>
                         )}
                       </td>
                       <td className="px-4 py-3.5 whitespace-nowrap">
@@ -368,7 +368,7 @@ export const AgenciesTab: React.FC = () => {
                           onClick={(e) => openCsrPanel(agency, e)}
                           className="text-sm text-muted-foreground hover:text-primary hover:underline transition-colors"
                         >
-                          {agency.assigned_csr || <span className="text-muted-foreground/70 italic">Unassigned</span>}
+                          {agency.assigned_csr || <span className="text-muted-foreground italic">Unassigned</span>}
                         </button>
                       </td>
                       <td className="px-4 py-3.5 whitespace-nowrap">
@@ -395,7 +395,7 @@ export const AgenciesTab: React.FC = () => {
                       <td className="px-4 py-3.5 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium text-foreground">{filledSeats[agency.name] || 0}</span>
-                          <span className="text-xs text-muted-foreground/70">/ 200</span>
+                          <span className="text-xs text-muted-foreground">/ 200</span>
                         </div>
                       </td>
                       <td className="px-4 py-3.5 whitespace-nowrap">
@@ -413,7 +413,7 @@ export const AgenciesTab: React.FC = () => {
                         </button>
                       </td>
                       <td className="px-4 py-3.5 whitespace-nowrap">
-                        <ChevronRight className="w-4 h-4 text-muted-foreground/70" />
+                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
                       </td>
                     </tr>
                   );
@@ -445,7 +445,7 @@ export const AgenciesTab: React.FC = () => {
                 </div>
               </div>
               <button onClick={() => setCsrPanelAgency(null)} className="p-1 rounded-lg hover:bg-secondary transition-colors">
-                <X className="w-5 h-5 text-muted-foreground/70" />
+                <X className="w-5 h-5 text-muted-foreground" />
               </button>
             </div>
 
@@ -498,7 +498,7 @@ export const AgenciesTab: React.FC = () => {
 
               <div className="w-1/2">
                 <label className="block text-sm font-medium text-foreground/80 mb-1">
-                  NPN <span className="text-muted-foreground/70 font-normal">(optional)</span>
+                  NPN <span className="text-muted-foreground font-normal">(optional)</span>
                 </label>
                 <input
                   type="text"
@@ -543,7 +543,7 @@ export const AgenciesTab: React.FC = () => {
                 </div>
               </div>
               <button onClick={() => setCrmPanelAgency(null)} className="p-1 rounded-lg hover:bg-secondary transition-colors">
-                <X className="w-5 h-5 text-muted-foreground/70" />
+                <X className="w-5 h-5 text-muted-foreground" />
               </button>
             </div>
 
@@ -558,7 +558,7 @@ export const AgenciesTab: React.FC = () => {
                 placeholder="e.g. 720-594-2854"
                 autoFocus
               />
-              <p className="mt-2 text-xs text-muted-foreground/70">This will auto-fill into all 200 roster rows for this agency.</p>
+              <p className="mt-2 text-xs text-muted-foreground">This will auto-fill into all 200 roster rows for this agency.</p>
             </div>
 
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border">

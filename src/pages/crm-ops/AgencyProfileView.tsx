@@ -224,7 +224,7 @@ export const AgencyProfileView: React.FC<AgencyProfileViewProps> = ({
                 </button>
               )}
               {agency.crm_number && (
-                <span className="text-xs text-muted-foreground/70">CRM #{formatPhoneDisplay(agency.crm_number)}</span>
+                <span className="text-xs text-muted-foreground">CRM #{formatPhoneDisplay(agency.crm_number)}</span>
               )}
             </div>
           </div>
@@ -377,7 +377,7 @@ const EditBusinessInfoModal: React.FC<{
               placeholder="dh-insurance"
               className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring/20 focus:border-primary outline-none"
             />
-            <p className="text-xs text-muted-foreground/70 mt-1">Used in the portal login URL</p>
+            <p className="text-xs text-muted-foreground mt-1">Used in the portal login URL</p>
           </div>
 
           <div>
@@ -421,7 +421,7 @@ const EditBusinessInfoModal: React.FC<{
               placeholder="https://book.agency.com/"
               className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring/20 focus:border-primary outline-none"
             />
-            <p className="text-xs text-muted-foreground/70 mt-1">Prefixed to agent booking links in the portal</p>
+            <p className="text-xs text-muted-foreground mt-1">Prefixed to agent booking links in the portal</p>
           </div>
 
           <div>
@@ -646,7 +646,7 @@ const SyncBusinessInfoModal: React.FC<{
               placeholder="wisechoice"
               className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring/20 focus:border-primary outline-none disabled:bg-muted"
             />
-            <p className="text-xs text-muted-foreground/70 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               Builds each seat's links: <span className="font-mono">{'{prefix}'}.my-agent-appt.com/r{'{seat}'}-click-to-schedule</span>
             </p>
           </div>
@@ -723,7 +723,7 @@ const SyncBusinessInfoModal: React.FC<{
                             ? 'text-emerald-400 font-medium'
                             : r.status === 'failed'
                             ? 'text-red-400 font-medium'
-                            : 'text-muted-foreground/70'
+                            : 'text-muted-foreground'
                         }
                       >
                         {r.status === 'success' ? 'Sent' : r.status === 'failed' ? 'Failed' : 'Pending'}
@@ -891,13 +891,13 @@ const OverviewTab: React.FC<{
                   <Wifi className="w-3.5 h-3.5" />
                   Connected
                   {ghlConfig.last_sync_at && (
-                    <span className="text-xs text-muted-foreground/70 ml-1">
+                    <span className="text-xs text-muted-foreground ml-1">
                       (synced {new Date(ghlConfig.last_sync_at).toLocaleDateString()})
                     </span>
                   )}
                 </span>
               ) : (
-                <span className="text-sm text-muted-foreground/70">Not connected</span>
+                <span className="text-sm text-muted-foreground">Not connected</span>
               )}
             </DetailRow>
           </div>
@@ -913,18 +913,18 @@ const OverviewTab: React.FC<{
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-foreground">{agency.assigned_csr}</p>
-                  {agency.csr_npn && <p className="text-xs text-muted-foreground/70">NPN: {agency.csr_npn}</p>}
+                  {agency.csr_npn && <p className="text-xs text-muted-foreground">NPN: {agency.csr_npn}</p>}
                 </div>
               </div>
               {agency.csr_phone && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Phone className="w-4 h-4 text-muted-foreground/70" />
+                  <Phone className="w-4 h-4 text-muted-foreground" />
                   {formatPhoneDisplay(agency.csr_phone)}
                 </div>
               )}
               {agency.csr_email && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Mail className="w-4 h-4 text-muted-foreground/70" />
+                  <Mail className="w-4 h-4 text-muted-foreground" />
                   {agency.csr_email}
                 </div>
               )}
@@ -932,7 +932,7 @@ const OverviewTab: React.FC<{
           ) : (
             <div className="flex flex-col items-center justify-center py-6 text-center">
               <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center mb-2">
-                <UserCheck className="w-5 h-5 text-muted-foreground/70" />
+                <UserCheck className="w-5 h-5 text-muted-foreground" />
               </div>
               <p className="text-sm text-muted-foreground">No CSR assigned</p>
               <button
@@ -1044,7 +1044,7 @@ const EditableDateCreatedRow: React.FC<{ agency: CrmAgency; onAgencyUpdated: (a:
               : '--'}
           </span>
           <button onClick={() => setEditing(true)} className="p-1 hover:bg-secondary rounded transition-colors">
-            <Pencil className="w-3.5 h-3.5 text-muted-foreground/70" />
+            <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
           </button>
         </div>
       )}
@@ -1089,7 +1089,7 @@ const EditableDbaClientCountRow: React.FC<{ agency: CrmAgency; onAgencyUpdated: 
         <div className="flex items-center gap-2">
           <span className="text-sm text-foreground">{(agency.dba_client_count || 0).toLocaleString()}</span>
           <button onClick={() => setEditing(true)} className="p-1 hover:bg-secondary rounded transition-colors">
-            <Pencil className="w-3.5 h-3.5 text-muted-foreground/70" />
+            <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
           </button>
         </div>
       )}
@@ -1103,7 +1103,7 @@ const QuickLink: React.FC<{ label: string; onClick: () => void }> = ({ label, on
     className="flex items-center justify-between px-4 py-3 bg-card rounded-lg border border-border hover:border-primary/30 hover:shadow-none transition-all text-sm font-medium text-foreground/80 group"
   >
     {label}
-    <ChevronRight className="w-4 h-4 text-muted-foreground/70 group-hover:text-primary transition-colors" />
+    <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
   </button>
 );
 
@@ -1190,7 +1190,7 @@ const PortalSettingsCard: React.FC<{
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/70 hover:text-muted-foreground"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground"
                 >
                   {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                 </button>
@@ -1514,7 +1514,7 @@ const BackfillRow: React.FC<{
               className="p-1 hover:bg-secondary rounded transition-colors disabled:opacity-50 mt-0.5"
               aria-label="Cancel"
             >
-              <X className="w-4 h-4 text-muted-foreground/70" />
+              <X className="w-4 h-4 text-muted-foreground" />
             </button>
           </>
         ) : (
@@ -1525,7 +1525,7 @@ const BackfillRow: React.FC<{
               className="p-1 hover:bg-secondary rounded transition-colors mt-0.5"
               aria-label={`Edit ${label}`}
             >
-              <Pencil className="w-3.5 h-3.5 text-muted-foreground/70" />
+              <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
             </button>
           </>
         )}
@@ -1812,7 +1812,7 @@ const AdminTicketsTab: React.FC<{ agencyId: string; agencyName: string }> = ({ a
 
       {tickets.length === 0 ? (
         <div className="glass rounded-xl p-12 text-center">
-          <MessageSquareText className="w-10 h-10 text-muted-foreground/60 mx-auto mb-3" />
+          <MessageSquareText className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
           <p className="text-muted-foreground text-sm">No tickets submitted by this agency yet.</p>
         </div>
       ) : (
@@ -1835,7 +1835,7 @@ const AdminTicketsTab: React.FC<{ agencyId: string; agencyName: string }> = ({ a
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground line-clamp-1 mb-2">{ticket.description}</p>
-                <div className="flex items-center gap-3 text-[10px] text-muted-foreground/70">
+                <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
                   <span className={`px-1.5 py-0.5 rounded font-medium ${priority.color}`}>{priority.label}</span>
                   <span>{TICKET_CATEGORY_LABELS[ticket.category] || ticket.category}</span>
                   <span>{ticketTimeAgo(ticket.created_at)}</span>
@@ -1968,7 +1968,7 @@ const AdminTicketDetail: React.FC<{
               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
             </div>
           ) : messages.length === 0 ? (
-            <div className="px-6 py-8 text-center text-sm text-muted-foreground/70">No replies yet.</div>
+            <div className="px-6 py-8 text-center text-sm text-muted-foreground">No replies yet.</div>
           ) : (
             messages.map((msg) => {
               const isAdmin = msg.sender_type === 'admin';
@@ -1979,8 +1979,8 @@ const AdminTicketDetail: React.FC<{
                       {isAdmin ? <ShieldCheck className="w-3 h-3 text-primary" /> : <User className="w-3 h-3 text-muted-foreground" />}
                     </div>
                     <span className={`text-sm font-medium ${isAdmin ? 'text-primary' : 'text-foreground'}`}>{msg.sender_name}</span>
-                    <span className="text-[10px] text-muted-foreground/70 font-medium uppercase">{isAdmin ? 'Admin' : agencyName}</span>
-                    <span className="text-xs text-muted-foreground/70 ml-auto">{ticketTimeAgo(msg.created_at)}</span>
+                    <span className="text-[10px] text-muted-foreground font-medium uppercase">{isAdmin ? 'Admin' : agencyName}</span>
+                    <span className="text-xs text-muted-foreground ml-auto">{ticketTimeAgo(msg.created_at)}</span>
                   </div>
                   <p className="text-sm text-foreground/80 whitespace-pre-wrap pl-8">{msg.message}</p>
                 </div>

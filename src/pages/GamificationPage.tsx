@@ -449,10 +449,10 @@ export function GamificationPage() {
             ) : battles.length === 0 ? (
               <Card className="border-border">
                 <CardContent className="py-16 text-center">
-                  <Swords size={32} className="mx-auto text-muted-foreground/40 mb-3" />
+                  <Swords size={32} className="mx-auto text-muted-foreground mb-3" />
                   <p className="text-muted-foreground">No battles yet.</p>
                   {canCreate && (
-                    <p className="text-sm text-muted-foreground/70 mt-1">
+                    <p className="text-sm text-muted-foreground mt-1">
                       Head to <button onClick={() => setTab('create')} className="text-primary hover:underline">Create New</button> to start one.
                     </p>
                   )}
@@ -480,7 +480,7 @@ export function GamificationPage() {
                           </div>
                           {statusBadge(battle.status)}
                         </div>
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground/80 mt-2">
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
                           <span className="flex items-center gap-1">
                             <MetricIcon size={12} />
                             {metricLabel(battle.metric)}
@@ -499,7 +499,7 @@ export function GamificationPage() {
                       </CardHeader>
                       <CardContent className="pt-0 space-y-3">
                         {participants.length === 0 ? (
-                          <p className="text-xs text-muted-foreground/60 py-4 text-center">No participants added yet.</p>
+                          <p className="text-xs text-muted-foreground py-4 text-center">No participants added yet.</p>
                         ) : (
                           participants.map(p => (
                             <div key={p.id}>
@@ -583,10 +583,10 @@ export function GamificationPage() {
             ) : challenges.length === 0 ? (
               <Card className="border-border">
                 <CardContent className="py-16 text-center">
-                  <Target size={32} className="mx-auto text-muted-foreground/40 mb-3" />
+                  <Target size={32} className="mx-auto text-muted-foreground mb-3" />
                   <p className="text-muted-foreground">No challenges yet.</p>
                   {canCreate && (
-                    <p className="text-sm text-muted-foreground/70 mt-1">
+                    <p className="text-sm text-muted-foreground mt-1">
                       Head to <button onClick={() => setTab('create')} className="text-primary hover:underline">Create New</button> to set one up.
                     </p>
                   )}
@@ -615,7 +615,7 @@ export function GamificationPage() {
                           </div>
                           {statusBadge(challenge.status)}
                         </div>
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground/80 mt-2 flex-wrap">
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2 flex-wrap">
                           <span className="flex items-center gap-1">
                             <MetricIcon size={12} />
                             {metricLabel(challenge.metric)}
@@ -624,7 +624,7 @@ export function GamificationPage() {
                             <Calendar size={12} />
                             {dateRange(challenge.start_date, challenge.end_date)}
                           </span>
-                          <span className="uppercase tracking-wide text-[10px] text-muted-foreground/60">
+                          <span className="uppercase tracking-wide text-[10px] text-muted-foreground">
                             {challenge.challenge_type === 'org_wide' ? 'Org-Wide' : 'Agency-Specific'}
                           </span>
                         </div>
@@ -660,7 +660,7 @@ export function GamificationPage() {
                               {participants.slice(0, 5).map((p, i) => (
                                 <div key={p.id} className="flex items-center justify-between text-xs">
                                   <span className="flex items-center gap-1.5 text-foreground/80 truncate">
-                                    <span className="text-muted-foreground/50 font-data w-4">{i + 1}.</span>
+                                    <span className="text-muted-foreground font-data w-4">{i + 1}.</span>
                                     {p.display_name}
                                   </span>
                                   <span className="font-data text-muted-foreground">

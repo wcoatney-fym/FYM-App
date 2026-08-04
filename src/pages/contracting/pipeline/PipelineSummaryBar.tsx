@@ -122,9 +122,9 @@ export function PipelineSummaryBar({ records, stageSteps }: PipelineSummaryBarPr
             </span>
           )}
           {collapsed ? (
-            <ChevronDown className="w-4 h-4 text-muted-foreground/70" />
+            <ChevronDown className="w-4 h-4 text-muted-foreground" />
           ) : (
-            <ChevronUp className="w-4 h-4 text-muted-foreground/70" />
+            <ChevronUp className="w-4 h-4 text-muted-foreground" />
           )}
         </div>
       </button>

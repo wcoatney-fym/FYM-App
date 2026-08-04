@@ -1064,7 +1064,7 @@ const RosterTableView: React.FC<RosterTableViewProps> = ({
             Back
           </button>
           <div className="flex items-center gap-3">
-            <FileSpreadsheet className="w-6 h-6 text-muted-foreground/70" />
+            <FileSpreadsheet className="w-6 h-6 text-muted-foreground" />
             <div>
               <h2 className={`text-xl font-bold ${AGENCY_COLORS[upload.agency] || 'text-foreground'}`}>
                 {upload.agency} CRM Roster
@@ -1182,7 +1182,7 @@ const RosterTableView: React.FC<RosterTableViewProps> = ({
       <div className="bg-card rounded-lg shadow-none border border-border p-4 mb-4">
         <div className="flex items-center justify-between gap-4">
           <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/70" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input
               type="text"
               placeholder="Search across all columns..."
@@ -1231,7 +1231,7 @@ const RosterTableView: React.FC<RosterTableViewProps> = ({
               ) : (
                 rows.map((row, idx) => (
                   <tr key={row.id} className={`transition-colors ${row.row_data['CSR Placeholder'] === 'true' ? 'bg-amber-500/10 hover:bg-amber-500/20' : 'hover:bg-muted'}`}>
-                    <td className="px-4 py-3 text-sm text-muted-foreground/70 whitespace-nowrap">
+                    <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">
                       {page * PAGE_SIZE + idx + 1}
                     </td>
                     {upload.headers.map((header) => (
@@ -1265,7 +1265,7 @@ const RosterTableView: React.FC<RosterTableViewProps> = ({
                                   : rowZapResults[row.id] === 'failed'
                                   ? 'text-red-500 bg-red-500/10'
                                   : rowZapResults[row.id] === 'paused'
-                                  ? 'text-muted-foreground/70 bg-muted'
+                                  ? 'text-muted-foreground bg-muted'
                                   : 'text-amber-500 hover:bg-amber-500/10'
                               } disabled:opacity-50 disabled:cursor-not-allowed`}
                               aria-label="Send row to Zap"

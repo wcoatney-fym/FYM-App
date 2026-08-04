@@ -647,7 +647,7 @@ function DetailField({
         className={`text-sm mt-0.5 ${
           mono ? 'font-mono' : ''
         } ${highlight ? 'text-amber-400 font-medium' : 'text-foreground'} ${
-          !value ? 'text-muted-foreground/50 italic' : ''
+          !value ? 'text-muted-foreground italic' : ''
         }`}
       >
         {value || '—'}

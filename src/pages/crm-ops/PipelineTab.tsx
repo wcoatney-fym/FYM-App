@@ -600,7 +600,7 @@ export const PipelineTab: React.FC = () => {
                 Notes - {notesModal.first_name} {notesModal.last_name}
               </h2>
               <button onClick={() => setNotesModal(null)} className="p-1 hover:bg-secondary rounded transition-colors">
-                <X className="w-5 h-5 text-muted-foreground/70" />
+                <X className="w-5 h-5 text-muted-foreground" />
               </button>
             </div>
             <div className="px-6 py-5">
@@ -637,7 +637,7 @@ export const PipelineTab: React.FC = () => {
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <h2 className="text-lg font-bold text-red-400">Delete Contact</h2>
               <button onClick={() => setDeleteConfirm(null)} className="p-1 hover:bg-secondary rounded transition-colors">
-                <X className="w-5 h-5 text-muted-foreground/70" />
+                <X className="w-5 h-5 text-muted-foreground" />
               </button>
             </div>
             <div className="px-6 py-5">
@@ -732,7 +732,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ records, loading, search, onS
     <div className="space-y-4">
       <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/70" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             type="text"
             value={search}
@@ -748,7 +748,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ records, loading, search, onS
 
       {sortedAgencies.length === 0 ? (
         <div className="text-center py-12">
-          <Archive className="w-8 h-8 text-muted-foreground/60 mx-auto mb-3" />
+          <Archive className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
           <p className="text-sm text-muted-foreground">No history records found</p>
         </div>
       ) : (
@@ -1033,14 +1033,14 @@ const TaskSection: React.FC<TaskSectionProps> = ({
               <div className="flex items-center gap-2 flex-shrink-0">
                 <button
                   onClick={() => onOpenNotes(record)}
-                  className="p-2 text-muted-foreground/70 hover:text-muted-foreground hover:bg-secondary rounded-lg transition-colors"
+                  className="p-2 text-muted-foreground hover:text-muted-foreground hover:bg-secondary rounded-lg transition-colors"
                   title="Notes"
                 >
                   <MessageSquare className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => onDelete(record)}
-                  className="p-2 text-muted-foreground/70 hover:text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"
+                  className="p-2 text-muted-foreground hover:text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"
                   title="Delete"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -1099,14 +1099,14 @@ const PipelineCard: React.FC<PipelineCardProps> = ({ record, onAdvance, onRegres
         <div className="flex items-center gap-0.5 flex-shrink-0">
           <button
             onClick={onOpenNotes}
-            className={`p-1 text-muted-foreground/70 hover:text-muted-foreground rounded transition-colors ${record.notes ? 'text-primary' : ''}`}
+            className={`p-1 text-muted-foreground hover:text-muted-foreground rounded transition-colors ${record.notes ? 'text-primary' : ''}`}
             title="Notes"
           >
             <MessageSquare className={compact ? 'w-3 h-3' : 'w-4 h-4'} />
           </button>
           <button
             onClick={onDelete}
-            className="p-1 text-muted-foreground/70 hover:text-red-400 rounded transition-colors"
+            className="p-1 text-muted-foreground hover:text-red-400 rounded transition-colors"
             title="Delete"
           >
             <Trash2 className={compact ? 'w-3 h-3' : 'w-4 h-4'} />
@@ -1123,7 +1123,7 @@ const PipelineCard: React.FC<PipelineCardProps> = ({ record, onAdvance, onRegres
       </div>
 
       {record.notes && (
-        <p className={`text-muted-foreground/70 italic truncate mb-2 ${compact ? 'text-[10px]' : 'text-xs'}`}>{record.notes}</p>
+        <p className={`text-muted-foreground italic truncate mb-2 ${compact ? 'text-[10px]' : 'text-xs'}`}>{record.notes}</p>
       )}
 
       {isProcessing && <CountdownBadge record={record} compact={compact} />}
@@ -1251,7 +1251,7 @@ const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ record, agent, subm
 
           <div>
             <h3 className="text-sm font-semibold text-foreground/80 mb-3 flex items-center gap-2">
-              <Clock className="w-4 h-4 text-muted-foreground/70" />
+              <Clock className="w-4 h-4 text-muted-foreground" />
               Pipeline Timeline
             </h3>
             <div className="bg-muted rounded-lg border border-border divide-y divide-border">
@@ -1268,7 +1268,7 @@ const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ record, agent, subm
           {record.notes && (
             <div>
               <h3 className="text-sm font-semibold text-foreground/80 mb-2 flex items-center gap-2">
-                <MessageSquare className="w-4 h-4 text-muted-foreground/70" />
+                <MessageSquare className="w-4 h-4 text-muted-foreground" />
                 Notes
               </h3>
               <p className="text-sm text-muted-foreground bg-muted rounded-lg border border-border p-3 whitespace-pre-wrap">
@@ -1287,7 +1287,7 @@ const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ record, agent, subm
           {agent && (
             <div>
               <h3 className="text-sm font-semibold text-foreground/80 mb-3 flex items-center gap-2">
-                <FileText className="w-4 h-4 text-muted-foreground/70" />
+                <FileText className="w-4 h-4 text-muted-foreground" />
                 Linked Agent Record
               </h3>
               <div className="bg-muted rounded-lg border border-border p-4">
@@ -1316,7 +1316,7 @@ const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ record, agent, subm
           {submission && (
             <div>
               <h3 className="text-sm font-semibold text-foreground/80 mb-3 flex items-center gap-2">
-                <ExternalLink className="w-4 h-4 text-muted-foreground/70" />
+                <ExternalLink className="w-4 h-4 text-muted-foreground" />
                 Form Submission
               </h3>
               <div className="bg-muted rounded-lg border border-border p-4">
@@ -1341,7 +1341,7 @@ const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ record, agent, subm
                     <div className="col-span-2">
                       <span className="text-muted-foreground text-xs">Address</span>
                       <p className="font-medium text-foreground flex items-center gap-1">
-                        <MapPin className="w-3 h-3 text-muted-foreground/70 flex-shrink-0" />
+                        <MapPin className="w-3 h-3 text-muted-foreground flex-shrink-0" />
                         {submission.address}, {submission.city}, {submission.state} {submission.postal_code}
                       </p>
                     </div>
@@ -1366,11 +1366,11 @@ const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ record, agent, subm
           )}
 
           {!loading && !agent && record.agent_id && (
-            <p className="text-sm text-muted-foreground/70 italic">Linked agent record not found.</p>
+            <p className="text-sm text-muted-foreground italic">Linked agent record not found.</p>
           )}
 
           {!record.agent_id && (
-            <p className="text-sm text-muted-foreground/70 italic">No linked agent record for this pipeline entry.</p>
+            <p className="text-sm text-muted-foreground italic">No linked agent record for this pipeline entry.</p>
           )}
         </div>
       </div>
@@ -1380,7 +1380,7 @@ const AgentDetailModal: React.FC<AgentDetailModalProps> = ({ record, agent, subm
 
 const DetailField: React.FC<{ icon: React.FC<{ className?: string }>; label: string; value: string }> = ({ icon: Icon, label, value }) => (
   <div className="flex items-start gap-2.5">
-    <Icon className="w-4 h-4 text-muted-foreground/70 mt-0.5 flex-shrink-0" />
+    <Icon className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
     <div className="min-w-0">
       <p className="text-[11px] text-muted-foreground leading-tight">{label}</p>
       <p className="text-sm font-medium text-foreground truncate">{value}</p>
@@ -1391,7 +1391,7 @@ const DetailField: React.FC<{ icon: React.FC<{ className?: string }>; label: str
 const TimelineRow: React.FC<{ label: string; value: string }> = ({ label, value }) => (
   <div className="flex items-center justify-between px-4 py-2.5">
     <span className="text-xs text-muted-foreground">{label}</span>
-    <span className={`text-xs font-medium ${value === '--' ? 'text-muted-foreground/60' : 'text-foreground'}`}>{value}</span>
+    <span className={`text-xs font-medium ${value === '--' ? 'text-muted-foreground' : 'text-foreground'}`}>{value}</span>
   </div>
 );
 
@@ -1454,7 +1454,7 @@ const TerminationLogView: React.FC<{
                 <td className="px-5 py-3.5 text-muted-foreground text-xs">
                   {new Date(record.terminated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   {' '}
-                  <span className="text-muted-foreground/70">
+                  <span className="text-muted-foreground">
                     {new Date(record.terminated_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                   </span>
                 </td>

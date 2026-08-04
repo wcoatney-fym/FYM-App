@@ -17,7 +17,7 @@ const skillDisplay: Record<string, string> = {
   recruiting: 'recruiting', retention: 'retention', ghl: 'GHL',
 };
 const confidenceStyle: Record<string, string> = {
-  low: 'bg-slate-400/10 text-muted-foreground/70 border-slate-400/20',
+  low: 'bg-slate-400/10 text-muted-foreground border-slate-400/20',
   medium: 'bg-sky-400/10 text-sky-300 border-sky-400/20',
   high: 'bg-emerald-400/10 text-emerald-300 border-emerald-400/20',
 };
@@ -49,7 +49,7 @@ export function CcTeamTab() {
   if (members.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-center">
-        <Users className="w-12 h-12 text-muted-foreground/30 mb-4" />
+        <Users className="w-12 h-12 text-muted-foreground mb-4" />
         <h2 className="text-lg font-semibold mb-2">Team & Roles</h2>
         <p className="text-sm text-muted-foreground">No team members found.</p>
       </div>

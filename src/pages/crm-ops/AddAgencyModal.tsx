@@ -127,7 +127,7 @@ export const AddAgencyModal: React.FC<AddAgencyModalProps> = ({ onClose, onSucce
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="text-lg font-bold text-primary">Add New Agency</h2>
           <button onClick={onClose} className="p-1 hover:bg-secondary rounded transition-colors">
-            <X className="w-5 h-5 text-muted-foreground/70" />
+            <X className="w-5 h-5 text-muted-foreground" />
           </button>
         </div>
 
@@ -152,7 +152,7 @@ export const AddAgencyModal: React.FC<AddAgencyModalProps> = ({ onClose, onSucce
               onChange={(e) => setDateCreated(e.target.value)}
               className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm"
             />
-            <p className="text-xs text-muted-foreground/70 mt-1">Backdate if the account was created before today.</p>
+            <p className="text-xs text-muted-foreground mt-1">Backdate if the account was created before today.</p>
           </div>
 
           <label className="flex items-center gap-2.5 cursor-pointer group">
@@ -217,7 +217,7 @@ export const AddAgencyModal: React.FC<AddAgencyModalProps> = ({ onClose, onSucce
           {name.trim() && (
             <div className="bg-muted rounded-lg border border-border p-3 space-y-1">
               <div className="flex items-center gap-2 text-xs">
-                <Link2 className="w-3.5 h-3.5 text-muted-foreground/70" />
+                <Link2 className="w-3.5 h-3.5 text-muted-foreground" />
                 <span className="text-muted-foreground">Portal URL:</span>
                 <span className="font-mono font-medium text-primary">/{generateSlug(name.trim())}</span>
               </div>
@@ -228,7 +228,7 @@ export const AddAgencyModal: React.FC<AddAgencyModalProps> = ({ onClose, onSucce
             </div>
           )}
 
-          <p className="text-xs text-muted-foreground/70">
+          <p className="text-xs text-muted-foreground">
             {existingAgency
               ? 'The agency will skip onboarding and zaps will be paused until you manually enable them after backfilling data.'
               : agencyType === 'sub'

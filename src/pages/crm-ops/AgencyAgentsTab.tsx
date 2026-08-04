@@ -86,7 +86,7 @@ export const AgencyAgentsTab: React.FC<AgencyAgentsTabProps> = ({ agencyName }) 
     <div className="space-y-5">
       <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/70" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             type="text"
             placeholder="Search agents..."
@@ -135,7 +135,7 @@ export const AgencyAgentsTab: React.FC<AgencyAgentsTabProps> = ({ agencyName }) 
                           {pipeline.stage.replace(/-/g, ' ')}
                         </span>
                       ) : (
-                        <span className="text-xs text-muted-foreground/70">Not in pipeline</span>
+                        <span className="text-xs text-muted-foreground">Not in pipeline</span>
                       )}
                     </td>
                   </tr>
@@ -144,7 +144,7 @@ export const AgencyAgentsTab: React.FC<AgencyAgentsTabProps> = ({ agencyName }) 
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center">
-                    <Users className="w-8 h-8 text-muted-foreground/60 mx-auto mb-2" />
+                    <Users className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
                     <p className="text-sm text-muted-foreground">
                       {agents.length === 0 ? 'No agents found for this agency' : 'No agents match your search'}
                     </p>

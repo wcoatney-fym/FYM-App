@@ -122,7 +122,7 @@ export const AgencyAssetsTab: React.FC<AgencyAssetsTabProps> = ({ agencyName }) 
 
         {rosterUploads.length === 0 ? (
           <div className="py-6 text-center">
-            <FileSpreadsheet className="w-8 h-8 text-muted-foreground/60 mx-auto mb-2" />
+            <FileSpreadsheet className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
             <p className="text-sm text-muted-foreground">No roster uploads yet</p>
           </div>
         ) : (
@@ -164,7 +164,7 @@ export const AgencyAssetsTab: React.FC<AgencyAssetsTabProps> = ({ agencyName }) 
 
         {dbaUploads.length === 0 ? (
           <div className="py-6 text-center">
-            <Database className="w-8 h-8 text-muted-foreground/60 mx-auto mb-2" />
+            <Database className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
             <p className="text-sm text-muted-foreground">No DBA uploads yet</p>
           </div>
         ) : (

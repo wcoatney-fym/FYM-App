@@ -25,7 +25,7 @@ export function CcAgencyHealthTab() {
   if (!configured) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-center">
-        <Target className="w-12 h-12 text-muted-foreground/30 mb-4" />
+        <Target className="w-12 h-12 text-muted-foreground mb-4" />
         <h2 className="text-lg font-semibold mb-2">Tyler Deployment Board</h2>
         <p className="text-sm text-muted-foreground max-w-md">
           Live tracker not connected. Set <code className="text-primary">VITE_SUPABASE_URL_ACTIVITY_TRACKER</code> and{' '}

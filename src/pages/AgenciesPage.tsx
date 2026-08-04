@@ -26,7 +26,7 @@ interface AgencyRow {
 }
 
 function retentionColor(pct: number | null) {
-  if (pct === null) return 'text-muted-foreground/70';
+  if (pct === null) return 'text-muted-foreground';
   if (pct >= 90) return 'text-emerald-400 font-semibold';
   if (pct >= 85) return 'text-amber-400 font-semibold';
   return 'text-red-400 font-bold';
@@ -129,7 +129,7 @@ export function AgenciesPage() {
                         format={c.fmt}
                         className={`text-2xl font-bold mt-0.5 block ${c.color ?? 'text-foreground'}`}
                       />
-                      <p className="text-xs text-muted-foreground/70 mt-0.5">{c.sub}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{c.sub}</p>
                     </div>
                     <div className="p-2 rounded-lg bg-cyan-500/10">
                       <Building2 size={18} className="text-primary" />
@@ -146,7 +146,7 @@ export function AgenciesPage() {
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <CardTitle className="text-base font-semibold text-foreground">Agency Directory</CardTitle>
               <div className="relative w-full sm:w-64">
-                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/70" />
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="Search agency…"
                   value={search}
@@ -183,9 +183,9 @@ export function AgenciesPage() {
                     >
                       <TableCell>
                         <div className="font-medium text-foreground">
-                          {r.name ?? <span className="font-data text-xs text-muted-foreground/70">{r.agency_id.slice(0, 8)}…</span>}
+                          {r.name ?? <span className="font-data text-xs text-muted-foreground">{r.agency_id.slice(0, 8)}…</span>}
                         </div>
-                        {r.slug && <div className="text-xs text-muted-foreground/70">{r.slug}</div>}
+                        {r.slug && <div className="text-xs text-muted-foreground">{r.slug}</div>}
                       </TableCell>
                       <TableCell className="text-right font-medium text-foreground/80 font-data">
                         {r.active_policies.toLocaleString()}
@@ -194,12 +194,12 @@ export function AgenciesPage() {
                         {fmt$(r.active_premium)}
                       </TableCell>
                       <TableCell className="text-right">
-                        <span className={r.at_risk_count > 0 ? 'text-red-400 font-semibold' : 'text-muted-foreground/70'}>
+                        <span className={r.at_risk_count > 0 ? 'text-red-400 font-semibold' : 'text-muted-foreground'}>
                           {r.at_risk_count || '—'}
                         </span>
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground">
-                        {r.eligible_90d > 0 ? r.eligible_90d.toLocaleString() : <span className="text-muted-foreground/40">—</span>}
+                        {r.eligible_90d > 0 ? r.eligible_90d.toLocaleString() : <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell className={`text-right ${retentionColor(r.retention_pct)}`}>
                         {r.retention_pct !== null ? `${r.retention_pct}%` : '—'}
@@ -209,14 +209,14 @@ export function AgenciesPage() {
                       </TableCell>
                       <TableCell className="text-center">
                         <Link to={`/agencies/${r.agency_id}`}>
-                          <ChevronRight size={16} className="text-muted-foreground/70 hover:text-primary transition-colors" />
+                          <ChevronRight size={16} className="text-muted-foreground hover:text-primary transition-colors" />
                         </Link>
                       </TableCell>
                     </TableRow>
                   ))}
                   {filtered.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-10 text-muted-foreground/70">
+                      <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
                         {rows.length === 0 ? 'No agency data yet — sync policy cache to populate.' : 'No agencies match your search.'}
                       </TableCell>
                     </TableRow>

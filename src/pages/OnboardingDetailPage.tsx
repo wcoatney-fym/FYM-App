@@ -218,7 +218,7 @@ export function OnboardingDetailPage() {
                       {done ? (
                         <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
                       ) : (
-                        <Circle className="w-4 h-4 text-muted-foreground/30 flex-shrink-0 mt-0.5" />
+                        <Circle className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                       )}
                       <span className={`text-sm ${done ? 'text-muted-foreground line-through' : ''}`}>
                         {task.label}

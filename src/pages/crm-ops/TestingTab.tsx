@@ -335,7 +335,7 @@ const StepperBar: React.FC<{ agency: CrmAgency; currentIdx: number }> = ({ agenc
                     ? 'bg-amber-400/10 text-amber-400 ring-2 ring-amber-300'
                     : state === 'active'
                     ? 'gradient-primary text-background ring-2 ring-primary/20'
-                    : 'bg-secondary text-muted-foreground/70'
+                    : 'bg-secondary text-muted-foreground'
                 }`}
               >
                 {state === 'complete' ? (
@@ -357,12 +357,12 @@ const StepperBar: React.FC<{ agency: CrmAgency; currentIdx: number }> = ({ agenc
                       ? 'text-amber-400'
                       : state === 'active'
                       ? 'text-primary'
-                      : 'text-muted-foreground/70'
+                      : 'text-muted-foreground'
                   }`}
                 >
                   {step.label}
                 </p>
-                <p className="text-xs text-muted-foreground/70">
+                <p className="text-xs text-muted-foreground">
                   {state === 'complete'
                     ? 'Confirmed'
                     : state === 'awaiting'
@@ -399,11 +399,11 @@ const StepCard: React.FC<{
       <div className="bg-muted rounded-xl border border-border p-5 opacity-60">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-secondary/80 flex items-center justify-center">
-            <Lock className="w-4 h-4 text-muted-foreground/70" />
+            <Lock className="w-4 h-4 text-muted-foreground" />
           </div>
           <div className="flex-1">
             <h3 className="font-semibold text-muted-foreground">Step {idx + 1}: {step.label}</h3>
-            <p className="text-xs text-muted-foreground/70">Locked until previous step is confirmed</p>
+            <p className="text-xs text-muted-foreground">Locked until previous step is confirmed</p>
           </div>
         </div>
       </div>

@@ -337,7 +337,7 @@ export function PipelineBoard() {
       {/* Toolbar */}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/70" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             type="text"
             value={search}
@@ -347,7 +347,7 @@ export function PipelineBoard() {
           />
         </div>
         <div className="relative">
-          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/70" />
+          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <select
             value={agencyFilter}
             onChange={(e) => setAgencyFilter(e.target.value)}
@@ -469,7 +469,7 @@ export function PipelineBoard() {
                       }`}
                     >
                       <div className="flex items-start gap-2">
-                        <User className="w-3.5 h-3.5 text-muted-foreground/70 mt-0.5 flex-shrink-0" />
+                        <User className="w-3.5 h-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
                         <span className="text-sm font-semibold text-foreground line-clamp-2 leading-tight flex-1">
                           {record.agent_name || 'Unnamed'}
                         </span>
@@ -497,7 +497,7 @@ export function PipelineBoard() {
                         ) : null)}
                       {record.agency && (
                         <div className="flex items-center gap-1.5 mt-2">
-                          <Building2 className="w-3 h-3 text-muted-foreground/70" />
+                          <Building2 className="w-3 h-3 text-muted-foreground" />
                           <span className="text-[11px] text-muted-foreground truncate">
                             {record.agency}
                           </span>
@@ -514,7 +514,7 @@ export function PipelineBoard() {
                             </span>
                           ))}
                           {record.tags.length > 3 && (
-                            <span className="text-[10px] text-muted-foreground/70">
+                            <span className="text-[10px] text-muted-foreground">
                               +{record.tags.length - 3}
                             </span>
                           )}
@@ -522,8 +522,8 @@ export function PipelineBoard() {
                       )}
                       <div className="flex items-center justify-between mt-2">
                         <div className="flex items-center gap-1 flex-wrap gap-y-0.5">
-                          <Clock className="w-3 h-3 text-muted-foreground/70" />
-                          <span className="text-[11px] text-muted-foreground/70">
+                          <Clock className="w-3 h-3 text-muted-foreground" />
+                          <span className="text-[11px] text-muted-foreground">
                             {timeAgo(record.stage_entered_at)}
                           </span>
                           {record.updated_by_source && (
@@ -574,7 +574,7 @@ export function PipelineBoard() {
                   );
                 })}
                 {col.records.length === 0 && (
-                  <div className="text-center py-6 text-xs text-muted-foreground/70">
+                  <div className="text-center py-6 text-xs text-muted-foreground">
                     No agents
                   </div>
                 )}

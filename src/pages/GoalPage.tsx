@@ -537,7 +537,7 @@ export function GoalPage() {
                             {fmtCurrency(goal.target_ap)}
                           </p>
                         ) : (
-                          <p className="text-xs text-muted-foreground/50 mt-1">—</p>
+                          <p className="text-xs text-muted-foreground mt-1">—</p>
                         )}
                         {isCurrent && goal && (
                           <div className="mt-1.5">

@@ -50,7 +50,7 @@ interface AgencySummaryRow {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function retentionColor(pct: number | null) {
-  if (pct === null) return 'text-muted-foreground/70';
+  if (pct === null) return 'text-muted-foreground';
   if (pct >= 90) return 'text-emerald-400';
   if (pct >= 85) return 'text-amber-400';
   return 'text-red-400';
@@ -253,7 +253,7 @@ export function AdminFinancialsPage() {
               fmt: (n: number) => fmt$(n),
               sub: `${stats.totalAtRisk} policies flagged`,
               icon: ShieldAlert,
-              color: stats.totalAtRisk > 0 ? 'text-red-400' : 'text-muted-foreground/70',
+              color: stats.totalAtRisk > 0 ? 'text-red-400' : 'text-muted-foreground',
               bg: stats.totalAtRisk > 0 ? 'bg-red-500/10' : 'bg-secondary',
             },
             {
@@ -262,7 +262,7 @@ export function AdminFinancialsPage() {
               fmt: (n: number) => stats.blendedRetention !== null ? `${n.toFixed(1)}%` : '—',
               sub: '90-day, all products',
               icon: TrendingDown,
-              color: stats.blendedRetention !== null ? retentionColor(stats.blendedRetention) : 'text-muted-foreground/70',
+              color: stats.blendedRetention !== null ? retentionColor(stats.blendedRetention) : 'text-muted-foreground',
               bg: stats.blendedRetention !== null && stats.blendedRetention >= 90 ? 'bg-emerald-500/10' : 'bg-amber-500/10',
             },
             {
@@ -270,7 +270,7 @@ export function AdminFinancialsPage() {
               end: stats.flaggedConcentration.length,
               sub: 'agencies >10% of premium',
               icon: AlertTriangle,
-              color: stats.flaggedConcentration.length > 0 ? 'text-amber-400' : 'text-muted-foreground/70',
+              color: stats.flaggedConcentration.length > 0 ? 'text-amber-400' : 'text-muted-foreground',
               bg: stats.flaggedConcentration.length > 0 ? 'bg-amber-500/10' : 'bg-secondary',
             },
           ].map(card => (
@@ -285,7 +285,7 @@ export function AdminFinancialsPage() {
                         format={card.fmt}
                         className="text-2xl font-bold text-foreground mt-1 block"
                       />
-                      <p className="text-xs text-muted-foreground/70 mt-0.5">{card.sub}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{card.sub}</p>
                     </div>
                     <div className={`p-2.5 rounded-lg ${card.bg}`}>
                       <card.icon size={20} className={card.color} />
@@ -320,7 +320,7 @@ export function AdminFinancialsPage() {
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
                       <p className="text-muted-foreground text-xs">Active premium</p>
-                      <p className="font-semibold text-foreground">{fmt$(data.premium)}<span className="font-normal text-muted-foreground/70">/mo</span></p>
+                      <p className="font-semibold text-foreground">{fmt$(data.premium)}<span className="font-normal text-muted-foreground">/mo</span></p>
                     </div>
                     <div>
                       <p className="text-muted-foreground text-xs">Retention</p>
@@ -341,7 +341,7 @@ export function AdminFinancialsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="text-base font-semibold text-foreground">90-Day Retention by Cohort</CardTitle>
-                  <p className="text-xs text-muted-foreground/70 mt-0.5">Monthly cohorts · HI vs HHC · red dashed line = 90% target</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Monthly cohorts · HI vs HHC · red dashed line = 90% target</p>
                 </div>
               </div>
             </CardHeader>
@@ -412,7 +412,7 @@ export function AdminFinancialsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="text-base font-semibold text-foreground">Premium Concentration</CardTitle>
-                  <p className="text-xs text-muted-foreground/70 mt-0.5">Top agencies by active premium — click to drill in</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Top agencies by active premium — click to drill in</p>
                 </div>
                 <Badge className="bg-secondary text-muted-foreground border-border border">
                   Top {concentration.length}
@@ -452,11 +452,11 @@ export function AdminFinancialsPage() {
                 {concentration.map(c => (
                   <div key={c.agency_id} className={`grid grid-cols-7 gap-2 px-4 py-2.5 text-sm items-center ${c.premium_concentration_pct >= 10 ? 'bg-amber-500/30' : ''}`}>
                     <span className="col-span-2 font-medium text-foreground truncate">
-                      {c.name ?? <span className="font-data text-xs text-muted-foreground/70">{c.agency_id.slice(0, 12)}…</span>}
+                      {c.name ?? <span className="font-data text-xs text-muted-foreground">{c.agency_id.slice(0, 12)}…</span>}
                     </span>
                     <span className="text-right text-muted-foreground font-data">{c.active_count}</span>
                     <span className="text-right text-foreground/80 font-medium font-data">{fmt$(c.active_premium)}</span>
-                    <span className={`text-right font-medium font-data ${c.at_risk_count > 0 ? 'text-red-400' : 'text-muted-foreground/40'}`}>
+                    <span className={`text-right font-medium font-data ${c.at_risk_count > 0 ? 'text-red-400' : 'text-muted-foreground'}`}>
                       {c.at_risk_count || '—'}
                     </span>
                     <span className={`text-right font-semibold font-data ${c.premium_concentration_pct >= 10 ? 'text-amber-400' : 'text-muted-foreground'}`}>
@@ -464,7 +464,7 @@ export function AdminFinancialsPage() {
                     </span>
                     <span className="text-center">
                       <Link to={`/agencies/${c.agency_id}`}>
-                        <ChevronRight size={14} className="text-muted-foreground/40 hover:text-primary transition-colors" />
+                        <ChevronRight size={14} className="text-muted-foreground hover:text-primary transition-colors" />
                       </Link>
                     </span>
                   </div>

@@ -284,7 +284,7 @@ export function ContractingRosterImportTab() {
   if (!portalSupabase) {
     return (
       <div className="text-center py-12 text-muted-foreground">
-        <Database className="w-12 h-12 mx-auto mb-3 text-muted-foreground/50" />
+        <Database className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
         <p className="font-medium">Portal connection not configured</p>
         <p className="text-sm mt-1">
           Set VITE_PORTAL_SUPABASE_URL and VITE_PORTAL_SUPABASE_KEY to enable.
@@ -397,7 +397,7 @@ export function ContractingRosterImportTab() {
               <tbody className="divide-y divide-border">
                 {preview.rows.slice(0, 10).map((row, i) => (
                   <tr key={i}>
-                    <td className="px-4 py-2 text-muted-foreground/50">{i + 2}</td>
+                    <td className="px-4 py-2 text-muted-foreground">{i + 2}</td>
                     <td className="px-4 py-2 font-medium text-foreground">
                       {getMappedValue(row, 'first_name')}
                     </td>
@@ -414,7 +414,7 @@ export function ContractingRosterImportTab() {
               </tbody>
             </table>
             {preview.rows.length > 10 && (
-              <p className="px-4 py-2 text-xs text-muted-foreground/50 bg-secondary/20">
+              <p className="px-4 py-2 text-xs text-muted-foreground bg-secondary/20">
                 …and {preview.rows.length - 10} more rows
               </p>
             )}
@@ -478,7 +478,7 @@ export function ContractingRosterImportTab() {
                             : ''
                       }
                     >
-                      <td className="px-4 py-2 text-muted-foreground/50">{d.row}</td>
+                      <td className="px-4 py-2 text-muted-foreground">{d.row}</td>
                       <td className="px-4 py-2 font-medium text-foreground">{d.name}</td>
                       <td className="px-4 py-2 text-foreground/80">{d.npn}</td>
                       <td className="px-4 py-2">
