@@ -94,6 +94,7 @@ function buildNotificationsFromAtRisk(policies: AtRiskPolicy[]): Notification[] 
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
+  const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const panelRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const { effectiveAgencyId, effectiveRole } = useEffectiveAuth();
@@ -109,8 +110,10 @@ export function NotificationBell() {
 
   const notifications = useMemo((): Notification[] => {
     if (!atRiskResp) return [];
-    return buildNotificationsFromAtRisk(atRiskResp.data.policies);
-  }, [atRiskResp]);
+    const notifs = buildNotificationsFromAtRisk(atRiskResp.data.policies);
+    // Apply local read state
+    return notifs.map(n => readIds.has(n.id) ? { ...n, read: true } : n);
+  }, [atRiskResp, readIds]);
 
   // Close on click outside
   useEffect(() => {
@@ -140,11 +143,11 @@ export function NotificationBell() {
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const markAllRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    setReadIds(new Set(notifications.map(n => n.id)));
   };
 
   const markRead = (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    setReadIds(prev => new Set([...prev, id]));
   };
 
   return (
@@ -154,7 +157,7 @@ export function NotificationBell() {
         ref={buttonRef}
         onClick={() => {
           setOpen(o => !o);
-          if (!open) loadNotifications();
+          // Data refreshes automatically via useCachedFetch
         }}
         className={cn(
           'relative flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200',

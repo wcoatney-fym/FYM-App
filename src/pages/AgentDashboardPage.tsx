@@ -22,7 +22,6 @@ import {
   fetchMonthlyProduction,
   fetchAtRiskPolicies,
   type AgentProduction,
-  type MonthlyProduction,
   type AtRiskPolicy,
 } from '@/lib/prod-api';
 import { QualityCard } from '@/components/dashboard/QualityCard';
@@ -79,12 +78,6 @@ function urgencyLabel(flag: string | null, daysIdle: number | null): { label: st
 }
 
 // ── Component ──────────────────────────────────────────────────────────
-
-interface AgentDashboardData {
-  agentData: AgentProduction[];
-  monthly: MonthlyProduction[];
-  atRisk: { data: { policies: AtRiskPolicy[] } };
-}
 
 export function AgentDashboardPage() {
   const { user, effectiveWritingNumber, profile, effectiveAgencyWritingNumber } = useEffectiveAuth();

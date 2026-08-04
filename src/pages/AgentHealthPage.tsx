@@ -114,7 +114,7 @@ export function AgentHealthPage() {
   const targetId = effectiveRole === 'agent' ? effectiveWritingNumber : agentId;
 
   const [agentProfile, setAgentProfile] = useState<ProfileRow | null>(null);
-  const [usingMock, setUsingMock] = useState(false);
+  const [usingMock] = useState(false);
 
   // Cached book-of-business fetch — instant render from localStorage
   const cacheKey = `agent-health-${targetId}`;

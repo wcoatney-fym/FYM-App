@@ -109,6 +109,7 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
     const edgePolicies = atRiskCached.data.policies;
 
     (async () => {
+      try {
       let taskMap = new Map<string, string>();
       if (supabase) {
         const { data: tasks } = await supabase
@@ -143,6 +144,9 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
 
       merged.sort(urgencySort);
       setPolicies(merged);
+      } catch (err) {
+        console.error('NeedsAttentionList: merge error:', err);
+      }
     })();
   }, [atRiskCached, isAgent, effectiveWritingNumber]);
 

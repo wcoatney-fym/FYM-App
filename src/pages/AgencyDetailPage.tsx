@@ -117,7 +117,25 @@ export function AgencyDetailPage() {
     cacheKey,
     {
       retRes: () => fetchRetentionSummary({ agency_id: resolvedWritingNumber }),
-      bobRes: () => fetchBookOfBusiness({ agency_id: resolvedWritingNumber, sort: 'premium', order: 'desc', page_size: 500 }),
+      bobRes: async () => {
+        // Paginate to get ALL policies (old code had a while loop)
+        const allData: any[] = [];
+        const PAGE_SIZE = 500;
+        let page = 0;
+        while (true) {
+          const res = await fetchBookOfBusiness({
+            agency_id: resolvedWritingNumber,
+            sort: 'premium',
+            order: 'desc',
+            page,
+            page_size: PAGE_SIZE,
+          });
+          allData.push(...res.data);
+          if (res.data.length < PAGE_SIZE) break;
+          page++;
+        }
+        return { data: allData };
+      },
     },
     { skip: !resolvedWritingNumber, deps: [resolvedWritingNumber] }
   );

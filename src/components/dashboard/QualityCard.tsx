@@ -14,11 +14,11 @@
  * This is a "required by FYM" locked widget per the PRD — always visible
  * on every role's dashboard. Respects the agency filter.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { HudFrame } from '@/components/ui/hud-frame';
 import { FadeIn } from '@/components/ui/animated';
-import { fetchRetentionSummary, type RetentionSummaryResponse } from '@/lib/prod-api';
+import { fetchRetentionSummary } from '@/lib/prod-api';
 import { useCachedFetch } from '@/hooks/useCachedFetch';
 import { useOrgData } from '@/contexts/OrgDataCache';
 import { Award, Lock, ChevronRight, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';

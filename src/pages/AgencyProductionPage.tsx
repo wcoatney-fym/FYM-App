@@ -105,6 +105,7 @@ export function AgencyProductionPage() {
   const stats = useMemo((): AgencyStats | null => {
     if (!cached) return null;
     const agencyData = cached.agencyData as AgencyProduction[];
+    const match = agencyData.find(r => r.agency_id === agencyId);
     if (!match) return null;
     return {
       agency_id: match.agency_id,

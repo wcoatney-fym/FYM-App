@@ -71,7 +71,7 @@ function fmtMonth(iso: string) {
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function AdminFinancialsPage() {
-  const { effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide } = useEffectiveAuth();
+  const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
   const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
   const orgData = useOrgData();
   const [nameMap, setNameMap] = useState<Map<string, string>>(new Map());
