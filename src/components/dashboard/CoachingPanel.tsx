@@ -127,7 +127,7 @@ export function CoachingPanel({ agencies, belowTargetCount, isOrgWide }: Coachin
                   >
                     <ChevronRight
                       size={14}
-                      className="text-muted-foreground/40 hover:text-primary transition-colors"
+                      className="text-muted-foreground hover:text-primary transition-colors"
                     />
                   </Link>
                 </span>

@@ -54,7 +54,7 @@ function fmt$(n: number) {
 }
 
 function retentionColor(pct: number | null) {
-  if (pct === null) return 'text-muted-foreground/70';
+  if (pct === null) return 'text-muted-foreground';
   if (pct >= 90) return 'text-emerald-400';
   if (pct >= 85) return 'text-amber-400';
   return 'text-red-400';
@@ -71,7 +71,7 @@ function rankBadge(rank: number) {
   if (rank === 1) return <span className="text-lg">🥇</span>;
   if (rank === 2) return <span className="text-lg">🥈</span>;
   if (rank === 3) return <span className="text-lg">🥉</span>;
-  return <span className="text-sm font-bold text-muted-foreground/70 tabular-nums">#{rank}</span>;
+  return <span className="text-sm font-bold text-muted-foreground tabular-nums">#{rank}</span>;
 }
 
 function periodLabel(p: Period) {
@@ -566,7 +566,7 @@ export function LeaderboardPage() {
           )}
 
           {period !== 'all' && (
-            <span className="text-xs text-muted-foreground/60 ml-auto">
+            <span className="text-xs text-muted-foreground ml-auto">
               <Calendar size={12} className="inline mr-1" />
               {periodLabel(period)} — new business effective dates
             </span>
@@ -578,7 +578,7 @@ export function LeaderboardPage() {
           {[
             { title: 'Total Agencies', end: stats.total, icon: Trophy, color: 'text-primary', bg: 'bg-cyan-500/10' },
             { title: 'Above 90% Target', end: stats.above, icon: ShieldCheck, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-            { title: 'Below 90% Target', end: stats.below, icon: AlertTriangle, color: stats.below > 0 ? 'text-red-400' : 'text-muted-foreground/70', bg: stats.below > 0 ? 'bg-red-500/10' : 'bg-secondary' },
+            { title: 'Below 90% Target', end: stats.below, icon: AlertTriangle, color: stats.below > 0 ? 'text-red-400' : 'text-muted-foreground', bg: stats.below > 0 ? 'bg-red-500/10' : 'bg-secondary' },
             {
               title: period === 'all' ? 'Total Active Premium' : `${periodLabel(period)} Production`,
               end: metric === 'premium' || period === 'all' ? stats.totalPremium : stats.totalPolicies,
@@ -631,7 +631,7 @@ export function LeaderboardPage() {
               {label}
             </button>
           ))}
-          <span className="ml-auto text-xs text-muted-foreground/70">
+          <span className="ml-auto text-xs text-muted-foreground">
             {displayed.length} {displayed.length === 1 ? 'agency' : 'agencies'}
           </span>
         </div>
@@ -644,7 +644,7 @@ export function LeaderboardPage() {
                 {[1, 2, 3, 4, 5].map(i => <div key={i} className="h-12 rounded shimmer" />)}
               </div>
             ) : displayed.length === 0 ? (
-              <div className="py-16 text-center text-muted-foreground/70">
+              <div className="py-16 text-center text-muted-foreground">
                 No agencies match the current filter.
               </div>
             ) : (
@@ -697,7 +697,7 @@ export function LeaderboardPage() {
                       <span className="col-span-1 text-center">{rankBadge(r.rank)}</span>
                       <span className={`font-medium text-foreground truncate flex items-center gap-1.5 ${period !== 'all' ? 'col-span-2' : 'col-span-3'}`}>
                         <span className="truncate">
-                          {r.name ?? <span className="font-data text-xs text-muted-foreground/70">{r.agency_id.slice(0, 12)}…</span>}
+                          {r.name ?? <span className="font-data text-xs text-muted-foreground">{r.agency_id.slice(0, 12)}…</span>}
                           {!isOrgWide && effectiveAgencyWritingNumber === r.agency_id && (
                             <span className="ml-1.5 text-[10px] text-primary font-semibold">YOU</span>
                           )}
@@ -723,7 +723,7 @@ export function LeaderboardPage() {
                         <span className={`col-span-2 text-right font-data font-medium ${
                           (metric === 'policies' ? r.period_policies : r.period_ap) > 0
                             ? 'text-primary'
-                            : 'text-muted-foreground/40'
+                            : 'text-muted-foreground'
                         }`}>
                           {metric === 'policies'
                             ? (r.period_policies > 0 ? r.period_policies.toLocaleString() : '—')
@@ -731,12 +731,12 @@ export function LeaderboardPage() {
                           }
                         </span>
                       )}
-                      <span className={`col-span-1 text-center font-medium font-data ${r.at_risk_count > 0 ? 'text-red-400' : 'text-muted-foreground/40'}`}>
+                      <span className={`col-span-1 text-center font-medium font-data ${r.at_risk_count > 0 ? 'text-red-400' : 'text-muted-foreground'}`}>
                         {r.at_risk_count || '—'}
                       </span>
                       <span className="col-span-1 text-center">
                         <Link to={`/production/${r.agency_id}`}>
-                          <ChevronRight size={16} className="text-muted-foreground/40 hover:text-primary transition-colors" />
+                          <ChevronRight size={16} className="text-muted-foreground hover:text-primary transition-colors" />
                         </Link>
                       </span>
                     </div>

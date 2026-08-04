@@ -44,7 +44,7 @@ interface QualityCardProps {
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function retentionStatusColor(pct: number | null): string {
-  if (pct === null) return 'text-muted-foreground/40';
+  if (pct === null) return 'text-muted-foreground';
   if (pct >= 90) return 'text-emerald-400';
   if (pct >= 85) return 'text-amber-400';
   return 'text-red-400';
@@ -53,7 +53,7 @@ function retentionStatusColor(pct: number | null): string {
 function TrendArrow({ direction }: { direction: 'up' | 'down' | 'flat' }) {
   if (direction === 'up') return <ArrowUpRight size={12} className="text-emerald-400" />;
   if (direction === 'down') return <ArrowDownRight size={12} className="text-red-400" />;
-  return <Minus size={12} className="text-muted-foreground/50" />;
+  return <Minus size={12} className="text-muted-foreground" />;
 }
 
 /** Dancing penguin SVG for not-yet-eligible metrics */
@@ -76,7 +76,7 @@ function PenguinPlaceholder({ reason }: { reason?: string }) {
         <ellipse cx="7" cy="24" rx="2.5" ry="1" fill="#F59E0B" />
         <ellipse cx="13" cy="24" rx="2.5" ry="1" fill="#F59E0B" />
       </svg>
-      <span className="text-xs text-muted-foreground/40 italic">
+      <span className="text-xs text-muted-foreground italic">
         {reason || 'Coming soon'}
       </span>
     </div>
@@ -253,7 +253,7 @@ export function QualityCard({ filterAgencyId, loading: parentLoading }: QualityC
                 </div>
                 <div>
                   <CardTitle className="text-base font-semibold text-foreground">Quality</CardTitle>
-                  <p className="text-xs text-muted-foreground/70 mt-0.5">
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     Last 30 days · priority order per §12.7
                   </p>
                 </div>
@@ -281,7 +281,7 @@ export function QualityCard({ filterAgencyId, loading: parentLoading }: QualityC
                     className="flex items-center justify-between py-2.5 first:pt-1"
                   >
                     <div className="space-y-0.5 min-w-0 flex-1">
-                      <p className={`text-base font-medium ${m.penguin ? 'text-muted-foreground/50' : 'text-foreground'}`}>
+                      <p className={`text-base font-medium ${m.penguin ? 'text-muted-foreground' : 'text-foreground'}`}>
                         {m.label}
                       </p>
                       <div className="flex items-center gap-1.5">
@@ -291,8 +291,8 @@ export function QualityCard({ filterAgencyId, loading: parentLoading }: QualityC
                         <p className={`text-xs ${m.trend ? (
                           m.trend.direction === 'up' ? 'text-emerald-400/80' :
                           m.trend.direction === 'down' ? 'text-red-400/80' :
-                          'text-muted-foreground/50'
-                        ) : 'text-muted-foreground/50'}`}>
+                          'text-muted-foreground'
+                        ) : 'text-muted-foreground'}`}>
                           {m.trend ? m.trend.label : m.subtitle}
                         </p>
                       </div>
@@ -310,7 +310,7 @@ export function QualityCard({ filterAgencyId, loading: parentLoading }: QualityC
                           <span className="text-sm">%</span>
                         </span>
                       ) : (
-                        <span className="text-sm text-muted-foreground/40 italic">—</span>
+                        <span className="text-sm text-muted-foreground italic">—</span>
                       )}
                     </div>
                   </div>
@@ -318,7 +318,7 @@ export function QualityCard({ filterAgencyId, loading: parentLoading }: QualityC
               </div>
             )}
             {/* Locked indicator */}
-            <div className="mt-3 pt-3 border-t border-border/30 flex items-center gap-1.5 text-xs text-muted-foreground/40">
+            <div className="mt-3 pt-3 border-t border-border/30 flex items-center gap-1.5 text-xs text-muted-foreground">
               <Lock size={10} />
               <span>Required by FYM — quality signals leadership tracks</span>
             </div>
@@ -331,7 +331,7 @@ export function QualityCard({ filterAgencyId, loading: parentLoading }: QualityC
 
 /** Attention rate uses inverted color logic — lower is better */
 function attentionRateColor(pct: number | null): string {
-  if (pct === null) return 'text-muted-foreground/40';
+  if (pct === null) return 'text-muted-foreground';
   if (pct <= 5) return 'text-emerald-400';
   if (pct <= 15) return 'text-amber-400';
   return 'text-red-400';
