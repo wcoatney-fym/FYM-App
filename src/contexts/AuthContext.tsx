@@ -22,6 +22,7 @@ interface AuthContextValue {
   isFymAdmin: boolean;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  resetPassword: (email: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -186,6 +187,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error?.message ?? null };
   }
 
+  async function resetPassword(email: string) {
+    if (!supabase) return { error: 'Supabase not configured' };
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/login`,
+    });
+    return { error: error?.message ?? null };
+  }
+
   async function signOut() {
     if (!supabase) return;
     await supabase.auth.signOut();
@@ -202,6 +211,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isFymAdmin,
       loading,
       signIn,
+      resetPassword,
       signOut,
     }}>
       {children}

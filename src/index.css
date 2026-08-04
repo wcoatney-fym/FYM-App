@@ -196,6 +196,22 @@
   .pulse-glow {
     animation: pulse-glow 2s ease-in-out infinite;
   }
+  /* Login page ambient orb drift */
+  @keyframes glow-drift {
+    0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.5; }
+    50% { transform: translate(20px, -15px) scale(1.1); opacity: 0.8; }
+  }
+  @keyframes glow-drift-reverse {
+    0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.5; }
+    50% { transform: translate(-20px, 15px) scale(1.1); opacity: 0.8; }
+  }
+  .animate-glow-drift {
+    animation: glow-drift 8s ease-in-out infinite;
+  }
+  .animate-glow-drift-reverse {
+    animation: glow-drift-reverse 8s ease-in-out infinite;
+  }
+
   @keyframes pulse-glow {
     0%, 100% { box-shadow: 0 0 5px hsl(142 71% 45% / 0.3); }
     50% { box-shadow: 0 0 20px hsl(142 71% 45% / 0.5), 0 0 40px hsl(142 71% 45% / 0.2); }
