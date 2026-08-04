@@ -6,7 +6,16 @@
  * data when Supabase isn't configured.
  */
 
-import { supabase, supabaseConfigured } from '../supabase';
+import { supabaseConfigured } from '../supabase';
+import { createClient } from '@supabase/supabase-js';
+
+// Use an untyped client for recruiting tables — they aren't in database.types.ts
+// until the migration is applied and types are regenerated.
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const recruitingSb = supabaseUrl && supabaseAnonKey
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null;
 import type {
   Campaign, Lead, DailySpend, CampaignPerformance,
   AdSet, RoiByAgency, RoiByAgent, RecruitingKpis,
@@ -86,8 +95,6 @@ function mapStatus(metaStatus: string): CampaignStatus {
 function mapCampaign(row: DbCampaign): Campaign {
   const spend = Number(row.total_spend) || 0;
   const leads = Number(row.total_leads) || 0;
-  const clicks = Number(row.total_clicks) || 0;
-  const impressions = Number(row.total_impressions) || 0;
 
   return {
     id: row.id,
@@ -138,9 +145,9 @@ function mapDailySpend(row: DbDailySpend): DailySpend {
 // ── Fetchers ───────────────────────────────────────────────────────────────
 
 export async function fetchCampaigns(): Promise<Campaign[]> {
-  if (!supabaseConfigured || !supabase) return MOCK_CAMPAIGNS;
+  if (!supabaseConfigured || !recruitingSb) return MOCK_CAMPAIGNS;
 
-  const { data, error } = await supabase
+  const { data, error } = await recruitingSb
     .from('recruiting_campaigns')
     .select('*')
     .order('synced_at', { ascending: false });
@@ -154,9 +161,9 @@ export async function fetchCampaigns(): Promise<Campaign[]> {
 }
 
 export async function fetchRecruitingKpis(): Promise<RecruitingKpis> {
-  if (!supabaseConfigured || !supabase) return MOCK_KPIS;
+  if (!supabaseConfigured || !recruitingSb) return MOCK_KPIS;
 
-  const { data, error } = await supabase
+  const { data, error } = await recruitingSb
     .from('recruiting_kpis')
     .select('*')
     .single();
@@ -187,9 +194,9 @@ export async function fetchRecruitingKpis(): Promise<RecruitingKpis> {
 }
 
 export async function fetchDailySpendData(campaignId?: string): Promise<DailySpend[]> {
-  if (!supabaseConfigured || !supabase) return MOCK_DAILY_SPEND;
+  if (!supabaseConfigured || !recruitingSb) return MOCK_DAILY_SPEND;
 
-  let query = supabase
+  let query = recruitingSb
     .from('recruiting_daily_spend')
     .select('*')
     .order('date', { ascending: true });
@@ -209,9 +216,9 @@ export async function fetchDailySpendData(campaignId?: string): Promise<DailySpe
 }
 
 export async function fetchAdSets(campaignId?: string): Promise<AdSet[]> {
-  if (!supabaseConfigured || !supabase) return [];
+  if (!supabaseConfigured || !recruitingSb) return [];
 
-  let query = supabase
+  let query = recruitingSb
     .from('recruiting_ad_sets')
     .select('*')
     .order('total_spend', { ascending: false });
@@ -231,7 +238,7 @@ export async function fetchAdSets(campaignId?: string): Promise<AdSet[]> {
 }
 
 export async function fetchCampaignPerformance(campaignId: string): Promise<CampaignPerformance | null> {
-  if (!supabaseConfigured || !supabase) {
+  if (!supabaseConfigured || !recruitingSb) {
     return MOCK_CAMPAIGN_PERFORMANCE.find(p => p.campaignId === campaignId) ?? MOCK_CAMPAIGN_PERFORMANCE[0];
   }
 
@@ -240,7 +247,7 @@ export async function fetchCampaignPerformance(campaignId: string): Promise<Camp
   const adSets = await fetchAdSets(campaignId);
 
   // Get campaign name
-  const { data: campData } = await supabase
+  const { data: campData } = await recruitingSb
     .from('recruiting_campaigns')
     .select('name, total_leads')
     .eq('id', campaignId)
