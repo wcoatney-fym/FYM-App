@@ -11,7 +11,7 @@ import { Header } from '@/components/layout/Header';
 import { Card, CardContent } from '@/components/ui/card';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
-import { fetchAgencyProduction } from '@/lib/prod-api';
+import { fetchAgencyProduction, fetchAgentProduction } from '@/lib/prod-api';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { useOrgData } from '@/contexts/OrgDataCache';
@@ -269,10 +269,10 @@ export function LeaderboardPage() {
         const cutoff = `${ninetyDaysAgo.getFullYear()}-${String(ninetyDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(ninetyDaysAgo.getDate()).padStart(2, '0')}`;
 
         // Use prod-data edge function to get agent-level data
-        const allAgencies = await fetchAgencyProduction({ group_by: 'agent' });
+        const allAgents = await fetchAgentProduction();
         const rampAgents: RampUpAgent[] = [];
 
-        for (const a of allAgencies) {
+        for (const a of allAgents) {
           // Check if this is a ramp-up agent (first_issue_date within 90 days)
           const firstDate = (a as any).first_issue_date;
           if (!firstDate || firstDate < cutoff) continue;
@@ -285,16 +285,16 @@ export function LeaderboardPage() {
           const totalAP = a.active_annual_premium;
 
           rampAgents.push({
-            agent_id: a.agency_id, // agent writing number when grouped by agent
-            agent_name: (a as any).agent_name ?? a.agency_id,
+            agent_id: a.agent_id,
+            agent_name: a.agent_name ?? a.agent_id,
             agency_name: (a as any).parent_agency_name ?? null,
             first_app_date: firstDate,
             days_active: daysActive,
             total_apps: totalApps,
             total_ap: totalAP,
             avg_ap_per_app: totalApps > 0 ? totalAP / totalApps : 0,
-            retention_pct: (a as any).retention_pct ?? null,
-            at_risk_count: (a as any).at_risk_count ?? 0,
+            retention_pct: a.retention_pct ?? null,
+            at_risk_count: a.at_risk_policies ?? 0,
           });
         }
 

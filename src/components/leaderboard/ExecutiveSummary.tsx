@@ -6,7 +6,7 @@
  * Strongest/weakest KPI callout at bottom.
  */
 import { useMemo } from 'react';
-import { TrendingUp, TrendingDown, Building2, Users } from 'lucide-react';
+import { TrendingUp, TrendingDown } from 'lucide-react';
 import { KpiSummaryTile, type KpiTileData } from './KpiSummaryTile';
 
 export type LeaderboardSortKey =

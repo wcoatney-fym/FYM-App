@@ -8,7 +8,7 @@
  * Ramp Up criteria: agent's first policy issue_date within last 90 days.
  */
 import { useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { StaggerContainer, StaggerItem } from '@/components/ui/animated';
 import { Rocket, TrendingUp, Clock, Target, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -43,12 +43,6 @@ function paceLabel(daysActive: number, apps: number): { text: string; color: str
   if (appsPerWeek >= 5) return { text: 'Strong pace', color: 'text-emerald-400' };
   if (appsPerWeek >= 2) return { text: 'Building', color: 'text-amber-400' };
   return { text: 'Needs support', color: 'text-red-400' };
-}
-
-function daysLabel(days: number): string {
-  if (days === 0) return 'Today';
-  if (days === 1) return '1 day';
-  return `${days} days`;
 }
 
 export function RampUpBoard({ agents, loading }: RampUpBoardProps) {
