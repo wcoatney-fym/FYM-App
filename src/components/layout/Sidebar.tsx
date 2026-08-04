@@ -18,6 +18,7 @@ import {
   Swords,
   FileSpreadsheet,
   Target,
+  Megaphone,
 } from 'lucide-react';
 import { useAppStore } from '@/store/app-store';
 import { useAuth } from '@/contexts/AuthContext';
@@ -66,6 +67,7 @@ const fymAdminNav: NavItem[] = [
   { to: '/contracting', label: 'Contracting', icon: FileText },
   { to: '/crm-command', label: 'CRM Command', icon: Command },
   { to: '/rosters', label: 'Rosters', icon: FileSpreadsheet },
+  { to: '/recruiting', label: 'Recruiting', icon: Megaphone, activePrefix: '/recruiting' },
   { to: '/compete', label: 'Compete', icon: Swords },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
