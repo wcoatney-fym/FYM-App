@@ -363,11 +363,13 @@ export async function fetchAgencyRosterData(params?: {
 
 export interface DirectoryAgent {
   writing_number: string;
-  agent_name: string | null;
+  agent_name: string;
   agency_wn: string | null;
+  agency_name: string | null;
   total_policies: number;
   active_policies: number;
   terminated_policies: number;
+  pending_policies: number;
   at_risk_policies: number;
   total_annual_premium: number;
   active_annual_premium: number;

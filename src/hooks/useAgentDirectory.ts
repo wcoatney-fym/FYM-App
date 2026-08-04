@@ -225,12 +225,13 @@ export function useAgentDirectory(): UseAgentDirectoryReturn {
             continue;
           }
 
-          // Resolve agency name from our agencies table
+          // Resolve agency name — prefer edge fn's agency_name, fall back to local agencies table
           const agencyEntry = Array.from(agencyMap.values()).find(
             (ag) => ag.writing_number === a.agency_wn
           );
+          const agencyName = agencyEntry?.name || a.agency_name || null;
 
-          // Parse name (prod DB returns "LAST, FIRST" or "LAST FIRST")
+          // Edge fn already title-cases names, but parse first/last
           const nameParts = parseProdName(a.agent_name);
 
           prodResults.push({
@@ -243,7 +244,7 @@ export function useAgentDirectory(): UseAgentDirectoryReturn {
             phone: null,
             npn: null,
             agency_id: agencyEntry?.id || null,
-            agency_name: agencyEntry?.name || null,
+            agency_name: agencyName,
             agency_wn: a.agency_wn,
             source: 'prod',
             is_manager: false,
