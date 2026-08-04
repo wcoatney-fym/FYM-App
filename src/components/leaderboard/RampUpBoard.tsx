@@ -67,9 +67,9 @@ export function RampUpBoard({ agents, loading }: RampUpBoardProps) {
     return (
       <Card className="border-border">
         <CardContent className="py-12 text-center">
-          <Rocket size={32} className="mx-auto text-muted-foreground/30 mb-3" />
+          <Rocket size={32} className="mx-auto text-muted-foreground mb-3" />
           <p className="text-sm text-muted-foreground">No agents in Ramp Up right now</p>
-          <p className="text-xs text-muted-foreground/50 mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             Agents appear here within their first 90 days of writing
           </p>
         </CardContent>
@@ -156,7 +156,7 @@ export function RampUpBoard({ agents, loading }: RampUpBoardProps) {
                     {i === 0 ? (
                       <Star size={18} className="text-purple-400 mx-auto" />
                     ) : (
-                      <span className="text-sm font-bold text-muted-foreground/60 tabular-nums">
+                      <span className="text-sm font-bold text-muted-foreground tabular-nums">
                         #{i + 1}
                       </span>
                     )}
@@ -183,7 +183,7 @@ export function RampUpBoard({ agents, loading }: RampUpBoardProps) {
                       </span>
                     </div>
                     {agent.agency_name && (
-                      <p className="text-[11px] text-muted-foreground/60 mt-0.5 truncate">
+                      <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
                         {agent.agency_name}
                       </p>
                     )}
@@ -192,13 +192,13 @@ export function RampUpBoard({ agents, loading }: RampUpBoardProps) {
                   {/* Apps */}
                   <div className="text-center flex-shrink-0 w-16">
                     <div className="font-bold text-sm tabular-nums text-foreground">{agent.total_apps}</div>
-                    <div className="text-[10px] text-muted-foreground/50">apps</div>
+                    <div className="text-[10px] text-muted-foreground">apps</div>
                   </div>
 
                   {/* AP */}
                   <div className="text-right flex-shrink-0 w-20">
                     <div className="font-bold text-sm tabular-nums text-foreground">{fmt$(agent.total_ap)}</div>
-                    <div className="text-[10px] text-muted-foreground/50">
+                    <div className="text-[10px] text-muted-foreground">
                       avg {fmt$(agent.avg_ap_per_app)}/app
                     </div>
                   </div>
@@ -207,25 +207,25 @@ export function RampUpBoard({ agents, loading }: RampUpBoardProps) {
                   <div className="text-center flex-shrink-0 w-16">
                     <div className={cn(
                       'text-sm font-bold tabular-nums',
-                      agent.retention_pct === null ? 'text-muted-foreground/40'
+                      agent.retention_pct === null ? 'text-muted-foreground'
                         : agent.retention_pct >= 90 ? 'text-emerald-400'
                         : agent.retention_pct >= 85 ? 'text-amber-400'
                         : 'text-red-400',
                     )}>
                       {agent.retention_pct !== null ? `${agent.retention_pct.toFixed(0)}%` : '—'}
                     </div>
-                    <div className="text-[10px] text-muted-foreground/50">retention</div>
+                    <div className="text-[10px] text-muted-foreground">retention</div>
                   </div>
 
                   {/* At-risk */}
                   <div className="text-center flex-shrink-0 w-12">
                     <div className={cn(
                       'text-sm font-bold tabular-nums',
-                      agent.at_risk_count > 0 ? 'text-red-400' : 'text-muted-foreground/40',
+                      agent.at_risk_count > 0 ? 'text-red-400' : 'text-muted-foreground',
                     )}>
                       {agent.at_risk_count || '—'}
                     </div>
-                    <div className="text-[10px] text-muted-foreground/50">at-risk</div>
+                    <div className="text-[10px] text-muted-foreground">at-risk</div>
                   </div>
                 </CardContent>
               </Card>

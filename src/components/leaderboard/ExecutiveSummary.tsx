@@ -67,7 +67,7 @@ export function ExecutiveSummary({ data, activeSort, onSortChange }: ExecutiveSu
             </div>
           </div>
         </div>
-        <div className="text-[11px] flex items-center gap-1.5 text-muted-foreground/50">
+        <div className="text-[11px] flex items-center gap-1.5 text-muted-foreground">
           Click any KPI to re-sort
         </div>
       </div>
@@ -97,7 +97,7 @@ export function ExecutiveSummary({ data, activeSort, onSortChange }: ExecutiveSu
             </div>
           )}
           {strongest && weakest && (
-            <span className="text-muted-foreground/30">·</span>
+            <span className="text-muted-foreground">·</span>
           )}
           {weakest && weakest !== strongest && (
             <div className="text-xs flex items-center gap-1.5 text-muted-foreground">

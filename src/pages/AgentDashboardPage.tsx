@@ -188,9 +188,9 @@ export function AgentDashboardPage() {
         <div className="p-6">
           <Card>
             <CardContent className="pt-6 text-center">
-              <FileText className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+              <FileText className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
               <p className="text-sm text-muted-foreground">No production data found for your writing number.</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 Writing number: {effectiveWritingNumber || 'not set'}
               </p>
             </CardContent>
@@ -293,7 +293,7 @@ export function AgentDashboardPage() {
                   <p className="text-2xl font-bold tabular-nums text-foreground mt-1">
                     <CountUp end={stats.active_policies} />
                   </p>
-                  <p className="text-[10px] text-muted-foreground/70 mt-0.5">
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
                     {fmtCurrency(stats.active_annual_premium)} annual premium
                   </p>
                 </CardContent>
@@ -308,7 +308,7 @@ export function AgentDashboardPage() {
                   <p className="text-2xl font-bold tabular-nums text-foreground mt-1">
                     <CountUp end={stats.total_policies} />
                   </p>
-                  <p className="text-[10px] text-muted-foreground/70 mt-0.5">
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
                     {stats.pending_policies} pending · {stats.terminated_policies} terminated
                   </p>
                 </CardContent>
@@ -324,7 +324,7 @@ export function AgentDashboardPage() {
                     <p className={`text-2xl font-bold tabular-nums mt-1 ${stats.at_risk_policies > 0 ? 'text-red-400' : 'text-foreground'}`}>
                       <CountUp end={stats.at_risk_policies} />
                     </p>
-                    <p className="text-[10px] text-muted-foreground/70 mt-0.5 flex items-center gap-1">
+                    <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
                       {stats.at_risk_policies > 0 ? (
                         <><AlertTriangle className="w-2.5 h-2.5 text-red-400" /> Policies needing action</>
                       ) : (
@@ -344,7 +344,7 @@ export function AgentDashboardPage() {
                   <p className={`text-2xl font-bold tabular-nums mt-1 ${retColor}`}>
                     {fmtPct(retPct)}
                   </p>
-                  <p className="text-[10px] text-muted-foreground/70 mt-0.5">
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
                     {stats.retained_policies} of {stats.ever_drafted} retained
                   </p>
                 </CardContent>
@@ -380,7 +380,7 @@ export function AgentDashboardPage() {
                       <div className="text-center py-6">
                         <ShieldCheck className="w-8 h-8 text-emerald-500/40 mx-auto mb-2" />
                         <p className="text-sm text-muted-foreground">No policies need attention right now.</p>
-                        <p className="text-xs text-muted-foreground/60 mt-0.5">Keep up the great work! 🎯</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Keep up the great work! 🎯</p>
                       </div>
                     ) : (
                       sortedAtRisk.slice(0, 3).map(policy => {
@@ -413,7 +413,7 @@ export function AgentDashboardPage() {
                               <p className="text-sm font-bold tabular-nums text-foreground">
                                 {fmtCurrency(policy.plan_premium || 0)}
                               </p>
-                              <p className="text-[10px] text-muted-foreground/60">annual</p>
+                              <p className="text-[10px] text-muted-foreground">annual</p>
                             </div>
                           </div>
                         );
@@ -475,7 +475,7 @@ export function AgentDashboardPage() {
                   {/* Policy count sub-labels */}
                   <div className="flex justify-between px-2 mt-1">
                     {chartData.map((d, i) => (
-                      <span key={i} className="text-[9px] text-muted-foreground/50 tabular-nums">
+                      <span key={i} className="text-[9px] text-muted-foreground tabular-nums">
                         {d.policies} apps
                       </span>
                     ))}

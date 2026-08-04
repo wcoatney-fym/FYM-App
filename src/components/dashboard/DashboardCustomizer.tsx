@@ -104,7 +104,7 @@ export function DashboardCustomizer({
                   'flex-shrink-0 cursor-grab active:cursor-grabbing',
                   widget.locked && 'opacity-0 pointer-events-none',
                 )}>
-                  <GripVertical size={16} className="text-muted-foreground/40" />
+                  <GripVertical size={16} className="text-muted-foreground" />
                 </div>
 
                 {/* Widget info */}
@@ -122,7 +122,7 @@ export function DashboardCustomizer({
                   </div>
                   <p className={cn(
                     'text-[11px] mt-0.5',
-                    widget.locked ? 'text-primary/60' : 'text-muted-foreground/60',
+                    widget.locked ? 'text-primary/60' : 'text-muted-foreground',
                   )}>
                     {widget.description}
                   </p>

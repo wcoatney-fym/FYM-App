@@ -92,7 +92,7 @@ const paceColors = {
 
 
 function retColor(pct: number | null): string {
-  if (pct == null) return 'text-muted-foreground/40';
+  if (pct == null) return 'text-muted-foreground';
   if (pct >= 90) return 'text-emerald-400';
   if (pct >= 80) return 'text-cyan-400';
   if (pct >= 70) return 'text-amber-400';
@@ -234,7 +234,7 @@ export function ManagerTeamPage() {
   };
 
   const SortIcon = ({ col }: { col: SortKey }) => {
-    if (sortKey !== col) return <ChevronDown className="w-3 h-3 text-muted-foreground/30" />;
+    if (sortKey !== col) return <ChevronDown className="w-3 h-3 text-muted-foreground" />;
     return sortDir === 'desc'
       ? <ChevronDown className="w-3 h-3 text-primary" />
       : <ChevronUp className="w-3 h-3 text-primary" />;
@@ -286,14 +286,14 @@ export function ManagerTeamPage() {
                 <CardContent className="pt-4 pb-3">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Team Size</p>
                   <p className="text-2xl font-bold tabular-nums text-foreground mt-1">{summary.total}</p>
-                  <p className="text-[10px] text-muted-foreground/70 mt-0.5">agents in your book</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">agents in your book</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardContent className="pt-4 pb-3">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Book MTD AP</p>
                   <p className="text-2xl font-bold tabular-nums text-foreground mt-1">{fmtCurrency(summary.totalAP)}</p>
-                  <p className="text-[10px] text-muted-foreground/70 mt-0.5">{summary.totalApps} apps submitted</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{summary.totalApps} apps submitted</p>
                 </CardContent>
               </Card>
               <Card>
@@ -301,9 +301,9 @@ export function ManagerTeamPage() {
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Goal Pacing</p>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-sm font-bold text-emerald-400 tabular-nums">{summary.onTrack}</span>
-                    <span className="text-xs text-muted-foreground/50">·</span>
+                    <span className="text-xs text-muted-foreground">·</span>
                     <span className="text-sm font-bold text-amber-400 tabular-nums">{summary.catchUp}</span>
-                    <span className="text-xs text-muted-foreground/50">·</span>
+                    <span className="text-xs text-muted-foreground">·</span>
                     <span className="text-sm font-bold text-red-400 tabular-nums">{summary.behind}</span>
                   </div>
                   {/* Pace strip */}
@@ -320,7 +320,7 @@ export function ManagerTeamPage() {
                 <CardContent className="pt-4 pb-3">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Attention Items</p>
                   <p className="text-2xl font-bold tabular-nums text-foreground mt-1">{summary.totalAtRisk}</p>
-                  <p className="text-[10px] text-muted-foreground/70 mt-0.5">across all agents</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">across all agents</p>
                 </CardContent>
               </Card>
             </div>
@@ -466,7 +466,7 @@ export function ManagerTeamPage() {
                                   </p>
                                 </div>
                               ) : (
-                                <p className="text-xs text-muted-foreground/50">—</p>
+                                <p className="text-xs text-muted-foreground">—</p>
                               )}
                             </td>
 
@@ -498,13 +498,13 @@ export function ManagerTeamPage() {
                                   {agent.at_risk_count}
                                 </Badge>
                               ) : (
-                                <span className="text-xs text-muted-foreground/40">0</span>
+                                <span className="text-xs text-muted-foreground">0</span>
                               )}
                             </td>
 
                             {/* Chevron */}
                             <td className="px-2 py-3">
-                              <ChevronRight className="w-4 h-4 text-muted-foreground/30" />
+                              <ChevronRight className="w-4 h-4 text-muted-foreground" />
                             </td>
                           </tr>
                         );
