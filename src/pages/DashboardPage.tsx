@@ -526,15 +526,18 @@ export function DashboardPage() {
           <KpiStrip
             loading={loading}
             stats={stats}
-            comparing={comparing}
-            prevSnapshot={prevSnapshot}
             isOrgWide={isOrgWide}
           />
         )}
 
         {/* ── Production Snapshot ── */}
         {isWidgetVisible('production-snapshot') && snapshot && (
-          <ProductionSnapshot snapshot={snapshot} datePreset={datePreset} />
+          <ProductionSnapshot
+            snapshot={snapshot}
+            datePreset={datePreset}
+            comparing={comparing}
+            prevSnapshot={prevSnapshot}
+          />
         )}
 
         {/* ── Quality Card (locked — always shown) ── */}
