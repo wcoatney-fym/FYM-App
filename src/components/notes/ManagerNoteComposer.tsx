@@ -67,8 +67,8 @@ export function ManagerNoteComposer({
   }, [open]);
 
   const subjectLine = context?.subject
-    ?? [context?.agentName, context?.policyNumber].filter(Boolean).join(' · ')
-    || null;
+    ?? ([context?.agentName, context?.policyNumber].filter(Boolean).join(' · ')
+    || null);
 
   async function handleSubmit() {
     if (!body.trim()) return;
@@ -78,7 +78,7 @@ export function ManagerNoteComposer({
       const params: CreateNoteParams = {
         body: body.trim(),
         notify_agent: notifyAgent,
-        author_name: profile?.full_name ?? profile?.email ?? undefined,
+        author_name: profile?.full_name ?? undefined,
         policy_number: context?.policyNumber,
         agent_writing_number: context?.agentWritingNumber,
         agent_name: context?.agentName,

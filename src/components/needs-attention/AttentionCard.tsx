@@ -7,7 +7,7 @@
 import { useState, useEffect } from 'react';
 import { ChevronRight, Zap, AlertTriangle, PauseCircle, MessageSquarePlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ManagerNoteComposer, type NoteComposerContext } from '@/components/notes/ManagerNoteComposer';
+import { ManagerNoteComposer } from '@/components/notes/ManagerNoteComposer';
 import { NoteDisplay } from '@/components/notes/NoteDisplay';
 import { fetchNotesForPolicy, type ManagerNote } from '@/lib/notes-api';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
