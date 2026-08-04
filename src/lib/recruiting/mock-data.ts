@@ -1,6 +1,7 @@
 import type {
   Campaign, Lead, DailySpend, CampaignPerformance,
   AdSet, RoiByAgency, RoiByAgent, RecruitingKpis,
+  RecruitingLead, RecruitingFunnel, StageTiming,
 } from './types';
 
 // ── Helper ─────────────────────────────────────────────────────────────────
@@ -147,10 +148,12 @@ function generateCampaignPerf(campaign: Campaign): CampaignPerformance {
   });
 
   const totalLeads = campaign.totalLeads;
-  const contacted = Math.floor(totalLeads * campaign.contactRate);
-  const quoted = Math.floor(contacted * 0.55);
-  const placed = campaign.placedPolicies;
-  const lost = Math.floor(quoted * 0.3);
+  const attendees = Math.floor(totalLeads * campaign.contactRate);
+  const hired = Math.floor(attendees * 0.55);
+  const contracting = Math.floor(hired * 0.8);
+  const rts = Math.floor(contracting * 0.7);
+  const producing = campaign.placedPolicies;
+  const lost = Math.floor(totalLeads * 0.3);
 
   const adSets: AdSet[] = [
     { id: `${campaign.id}-as1`, name: 'Broad — 65+ Medicare', spend: campaign.totalSpend * 0.4, impressions: Math.floor(campaign.totalLeads * 120), clicks: Math.floor(campaign.totalLeads * 8), leads: Math.floor(campaign.totalLeads * 0.4), cpl: campaign.cpl * 0.95, ctr: 0.067 },
@@ -158,7 +161,7 @@ function generateCampaignPerf(campaign: Campaign): CampaignPerformance {
     { id: `${campaign.id}-as3`, name: 'Interest — Health Insurance', spend: campaign.totalSpend * 0.25, impressions: Math.floor(campaign.totalLeads * 150), clicks: Math.floor(campaign.totalLeads * 5), leads: Math.floor(campaign.totalLeads * 0.25), cpl: campaign.cpl * 1.22, ctr: 0.033 },
   ];
 
-  return { campaignId: campaign.id, campaignName: campaign.name, dailyData, funnel: { leads: totalLeads, contacted, quoted, placed, lost }, adSets };
+  return { campaignId: campaign.id, campaignName: campaign.name, dailyData, funnel: { leads: totalLeads, attendees, hired, contracting, rts, producing, lost }, adSets };
 }
 
 export const MOCK_CAMPAIGN_PERFORMANCE: CampaignPerformance[] = MOCK_CAMPAIGNS.map(generateCampaignPerf);
@@ -208,4 +211,101 @@ export const MOCK_KPIS: RecruitingKpis = {
   leadsDelta: 12.1,
   cplDelta: -3.5,
   cpaDelta: -5.2,
+  // Pipeline KPIs
+  totalRecruits: 88,
+  attendeeRate: 0.614,
+  hireRate: 0.537,
+  rtsRate: 0.793,
+  avgDaysToRts: 18.5,
+  avgDaysToFirstSale: 32.0,
 };
+
+// ── Mock Recruiting Pipeline Leads ─────────────────────────────────────────
+const RECRUIT_NAMES = [
+  'Marcus Allen', 'Lisa Chen', 'Derek Johnson', 'Angela Torres', 'Brandon Smith',
+  'Rachel Kim', 'Tyler Davis', 'Monica Patel', 'Jason Wright', 'Stephanie Hall',
+  'Kevin Brooks', 'Diana Cruz', 'Ryan Mitchell', 'Samantha Lee', 'Nathan Cole',
+  'Priya Sharma', 'Chris Wallace', 'Tiffany Moore', 'Brian Lopez', 'Jessica Nguyen',
+  'Andrew Clark', 'Maria Gonzalez', 'Justin Reed', 'Lauren Taylor', 'Sean Murphy',
+  'Ashley Park', 'Eric Foster', 'Vanessa Hill', 'Matthew Scott', 'Amber Young',
+  'Daniel Ortiz', 'Brittany Ward', 'Alex Rivera', 'Courtney Barnes', 'Steven Bell',
+  'Heather Cook', 'Gregory Turner', 'Megan Howard', 'Patrick Sullivan', 'Kayla Morgan',
+];
+
+const RECRUIT_LOST_REASONS = [
+  'No-show to onboarding call', 'Changed career direction', 'Licensing issue',
+  'Failed background check', 'Accepted other offer', 'Unresponsive after initial contact',
+  'Not a good fit', 'Relocated out of state',
+];
+
+type MockStage = 'lead' | 'attendee' | 'hired' | 'contracting' | 'rts' | 'producing' | 'lost';
+
+function generateRecruitingLeads(): RecruitingLead[] {
+  const leads: RecruitingLead[] = [];
+  // Distribution: 20 leads, 12 attendees, 8 hired, 6 contracting, 5 rts, 3 producing, 6 lost
+  const stageDistribution: { stage: MockStage; count: number; lostStage?: MockStage }[] = [
+    { stage: 'lead', count: 20 },
+    { stage: 'attendee', count: 12 },
+    { stage: 'hired', count: 8 },
+    { stage: 'contracting', count: 6 },
+    { stage: 'rts', count: 5 },
+    { stage: 'producing', count: 3 },
+    { stage: 'lost', count: 6 },
+  ];
+
+  let idx = 0;
+  for (const { stage, count } of stageDistribution) {
+    for (let i = 0; i < count && idx < RECRUIT_NAMES.length; i++, idx++) {
+      const name = RECRUIT_NAMES[idx];
+      const campaign = MOCK_CAMPAIGNS[Math.floor(Math.random() * MOCK_CAMPAIGNS.length)];
+      const daysBack = Math.floor(Math.random() * 60) + 5;
+      const leadDate = daysAgo(daysBack);
+
+      const lead: RecruitingLead = {
+        id: `rl-${idx + 1}`,
+        name,
+        email: `${name.split(' ')[0].toLowerCase()}.${name.split(' ')[1].toLowerCase()}@email.com`,
+        phone: `(${Math.floor(Math.random() * 900) + 100}) ${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 9000) + 1000}`,
+        stage,
+        campaignId: campaign.id,
+        campaignName: campaign.name,
+        adSetId: `${campaign.id}-as${Math.floor(Math.random() * 3) + 1}`,
+        adSetName: ['Broad — 65+ Medicare', 'Lookalike — Past Clients', 'Interest — Health Insurance'][Math.floor(Math.random() * 3)],
+        npn: stage === 'rts' || stage === 'producing' ? `${10000000 + Math.floor(Math.random() * 89999999)}` : null,
+        writingNumber: stage === 'rts' || stage === 'producing' ? `WN${1000 + idx}` : null,
+        leadAt: leadDate,
+        attendeeAt: ['attendee','hired','contracting','rts','producing'].includes(stage) ? daysAgo(daysBack - 3) : null,
+        hiredAt: ['hired','contracting','rts','producing'].includes(stage) ? daysAgo(daysBack - 7) : null,
+        contractingAt: ['contracting','rts','producing'].includes(stage) ? daysAgo(daysBack - 10) : null,
+        rtsAt: ['rts','producing'].includes(stage) ? daysAgo(daysBack - 18) : null,
+        producingAt: stage === 'producing' ? daysAgo(daysBack - 30) : null,
+        lostAt: stage === 'lost' ? daysAgo(daysBack - Math.floor(Math.random() * 10)) : null,
+        lostStage: stage === 'lost' ? (['lead', 'attendee', 'hired'] as MockStage[])[Math.floor(Math.random() * 3)] : null,
+        lostReason: stage === 'lost' ? RECRUIT_LOST_REASONS[Math.floor(Math.random() * RECRUIT_LOST_REASONS.length)] : null,
+        notes: null,
+      };
+      leads.push(lead);
+    }
+  }
+  return leads;
+}
+
+export const MOCK_RECRUITING_LEADS: RecruitingLead[] = generateRecruitingLeads();
+
+export const MOCK_RECRUITING_FUNNEL: RecruitingFunnel = {
+  leads: 60,
+  attendees: 37,
+  hired: 22,
+  contracting: 14,
+  rts: 8,
+  producing: 3,
+  lost: 6,
+};
+
+export const MOCK_STAGE_TIMINGS: StageTiming[] = [
+  { stage: 'lead', label: 'Lead → Attendee', avgDays: 3.2, medianDays: 2, count: 37 },
+  { stage: 'attendee', label: 'Attendee → Hired', avgDays: 4.1, medianDays: 3, count: 22 },
+  { stage: 'hired', label: 'Hired → Contracting', avgDays: 2.8, medianDays: 2, count: 14 },
+  { stage: 'contracting', label: 'Contracting → RTS', avgDays: 8.4, medianDays: 7, count: 8 },
+  { stage: 'rts', label: 'RTS → First Sale', avgDays: 14.0, medianDays: 11, count: 3 },
+];
