@@ -17,8 +17,10 @@ import { Link, Navigate } from 'react-router-dom';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useOrgData } from '@/contexts/OrgDataCache';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { ShieldCheck, AlertTriangle, Building2, ChevronRight, XCircle } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Building2, ChevronRight, XCircle, LayoutDashboard } from 'lucide-react';
 import { QualityCard } from '@/components/dashboard/QualityCard';
+import { DashboardCustomizer } from '@/components/dashboard/DashboardCustomizer';
+import { useDashboardLayout } from '@/hooks/useDashboardLayout';
 import { PeriodPills } from '@/components/filters/PeriodPills';
 import { DeltaBadge } from '@/components/ui/delta-badge';
 import { type DatePreset, type DateRange, type TrendPoint, DEFAULT_PRESET, getDateRange, getPreviousPeriod, getGranularity, bucketKey, fmtBucketLabel, fmtMonth } from '@/lib/dateUtils';
@@ -86,6 +88,8 @@ export function DashboardPage() {
   const { effectiveRole, effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide } = useEffectiveAuth();
   const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
   const orgData = useOrgData();
+  const { widgets, isWidgetVisible, toggleWidget, reorderWidgets, resetLayout } = useDashboardLayout();
+  const [customizerOpen, setCustomizerOpen] = useState(false);
 
   // ── Local state for date-filtered production (only when user changes date) ──
   const [localDailyProd, setLocalDailyProd] = useState<Array<{ day: string; agency_id: string; policies: number; annual_premium: number }>>([]);
@@ -350,6 +354,16 @@ export function DashboardPage() {
       <Header title="Dashboard" />
       <div className="p-6 space-y-6">
 
+        {/* Customize button */}
+        <div className="flex justify-end -mt-2 mb--2">
+          <button
+            onClick={() => setCustomizerOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+          >
+            <LayoutDashboard size={14} /> Customize
+          </button>
+        </div>
+
         {/* Period pills + filters */}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <PeriodPills
@@ -384,6 +398,7 @@ export function DashboardPage() {
         )}
 
         {/* ── KPI strip with HUD frames + animations ── */}
+        {isWidgetVisible('kpi-strip') && (
         <StaggerContainer className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Active Policies */}
           <StaggerItem>
@@ -546,7 +561,10 @@ export function DashboardPage() {
           </StaggerItem>
         </StaggerContainer>
 
+        )}{/* end kpi-strip */}
+
         {/* ── Production Snapshot ── */}
+        {isWidgetVisible('production-snapshot') && (<>
         {snapshot && (
           <FadeIn delay={0.35}>
             <Card className="border-border">
@@ -618,10 +636,13 @@ export function DashboardPage() {
           </FadeIn>
         )}
 
-        {/* ── Quality Card (locked widget) ── */}
+        </>)}{/* end production-snapshot */}
+
+        {/* ── Quality Card (locked widget — always shown) ── */}
         <QualityCard filterAgencyId={filterAgencyId} loading={loading} />
 
         {/* ── Retention trend chart ── */}
+        {isWidgetVisible('retention-trend') && (
         <FadeIn delay={0.4}>
           <Card className="border-border">
             <CardHeader className="pb-2">
@@ -684,8 +705,10 @@ export function DashboardPage() {
           </Card>
         </FadeIn>
 
+        )}{/* end retention-trend */}
+
         {/* ── Bottom agencies coaching panel ── */}
-        {!loading && bottomAgencies.length > 0 && (
+        {isWidgetVisible('agencies-coaching') && !loading && bottomAgencies.length > 0 && (
           <FadeIn delay={0.6}>
             <Card className="border-border">
               <CardHeader className="pb-2">
@@ -743,6 +766,15 @@ export function DashboardPage() {
             </Card>
           </FadeIn>
         )}
+        {/* Dashboard Customizer panel */}
+        <DashboardCustomizer
+          open={customizerOpen}
+          onOpenChange={setCustomizerOpen}
+          widgets={widgets}
+          onToggle={toggleWidget}
+          onReorder={reorderWidgets}
+          onReset={resetLayout}
+        />
       </div>
     </div>
   );
