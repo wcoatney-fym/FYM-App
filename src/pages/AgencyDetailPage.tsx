@@ -8,6 +8,8 @@ import { supabase } from '@/lib/supabase';
 import { fetchRetentionSummary, fetchBookOfBusiness } from '@/lib/prod-api';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useCachedMultiFetch } from '@/hooks/useCachedFetch';
+import { HudFrame } from '@/components/ui/hud-frame';
+import { StaggerContainer, StaggerItem } from '@/components/ui/animated';
 import {
   ShieldCheck, TrendingUp, AlertTriangle, DollarSign,
   ArrowLeft, ChevronDown, ChevronUp,
@@ -268,14 +270,19 @@ export function AgencyDetailPage() {
           <ArrowLeft size={14} /> All Agencies
         </Link>
 
-        {/* KPI strip */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* KPI strip — HudFrame + text-3xl to match Dashboard/Agencies list */}
+        <StaggerContainer
+          className="grid grid-cols-2 lg:grid-cols-4 gap-4"
+          role="region"
+          aria-label="Agency key metrics"
+        >
           {[
             {
               title: 'Active Policies',
               value: s ? s.active_policies.toLocaleString() : '—',
               sub: s ? fmt$(s.active_premium) + '/mo' : '',
               icon: ShieldCheck, color: 'text-primary', bg: 'bg-cyan-500/10',
+              accent: undefined,
             },
             {
               title: '90-Day Retention',
@@ -284,6 +291,9 @@ export function AgencyDetailPage() {
               icon: TrendingUp,
               color: s ? retentionColor(s.retention_pct) : 'text-muted-foreground',
               bg: s ? retentionBg(s.retention_pct) : 'bg-background',
+              accent: s?.retention_pct !== null && (s?.retention_pct ?? 0) >= 90
+                ? 'hsl(142 71% 45% / 0.4)'
+                : 'hsl(38 92% 50% / 0.4)',
             },
             {
               title: 'At-Risk',
@@ -292,30 +302,36 @@ export function AgencyDetailPage() {
               icon: AlertTriangle,
               color: s && s.at_risk_count > 0 ? 'text-red-400' : 'text-muted-foreground',
               bg: s && s.at_risk_count > 0 ? 'bg-red-500/10' : 'bg-background',
+              accent: s && s.at_risk_count > 0 ? 'hsl(0 84% 60% / 0.4)' : undefined,
             },
             {
               title: 'Avg Premium',
               value: s && s.active_policies > 0 ? fmt$(s.active_premium / s.active_policies) : '—',
               sub: 'per active policy',
-              icon: DollarSign, color: 'text-foreground/80', bg: 'shimmer',
+              icon: DollarSign, color: 'text-foreground/80', bg: 'bg-secondary',
+              accent: undefined,
             },
           ].map(card => (
-            <Card key={card.title} className="border-border">
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">{card.title}</p>
-                    <p className="text-2xl font-bold text-foreground mt-1">{card.value}</p>
-                    {card.sub && <p className="text-xs text-muted-foreground mt-0.5">{card.sub}</p>}
-                  </div>
-                  <div className={`p-2.5 rounded-lg ${card.bg}`}>
-                    <card.icon size={20} className={card.color} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <StaggerItem key={card.title}>
+              <HudFrame accentColor={card.accent}>
+                <Card className="border-border" role="group" aria-label={`${card.title}: ${card.value}`}>
+                  <CardContent className="p-5">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">{card.title}</p>
+                        <p className="text-3xl font-bold text-foreground mt-1">{card.value}</p>
+                        {card.sub && <p className="text-xs text-muted-foreground mt-0.5">{card.sub}</p>}
+                      </div>
+                      <div className={`p-2.5 rounded-lg ${card.bg}`} aria-hidden="true">
+                        <card.icon size={20} className={card.color} />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </HudFrame>
+            </StaggerItem>
           ))}
-        </div>
+        </StaggerContainer>
 
         {/* Product breakdown + status */}
         <div className="grid lg:grid-cols-2 gap-6">
