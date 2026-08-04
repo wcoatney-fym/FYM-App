@@ -19,7 +19,9 @@ import { useOrgData } from '@/contexts/OrgDataCache';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ShieldCheck, AlertTriangle, Building2, ChevronRight, XCircle } from 'lucide-react';
 import { QualityCard } from '@/components/dashboard/QualityCard';
-import { type DatePreset, type DateRange, type TrendPoint, DEFAULT_PRESET, getDateRange, getGranularity, bucketKey, fmtBucketLabel, fmtMonth } from '@/lib/dateUtils';
+import { PeriodPills } from '@/components/filters/PeriodPills';
+import { DeltaBadge } from '@/components/ui/delta-badge';
+import { type DatePreset, type DateRange, type TrendPoint, DEFAULT_PRESET, getDateRange, getPreviousPeriod, getGranularity, bucketKey, fmtBucketLabel, fmtMonth } from '@/lib/dateUtils';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface StatusSnapshot {
@@ -93,6 +95,11 @@ export function DashboardPage() {
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
   const [_dateLoading, setDateLoading] = useState(false);
+  const [comparing, setComparing] = useState(false);
+
+  // ── Previous-period data for compare mode ──
+  const [prevAgencyProd, setPrevAgencyProd] = useState<AgencyProduction[]>([]);
+  const previousRange = comparing ? getPreviousPeriod(dateRange) : null;
 
   const useRpc = datePreset !== 'allTime';
 
@@ -169,6 +176,22 @@ export function DashboardPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateRange, datePreset, effectiveAgencyWritingNumber, isOrgWide]);
 
+  // ── Fetch previous-period data when compare mode is active ──
+  useEffect(() => {
+    if (!comparing || !previousRange) {
+      setPrevAgencyProd([]);
+      return;
+    }
+    const agencyParam = !isOrgWide && effectiveAgencyWritingNumber
+      ? { agency_id: effectiveAgencyWritingNumber } : {};
+    const startDateStr = previousRange.startDate.split('T')[0];
+    const endDateStr = previousRange.endDate.split('T')[0];
+    fetchAgencyProduction({ ...agencyParam, start_date: startDateStr, end_date: endDateStr })
+      .then(data => setPrevAgencyProd(data))
+      .catch(err => console.error('Previous period fetch error:', err));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comparing, previousRange?.startDate, previousRange?.endDate, effectiveAgencyWritingNumber, isOrgWide]);
+
   // ── Detect no-data agencies (no writing_number) ──
   const noDataAgency = filterAgencyId?.startsWith('no-data:') ?? false;
 
@@ -212,6 +235,23 @@ export function DashboardPage() {
       total_agencies: agencies.length,
     };
   }, [loading, noDataAgency, filterAgencyId, rawAgencies]);
+
+  // ── Previous-period snapshot for compare mode ──
+  const prevSnapshot = useMemo(() => {
+    if (!comparing || prevAgencyProd.length === 0) return null;
+    const agencies = filterAgencyId
+      ? prevAgencyProd.filter(a => a.agency_id === filterAgencyId)
+      : prevAgencyProd;
+    let totalWritten = 0, totalAP = 0, active = 0, atRisk = 0, terminated = 0;
+    for (const a of agencies) {
+      totalWritten += a.total_policies;
+      totalAP += a.total_annual_premium ?? 0;
+      active += a.active_policies;
+      atRisk += a.at_risk_policies;
+      terminated += a.terminated_policies;
+    }
+    return { totalWritten, totalAP, active, atRisk, terminated };
+  }, [comparing, prevAgencyProd, filterAgencyId]);
 
   // ── Bottom agencies (coaching signals) — filtered + sorted ──
   const bottomAgencies = useMemo((): AgencyRisk[] => {
@@ -310,16 +350,23 @@ export function DashboardPage() {
       <Header title="Dashboard" />
       <div className="p-6 space-y-6">
 
-        {/* Filters */}
-        <DataFilters
-          showAgencyFilter={showAgencyFilter}
-          showTimePeriod
-          selectedAgencyId={filterAgencyId}
-          selectedPreset={datePreset}
-          selectedDateRange={dateRange}
-          onAgencyChange={setFilterAgencyId}
-          onDateRangeChange={(range, preset) => { setDateRange(range); setDatePreset(preset); }}
-        />
+        {/* Period pills + filters */}
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <PeriodPills
+            preset={datePreset}
+            dateRange={dateRange}
+            onChange={(range, preset) => { setDateRange(range); setDatePreset(preset); }}
+            comparing={comparing}
+            onCompareChange={setComparing}
+            storageKey="dashboard"
+          />
+          <DataFilters
+            showAgencyFilter={showAgencyFilter}
+            showTimePeriod={false}
+            selectedAgencyId={filterAgencyId}
+            onAgencyChange={setFilterAgencyId}
+          />
+        </div>
 
         {/* No production data banner for agencies without writing_number */}
         {noDataAgency && !loading && (
@@ -349,10 +396,15 @@ export function DashboardPage() {
                     <div className="flex items-start justify-between">
                       <div>
                         <p className="text-sm font-medium text-muted-foreground">Active Policies</p>
-                        <CountUp
-                          end={s?.active_policies ?? 0}
-                          className="text-2xl font-bold text-foreground mt-1 block"
-                        />
+                        <div className="flex items-center gap-2 mt-1">
+                          <CountUp
+                            end={s?.active_policies ?? 0}
+                            className="text-2xl font-bold text-foreground block"
+                          />
+                          {comparing && prevSnapshot && (
+                            <DeltaBadge current={s?.active_policies ?? 0} previous={prevSnapshot.active} />
+                          )}
+                        </div>
                         {s && <p className="text-xs text-muted-foreground/70 mt-0.5 font-data">{fmt$(s.active_premium)}/mo premium</p>}
                       </div>
                       <div className="p-2.5 rounded-lg bg-cyan-500/10">
@@ -408,10 +460,15 @@ export function DashboardPage() {
                     <div className="flex items-start justify-between">
                       <div>
                         <p className="text-sm font-medium text-muted-foreground">At-Risk Policies</p>
-                        <CountUp
-                          end={s?.at_risk_count ?? 0}
-                          className="text-2xl font-bold text-foreground mt-1 block"
-                        />
+                        <div className="flex items-center gap-2 mt-1">
+                          <CountUp
+                            end={s?.at_risk_count ?? 0}
+                            className="text-2xl font-bold text-foreground block"
+                          />
+                          {comparing && prevSnapshot && (
+                            <DeltaBadge current={s?.at_risk_count ?? 0} previous={prevSnapshot.atRisk} invertColor />
+                          )}
+                        </div>
                         {s && s.at_risk_premium > 0 && (
                           <p className="text-xs text-muted-foreground/70 mt-0.5 font-data">{fmt$(s.at_risk_premium)}/mo exposed</p>
                         )}
@@ -437,10 +494,15 @@ export function DashboardPage() {
                     <div className="flex items-start justify-between">
                       <div>
                         <p className="text-sm font-medium text-muted-foreground">Terminated</p>
-                        <CountUp
-                          end={s?.terminated_policies ?? 0}
-                          className="text-2xl font-bold text-foreground mt-1 block"
-                        />
+                        <div className="flex items-center gap-2 mt-1">
+                          <CountUp
+                            end={s?.terminated_policies ?? 0}
+                            className="text-2xl font-bold text-foreground block"
+                          />
+                          {comparing && prevSnapshot && (
+                            <DeltaBadge current={s?.terminated_policies ?? 0} previous={prevSnapshot.terminated} invertColor />
+                          )}
+                        </div>
                       </div>
                       <div className="p-2.5 rounded-lg bg-purple-500/10">
                         <XCircle size={20} className="text-purple-400" />

@@ -29,7 +29,7 @@ import { QualityTab } from './tabs/QualityTab';
 import { PoliciesTab } from './tabs/PoliciesTab';
 import type { AgentStats, PolicyRow, TrendPoint } from './types';
 import { fmt$, fmtNum, retentionColor, retentionBg } from './helpers';
-import { TimePeriodSelector } from '@/components/filters/TimePeriodSelector';
+import { PeriodPills } from '@/components/filters/PeriodPills';
 import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange, getGranularity, bucketKey, fmtBucketLabel } from '@/lib/dateUtils';
 
 // ── Resolve back-navigation label from referrer ────────────────────────────
@@ -267,10 +267,13 @@ export function AgentDetailPage() {
           <span className="text-muted-foreground/30">/</span>
           <span className="text-foreground font-medium">{agentName}</span>
         </div>
-        <TimePeriodSelector
+        <PeriodPills
           preset={datePreset}
           dateRange={dateRange}
           onChange={(range, preset) => { setDateRange(range); setDatePreset(preset); }}
+          showCompare={false}
+          storageKey="agent-detail"
+          compact
         />
       </div>
 
