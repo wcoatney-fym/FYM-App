@@ -1,18 +1,16 @@
 import { useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { HudFrame } from '@/components/ui/hud-frame';
-import { StaggerContainer, StaggerItem } from '@/components/ui/animated';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  Activity, BarChart3, TrendingUp, Users, DollarSign, Percent,
+  Activity, BarChart3, DollarSign,
 } from 'lucide-react';
 import {
   Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ComposedChart, Legend, Cell,
-  BarChart, Funnel, FunnelChart,
+  BarChart,
 } from 'recharts';
 import {
   MOCK_CAMPAIGN_PERFORMANCE, MOCK_CAMPAIGNS,
