@@ -410,17 +410,17 @@ export function DashboardPage() {
                   ) : (
                     <div className="flex items-start justify-between">
                       <div>
-                        <p className="text-sm font-medium text-muted-foreground">Active Policies</p>
+                        <p className="text-base font-medium text-muted-foreground">Active Policies</p>
                         <div className="flex items-center gap-2 mt-1">
                           <CountUp
                             end={s?.active_policies ?? 0}
-                            className="text-2xl font-bold text-foreground block"
+                            className="text-3xl font-bold text-foreground block"
                           />
                           {comparing && prevSnapshot && (
                             <DeltaBadge current={s?.active_policies ?? 0} previous={prevSnapshot.active} />
                           )}
                         </div>
-                        {s && <p className="text-xs text-muted-foreground/70 mt-0.5 font-data">{fmt$(s.active_premium)}/mo premium</p>}
+                        {s && <p className="text-sm text-muted-foreground/70 mt-0.5 font-data">{fmt$(s.active_premium)}/mo premium</p>}
                       </div>
                       <div className="p-2.5 rounded-lg bg-cyan-500/10">
                         <ShieldCheck size={20} className="text-primary" />
@@ -452,7 +452,7 @@ export function DashboardPage() {
                         strokeWidth={8}
                       />
                       <div>
-                        <p className="text-sm font-medium text-muted-foreground">90-Day Retention</p>
+                        <p className="text-base font-medium text-muted-foreground">90-Day Retention</p>
                         <p className={`text-xs mt-1 ${s?.retention_pct !== null && (s?.retention_pct ?? 0) >= 90 ? 'text-emerald-400' : 'text-amber-400'}`}>
                           {s?.retention_pct !== null && (s?.retention_pct ?? 0) >= 90 ? 'On target ≥ 90%' : 'Below 90% target'}
                         </p>
@@ -474,18 +474,18 @@ export function DashboardPage() {
                   ) : (
                     <div className="flex items-start justify-between">
                       <div>
-                        <p className="text-sm font-medium text-muted-foreground">At-Risk Policies</p>
+                        <p className="text-base font-medium text-muted-foreground">At-Risk Policies</p>
                         <div className="flex items-center gap-2 mt-1">
                           <CountUp
                             end={s?.at_risk_count ?? 0}
-                            className="text-2xl font-bold text-foreground block"
+                            className="text-3xl font-bold text-foreground block"
                           />
                           {comparing && prevSnapshot && (
                             <DeltaBadge current={s?.at_risk_count ?? 0} previous={prevSnapshot.atRisk} invertColor />
                           )}
                         </div>
                         {s && s.at_risk_premium > 0 && (
-                          <p className="text-xs text-muted-foreground/70 mt-0.5 font-data">{fmt$(s.at_risk_premium)}/mo exposed</p>
+                          <p className="text-sm text-muted-foreground/70 mt-0.5 font-data">{fmt$(s.at_risk_premium)}/mo exposed</p>
                         )}
                       </div>
                       <div className="p-2.5 rounded-lg bg-red-500/10">
@@ -508,11 +508,11 @@ export function DashboardPage() {
                   ) : (
                     <div className="flex items-start justify-between">
                       <div>
-                        <p className="text-sm font-medium text-muted-foreground">Terminated</p>
+                        <p className="text-base font-medium text-muted-foreground">Terminated</p>
                         <div className="flex items-center gap-2 mt-1">
                           <CountUp
                             end={s?.terminated_policies ?? 0}
-                            className="text-2xl font-bold text-foreground block"
+                            className="text-3xl font-bold text-foreground block"
                           />
                           {comparing && prevSnapshot && (
                             <DeltaBadge current={s?.terminated_policies ?? 0} previous={prevSnapshot.terminated} invertColor />
@@ -543,12 +543,12 @@ export function DashboardPage() {
                   ) : (
                     <div className="flex items-start justify-between">
                       <div>
-                        <p className="text-sm font-medium text-muted-foreground">{isOrgWide ? 'Agencies Below 90%' : 'Your Agency'}</p>
+                        <p className="text-base font-medium text-muted-foreground">{isOrgWide ? 'Agencies Below 90%' : 'Your Agency'}</p>
                         <CountUp
                           end={s?.agencies_below_target ?? 0}
-                          className="text-2xl font-bold text-foreground mt-1 block"
+                          className="text-3xl font-bold text-foreground mt-1 block"
                         />
-                        {s && <p className="text-xs text-muted-foreground/70 mt-0.5">{isOrgWide ? `of ${s.total_agencies} total` : (s.agencies_below_target > 0 ? 'Below 90% target' : 'On target')}</p>}
+                        {s && <p className="text-sm text-muted-foreground/70 mt-0.5">{isOrgWide ? `of ${s.total_agencies} total` : (s.agencies_below_target > 0 ? 'Below 90% target' : 'On target')}</p>}
                       </div>
                       <div className={`p-2.5 rounded-lg ${s && s.agencies_below_target > 0 ? 'bg-red-500/10' : 'bg-emerald-500/10'}`}>
                         <Building2 size={20} className={s && s.agencies_below_target > 0 ? 'text-red-400' : 'text-emerald-400'} />
@@ -587,28 +587,28 @@ export function DashboardPage() {
               <CardContent>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                   <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">Total Written</p>
-                    <p className="text-2xl font-bold text-foreground font-data">{snapshot.totalWritten.toLocaleString()}</p>
-                    <p className="text-xs text-muted-foreground/70 font-data">{fmt$(snapshot.totalAP)} AP</p>
+                    <p className="text-sm text-muted-foreground">Total Written</p>
+                    <p className="text-3xl font-bold text-foreground font-data">{snapshot.totalWritten.toLocaleString()}</p>
+                    <p className="text-sm text-muted-foreground/70 font-data">{fmt$(snapshot.totalAP)} AP</p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">Active</p>
-                    <p className="text-2xl font-bold text-cyan-400 font-data">{snapshot.active.toLocaleString()}</p>
-                    <p className="text-xs text-cyan-400/70 font-data">{fmt$(snapshot.activeAP)} AP</p>
+                    <p className="text-sm text-muted-foreground">Active</p>
+                    <p className="text-3xl font-bold text-cyan-400 font-data">{snapshot.active.toLocaleString()}</p>
+                    <p className="text-sm text-cyan-400/70 font-data">{fmt$(snapshot.activeAP)} AP</p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">Pending</p>
-                    <p className="text-2xl font-bold text-amber-400 font-data">{snapshot.pending.toLocaleString()}</p>
-                    <p className="text-xs text-amber-400/70 font-data">{fmt$(snapshot.pendingAP)} AP</p>
+                    <p className="text-sm text-muted-foreground">Pending</p>
+                    <p className="text-3xl font-bold text-amber-400 font-data">{snapshot.pending.toLocaleString()}</p>
+                    <p className="text-sm text-amber-400/70 font-data">{fmt$(snapshot.pendingAP)} AP</p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">At Risk</p>
-                    <p className="text-2xl font-bold text-red-400 font-data">{snapshot.atRisk.toLocaleString()}</p>
-                    <p className="text-xs text-red-400/70 font-data">{fmt$(snapshot.atRiskAP)} AP</p>
+                    <p className="text-sm text-muted-foreground">At Risk</p>
+                    <p className="text-3xl font-bold text-red-400 font-data">{snapshot.atRisk.toLocaleString()}</p>
+                    <p className="text-sm text-red-400/70 font-data">{fmt$(snapshot.atRiskAP)} AP</p>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">Terminated</p>
-                    <p className="text-2xl font-bold text-purple-400 font-data">{snapshot.terminated.toLocaleString()}</p>
+                    <p className="text-sm text-muted-foreground">Terminated</p>
+                    <p className="text-3xl font-bold text-purple-400 font-data">{snapshot.terminated.toLocaleString()}</p>
                   </div>
                 </div>
                 {/* Trend chart */}

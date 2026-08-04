@@ -281,7 +281,7 @@ export function QualityCard({ filterAgencyId, loading: parentLoading }: QualityC
                     className="flex items-center justify-between py-2.5 first:pt-1"
                   >
                     <div className="space-y-0.5 min-w-0 flex-1">
-                      <p className={`text-sm font-medium ${m.penguin ? 'text-muted-foreground/50' : 'text-foreground'}`}>
+                      <p className={`text-base font-medium ${m.penguin ? 'text-muted-foreground/50' : 'text-foreground'}`}>
                         {m.label}
                       </p>
                       <div className="flex items-center gap-1.5">
@@ -301,13 +301,13 @@ export function QualityCard({ filterAgencyId, loading: parentLoading }: QualityC
                       {m.penguin ? (
                         <PenguinPlaceholder reason={m.penguinReason} />
                       ) : m.value !== null ? (
-                        <span className={`text-xl font-bold font-data ${
+                        <span className={`text-2xl font-bold font-data ${
                           m.label === 'Attention Rate'
                             ? attentionRateColor(m.value)
                             : retentionStatusColor(m.value)
                         }`}>
                           {m.value}
-                          <span className="text-sm">%</span>
+                          <span className="text-base">%</span>
                         </span>
                       ) : (
                         <span className="text-sm text-muted-foreground/40 italic">—</span>
