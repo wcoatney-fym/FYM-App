@@ -96,6 +96,10 @@ export interface OrgDataState {
   initialLoading: boolean;
   /** Trigger a full re-fetch (e.g., after date range change) */
   refresh: (params?: { startDate?: string; endDate?: string; allTime?: boolean }) => void;
+  /** ISO timestamp of last successful data fetch (null = never fetched this session) */
+  lastUpdated: string | null;
+  /** Error from last fetch attempt — null when fetch succeeded */
+  fetchError: string | null;
 }
 
 const defaultState: OrgDataState = {
@@ -107,6 +111,8 @@ const defaultState: OrgDataState = {
   monthlyProduction: [],
   initialLoading: true,
   refresh: () => {},
+  lastUpdated: null,
+  fetchError: null,
 };
 
 const OrgDataContext = createContext<OrgDataState>(defaultState);
@@ -142,6 +148,8 @@ export function OrgDataProvider({ children }: { children: ReactNode }) {
   );
   // If we have persisted data, start with initialLoading = false (instant render)
   const [initialLoading, setInitialLoading] = useState(!hasPersistedData);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const hasLoaded = useRef(false);
 
   // Track the last fetch params to avoid redundant fetches
@@ -194,9 +202,12 @@ export function OrgDataProvider({ children }: { children: ReactNode }) {
 
       hasLoaded.current = true;
       setInitialLoading(false);
+      setLastUpdated(new Date().toISOString());
+      setFetchError(null);
     } catch (err) {
       console.error('OrgDataCache fetch error:', err);
       setInitialLoading(false);
+      setFetchError(err instanceof Error ? err.message : 'Failed to load dashboard data');
     }
   };
 
@@ -217,6 +228,8 @@ export function OrgDataProvider({ children }: { children: ReactNode }) {
     monthlyProduction,
     initialLoading,
     refresh: doFetch,
+    lastUpdated,
+    fetchError,
   };
 
   return (

@@ -1,4 +1,4 @@
-import { motion, type Variants } from 'framer-motion';
+import { motion, useReducedMotion, type Variants } from 'framer-motion';
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -23,26 +23,38 @@ const itemVariants: Variants = {
 interface StaggerProps {
   children: React.ReactNode;
   className?: string;
+  /** Pass-through for region semantics (rendered on a wrapper) */
+  role?: string;
+  'aria-label'?: string;
 }
 
-/** Stagger-animate direct children on mount */
-export function StaggerContainer({ children, className }: StaggerProps) {
-  return (
+/** Stagger-animate direct children on mount.
+ *  Respects `prefers-reduced-motion` — skips animation entirely. */
+export function StaggerContainer({ children, className, role, 'aria-label': ariaLabel }: StaggerProps) {
+  const shouldReduce = useReducedMotion();
+  const inner = (
     <motion.div
       variants={containerVariants}
-      initial="hidden"
+      initial={shouldReduce ? 'visible' : 'hidden'}
       animate="visible"
       className={className}
     >
       {children}
     </motion.div>
   );
+  // Wrap in a semantic element when role/aria-label are provided
+  if (role || ariaLabel) {
+    return <div role={role} aria-label={ariaLabel}>{inner}</div>;
+  }
+  return inner;
 }
 
-/** Wrap each card/item inside a StaggerContainer */
+/** Wrap each card/item inside a StaggerContainer.
+ *  Reduced-motion: renders without animation. */
 export function StaggerItem({ children, className }: StaggerProps) {
+  const shouldReduce = useReducedMotion();
   return (
-    <motion.div variants={itemVariants} className={className}>
+    <motion.div variants={shouldReduce ? undefined : itemVariants} className={className}>
       {children}
     </motion.div>
   );
@@ -57,11 +69,12 @@ interface FadeInProps {
 }
 
 export function FadeIn({ children, className, delay = 0, duration = 0.5 }: FadeInProps) {
+  const shouldReduce = useReducedMotion();
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12 }}
+      initial={shouldReduce ? { opacity: 1, y: 0 } : { opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration, delay, ease: [0.25, 0.46, 0.45, 0.94] }}
+      transition={shouldReduce ? { duration: 0 } : { duration, delay, ease: [0.25, 0.46, 0.45, 0.94] }}
       className={className}
     >
       {children}
@@ -95,10 +108,15 @@ export function CountUp({
   const startRef = useRef<number | null>(null);
   const hasAnimated = useRef(false);
 
+  // Respect prefers-reduced-motion — snap to final value immediately
+  const prefersReduced = typeof window !== 'undefined'
+    ? window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false
+    : false;
+
   useEffect(() => {
     // Only animate on initial mount. After that, snap instantly so
     // filter changes feel immediate instead of waiting 1.2s.
-    if (hasAnimated.current) {
+    if (hasAnimated.current || prefersReduced) {
       if (format) {
         setDisplay(format(end));
       } else {
@@ -109,6 +127,7 @@ export function CountUp({
           })
         );
       }
+      hasAnimated.current = true;
       return;
     }
 
@@ -153,7 +172,7 @@ export function CountUp({
 
     rafRef.current = requestAnimationFrame(step);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [end, duration, decimals, format]);
+  }, [end, duration, decimals, format, prefersReduced]);
 
   return (
     <span className={cn('font-data', className)}>
@@ -181,6 +200,7 @@ export function RadialGauge({
   className,
   thresholds = [85, 90],
 }: RadialGaugeProps) {
+  const prefersReducedGauge = useReducedMotion();
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const clampedValue = Math.max(0, Math.min(100, value));
@@ -220,8 +240,13 @@ export function RadialGauge({
           strokeDasharray={circumference}
           initial={{ strokeDashoffset: circumference }}
           animate={{ strokeDashoffset: circumference * (1 - clampedValue / 100) }}
-          transition={{ duration: 1.5, ease: [0.25, 0.46, 0.45, 0.94], delay: 0.3 }}
+          transition={prefersReducedGauge ? { duration: 0 } : { duration: 1.5, ease: [0.25, 0.46, 0.45, 0.94], delay: 0.3 }}
           style={{ filter: `drop-shadow(0 0 6px ${glowColor})` }}
+          role="meter"
+          aria-valuenow={clampedValue}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={label ? `${label}: ${clampedValue}%` : `${clampedValue}%`}
         />
       </svg>
       {/* Center text */}
