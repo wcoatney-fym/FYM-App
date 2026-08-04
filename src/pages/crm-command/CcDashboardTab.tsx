@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
   Users, DollarSign, TrendingUp, AlertTriangle,
@@ -11,7 +11,9 @@ import { supabase } from '@/lib/supabase';
 import { portalSupabase } from '@/lib/portal-supabase';
 import { scopeToAgency } from '@/lib/query-helpers';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
-import { fetchRetentionSummary, fetchMonthlyProduction, fetchBookOfBusiness } from '@/lib/prod-api';
+import { fetchBookOfBusiness } from '@/lib/prod-api';
+import { useOrgData } from '@/contexts/OrgDataCache';
+import { useCachedFetch } from '@/hooks/useCachedFetch';
 
 const container = {
   hidden: { opacity: 0 },
@@ -47,12 +49,47 @@ export function CcDashboardTab() {
   const liveStats = useDashboardStats();
 
   const [activeLeads, setActiveLeads] = useState<number | null>(null);
-  const [placementsMTD, setPlacementsMTD] = useState<number | null>(null);
-  const [revenueMTD, setRevenueMTD] = useState<number | null>(null);
-  const [cancelRate, setCancelRate] = useState<string>('0');
   const [recruitingCount, setRecruitingCount] = useState<number | null>(null);
-  const [insights, setInsights] = useState<AgencyInsight[]>([]);
   const [activities, setActivities] = useState<ActivityRow[]>([]);
+  const orgData = useOrgData();
+
+  // Book of Business summary — cached to avoid shimmer
+  const agencyParam = !isOrgWide && effectiveAgencyWritingNumber ? { agency_id: effectiveAgencyWritingNumber } : {};
+  const { data: bobSummary } = useCachedFetch(
+    `cc-bob-summary-${effectiveAgencyWritingNumber || 'org'}`,
+    () => fetchBookOfBusiness({ ...agencyParam, page_size: 1 }),
+    { deps: [effectiveAgencyWritingNumber, isOrgWide] }
+  );
+
+  // Derive metrics from OrgDataCache (instant — no fetch)
+  const placementsMTD = bobSummary?.summary.total_policies ?? null;
+  const revenueMTD = useMemo(() => {
+    if (orgData.monthlyProduction.length === 0) return null;
+    const now = new Date();
+    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return orgData.monthlyProduction
+      .filter(m => m.month === monthKey)
+      .reduce((s, r) => s + r.annual_premium, 0);
+  }, [orgData.monthlyProduction]);
+
+  const cancelRate = useMemo(() => {
+    if (!orgData.retentionSummary) return '0';
+    const org = orgData.retentionSummary.data.org_wide;
+    const total = org.total_active_policies + org.total_at_risk;
+    return total > 0 ? ((org.total_at_risk / total) * 100).toFixed(1) : '0';
+  }, [orgData.retentionSummary]);
+
+  const insights = useMemo((): AgencyInsight[] => {
+    if (!orgData.retentionSummary) return [];
+    return [...orgData.retentionSummary.data.agencies]
+      .sort((a, b) => b.at_risk_count - a.at_risk_count)
+      .slice(0, 3)
+      .map(r => ({
+        agencyName: r.agency_id, // name enrichment handled below
+        atRiskCount: r.at_risk_count,
+        retentionPct: r.retention_pct,
+      }));
+  }, [orgData.retentionSummary]);
 
   useEffect(() => {
     if (tasksSource === null) void loadLiveTasks();
@@ -90,66 +127,31 @@ export function CcDashboardTab() {
     })();
   }, [isOrgWide, effectiveAgencyId]);
 
+  // Agency names enrichment for insights (lightweight, not Max's DB)
+  const [insightNames, setInsightNames] = useState<Map<string, string>>(new Map());
   useEffect(() => {
+    if (!supabase) return;
     (async () => {
-      if (!supabase) return;
-      try {
-        const now = new Date();
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-        // Placements MTD — from prod DB edge function
-        const agencyParam = !isOrgWide && effectiveAgencyWritingNumber ? { agency_id: effectiveAgencyWritingNumber } : {};
-        const bobAllRes = await fetchBookOfBusiness({
-          ...agencyParam,
-          page_size: 1,
-        });
-        setPlacementsMTD(bobAllRes.summary.total_policies);
-
-        // Revenue MTD from prod DB edge function
-        const monthKey = monthStart.slice(0, 7);
-        const monthlyData = await fetchMonthlyProduction(agencyParam);
-        const thisMonthData = monthlyData.filter(m => m.month === monthKey);
-        const revenue = thisMonthData.reduce((s, r) => s + r.annual_premium, 0);
-        setRevenueMTD(revenue);
-
-        // Cancel rate — from retention summary
-        const retRes = await fetchRetentionSummary(agencyParam);
-        const orgData = retRes.data.org_wide;
-        const totalPolicies = orgData.total_active_policies + orgData.total_at_risk;
-        const atRisk = orgData.total_at_risk;
-        setCancelRate(totalPolicies > 0 ? ((atRisk / totalPolicies) * 100).toFixed(1) : '0');
-
-        // Insights — top agencies by at-risk count
-        const agenciesByRisk = [...retRes.data.agencies]
-          .sort((a, b) => b.at_risk_count - a.at_risk_count)
-          .slice(0, 3);
-
-        // Get agency names from rcbzag
-        const insightNames = new Map<string, string>();
-        if (supabase) {
-          const { data: nameData } = await (supabase as any)
-            .from('agencies')
-            .select('tracker_id, name');
-          if (nameData) {
-            for (const a of nameData as any[]) {
-              if (a.tracker_id) insightNames.set(a.tracker_id, a.name);
-            }
-          }
+      const { data: nameData } = await (supabase as any)
+        .from('agencies')
+        .select('tracker_id, name');
+      if (nameData) {
+        const nm = new Map<string, string>();
+        for (const a of nameData as any[]) {
+          if (a.tracker_id) nm.set(a.tracker_id, a.name);
         }
-
-        setInsights(
-          agenciesByRisk.map((r) => ({
-            agencyName: insightNames.get(r.agency_id) || 'Unknown Agency',
-            atRiskCount: r.at_risk_count,
-            retentionPct: r.retention_pct,
-          }))
-        );
-      } catch {
-        setPlacementsMTD(0);
-        setRevenueMTD(0);
-        setCancelRate('0');
+        setInsightNames(nm);
       }
     })();
-  }, [isOrgWide, effectiveAgencyId, effectiveAgencyWritingNumber]);
+  }, []);
+
+  // Enrich insight agency names
+  const enrichedInsights = useMemo(() =>
+    insights.map(i => ({
+      ...i,
+      agencyName: insightNames.get(i.agencyName) || i.agencyName,
+    })),
+  [insights, insightNames]);
 
   useEffect(() => {
     (async () => {
@@ -234,9 +236,9 @@ export function CcDashboardTab() {
             <h2 className="text-sm font-semibold">Retention Signals</h2>
             <Zap className="w-3.5 h-3.5 text-amber-400" />
           </div>
-          {insights.length > 0 ? (
+          {enrichedInsights.length > 0 ? (
             <div className="space-y-3">
-              {insights.map((insight, i) => (
+              {enrichedInsights.map((insight, i) => (
                 <div key={insight.agencyName} className="flex items-start gap-3 p-3 rounded-lg bg-secondary/30 border border-border/30">
                   <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
                     <span className="text-[10px] font-bold text-primary">{i + 1}</span>

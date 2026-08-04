@@ -12,7 +12,7 @@
  *
  * Data: prod-data edge fn (type=agent, agency_id filter) + agent_goals table
  */
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent } from '@/components/ui/card';
@@ -27,6 +27,7 @@ import {
   type AtRiskPolicy,
 } from '@/lib/prod-api';
 import { supabase } from '@/lib/supabase';
+import { useCachedMultiFetch } from '@/hooks/useCachedFetch';
 import {
   Search,
   AlertTriangle,
@@ -104,84 +105,77 @@ export function ManagerTeamPage() {
   const navigate = useNavigate();
   const { effectiveAgencyWritingNumber } = useEffectiveAuth();
 
-  const [agents, setAgents] = useState<AgentRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('ap');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [paceFilter, setPaceFilter] = useState<PaceFilter>('all');
+  const [goals, setGoals] = useState<GoalRecord[]>([]);
 
   const now = new Date();
   const currentMonth = now.getMonth() + 1;
   const currentYear = now.getFullYear();
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // Fetch agent production for this agency
-      const agencyParam = effectiveAgencyWritingNumber
-        ? { agency_id: effectiveAgencyWritingNumber }
-        : undefined;
+  // Cached fetch for Max's DB data — instant render from localStorage
+  const agencyParam = effectiveAgencyWritingNumber
+    ? { agency_id: effectiveAgencyWritingNumber }
+    : undefined;
+  const cacheKey = `manager-team-${effectiveAgencyWritingNumber || 'org'}`;
+  const { data: cached, loading: cacheLoading, error: fetchError, refresh: loadData } = useCachedMultiFetch(
+    cacheKey,
+    {
+      agentData: () => fetchAgentProduction(agencyParam),
+      atRiskResp: () => fetchAtRiskPolicies(agencyParam),
+    },
+    { deps: [effectiveAgencyWritingNumber] }
+  );
 
-      const [agentData, atRiskResp] = await Promise.all([
-        fetchAgentProduction(agencyParam),
-        fetchAtRiskPolicies(agencyParam),
-      ]);
+  // Goals from local Supabase (not Max's DB)
+  useEffect(() => {
+    if (!supabase) return;
+    (async () => {
+      const { data } = await (supabase as any)
+        .from('agent_goals')
+        .select('user_id, writing_number, target_ap, month, year')
+        .eq('month', currentMonth)
+        .eq('year', currentYear);
+      setGoals((data || []) as GoalRecord[]);
+    })();
+  }, [currentMonth, currentYear]);
 
-      // Fetch goals for all agents in this agency
-      let goals: GoalRecord[] = [];
-      if (supabase) {
-        const { data } = await (supabase as any)
-          .from('agent_goals')
-          .select('user_id, writing_number, target_ap, month, year')
-          .eq('month', currentMonth)
-          .eq('year', currentYear);
-        goals = (data || []) as GoalRecord[];
-      }
+  const loading = cacheLoading;
+  const error = fetchError ? 'Failed to load team data. Please try again.' : null;
 
-      // Count at-risk policies per agent
-      const atRiskPolicies: AtRiskPolicy[] = atRiskResp?.data?.policies || [];
-      const atRiskByAgent = new Map<string, number>();
-      atRiskPolicies.forEach(p => {
-        const key = p.agent_writing_number || '';
-        atRiskByAgent.set(key, (atRiskByAgent.get(key) || 0) + 1);
-      });
+  // Derive agents from cached data
+  const agents = useMemo((): AgentRow[] => {
+    if (!cached) return [];
+    const agentData = cached.agentData as AgentProduction[];
+    const atRiskPolicies: AtRiskPolicy[] = (cached.atRiskResp as any)?.data?.policies || [];
 
-      // Build goal lookup by writing_number
-      const goalByWn = new Map<string, number>();
-      goals.forEach(g => {
-        if (g.writing_number) goalByWn.set(g.writing_number, g.target_ap);
-      });
+    const atRiskByAgent = new Map<string, number>();
+    atRiskPolicies.forEach(p => {
+      const key = p.agent_writing_number || '';
+      atRiskByAgent.set(key, (atRiskByAgent.get(key) || 0) + 1);
+    });
 
-      // Merge into AgentRow[]
-      const rows: AgentRow[] = agentData.map(a => {
-        const wn = a.writing_number || a.agent_id;
-        const targetAp = goalByWn.get(wn) ?? null;
-        const goalPct = targetAp && targetAp > 0
-          ? (a.ap_this_month / targetAp) * 100
-          : null;
+    const goalByWn = new Map<string, number>();
+    goals.forEach(g => {
+      if (g.writing_number) goalByWn.set(g.writing_number, g.target_ap);
+    });
 
-        return {
-          ...a,
-          goal_target_ap: targetAp,
-          goal_pct: goalPct,
-          at_risk_count: atRiskByAgent.get(wn) || 0,
-        };
-      });
-
-      setAgents(rows);
-    } catch (err) {
-      console.error('[ManagerTeam] load error:', err);
-      setError('Failed to load team data. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, [effectiveAgencyWritingNumber, currentMonth, currentYear]);
-
-  useEffect(() => { loadData(); }, [loadData]);
+    return agentData.map(a => {
+      const wn = a.writing_number || a.agent_id;
+      const targetAp = goalByWn.get(wn) ?? null;
+      const goalPct = targetAp && targetAp > 0
+        ? (a.ap_this_month / targetAp) * 100
+        : null;
+      return {
+        ...a,
+        goal_target_ap: targetAp,
+        goal_pct: goalPct,
+        at_risk_count: atRiskByAgent.get(wn) || 0,
+      };
+    });
+  }, [cached, goals]);
 
   // ── Derived: filter + sort ──
   const filteredAgents = useMemo(() => {

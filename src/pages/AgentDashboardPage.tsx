@@ -10,7 +10,7 @@
  *
  * Data: prod-data edge fn with agent_id = effectiveWritingNumber
  */
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,11 +22,11 @@ import {
   fetchMonthlyProduction,
   fetchAtRiskPolicies,
   type AgentProduction,
-  type MonthlyProduction,
   type AtRiskPolicy,
 } from '@/lib/prod-api';
 import { QualityCard } from '@/components/dashboard/QualityCard';
 import { getGoal, type AgentGoal } from '@/lib/goals-api';
+import { useCachedMultiFetch } from '@/hooks/useCachedFetch';
 import {
   XAxis,
   YAxis,
@@ -81,58 +81,49 @@ function urgencyLabel(flag: string | null, daysIdle: number | null): { label: st
 
 export function AgentDashboardPage() {
   const { user, effectiveWritingNumber, profile, effectiveAgencyWritingNumber } = useEffectiveAuth();
-
-  const [stats, setStats] = useState<AgentProduction | null>(null);
-  const [monthlyData, setMonthlyData] = useState<MonthlyProduction[]>([]);
-  const [atRiskPolicies, setAtRiskPolicies] = useState<AtRiskPolicy[]>([]);
   const [currentGoal, setCurrentGoal] = useState<AgentGoal | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   const agentName = profile?.full_name || 'Agent';
   const firstName = agentName.split(' ')[0];
 
-  const loadData = useCallback(async () => {
-    if (!effectiveWritingNumber) return;
-    setLoading(true);
-    setError(null);
+  // Cached multi-fetch: instant render from localStorage, background refresh
+  const cacheKey = `agent-dashboard-${effectiveWritingNumber || 'none'}`;
+  const { data: cached, loading, error: fetchError, refresh: loadData } = useCachedMultiFetch(
+    cacheKey,
+    {
+      agentData: () => fetchAgentProduction({ agent_id: effectiveWritingNumber! }),
+      monthly: () => fetchMonthlyProduction({ agent_id: effectiveWritingNumber! }),
+      atRisk: () => fetchAtRiskPolicies(
+        effectiveAgencyWritingNumber
+          ? { agency_id: effectiveAgencyWritingNumber }
+          : undefined
+      ),
+    },
+    { skip: !effectiveWritingNumber, deps: [effectiveWritingNumber, effectiveAgencyWritingNumber] }
+  );
 
+  // Load goal separately (from local Supabase, not Max's DB)
+  useEffect(() => {
+    if (!user?.id) return;
     const now = new Date();
-    const currentMonth = now.getMonth() + 1;
-    const currentYear = now.getFullYear();
+    getGoal(user.id, now.getMonth() + 1, now.getFullYear()).then(setCurrentGoal).catch(() => {});
+  }, [user?.id]);
 
-    try {
-      const [agentData, monthly, atRisk, goal] = await Promise.all([
-        fetchAgentProduction({ agent_id: effectiveWritingNumber }),
-        fetchMonthlyProduction({ agent_id: effectiveWritingNumber }),
-        fetchAtRiskPolicies(
-          effectiveAgencyWritingNumber
-            ? { agency_id: effectiveAgencyWritingNumber }
-            : undefined
-        ),
-        user?.id ? getGoal(user.id, currentMonth, currentYear) : Promise.resolve(null),
-      ]);
+  // Derive stats from cached data
+  const stats = useMemo((): AgentProduction | null => {
+    if (!cached?.agentData) return null;
+    return cached.agentData.find(a => a.writing_number === effectiveWritingNumber || a.agent_id === effectiveWritingNumber) || null;
+  }, [cached?.agentData, effectiveWritingNumber]);
 
-      // Find this agent in agent data
-      const me = agentData.find(a => a.writing_number === effectiveWritingNumber || a.agent_id === effectiveWritingNumber);
-      setStats(me || null);
-      setMonthlyData(monthly);
-      setCurrentGoal(goal);
+  const monthlyData = cached?.monthly || [];
+  const atRiskPolicies = useMemo((): AtRiskPolicy[] => {
+    if (!cached?.atRisk?.data?.policies) return [];
+    return cached.atRisk.data.policies.filter(
+      (p: AtRiskPolicy) => p.agent_writing_number === effectiveWritingNumber
+    );
+  }, [cached?.atRisk, effectiveWritingNumber]);
 
-      // Filter at-risk to only this agent's policies
-      const myAtRisk = (atRisk?.data?.policies || []).filter(
-        p => p.agent_writing_number === effectiveWritingNumber
-      );
-      setAtRiskPolicies(myAtRisk);
-    } catch (err) {
-      console.error('AgentDashboard load error:', err);
-      setError('Failed to load your production data. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, [effectiveWritingNumber, effectiveAgencyWritingNumber]);
-
-  useEffect(() => { loadData(); }, [loadData]);
+  const error = fetchError ? 'Failed to load your production data. Please try again.' : null;
 
   // Sort at-risk by urgency (highest days_idle first)
   const sortedAtRisk = useMemo(() =>

@@ -18,6 +18,7 @@ import { Card } from '@/components/ui/card';
 import { fetchAtRiskPolicies } from '@/lib/prod-api';
 import { supabase } from '@/lib/supabase';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
+import { useCachedFetch } from '@/hooks/useCachedFetch';
 import { AttentionCard, type AttentionPolicy, type ActionState } from './AttentionCard';
 import { AttentionFilters, type FlagFilter, type ActionFilter } from './AttentionFilters';
 
@@ -84,36 +85,36 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
   const { effectiveAgencyWritingNumber, isOrgWide, isAgent, effectiveWritingNumber } = useEffectiveAuth();
 
   const [policies, setPolicies] = useState<AttentionPolicy[]>([]);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState('');
   const [flagFilter, setFlagFilter] = useState<FlagFilter>('all');
   const [actionFilter, setActionFilter] = useState<ActionFilter>('all');
 
-  // ── Fetch data ─────────────────────────────────────────────────────────
+  // ── Resolve agency param ─────────────────────────────────────────────
+  const resolvedAgencyId = (filterAgencyId && !filterAgencyId.startsWith('no-data:'))
+    ? filterAgencyId
+    : (!isOrgWide && effectiveAgencyWritingNumber ? effectiveAgencyWritingNumber : undefined);
 
-  const fetchData = useCallback(async (isRefresh = false) => {
-    isRefresh ? setRefreshing(true) : setLoading(true);
+  // Cached at-risk fetch — instant render from localStorage
+  const cacheKey = `needs-attention-${resolvedAgencyId || 'org'}`;
+  const { data: atRiskCached, loading, refresh: refreshAtRisk } = useCachedFetch(
+    cacheKey,
+    () => fetchAtRiskPolicies(resolvedAgencyId ? { agency_id: resolvedAgencyId } : undefined),
+    { deps: [resolvedAgencyId] }
+  );
 
-    try {
-      // Fetch at-risk policies from edge function
-      const params: { agency_id?: string } = {};
-      if (filterAgencyId && !filterAgencyId.startsWith('no-data:')) {
-        params.agency_id = filterAgencyId;
-      } else if (!isOrgWide && effectiveAgencyWritingNumber) {
-        params.agency_id = effectiveAgencyWritingNumber;
-      }
+  // Merge at-risk data with action states from local Supabase
+  useEffect(() => {
+    if (!atRiskCached) return;
+    const edgePolicies = atRiskCached.data.policies;
 
-      const atRiskResponse = await fetchAtRiskPolicies(params);
-      const edgePolicies = atRiskResponse.data.policies;
-
-      // Fetch action states from atrisk_tasks
+    (async () => {
+      try {
       let taskMap = new Map<string, string>();
       if (supabase) {
         const { data: tasks } = await supabase
           .from('atrisk_tasks')
           .select('policy_number, stage');
-
         if (tasks) {
           for (const t of tasks as TaskRecord[]) {
             taskMap.set(t.policy_number, t.stage);
@@ -121,7 +122,6 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
         }
       }
 
-      // Merge edge data with action states
       let merged: AttentionPolicy[] = edgePolicies.map((p) => ({
         policy_number: p.policy_number,
         client_name: p.client_name,
@@ -138,26 +138,25 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
         action_state: stageToAction(taskMap.get(p.policy_number) ?? null),
       }));
 
-      // Agent scoping: filter to only their policies
       if (isAgent && effectiveWritingNumber) {
         merged = merged.filter((p) => p.agent_writing_number === effectiveWritingNumber);
       }
 
-      // Sort by urgency
       merged.sort(urgencySort);
-
       setPolicies(merged);
-    } catch (err) {
-      console.error('NeedsAttentionList: fetch error:', err);
-    } finally {
-      setLoading(false);
+      } catch (err) {
+        console.error('NeedsAttentionList: merge error:', err);
+      }
+    })();
+  }, [atRiskCached, isAgent, effectiveWritingNumber]);
+
+  const fetchData = useCallback(async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+      await refreshAtRisk();
       setRefreshing(false);
     }
-  }, [filterAgencyId, isOrgWide, effectiveAgencyWritingNumber, isAgent, effectiveWritingNumber]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  }, [refreshAtRisk]);
 
   // ── Action handler ─────────────────────────────────────────────────────
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { BarChart3, Loader2 } from 'lucide-react';
 import {
@@ -6,7 +6,7 @@ import {
   CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 import { supabaseConfigured as rcbzagConfigured } from '@/lib/supabase';
-import { fetchRetentionCohorts, fetchMonthlyProduction } from '@/lib/prod-api';
+import { useOrgData } from '@/contexts/OrgDataCache';
 
 interface RetentionTrendPoint {
   month: string;
@@ -27,56 +27,40 @@ interface ProductMixPoint {
 }
 
 export function CcAnalyticsTab() {
-  const [retentionTrend, setRetentionTrend] = useState<RetentionTrendPoint[] | null>(null);
-  const [production, setProduction] = useState<ProductionPoint[] | null>(null);
-  const [productMix, setProductMix] = useState<ProductMixPoint[] | null>(null);
+  const orgData = useOrgData();
 
-  // Retention trend from prod DB edge function
-  useEffect(() => {
-    (async () => {
-      try {
-        const cohortRes = await fetchRetentionCohorts();
-        const points: RetentionTrendPoint[] = cohortRes.data.cohorts
-          .slice(-12)
-          .map(c => ({
-            month: c.month,
-            HI: c.retention_pct,
-            HHC: null, // combined cohort from prod DB
-          }));
-        setRetentionTrend(points);
-      } catch { setRetentionTrend([]); }
-    })();
-  }, []);
+  // Derive from OrgDataCache — instant, no fetch, no shimmer
+  const retentionTrend = useMemo((): RetentionTrendPoint[] | null => {
+    if (orgData.cohorts.length === 0 && orgData.initialLoading) return null;
+    return orgData.cohorts
+      .slice(-12)
+      .map(c => ({
+        month: c.month,
+        HI: c.retention_pct,
+        HHC: null,
+      }));
+  }, [orgData.cohorts, orgData.initialLoading]);
 
-  // Production + product mix from prod DB edge function
-  useEffect(() => {
-    (async () => {
-      try {
-        const monthlyData = await fetchMonthlyProduction();
-        const twelveMonthsAgo = new Date();
-        twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
-        const monthKey = twelveMonthsAgo.toISOString().slice(0, 7);
+  const production = useMemo((): ProductionPoint[] | null => {
+    if (orgData.monthlyProduction.length === 0 && orgData.initialLoading) return null;
+    const twelveMonthsAgo = new Date();
+    twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+    const monthKey = twelveMonthsAgo.toISOString().slice(0, 7);
 
-        const byMonth = new Map<string, ProductionPoint>();
-        monthlyData
-          .filter(m => m.month >= monthKey)
-          .forEach(m => {
-            const existing = byMonth.get(m.month) || { month: m.month, policies: 0, premium: 0 };
-            existing.policies += m.policies;
-            existing.premium += m.annual_premium;
-            byMonth.set(m.month, existing);
-          });
-        setProduction(Array.from(byMonth.values()).sort((a, b) => a.month.localeCompare(b.month)));
+    const byMonth = new Map<string, ProductionPoint>();
+    orgData.monthlyProduction
+      .filter(m => m.month >= monthKey)
+      .forEach(m => {
+        const existing = byMonth.get(m.month) || { month: m.month, policies: 0, premium: 0 };
+        existing.policies += m.policies;
+        existing.premium += m.annual_premium;
+        byMonth.set(m.month, existing);
+      });
+    return Array.from(byMonth.values()).sort((a, b) => a.month.localeCompare(b.month));
+  }, [orgData.monthlyProduction, orgData.initialLoading]);
 
-        // Product mix not available per-product from the current edge function
-        // Set empty for now — will be populated when prod-data returns product_type breakdown
-        setProductMix([]);
-      } catch {
-        setProduction([]);
-        setProductMix([]);
-      }
-    })();
-  }, []);
+  // Product mix not available per-product from the current edge function
+  const productMix: ProductMixPoint[] = [];
 
   if (!rcbzagConfigured) {
     return (

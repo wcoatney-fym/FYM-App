@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { Input } from '@/components/ui/input';
 import { fetchBookOfBusiness } from '@/lib/prod-api';
+import { useCachedFetch } from '@/hooks/useCachedFetch';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { DataFilters } from '@/components/filters/DataFilters';
@@ -86,31 +87,32 @@ export function BookOfBusinessPage() {
     totalPremium: 0, atRiskPremium: 0,
   });
 
-  // Load summary stats — re-runs when agency/agent filter changes
+  // Cached summary stats — instant render from localStorage
+  const summaryAgencyId = filterAgencyId || (!isOrgWide && effectiveAgencyWritingNumber ? effectiveAgencyWritingNumber : undefined);
+  const summaryCacheKey = `bob-summary-${summaryAgencyId || 'org'}-${filterAgentId || 'all'}`;
+  const { data: summaryRes } = useCachedFetch(
+    summaryCacheKey,
+    () => fetchBookOfBusiness({
+      agency_id: summaryAgencyId,
+      agent_wn: filterAgentId || undefined,
+      page_size: 1,
+    }),
+    { deps: [summaryAgencyId, filterAgentId] }
+  );
+
+  // Derive summary stats from cached response
   useEffect(() => {
-    async function loadSummary() {
-      try {
-        const agencyId = filterAgencyId || (!isOrgWide && effectiveAgencyWritingNumber ? effectiveAgencyWritingNumber : undefined);
-        const summaryRes = await fetchBookOfBusiness({
-          agency_id: agencyId,
-          agent_wn: filterAgentId || undefined,
-          page_size: 1,
-        });
-        const s = summaryRes.summary;
-        setSummaryStats({
-          active: s.status_breakdown['active'] || 0,
-          pending: s.status_breakdown['pending'] || 0,
-          atRisk: s.at_risk_policies,
-          terminated: s.status_breakdown['terminated'] || 0,
-          totalPremium: s.active_annual_premium,
-          atRiskPremium: 0,
-        });
-      } catch (err) {
-        console.error('Summary load error:', err);
-      }
-    }
-    loadSummary();
-  }, [effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide, filterAgencyId, filterAgentId, dateStart, dateEnd]);
+    if (!summaryRes) return;
+    const s = summaryRes.summary;
+    setSummaryStats({
+      active: s.status_breakdown['active'] || 0,
+      pending: s.status_breakdown['pending'] || 0,
+      atRisk: s.at_risk_policies,
+      terminated: s.status_breakdown['terminated'] || 0,
+      totalPremium: s.active_annual_premium,
+      atRiskPremium: 0,
+    });
+  }, [summaryRes]);
 
   // Load paginated policies from prod DB edge function
   const loadPolicies = useCallback(async () => {
