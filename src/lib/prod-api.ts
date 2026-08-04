@@ -358,3 +358,38 @@ export async function fetchAgencyRosterData(params?: {
 }): Promise<RosterDataResponse> {
   return callEdgeFunction<RosterDataResponse>('agency-roster-data', params || {});
 }
+
+// ── agent-directory types ──────────────────────────────────────────────
+
+export interface DirectoryAgent {
+  writing_number: string;
+  agent_name: string | null;
+  agency_wn: string | null;
+  total_policies: number;
+  active_policies: number;
+  terminated_policies: number;
+  at_risk_policies: number;
+  total_annual_premium: number;
+  active_annual_premium: number;
+}
+
+export interface AgentDirectoryResponse {
+  data: DirectoryAgent[];
+  pagination: {
+    page: number;
+    page_size: number;
+    total_count: number;
+    total_pages: number;
+  };
+  _source: string;
+  _elapsed_ms: number;
+}
+
+export async function fetchAgentDirectory(params?: {
+  agency_id?: string;
+  page?: number;
+  page_size?: number;
+  search?: string;
+}): Promise<AgentDirectoryResponse> {
+  return callEdgeFunction<AgentDirectoryResponse>('agent-directory', params || {});
+}

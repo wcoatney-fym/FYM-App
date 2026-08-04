@@ -1,167 +1,85 @@
 /**
- * AgentDatabaseTab — Complete agent database with filters, table, actions
+ * AgentDatabaseTab — Unified agent directory with two-tier resolution
  *
- * Ported from contracting-portal/src/pages/AgentDatabase.tsx
- * Reads completed agents + intake submissions + LOB assignments from
- * portal Supabase (akhojh…). All modals broken into dedicated components.
+ * Tier 1: agency_rosters in rcbzag (confirmed agents — name/NPN/WN)
+ * Tier 2: Max's prod DB fallback (distinct agents from roster_hierarchy_json)
  *
- * Features:
- *   - Name / security code / form type / agency filters
- *   - Sortable table with agent details
- *   - CSV export
- *   - View details (AgentDetailModal)
- *   - Edit agent (AgentEditModal)
- *   - CRM onboarding (CrmOnboardingModal)
- *   - Undo CRM (test only, "Tester Mitchell")
- *   - Terminate agent (TerminateAgentModal)
+ * Merges both tiers into a single searchable, filterable table with
+ * production metrics (policy count, AP, at-risk). Roster agents show
+ * a badge; prod-only agents show a different badge.
+ *
+ * Replaces the old portal-only AgentDatabaseTab that read from akhojh
+ * agents table (completed contracting records only).
  */
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
-  Eye,
+  Search,
   FileDown,
-  CheckCircle,
-  UserPlus,
-  Undo2,
-  UserX,
-  Pencil,
   Database,
   Loader2,
+  ShieldCheck,
+  Globe,
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw,
+  Users,
+  AlertTriangle,
+  Eye,
 } from 'lucide-react';
-import { portalSupabase } from '@/lib/portal-supabase';
-import { formatPhoneDisplay } from '@/lib/contracting/helpers';
-import type {
-  PortalAgent,
-  PortalIntakeRecord,
-  PortalLobAssignment,
-} from '@/lib/contracting/types';
-import { AgentDetailModal } from './AgentDetailModal';
-import { AgentEditModal } from './AgentEditModal';
-import { CrmOnboardingModal } from './CrmOnboardingModal';
-import { TerminateAgentModal } from './TerminateAgentModal';
+import { useAgentDirectory, type UnifiedAgent } from '@/hooks/useAgentDirectory';
+
+const PAGE_SIZE = 50;
+
+const fmt$ = (n: number) =>
+  n.toLocaleString('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  });
 
 export function AgentDatabaseTab() {
-  const [agents, setAgents] = useState<PortalAgent[]>([]);
-  const [submissions, setSubmissions] = useState<
-    Record<string, PortalIntakeRecord>
-  >({});
-  const [lobAssignments, setLobAssignments] = useState<
-    Record<string, PortalLobAssignment[]>
-  >({});
-  const [filteredAgents, setFilteredAgents] = useState<PortalAgent[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    filteredAgents,
+    agencies,
+    loading,
+    error,
+    searchTerm,
+    setSearchTerm,
+    agencyFilter,
+    setAgencyFilter,
+    sourceFilter,
+    setSourceFilter,
+    totalRoster,
+    totalProd,
+    rosterAgencyCount,
+    refresh,
+  } = useAgentDirectory();
 
-  // Filters
-  const [searchName, setSearchName] = useState('');
-  const [searchCode, setSearchCode] = useState('');
-  const [formTypeFilter, setFormTypeFilter] = useState('');
-  const [agencyFilter, setAgencyFilter] = useState('');
+  const [page, setPage] = useState(0);
+  const [detailAgent, setDetailAgent] = useState<UnifiedAgent | null>(null);
 
-  // Modal state
-  const [detailAgent, setDetailAgent] = useState<PortalAgent | null>(null);
-  const [editAgent, setEditAgent] = useState<PortalAgent | null>(null);
-  const [crmAgent, setCrmAgent] = useState<PortalAgent | null>(null);
-  const [undoAgent, setUndoAgent] = useState<PortalAgent | null>(null);
-  const [undoSubmitting, setUndoSubmitting] = useState(false);
-  const [undoError, setUndoError] = useState('');
-  const [terminateAgent, setTerminateAgent] = useState<PortalAgent | null>(
-    null
+  // Reset page when filters change
+  const handleSearch = (v: string) => {
+    setSearchTerm(v);
+    setPage(0);
+  };
+  const handleAgency = (v: string) => {
+    setAgencyFilter(v);
+    setPage(0);
+  };
+  const handleSource = (v: '' | 'roster' | 'prod') => {
+    setSourceFilter(v);
+    setPage(0);
+  };
+
+  // Pagination
+  const totalPages = Math.ceil(filteredAgents.length / PAGE_SIZE);
+  const pageAgents = filteredAgents.slice(
+    page * PAGE_SIZE,
+    (page + 1) * PAGE_SIZE
   );
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  useEffect(() => {
-    filterAgents();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agents, searchName, searchCode, formTypeFilter, agencyFilter]);
-
-  const loadData = async () => {
-    if (!portalSupabase) {
-      setLoading(false);
-      return;
-    }
-
-    const { data: agentData } = await portalSupabase
-      .from('agents')
-      .select('*')
-      .eq('status', 'completed')
-      .order('date_completed', { ascending: false });
-
-    if (agentData) {
-      setAgents(agentData as PortalAgent[]);
-
-      // Load intake records
-      const { data: submissionData } = await portalSupabase
-        .from('agent_intake')
-        .select('*')
-        .in(
-          'agent_id',
-          agentData.map((a) => a.id)
-        );
-
-      if (submissionData) {
-        const map: Record<string, PortalIntakeRecord> = {};
-        submissionData.forEach((sub) => {
-          map[sub.agent_id] = sub as PortalIntakeRecord;
-        });
-        setSubmissions(map);
-      }
-
-      // Load LOB assignments
-      const { data: lobData } = await portalSupabase
-        .from('agent_lob_assignments')
-        .select('*')
-        .in(
-          'agent_id',
-          agentData.map((a) => a.id)
-        );
-
-      if (lobData) {
-        const map: Record<string, PortalLobAssignment[]> = {};
-        lobData.forEach((row) => {
-          const r = row as PortalLobAssignment;
-          if (!map[r.agent_id]) map[r.agent_id] = [];
-          map[r.agent_id].push(r);
-        });
-        setLobAssignments(map);
-      }
-    }
-
-    setLoading(false);
-  };
-
-  const filterAgents = () => {
-    let filtered = [...agents];
-
-    if (searchName) {
-      const q = searchName.toLowerCase();
-      filtered = filtered.filter(
-        (a) =>
-          a.first_name.toLowerCase().includes(q) ||
-          a.last_name.toLowerCase().includes(q)
-      );
-    }
-
-    if (searchCode) {
-      filtered = filtered.filter((a) =>
-        a.security_code.includes(searchCode)
-      );
-    }
-
-    if (formTypeFilter) {
-      filtered = filtered.filter((a) => a.form_type === formTypeFilter);
-    }
-
-    if (agencyFilter) {
-      filtered = filtered.filter((a) => a.agency === agencyFilter);
-    }
-
-    setFilteredAgents(filtered);
-  };
-
-  // ─── CSV Export ──────────────────────────────────────────────────────────
-
+  // CSV export
   const handleExportCsv = () => {
     const escapeField = (val: string) => {
       if (val.includes(',') || val.includes('"') || val.includes('\n')) {
@@ -171,29 +89,40 @@ export function AgentDatabaseTab() {
     };
 
     const headerRow = [
-      'Agent First Name',
-      'Agent Last Name',
-      'Agent NPN',
-      'UNL Writing Number',
-      'GTL Writing Number',
+      'Agent Name',
+      'Writing Number',
+      'NPN',
+      'Agency',
+      'Source',
+      'Email',
       'Phone',
+      'Active Policies',
+      'At-Risk Policies',
+      'Total Policies',
+      'Active AP',
+      'Total AP',
+      'GTL WN',
+      'Is Manager',
     ];
     const csvRows = [headerRow.join(',')];
 
     filteredAgents.forEach((agent) => {
-      const submission = submissions[agent.id];
-      const lobs = lobAssignments[agent.id] || [];
-      const unlRow = lobs.find((l) => l.carrier === 'UNL');
-      const gtlRow = lobs.find((l) => l.carrier === 'GTL');
-
       csvRows.push(
         [
-          escapeField(agent.first_name),
-          escapeField(agent.last_name),
-          escapeField(submission?.npn || ''),
-          escapeField(unlRow?.writing_number || ''),
-          escapeField(gtlRow?.writing_number || ''),
-          escapeField(formatPhoneDisplay(agent.phone)),
+          escapeField(agent.full_name),
+          escapeField(agent.writing_number || ''),
+          escapeField(agent.npn || ''),
+          escapeField(agent.agency_name || ''),
+          escapeField(agent.source === 'roster' ? 'Roster' : 'Production DB'),
+          escapeField(agent.email || ''),
+          escapeField(agent.phone || ''),
+          String(agent.active_policies),
+          String(agent.at_risk_policies),
+          String(agent.total_policies),
+          String(agent.active_annual_premium),
+          String(agent.total_annual_premium),
+          escapeField(agent.gtl_writing_number || ''),
+          agent.is_manager ? 'Yes' : 'No',
         ].join(',')
       );
     });
@@ -204,123 +133,37 @@ export function AgentDatabaseTab() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `agent-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `agent-directory-${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
 
-  // ─── CRM Undo (test only — "Tester Mitchell") ───────────────────────────
-
-  const isTestMitchell = (agent: PortalAgent) =>
-    agent.first_name.toLowerCase() === 'tester' &&
-    agent.last_name.toLowerCase() === 'mitchell';
-
-  const handleCrmUndo = async () => {
-    if (!portalSupabase || !undoAgent) return;
-    setUndoSubmitting(true);
-    setUndoError('');
-
-    try {
-      const agency = undoAgent.agency;
-
-      const { data: upload } = await portalSupabase
-        .from('crm_roster_uploads')
-        .select('id')
-        .eq('agency', agency)
-        .maybeSingle();
-
-      if (upload) {
-        const { data: rosterRows } = await portalSupabase
-          .from('crm_roster')
-          .select('id, row_data')
-          .eq('upload_id', upload.id);
-
-        const matchingRows = (rosterRows || []).filter(
-          (r) =>
-            r.row_data['First Name']?.toLowerCase() === 'tester' &&
-            r.row_data['Last Name']?.toLowerCase() === 'mitchell'
-        );
-
-        for (const row of matchingRows) {
-          const clearedRowData = {
-            ...row.row_data,
-            'First Name': '',
-            'Last Name': '',
-            Phone: '',
-            Email: '',
-            'Agent NPN': '',
-            'All Templates | Agent Profile Image': '',
-          };
-          await portalSupabase
-            .from('crm_roster')
-            .update({ row_data: clearedRowData })
-            .eq('id', row.id);
-        }
-      }
-
-      await portalSupabase
-        .from('agents')
-        .update({ crm_onboarded: false })
-        .eq('id', undoAgent.id);
-
-      setAgents((prev) =>
-        prev.map((a) =>
-          a.id === undoAgent.id ? { ...a, crm_onboarded: false } : a
-        )
-      );
-
-      setUndoSubmitting(false);
-      setUndoAgent(null);
-    } catch {
-      setUndoError('An unexpected error occurred. Please try again.');
-      setUndoSubmitting(false);
-    }
-  };
-
-  // ─── Event Handlers ─────────────────────────────────────────────────────
-
-  const handleCrmComplete = (agentId: string) => {
-    setAgents((prev) =>
-      prev.map((a) =>
-        a.id === agentId ? { ...a, crm_onboarded: true } : a
-      )
-    );
-    setCrmAgent(null);
-  };
-
-  const handleTerminateComplete = (agentId: string) => {
-    setAgents((prev) => prev.filter((a) => a.id !== agentId));
-    setTerminateAgent(null);
-  };
-
-  const handleEditSaved = (updated: PortalAgent) => {
-    setAgents((prev) =>
-      prev.map((a) => (a.id === updated.id ? updated : a))
-    );
-    if (detailAgent?.id === updated.id) setDetailAgent(updated);
-    setEditAgent(null);
-  };
-
-  // ─── Render ──────────────────────────────────────────────────────────────
-
-  if (!portalSupabase) {
-    return (
-      <div className="text-center py-12 text-muted-foreground">
-        <Database className="w-12 h-12 mx-auto mb-3 text-muted-foreground/50" />
-        <p className="font-medium">Portal connection not configured</p>
-        <p className="text-sm mt-1">
-          Set VITE_PORTAL_SUPABASE_URL and VITE_PORTAL_SUPABASE_KEY to
-          enable.
-        </p>
-      </div>
-    );
-  }
+  // ── Loading state ────────────────────────────────────────────────────
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 className="w-6 h-6 animate-spin text-navy-600 mr-2" />
-        <span className="text-muted-foreground">Loading agent database…</span>
+        <Loader2 className="w-6 h-6 animate-spin text-cyan-400 mr-2" />
+        <span className="text-muted-foreground">
+          Loading agent directory…
+        </span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        <Database className="w-12 h-12 mx-auto mb-3 text-red-400/50" />
+        <p className="font-medium text-red-400">Failed to load agent directory</p>
+        <p className="text-sm mt-1">{error}</p>
+        <button
+          onClick={refresh}
+          className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-cyan-500/20 text-cyan-400 rounded-lg text-sm hover:bg-cyan-500/30 transition-colors"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Retry
+        </button>
       </div>
     );
   }
@@ -330,346 +173,485 @@ export function AgentDatabaseTab() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-navy-600">Agent Database</h2>
+          <h2 className="text-2xl font-bold text-foreground">
+            Agent Directory
+          </h2>
           <p className="text-muted-foreground mt-1">
-            {filteredAgents.length} of {agents.length} completed agent
-            {agents.length !== 1 ? 's' : ''}
+            {filteredAgents.length.toLocaleString()} agent
+            {filteredAgents.length !== 1 ? 's' : ''}
+            {agencyFilter || sourceFilter || searchTerm
+              ? ` (filtered)`
+              : ''}
           </p>
         </div>
-        <button
-          onClick={handleExportCsv}
-          disabled={filteredAgents.length === 0}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-navy-600 text-white rounded-lg font-medium hover:bg-navy-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-sm glow-sm"
-        >
-          <FileDown className="w-4 h-4" />
-          Export CSV
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={refresh}
+            className="inline-flex items-center gap-2 px-3 py-2 text-muted-foreground hover:text-foreground border border-border rounded-lg text-sm transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+          <button
+            onClick={handleExportCsv}
+            disabled={filteredAgents.length === 0}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-cyan-500/20 text-cyan-400 rounded-lg font-medium hover:bg-cyan-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-sm"
+          >
+            <FileDown className="w-4 h-4" />
+            Export CSV
+          </button>
+        </div>
+      </div>
+
+      {/* Source summary cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-4">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            Rostered Agents
+          </div>
+          <div className="text-2xl font-bold text-foreground">
+            {totalRoster.toLocaleString()}
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            {rosterAgencyCount} agenc{rosterAgencyCount !== 1 ? 'ies' : 'y'} with confirmed rosters
+          </p>
+        </div>
+        <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-4">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+            <Globe className="w-4 h-4 text-blue-400" />
+            Production DB Agents
+          </div>
+          <div className="text-2xl font-bold text-foreground">
+            {totalProd.toLocaleString()}
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            From agencies without roster uploads
+          </p>
+        </div>
+        <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-4">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+            <Users className="w-4 h-4 text-cyan-400" />
+            Total Directory
+          </div>
+          <div className="text-2xl font-bold text-foreground">
+            {(totalRoster + totalProd).toLocaleString()}
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Unified two-tier resolution
+          </p>
+        </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-card rounded-lg shadow p-6">
+      <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <input
-            type="text"
-            placeholder="Search by agent name..."
-            value={searchName}
-            onChange={(e) => setSearchName(e.target.value)}
-            className="px-4 py-2 border border-border rounded-md focus:ring-2 focus:ring-navy-500 focus:border-transparent"
-          />
-          <input
-            type="text"
-            placeholder="Search by security code..."
-            value={searchCode}
-            onChange={(e) => setSearchCode(e.target.value)}
-            className="px-4 py-2 border border-border rounded-md focus:ring-2 focus:ring-navy-500 focus:border-transparent"
-          />
-          <select
-            value={formTypeFilter}
-            onChange={(e) => setFormTypeFilter(e.target.value)}
-            className="px-4 py-2 border border-border rounded-md focus:ring-2 focus:ring-navy-500 focus:border-transparent"
-          >
-            <option value="">All Form Types</option>
-            <option value="life-only">Life Only</option>
-            <option value="field">Field</option>
-            <option value="direct-pay">Direct Pay</option>
-            <option value="telesales">Telesales</option>
-            <option value="hip-career">HIP Career</option>
-            <option value="hip-broker">HIP Broker</option>
-            <option value="hip">HIP (Legacy)</option>
-            <option value="field-hip">Field HIP</option>
-            <option value="direct-pay-hip">Direct Pay HIP</option>
-            <option value="telesales-hip">Telesales HIP</option>
-          </select>
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search name, WN, NPN, email…"
+              value={searchTerm}
+              onChange={(e) => handleSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-secondary border border-border rounded-md text-sm focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50"
+            />
+          </div>
+
+          {/* Agency filter */}
           <select
             value={agencyFilter}
-            onChange={(e) => setAgencyFilter(e.target.value)}
-            className="px-4 py-2 border border-border rounded-md focus:ring-2 focus:ring-navy-500 focus:border-transparent"
+            onChange={(e) => handleAgency(e.target.value)}
+            className="px-4 py-2 bg-secondary border border-border rounded-md text-sm focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50"
           >
             <option value="">All Agencies</option>
-            <option value="FYM">FYM</option>
-            <option value="Wisechoice">Wisechoice</option>
-            <option value="Aspire">Aspire</option>
+            {agencies.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+                {a.has_roster ? ' ✓' : ''} ({a.agent_count})
+              </option>
+            ))}
           </select>
+
+          {/* Source filter */}
+          <select
+            value={sourceFilter}
+            onChange={(e) =>
+              handleSource(e.target.value as '' | 'roster' | 'prod')
+            }
+            className="px-4 py-2 bg-secondary border border-border rounded-md text-sm focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50"
+          >
+            <option value="">All Sources</option>
+            <option value="roster">Rostered Only</option>
+            <option value="prod">Production DB Only</option>
+          </select>
+
+          {/* Count display */}
+          <div className="flex items-center justify-end text-sm text-muted-foreground">
+            Showing {pageAgents.length} of {filteredAgents.length.toLocaleString()}
+          </div>
         </div>
       </div>
 
       {/* Agent Table */}
-      <div className="bg-card rounded-lg shadow overflow-hidden">
+      <div className="bg-card/50 backdrop-blur border border-border rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-secondary">
+            <thead className="bg-secondary/50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
-                  Agent Name
+                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Agent
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
-                  Email
+                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Writing #
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
-                  Phone
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
-                  Form Type
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
-                  Agency
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
-                  Security Code
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
-                  Date Completed
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
+                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   NPN
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
-                  Resident State
+                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Agency
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase">
+                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Source
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Active
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  At-Risk
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Total
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Active AP
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filteredAgents.length === 0 ? (
+              {pageAgents.length === 0 ? (
                 <tr>
                   <td
                     colSpan={10}
-                    className="px-6 py-12 text-center text-muted-foreground"
+                    className="px-4 py-12 text-center text-muted-foreground"
                   >
-                    {agents.length === 0
-                      ? 'No completed agents found'
-                      : 'No agents match the current filters'}
+                    {filteredAgents.length === 0 && (searchTerm || agencyFilter || sourceFilter)
+                      ? 'No agents match the current filters'
+                      : 'No agents found'}
                   </td>
                 </tr>
               ) : (
-                filteredAgents.map((agent) => {
-                  const submission = submissions[agent.id];
-                  return (
-                    <tr key={agent.id} className="hover:bg-secondary">
-                      <td
-                        className="px-6 py-4 whitespace-nowrap cursor-pointer text-navy-600 hover:underline"
-                        onClick={() => setDetailAgent(agent)}
-                      >
-                        {agent.first_name} {agent.last_name}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {agent.email}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {formatPhoneDisplay(agent.phone)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap capitalize">
-                        {agent.form_type.replace('-', ' ')}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {agent.agency}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap font-mono">
-                        {agent.security_code}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {agent.date_completed
-                          ? new Date(
-                              agent.date_completed
-                            ).toLocaleDateString()
-                          : '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {submission?.npn || '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {submission?.resident_state || '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-1">
-                          {/* Edit */}
-                          <div className="relative group/edit">
-                            <button
-                              onClick={() => setEditAgent(agent)}
-                              className="p-1.5 text-muted-foreground hover:bg-secondary rounded transition-colors"
-                              aria-label={`Edit ${agent.first_name} ${agent.last_name}`}
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs font-medium text-white bg-popover rounded whitespace-nowrap opacity-0 group-hover/edit:opacity-100 transition-opacity pointer-events-none">
-                              Edit Agent
-                              <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
-                            </span>
-                          </div>
-
-                          {/* View */}
-                          <div className="relative group/view">
-                            <button
-                              onClick={() => setDetailAgent(agent)}
-                              className="p-1.5 text-cyan-400 hover:bg-cyan-500/10 rounded transition-colors"
-                              aria-label={`View details for ${agent.first_name} ${agent.last_name}`}
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs font-medium text-white bg-popover rounded whitespace-nowrap opacity-0 group-hover/view:opacity-100 transition-opacity pointer-events-none">
-                              View Details
-                              <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
-                            </span>
-                          </div>
-
-                          {/* CRM Onboarding */}
-                          <div className="relative group/crm">
-                            {agent.crm_onboarded ? (
-                              <span
-                                className="p-1.5 inline-flex text-emerald-400 cursor-default"
-                                aria-label={`CRM submitted for ${agent.first_name} ${agent.last_name}`}
-                              >
-                                <CheckCircle className="w-4 h-4" />
-                              </span>
-                            ) : (
-                              <button
-                                onClick={() => setCrmAgent(agent)}
-                                className="p-1.5 text-amber-500 hover:bg-amber-500/10 rounded transition-colors"
-                                aria-label={`Start CRM onboarding for ${agent.first_name} ${agent.last_name}`}
-                              >
-                                <UserPlus className="w-4 h-4" />
-                              </button>
-                            )}
-                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs font-medium text-white bg-popover rounded whitespace-nowrap opacity-0 group-hover/crm:opacity-100 transition-opacity pointer-events-none">
-                              {agent.crm_onboarded
-                                ? 'CRM Submitted'
-                                : 'CRM Onboarding'}
-                              <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
-                            </span>
-                          </div>
-
-                          {/* Undo CRM (test only) */}
-                          {agent.crm_onboarded && isTestMitchell(agent) && (
-                            <div className="relative group/undo">
-                              <button
-                                onClick={() => {
-                                  setUndoError('');
-                                  setUndoAgent(agent);
-                                }}
-                                className="p-1.5 text-orange-500 hover:bg-amber-500/10 rounded transition-colors"
-                                aria-label={`Undo CRM for ${agent.first_name} ${agent.last_name}`}
-                              >
-                                <Undo2 className="w-4 h-4" />
-                              </button>
-                              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs font-medium text-white bg-popover rounded whitespace-nowrap opacity-0 group-hover/undo:opacity-100 transition-opacity pointer-events-none">
-                                Undo CRM (Test Only)
-                                <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
-                              </span>
-                            </div>
-                          )}
-
-                          {/* Terminate */}
-                          {agent.crm_onboarded && (
-                            <div className="relative group/terminate">
-                              <button
-                                onClick={() => setTerminateAgent(agent)}
-                                className="p-1.5 text-red-500 hover:bg-red-500/10 rounded transition-colors"
-                                aria-label={`Terminate ${agent.first_name} ${agent.last_name}`}
-                              >
-                                <UserX className="w-4 h-4" />
-                              </button>
-                              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 text-xs font-medium text-white bg-popover rounded whitespace-nowrap opacity-0 group-hover/terminate:opacity-100 transition-opacity pointer-events-none">
-                                Terminate Agent
-                                <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
-                              </span>
-                            </div>
-                          )}
+                pageAgents.map((agent) => (
+                  <tr
+                    key={agent.id}
+                    className="hover:bg-secondary/30 transition-colors"
+                  >
+                    {/* Agent name */}
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setDetailAgent(agent)}
+                          className="text-cyan-400 hover:text-cyan-300 hover:underline font-medium text-sm"
+                        >
+                          {agent.full_name}
+                        </button>
+                        {agent.is_manager && (
+                          <span className="px-1.5 py-0.5 text-[10px] font-medium bg-amber-500/20 text-amber-400 rounded">
+                            MGR
+                          </span>
+                        )}
+                      </div>
+                      {agent.email && (
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          {agent.email}
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })
+                      )}
+                    </td>
+
+                    {/* Writing number */}
+                    <td className="px-4 py-3 whitespace-nowrap font-mono text-sm text-foreground/80">
+                      {agent.writing_number || '—'}
+                    </td>
+
+                    {/* NPN */}
+                    <td className="px-4 py-3 whitespace-nowrap font-mono text-sm text-foreground/80">
+                      {agent.npn || '—'}
+                    </td>
+
+                    {/* Agency */}
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-foreground/80">
+                      {agent.agency_name || agent.agency_wn || '—'}
+                    </td>
+
+                    {/* Source badge */}
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {agent.source === 'roster' ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-emerald-500/20 text-emerald-400 rounded-full">
+                          <ShieldCheck className="w-3 h-3" />
+                          Roster
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-blue-500/20 text-blue-400 rounded-full">
+                          <Globe className="w-3 h-3" />
+                          Prod DB
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Active policies */}
+                    <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium text-foreground">
+                      {agent.active_policies}
+                    </td>
+
+                    {/* At-risk */}
+                    <td className="px-4 py-3 whitespace-nowrap text-right text-sm">
+                      {agent.at_risk_policies > 0 ? (
+                        <span className="inline-flex items-center gap-1 text-amber-400">
+                          <AlertTriangle className="w-3 h-3" />
+                          {agent.at_risk_policies}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">0</span>
+                      )}
+                    </td>
+
+                    {/* Total policies */}
+                    <td className="px-4 py-3 whitespace-nowrap text-right text-sm text-foreground/80">
+                      {agent.total_policies}
+                    </td>
+
+                    {/* Active AP */}
+                    <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium text-foreground">
+                      {fmt$(agent.active_annual_premium)}
+                    </td>
+
+                    {/* Actions */}
+                    <td className="px-4 py-3 whitespace-nowrap text-center">
+                      <button
+                        onClick={() => setDetailAgent(agent)}
+                        className="p-1.5 text-cyan-400 hover:bg-cyan-500/10 rounded transition-colors"
+                        aria-label={`View details for ${agent.full_name}`}
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-secondary/30">
+            <button
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Previous
+            </button>
+            <span className="text-sm text-muted-foreground">
+              Page {page + 1} of {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={page >= totalPages - 1}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              Next
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* ── Modals ────────────────────────────────────────────────────────── */}
-
+      {/* Detail Modal */}
       {detailAgent && (
-        <AgentDetailModal
+        <AgentDirectoryDetailModal
           agent={detailAgent}
-          submission={submissions[detailAgent.id] || null}
           onClose={() => setDetailAgent(null)}
         />
       )}
+    </div>
+  );
+}
 
-      {editAgent && (
-        <AgentEditModal
-          agent={editAgent}
-          onClose={() => setEditAgent(null)}
-          onSaved={handleEditSaved}
-        />
-      )}
+// ── Detail Modal ──────────────────────────────────────────────────────
 
-      {crmAgent && (
-        <CrmOnboardingModal
-          agent={crmAgent}
-          submission={submissions[crmAgent.id] || null}
-          onClose={() => setCrmAgent(null)}
-          onComplete={handleCrmComplete}
-        />
-      )}
-
-      {terminateAgent && (
-        <TerminateAgentModal
-          agent={terminateAgent}
-          onClose={() => setTerminateAgent(null)}
-          onComplete={handleTerminateComplete}
-        />
-      )}
-
-      {/* Undo CRM Modal (inline — test only) */}
-      {undoAgent && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-card rounded-lg shadow-xl max-w-md w-full">
-            <div className="px-6 py-4 border-b border-border">
-              <h2 className="text-lg font-bold text-orange-400">
-                Undo CRM Onboarding
-              </h2>
-            </div>
-            <div className="px-6 py-5">
-              <p className="text-foreground/80">
-                This will clear the CRM seat data for{' '}
-                <span className="font-semibold">
-                  {undoAgent.first_name} {undoAgent.last_name}
-                </span>{' '}
-                and allow re-onboarding.
-              </p>
-              <p className="text-muted-foreground text-sm mt-2">
-                This is a test-only action.
-              </p>
-              {undoError && (
-                <p className="mt-3 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-md px-3 py-2">
-                  {undoError}
-                </p>
+function AgentDirectoryDetailModal({
+  agent,
+  onClose,
+}: {
+  agent: UnifiedAgent;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-card border border-border rounded-xl shadow-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-foreground">
+              {agent.full_name}
+            </h2>
+            <div className="flex items-center gap-2 mt-1">
+              {agent.source === 'roster' ? (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-emerald-500/20 text-emerald-400 rounded-full">
+                  <ShieldCheck className="w-3 h-3" />
+                  Rostered Agent
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-blue-500/20 text-blue-400 rounded-full">
+                  <Globe className="w-3 h-3" />
+                  Production DB
+                </span>
+              )}
+              {agent.is_manager && (
+                <span className="px-2 py-0.5 text-xs font-medium bg-amber-500/20 text-amber-400 rounded-full">
+                  Manager
+                </span>
               )}
             </div>
-            <div className="px-6 py-4 bg-secondary rounded-b-lg flex justify-end gap-3">
-              <button
-                onClick={() => {
-                  setUndoAgent(null);
-                  setUndoError('');
-                }}
-                disabled={undoSubmitting}
-                className="px-4 py-2 text-sm font-medium text-foreground/80 bg-card border border-border rounded-md hover:bg-secondary transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCrmUndo}
-                disabled={undoSubmitting}
-                className="px-4 py-2 text-sm font-medium text-white bg-amber-500/100/100 rounded-md hover:bg-orange-600 transition-colors disabled:opacity-50"
-              >
-                {undoSubmitting ? 'Clearing...' : 'Confirm'}
-              </button>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-5 space-y-5">
+          {/* Identity */}
+          <div>
+            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+              Identity
+            </h3>
+            <div className="grid grid-cols-2 gap-3">
+              <DetailField label="First Name" value={agent.first_name} />
+              <DetailField label="Last Name" value={agent.last_name} />
+              <DetailField label="UNL Writing #" value={agent.writing_number} mono />
+              <DetailField label="NPN" value={agent.npn} mono />
+              <DetailField label="Email" value={agent.email} />
+              <DetailField label="Phone" value={agent.phone} />
+              <DetailField label="Agency" value={agent.agency_name} />
+              <DetailField
+                label="Agency WN"
+                value={agent.agency_wn}
+                mono
+              />
+            </div>
+          </div>
+
+          {/* Carrier Writing Numbers (roster only) */}
+          {agent.source === 'roster' && (
+            <div>
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+                Carrier Writing Numbers
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                <DetailField
+                  label="GTL"
+                  value={agent.gtl_writing_number}
+                  mono
+                />
+                <DetailField
+                  label="AHL"
+                  value={agent.ahl_writing_number}
+                  mono
+                />
+                <DetailField
+                  label="Heartland"
+                  value={agent.heartland_writing_number}
+                  mono
+                />
+                <DetailField
+                  label="Manhattan"
+                  value={agent.manhattan_writing_number}
+                  mono
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Production Metrics */}
+          <div>
+            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+              Production
+            </h3>
+            <div className="grid grid-cols-2 gap-3">
+              <DetailField
+                label="Active Policies"
+                value={String(agent.active_policies)}
+              />
+              <DetailField
+                label="At-Risk"
+                value={String(agent.at_risk_policies)}
+                highlight={agent.at_risk_policies > 0}
+              />
+              <DetailField
+                label="Terminated"
+                value={String(agent.terminated_policies)}
+              />
+              <DetailField
+                label="Total Policies"
+                value={String(agent.total_policies)}
+              />
+              <DetailField
+                label="Active AP"
+                value={fmt$(agent.active_annual_premium)}
+              />
+              <DetailField
+                label="Total AP"
+                value={fmt$(agent.total_annual_premium)}
+              />
             </div>
           </div>
         </div>
-      )}
+
+        {/* Footer */}
+        <div className="px-6 py-4 bg-secondary/50 rounded-b-xl flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-foreground/80 bg-card border border-border rounded-md hover:bg-secondary transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DetailField({
+  label,
+  value,
+  mono = false,
+  highlight = false,
+}: {
+  label: string;
+  value: string | null;
+  mono?: boolean;
+  highlight?: boolean;
+}) {
+  return (
+    <div>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd
+        className={`text-sm mt-0.5 ${
+          mono ? 'font-mono' : ''
+        } ${highlight ? 'text-amber-400 font-medium' : 'text-foreground'} ${
+          !value ? 'text-muted-foreground/50 italic' : ''
+        }`}
+      >
+        {value || '—'}
+      </dd>
     </div>
   );
 }
