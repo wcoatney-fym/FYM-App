@@ -5,16 +5,27 @@ import { HudFrame } from '@/components/ui/hud-frame';
 import { Badge } from '@/components/ui/badge';
 import {
   DollarSign, Users, Target, TrendingUp, TrendingDown,
-  Activity, BarChart3, Megaphone,
+  Activity, BarChart3, Megaphone, Clock, UserCheck, UserPlus,
+  FileCheck, Zap, ArrowRight,
 } from 'lucide-react';
 import {
   Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ComposedChart, Legend,
 } from 'recharts';
+import { TimePeriodSelector } from '@/components/filters/TimePeriodSelector';
+import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
 import { MOCK_KPIS, MOCK_DAILY_SPEND, MOCK_CAMPAIGNS } from '@/lib/recruiting';
-import { fetchRecruitingKpis, fetchDailySpendData, fetchCampaigns } from '@/lib/recruiting';
-import type { Campaign, CampaignStatus, RecruitingKpis, DailySpend } from '@/lib/recruiting';
+import {
+  fetchRecruitingKpis, fetchDailySpendData, fetchCampaigns,
+  fetchRecruitingFunnel, fetchStageTimings,
+} from '@/lib/recruiting';
+import type {
+  Campaign, CampaignStatus, RecruitingKpis, DailySpend,
+  RecruitingFunnel, StageTiming, RecruitingDateFilter,
+} from '@/lib/recruiting';
+import { RECRUITING_STAGES } from '@/lib/recruiting/types';
 import { useCachedFetch } from '@/hooks/useCachedFetch';
+import { useCachedMultiFetch } from '@/hooks/useCachedFetch';
 
 // ── KPI Card ───────────────────────────────────────────────────────────────
 function KpiCard({ label, value, prefix, suffix, delta, icon: Icon }: {
@@ -27,7 +38,6 @@ function KpiCard({ label, value, prefix, suffix, delta, icon: Icon }: {
 }) {
   const isPositive = delta !== undefined && delta >= 0;
   const DeltaIcon = isPositive ? TrendingUp : TrendingDown;
-  // For cost metrics (CPL, CPA), negative delta = good (green)
   const isCostMetric = label.includes('CPL') || label.includes('CPA');
   const deltaColor = isCostMetric
     ? (isPositive ? 'text-red-400' : 'text-emerald-400')
@@ -59,6 +69,84 @@ function KpiCard({ label, value, prefix, suffix, delta, icon: Icon }: {
   );
 }
 
+// ── Pipeline Funnel ────────────────────────────────────────────────────────
+function PipelineFunnel({ funnel }: { funnel: RecruitingFunnel }) {
+  const stages = [
+    { key: 'leads', label: 'Leads', value: funnel.leads, ...RECRUITING_STAGES[0] },
+    { key: 'attendees', label: 'Attendees', value: funnel.attendees, ...RECRUITING_STAGES[1] },
+    { key: 'hired', label: 'Hired', value: funnel.hired, ...RECRUITING_STAGES[2] },
+    { key: 'contracting', label: 'Contracting', value: funnel.contracting, ...RECRUITING_STAGES[3] },
+    { key: 'rts', label: 'RTS', value: funnel.rts, ...RECRUITING_STAGES[4] },
+    { key: 'producing', label: 'Producing', value: funnel.producing, ...RECRUITING_STAGES[5] },
+  ];
+
+  return (
+    <div className="space-y-3">
+      {stages.map((stage, i) => {
+        const pct = funnel.leads > 0 ? (stage.value / funnel.leads * 100) : 0;
+        const dropoff = i > 0 && stages[i - 1].value > 0
+          ? Math.round((1 - stage.value / stages[i - 1].value) * 100)
+          : 0;
+        const progression = i > 0 && stages[i - 1].value > 0
+          ? Math.round(stage.value / stages[i - 1].value * 100)
+          : 100;
+        return (
+          <div key={stage.key} className="space-y-1">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">{stage.label}</span>
+              <div className="flex items-center gap-2">
+                <span className="font-mono font-medium">{stage.value}</span>
+                <span className="text-xs text-muted-foreground">({pct.toFixed(1)}%)</span>
+                {i > 0 && (
+                  <span className={`text-xs ${dropoff > 50 ? 'text-red-400' : dropoff > 30 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                    {progression}% →
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="h-2 rounded-full bg-muted/20 overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-700"
+                style={{ width: `${pct}%`, backgroundColor: stage.color }}
+              />
+            </div>
+          </div>
+        );
+      })}
+      <div className="flex items-center justify-between text-sm pt-1 border-t border-border/20">
+        <span className="text-muted-foreground">Lost</span>
+        <span className="font-mono text-red-400">{funnel.lost}</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Stage Timing Cards ─────────────────────────────────────────────────────
+function StageTimingSection({ timings }: { timings: StageTiming[] }) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Avg Time Per Stage</p>
+      <div className="space-y-1.5">
+        {timings.map(t => (
+          <div key={t.stage} className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground flex items-center gap-1.5">
+              <Clock size={12} />
+              {t.label}
+            </span>
+            <div className="flex items-center gap-3">
+              <span className="font-mono font-medium">{t.avgDays > 0 ? `${t.avgDays}d` : '—'}</span>
+              <span className="text-xs text-muted-foreground">
+                med {t.medianDays > 0 ? `${t.medianDays}d` : '—'}
+              </span>
+              <span className="text-xs text-muted-foreground/60">n={t.count}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Status badge ───────────────────────────────────────────────────────────
 function StatusBadge({ status }: { status: CampaignStatus }) {
   const map: Record<CampaignStatus, { label: string; className: string }> = {
@@ -73,18 +161,35 @@ function StatusBadge({ status }: { status: CampaignStatus }) {
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function RecruitingDashboardTab() {
-  const { data: kpis } = useCachedFetch<RecruitingKpis>('recruiting-kpis', fetchRecruitingKpis, { maxAge: 60 * 60 * 1000 });
-  const { data: dailySpend } = useCachedFetch<DailySpend[]>('recruiting-daily-spend', fetchDailySpendData, { maxAge: 60 * 60 * 1000 });
-  const { data: campaigns } = useCachedFetch<Campaign[]>('recruiting-campaigns', fetchCampaigns, { maxAge: 60 * 60 * 1000 });
+  const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
+  const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
+
+  const dateFilter: RecruitingDateFilter = useMemo(() => ({
+    startDate: dateRange.startDate,
+    endDate: dateRange.endDate,
+  }), [dateRange]);
+
+  const cacheKey = `recruiting-dash-${datePreset}-${dateRange.startDate.slice(0, 10)}`;
+
+  const { data: multiData } = useCachedMultiFetch(cacheKey, {
+    kpis: () => fetchRecruitingKpis(dateFilter),
+    dailySpend: () => fetchDailySpendData(undefined, dateFilter),
+    campaigns: () => fetchCampaigns(),
+    funnel: () => fetchRecruitingFunnel(dateFilter),
+    timings: () => fetchStageTimings(dateFilter),
+  }, { deps: [datePreset, dateRange.startDate, dateRange.endDate] });
+
+  const kpis = multiData?.kpis ?? MOCK_KPIS;
+  const dailySpend = multiData?.dailySpend ?? MOCK_DAILY_SPEND;
+  const campaigns = multiData?.campaigns ?? MOCK_CAMPAIGNS;
+  const funnel = multiData?.funnel ?? { leads: 0, attendees: 0, hired: 0, contracting: 0, rts: 0, producing: 0, lost: 0 };
+  const timings = multiData?.timings ?? [];
+
   const [sortKey, setSortKey] = useState<keyof Campaign>('totalSpend');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
-  const effectiveKpis = kpis ?? MOCK_KPIS;
-  const effectiveDailySpend = dailySpend ?? MOCK_DAILY_SPEND;
-  const effectiveCampaigns = campaigns ?? MOCK_CAMPAIGNS;
-
   const sorted = useMemo(() => {
-    return [...effectiveCampaigns].sort((a, b) => {
+    return [...campaigns].sort((a, b) => {
       const av = a[sortKey];
       const bv = b[sortKey];
       if (typeof av === 'number' && typeof bv === 'number') {
@@ -92,7 +197,7 @@ export function RecruitingDashboardTab() {
       }
       return 0;
     });
-  }, [effectiveCampaigns, sortKey, sortDir]);
+  }, [campaigns, sortKey, sortDir]);
 
   function toggleSort(key: keyof Campaign) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -102,39 +207,77 @@ export function RecruitingDashboardTab() {
   const SortArrow = ({ col }: { col: keyof Campaign }) =>
     sortKey === col ? <span className="ml-1 text-[hsl(199,89%,48%)]">{sortDir === 'asc' ? '↑' : '↓'}</span> : null;
 
-  // Chart formatting
   const chartData = useMemo(() =>
-    effectiveDailySpend.map(d => ({
+    dailySpend.map(d => ({
       ...d,
       dateLabel: new Date(d.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    })), [effectiveDailySpend]);
+    })), [dailySpend]);
 
-  const isLive = Boolean(kpis && kpis.totalSpend > 0);
+  const isLive = Boolean(multiData?.kpis && kpis.totalSpend > 0);
+
+  function handleDateChange(range: DateRange, preset: DatePreset) {
+    setDateRange(range);
+    setDatePreset(preset);
+  }
 
   return (
     <div className="p-6 space-y-6">
+      {/* Header with date selector */}
+      <div className="flex items-center justify-between">
+        <div />
+        <TimePeriodSelector preset={datePreset} dateRange={dateRange} onChange={handleDateChange} />
+      </div>
+
       {/* Data source banner */}
-      {(!kpis || kpis.totalSpend === 0) && (
+      {!isLive && (
         <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs">
           <Activity size={14} />
-          <span>No live data yet — run the Meta Ads sync to populate campaign metrics</span>
+          <span>Displaying sample data — connect Meta Ads API to see live campaign metrics</span>
         </div>
       )}
 
-      {/* KPI Strip */}
+      {/* Ad Spend KPIs */}
       <StaggerContainer className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StaggerItem><KpiCard label="Total Spend" value={effectiveKpis.totalSpend} prefix="$" icon={DollarSign} delta={isLive ? effectiveKpis.spendDelta : undefined} /></StaggerItem>
-        <StaggerItem><KpiCard label="Total Leads" value={effectiveKpis.totalLeads} icon={Users} delta={isLive ? effectiveKpis.leadsDelta : undefined} /></StaggerItem>
-        <StaggerItem><KpiCard label="CPL" value={effectiveKpis.cpl} prefix="$" icon={Target} delta={isLive ? effectiveKpis.cplDelta : undefined} /></StaggerItem>
-        <StaggerItem><KpiCard label="CPA" value={effectiveKpis.cpa} prefix="$" icon={BarChart3} delta={isLive ? effectiveKpis.cpaDelta : undefined} /></StaggerItem>
+        <StaggerItem><KpiCard label="Total Spend" value={kpis.totalSpend} prefix="$" icon={DollarSign} delta={isLive ? kpis.spendDelta : undefined} /></StaggerItem>
+        <StaggerItem><KpiCard label="Total Leads" value={kpis.totalLeads} icon={Users} delta={isLive ? kpis.leadsDelta : undefined} /></StaggerItem>
+        <StaggerItem><KpiCard label="CPL" value={kpis.cpl} prefix="$" icon={Target} delta={isLive ? kpis.cplDelta : undefined} /></StaggerItem>
+        <StaggerItem><KpiCard label="CPA" value={kpis.cpa} prefix="$" icon={BarChart3} delta={isLive ? kpis.cpaDelta : undefined} /></StaggerItem>
       </StaggerContainer>
 
+      {/* Pipeline KPIs */}
       <StaggerContainer className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StaggerItem><KpiCard label="Contact Rate" value={effectiveKpis.contactRate * 100} suffix="%" icon={Megaphone} /></StaggerItem>
-        <StaggerItem><KpiCard label="Close Ratio" value={effectiveKpis.closeRatio * 100} suffix="%" icon={Target} /></StaggerItem>
-        <StaggerItem><KpiCard label="Placed Policies" value={effectiveKpis.placedPolicies} icon={TrendingUp} /></StaggerItem>
-        <StaggerItem><KpiCard label="Active Ad Sets" value={effectiveKpis.activeAdSets} icon={Activity} /></StaggerItem>
+        <StaggerItem><KpiCard label="Pipeline Recruits" value={kpis.totalRecruits} icon={UserPlus} /></StaggerItem>
+        <StaggerItem><KpiCard label="Attendee Rate" value={kpis.attendeeRate * 100} suffix="%" icon={Megaphone} /></StaggerItem>
+        <StaggerItem><KpiCard label="Hire Rate" value={kpis.hireRate * 100} suffix="%" icon={UserCheck} /></StaggerItem>
+        <StaggerItem><KpiCard label="RTS Rate" value={kpis.rtsRate * 100} suffix="%" icon={FileCheck} /></StaggerItem>
       </StaggerContainer>
+
+      <StaggerContainer className="grid grid-cols-2 md:grid-cols-2 gap-4">
+        <StaggerItem><KpiCard label="Avg Days to RTS" value={kpis.avgDaysToRts} suffix="d" icon={Clock} /></StaggerItem>
+        <StaggerItem><KpiCard label="Avg Days to First Sale" value={kpis.avgDaysToFirstSale} suffix="d" icon={Zap} /></StaggerItem>
+      </StaggerContainer>
+
+      {/* Funnel + Stage Timing side by side */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <HudFrame>
+          <Card className="bg-card/60 border-border/30">
+            <CardContent className="p-5">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-4 flex items-center gap-1.5">
+                <ArrowRight size={12} /> Recruiting Pipeline
+              </p>
+              <PipelineFunnel funnel={funnel} />
+            </CardContent>
+          </Card>
+        </HudFrame>
+
+        <HudFrame>
+          <Card className="bg-card/60 border-border/30">
+            <CardContent className="p-5">
+              <StageTimingSection timings={timings} />
+            </CardContent>
+          </Card>
+        </HudFrame>
+      </div>
 
       {/* Spend vs Leads trend */}
       <HudFrame>
