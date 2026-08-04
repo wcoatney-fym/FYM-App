@@ -1,40 +1,19 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
-import { supabase } from '@/lib/supabase';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { DataFilters } from '@/components/filters/DataFilters';
 import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
+import { useAgentDirectory, type UnifiedAgent } from '@/hooks/useAgentDirectory';
 import {
   Search, Activity, Users, AlertTriangle, DollarSign,
   ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
+  X, Loader2,
 } from 'lucide-react';
-
-// ── Types ──────────────────────────────────────────────────────────────────
-interface AgentRow {
-  writing_number: string;
-  agent_name: string | null;
-  agency_id: string;
-  agency_name: string | null;
-  total_policies: number;
-  active_policies: number;
-  pending_policies: number;
-  terminated_policies: number;
-  at_risk_count: number;
-  active_premium: number;
-  annual_premium: number;
-  retained_90d: number;
-  eligible_90d: number;
-  retention_pct: number | null;
-  profile_id: string | null;
-  profile_role: string | null;
-}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function fmt$(n: number) {
@@ -43,11 +22,12 @@ function fmt$(n: number) {
   return `$${Math.round(n).toLocaleString()}`;
 }
 
-function retentionColor(pct: number | null) {
-  if (pct == null) return 'text-muted-foreground/40';
-  if (pct >= 90) return 'text-emerald-400';
-  if (pct >= 85) return 'text-amber-400';
-  return 'text-red-400';
+function fmtPhone(raw: string | null): string {
+  if (!raw) return '';
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length === 10) return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  if (digits.length === 11 && digits[0] === '1') return `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+  return raw;
 }
 
 type SortKey = 'name' | 'active' | 'at_risk' | 'premium' | 'retention';
@@ -57,87 +37,71 @@ const PAGE_SIZE = 50;
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function AgentsPage() {
-  const navigate = useNavigate();
   const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
   const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
-  const [agents, setAgents] = useState<AgentRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
+  const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('active');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
-  const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
-  const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
   const [page, setPage] = useState(0);
+  const [detailAgent, setDetailAgent] = useState<UnifiedAgent | null>(null);
 
+  const {
+    filteredAgents: allAgents,
+    loading,
+    error,
+    setAgencyFilter,
+    refresh,
+  } = useAgentDirectory();
+
+  // Sync DataFilters agency to hook
   useEffect(() => {
-    if (!supabase) { setLoading(false); return; }
+    setAgencyFilter(filterAgencyId ?? '');
+  }, [filterAgencyId, setAgencyFilter]);
 
-    async function load() {
-      const PAGE = 1000;
-      const allRows: AgentRow[] = [];
-      let offset = 0;
-
-      while (true) {
-        let query = (supabase as any)
-          .from('agent_summary')
-          .select('*')
-          .order('active_policies', { ascending: false })
-          .range(offset, offset + PAGE - 1);
-
-        // Scope to agency for non-org-wide users
-        if (!isOrgWide && effectiveAgencyId) {
-          query = query.eq('agency_id', effectiveAgencyId);
-        }
-
-        const { data, error } = await query;
-        if (error) { console.error('Agent summary fetch error:', error.message); break; }
-        if (!data || data.length === 0) break;
-
-        allRows.push(...(data as AgentRow[]));
-        if (data.length < PAGE) break;
-        offset += PAGE;
-      }
-
-      setAgents(allRows);
-      setLoading(false);
+  // Scope for non-org-wide users
+  const scopedAgents = useMemo(() => {
+    if (!isOrgWide && effectiveAgencyId) {
+      return allAgents.filter(a => a.agency_id === effectiveAgencyId);
     }
+    return allAgents;
+  }, [allAgents, isOrgWide, effectiveAgencyId]);
 
-    load();
-  }, [effectiveAgencyId, isOrgWide]);
-
-  // Filter + sort
+  // Search + sort
   const displayRows = useMemo(() => {
-    let r = agents;
-
-    if (filterAgencyId) {
-      r = r.filter(a => a.agency_id === filterAgencyId);
-    }
+    let r = scopedAgents;
 
     if (search) {
       const q = search.toLowerCase();
       r = r.filter(a =>
-        (a.agent_name ?? '').toLowerCase().includes(q) ||
-        a.writing_number.toLowerCase().includes(q) ||
+        a.full_name.toLowerCase().includes(q) ||
+        (a.writing_number ?? '').toLowerCase().includes(q) ||
+        (a.npn ?? '').toLowerCase().includes(q) ||
+        (a.email ?? '').toLowerCase().includes(q) ||
         (a.agency_name ?? '').toLowerCase().includes(q)
       );
     }
 
     const dir = sortDir === 'desc' ? -1 : 1;
     return [...r].sort((a, b) => {
-      if (sortKey === 'name') return dir * (a.agent_name ?? '').localeCompare(b.agent_name ?? '');
+      if (sortKey === 'name') return dir * a.full_name.localeCompare(b.full_name);
       if (sortKey === 'active') return dir * (a.active_policies - b.active_policies);
-      if (sortKey === 'at_risk') return dir * (a.at_risk_count - b.at_risk_count);
-      if (sortKey === 'premium') return dir * (Number(a.annual_premium) - Number(b.annual_premium));
-      if (sortKey === 'retention') return dir * ((a.retention_pct ?? -1) - (b.retention_pct ?? -1));
+      if (sortKey === 'at_risk') return dir * (a.at_risk_policies - b.at_risk_policies);
+      if (sortKey === 'premium') return dir * (a.active_annual_premium - b.active_annual_premium);
+      // retention: compute inline
+      const retA = a.total_policies > 0 ? (a.active_policies / a.total_policies) * 100 : -1;
+      const retB = b.total_policies > 0 ? (b.active_policies / b.total_policies) * 100 : -1;
+      if (sortKey === 'retention') return dir * (retA - retB);
       return 0;
     });
-  }, [agents, search, filterAgencyId, sortKey, sortDir]);
+  }, [scopedAgents, search, sortKey, sortDir]);
 
-  // KPIs from filtered data
+  // KPIs
   const totalAgents = displayRows.length;
   const totalActive = displayRows.reduce((s, a) => s + a.active_policies, 0);
-  const totalAtRisk = displayRows.reduce((s, a) => s + a.at_risk_count, 0);
-  const totalPremium = displayRows.reduce((s, a) => s + Number(a.annual_premium), 0);
+  const totalAtRisk = displayRows.reduce((s, a) => s + a.at_risk_policies, 0);
+  const totalPremium = displayRows.reduce((s, a) => s + a.active_annual_premium, 0);
 
   // Pagination
   const totalPages = Math.ceil(displayRows.length / PAGE_SIZE);
@@ -155,7 +119,6 @@ export function AgentsPage() {
       : <ChevronUp size={13} className="inline ml-0.5" />;
   }
 
-  // Reset page on filter change
   useEffect(() => { setPage(0); }, [search, filterAgencyId]);
 
   return (
@@ -163,7 +126,6 @@ export function AgentsPage() {
       <Header title="Agent Directory" />
       <div className="p-6 space-y-6 max-w-screen-xl mx-auto">
 
-        {/* Filters — time period always visible, agency for admins */}
         <DataFilters
           showAgencyFilter={showAgencyFilter}
           showTimePeriod
@@ -228,8 +190,14 @@ export function AgentsPage() {
           </CardHeader>
           <CardContent className="p-0 overflow-x-auto">
             {loading ? (
-              <div className="p-6 space-y-2">
-                {[1,2,3,4,5].map(i => <div key={i} className="h-10 rounded shimmer" />)}
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="w-5 h-5 animate-spin text-cyan-400 mr-2" />
+                <span className="text-sm text-muted-foreground">Loading agents from production DB…</span>
+              </div>
+            ) : error ? (
+              <div className="p-6 text-center text-red-400 text-sm">
+                {error}
+                <button onClick={refresh} className="ml-2 underline text-cyan-400">Retry</button>
               </div>
             ) : (
               <Table>
@@ -242,14 +210,16 @@ export function AgentsPage() {
                       Agent <SortIcon k="name" />
                     </TableHead>
                     <TableHead className="font-semibold text-muted-foreground">Writing #</TableHead>
+                    <TableHead className="font-semibold text-muted-foreground">NPN</TableHead>
                     <TableHead className="font-semibold text-muted-foreground">Agency</TableHead>
+                    <TableHead className="font-semibold text-muted-foreground">Phone</TableHead>
+                    <TableHead className="font-semibold text-muted-foreground">Email</TableHead>
                     <TableHead
                       className="font-semibold text-muted-foreground text-right cursor-pointer hover:text-foreground"
                       onClick={() => toggleSort('active')}
                     >
                       Active <SortIcon k="active" />
                     </TableHead>
-                    <TableHead className="font-semibold text-muted-foreground text-right">Pending</TableHead>
                     <TableHead
                       className="font-semibold text-muted-foreground text-right cursor-pointer hover:text-foreground"
                       onClick={() => toggleSort('at_risk')}
@@ -262,70 +232,54 @@ export function AgentsPage() {
                     >
                       Annual Premium <SortIcon k="premium" />
                     </TableHead>
-                    <TableHead
-                      className="font-semibold text-muted-foreground text-right cursor-pointer hover:text-foreground"
-                      onClick={() => toggleSort('retention')}
-                    >
-                      90-Day Ret. <SortIcon k="retention" />
-                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {pagedRows.map(a => (
                     <TableRow
-                      key={a.writing_number}
+                      key={a.id}
                       className="hover:bg-background transition-colors cursor-pointer"
-                      onClick={() => {
-                        if (a.profile_id) navigate(`/agents/${a.profile_id}/health`);
-                      }}
+                      onClick={() => setDetailAgent(a)}
                     >
                       <TableCell className="font-medium text-foreground">
-                        <div className="flex items-center gap-2">
-                          {a.agent_name ?? <span className="text-muted-foreground/70 italic">Unknown</span>}
-                          {a.profile_id && (
-                            <Badge className="text-[9px] px-1 py-0 bg-cyan-500/10 text-cyan-400 border-cyan-500/20 border">
-                              Provisioned
-                            </Badge>
-                          )}
-                        </div>
+                        <span className="text-cyan-400 hover:underline">
+                          {a.full_name || <span className="text-muted-foreground/70 italic">Unknown</span>}
+                        </span>
                       </TableCell>
                       <TableCell className="font-data text-sm text-foreground/80">
-                        {a.writing_number}
+                        {a.writing_number || '—'}
+                      </TableCell>
+                      <TableCell className="font-data text-sm text-foreground/80">
+                        {a.npn || '—'}
                       </TableCell>
                       <TableCell className="text-muted-foreground truncate max-w-[160px]">
                         {a.agency_name || '—'}
                       </TableCell>
-                      <TableCell className="text-right font-data font-medium text-foreground/80">
-                        {a.active_policies.toLocaleString()}
+                      <TableCell className="text-sm text-foreground/80">
+                        {fmtPhone(a.phone) || '—'}
                       </TableCell>
-                      <TableCell className="text-right font-data text-muted-foreground">
-                        {a.pending_policies > 0 ? a.pending_policies.toLocaleString() : '—'}
+                      <TableCell className="text-sm text-foreground/80 truncate max-w-[180px]">
+                        {a.email || '—'}
+                      </TableCell>
+                      <TableCell className="text-right font-data font-medium text-foreground/80">
+                        {a.active_policies > 0 ? a.active_policies.toLocaleString() : '—'}
                       </TableCell>
                       <TableCell className="text-right font-data">
-                        {a.at_risk_count > 0 ? (
-                          <span className="text-red-400 font-medium">{a.at_risk_count.toLocaleString()}</span>
+                        {a.at_risk_policies > 0 ? (
+                          <span className="text-red-400 font-medium">{a.at_risk_policies.toLocaleString()}</span>
                         ) : (
                           <span className="text-muted-foreground/40">0</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right font-data font-medium text-foreground/80">
-                        {fmt$(Number(a.annual_premium))}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {a.retention_pct != null ? (
-                          <span className={`font-semibold font-data ${retentionColor(a.retention_pct)}`}>
-                            {Number(a.retention_pct).toFixed(1)}%
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground/40 text-xs">&lt; 90d</span>
-                        )}
+                        {a.active_annual_premium > 0 ? fmt$(a.active_annual_premium) : '—'}
                       </TableCell>
                     </TableRow>
                   ))}
                   {pagedRows.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-10 text-muted-foreground/70">
-                        {agents.length === 0 ? 'No agent data found.' : 'No agents match your search.'}
+                      <TableCell colSpan={9} className="text-center py-10 text-muted-foreground/70">
+                        {loading ? 'Loading…' : scopedAgents.length === 0 ? 'No agent data found.' : 'No agents match your search.'}
                       </TableCell>
                     </TableRow>
                   )}
@@ -363,6 +317,137 @@ export function AgentsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Agent Detail Popup */}
+      {detailAgent && (
+        <AgentDetailPopup agent={detailAgent} onClose={() => setDetailAgent(null)} />
+      )}
+    </div>
+  );
+}
+
+// ── Agent Detail Popup ─────────────────────────────────────────────────────
+
+function AgentDetailPopup({ agent, onClose }: { agent: UnifiedAgent; onClose: () => void }) {
+  // Compute simple retention proxy
+  const retentionPct = agent.total_policies > 0
+    ? Math.round((agent.active_policies / agent.total_policies) * 1000) / 10
+    : null;
+
+  // Health score: simple composite of retention + at-risk ratio
+  const atRiskRatio = agent.active_policies > 0
+    ? agent.at_risk_policies / agent.active_policies
+    : 0;
+  const healthScore = retentionPct != null
+    ? Math.max(0, Math.min(100, Math.round(retentionPct * (1 - atRiskRatio * 0.5))))
+    : null;
+
+  const healthColor = healthScore == null ? 'text-muted-foreground/40'
+    : healthScore >= 90 ? 'text-emerald-400'
+    : healthScore >= 75 ? 'text-amber-400'
+    : 'text-red-400';
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div
+        className="bg-card border border-border rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-foreground">{agent.full_name}</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {agent.agency_name || 'Unknown Agency'}
+              {agent.is_manager && <span className="ml-2 px-1.5 py-0.5 text-[10px] font-medium bg-amber-500/20 text-amber-400 rounded">MGR</span>}
+            </p>
+          </div>
+          <button onClick={onClose} className="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-6">
+          {/* Health Score + KPI Strip */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <MiniKpi label="Health Score" value={healthScore != null ? `${healthScore}` : '—'} className={healthColor} />
+            <MiniKpi label="Active Policies" value={String(agent.active_policies)} />
+            <MiniKpi label="At-Risk" value={String(agent.at_risk_policies)} className={agent.at_risk_policies > 0 ? 'text-red-400' : ''} />
+            <MiniKpi label="Active AP" value={fmt$(agent.active_annual_premium)} />
+          </div>
+
+          {/* Production Summary */}
+          <div>
+            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Production</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <DetailField label="Total Policies" value={String(agent.total_policies)} />
+              <DetailField label="Active Policies" value={String(agent.active_policies)} />
+              <DetailField label="Terminated" value={String(agent.terminated_policies)} />
+              <DetailField label="At-Risk" value={String(agent.at_risk_policies)} highlight={agent.at_risk_policies > 0} />
+              <DetailField label="Active AP" value={fmt$(agent.active_annual_premium)} />
+              <DetailField label="Total AP" value={fmt$(agent.total_annual_premium)} />
+              {retentionPct != null && (
+                <DetailField label="Retention" value={`${retentionPct.toFixed(1)}%`}
+                  highlight={retentionPct < 90} />
+              )}
+            </div>
+          </div>
+
+          {/* Identity */}
+          <div>
+            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Identity</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <DetailField label="First Name" value={agent.first_name} />
+              <DetailField label="Last Name" value={agent.last_name} />
+              <DetailField label="Phone" value={fmtPhone(agent.phone)} />
+              <DetailField label="Email" value={agent.email} />
+              <DetailField label="NPN" value={agent.npn} mono />
+              <DetailField label="Agency" value={agent.agency_name} />
+            </div>
+          </div>
+
+          {/* Writing Numbers */}
+          <div>
+            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Writing Numbers</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <DetailField label="UNL" value={agent.writing_number} mono />
+              <DetailField label="GTL" value={agent.gtl_writing_number} mono />
+              <DetailField label="AHL" value={agent.ahl_writing_number} mono />
+              <DetailField label="Heartland" value={agent.heartland_writing_number} mono />
+              <DetailField label="Manhattan" value={agent.manhattan_writing_number} mono />
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 bg-secondary/50 rounded-b-xl flex justify-end">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-foreground/80 bg-card border border-border rounded-md hover:bg-secondary transition-colors">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MiniKpi({ label, value, className = '' }: { label: string; value: string; className?: string }) {
+  return (
+    <div className="bg-secondary/50 rounded-lg p-3 text-center">
+      <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
+      <p className={`text-xl font-bold font-data mt-1 ${className || 'text-foreground'}`}>{value}</p>
+    </div>
+  );
+}
+
+function DetailField({ label, value, mono = false, highlight = false }: {
+  label: string; value: string | null; mono?: boolean; highlight?: boolean;
+}) {
+  return (
+    <div>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className={`text-sm mt-0.5 ${mono ? 'font-mono' : ''} ${highlight ? 'text-amber-400 font-medium' : 'text-foreground'} ${!value ? 'text-muted-foreground/50 italic' : ''}`}>
+        {value || '—'}
+      </dd>
     </div>
   );
 }
