@@ -93,7 +93,7 @@ function PerformanceView() {
       </div>
 
       {/* Daily spend + leads chart */}
-      <HudFrame label={`${perf.campaignName.toUpperCase()} — DAILY PERFORMANCE`}>
+      <HudFrame>
         <Card className="bg-card/60 border-border/30">
           <CardContent className="p-4">
             <div className="h-64">
@@ -119,7 +119,7 @@ function PerformanceView() {
 
       {/* Funnel + Ad Sets side by side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <HudFrame label="CONVERSION FUNNEL">
+        <HudFrame>
           <Card className="bg-card/60 border-border/30">
             <CardContent className="p-5">
               <ConversionFunnel funnel={perf.funnel} />
@@ -127,7 +127,7 @@ function PerformanceView() {
           </Card>
         </HudFrame>
 
-        <HudFrame label="AD SET BREAKDOWN">
+        <HudFrame>
           <Card className="bg-card/60 border-border/30 overflow-hidden">
             <CardContent className="p-0">
               <table className="w-full text-sm">
@@ -176,7 +176,7 @@ function RoiView() {
   return (
     <div className="space-y-6">
       {/* CPA by Agency chart */}
-      <HudFrame label="CPA BY AGENCY">
+      <HudFrame>
         <Card className="bg-card/60 border-border/30">
           <CardContent className="p-4">
             <div className="h-64">
@@ -204,7 +204,7 @@ function RoiView() {
       {/* Tables side by side */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* ROI by Agency */}
-        <HudFrame label="ROI BY AGENCY">
+        <HudFrame>
           <Card className="bg-card/60 border-border/30 overflow-hidden">
             <CardContent className="p-0">
               <table className="w-full text-sm">
@@ -236,7 +236,7 @@ function RoiView() {
         </HudFrame>
 
         {/* ROI by Agent */}
-        <HudFrame label="ROI BY AGENT">
+        <HudFrame>
           <Card className="bg-card/60 border-border/30 overflow-hidden">
             <CardContent className="p-0">
               <table className="w-full text-sm">

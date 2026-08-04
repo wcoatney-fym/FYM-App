@@ -127,7 +127,7 @@ export function RecruitingDashboardTab() {
       </StaggerContainer>
 
       {/* Spend vs Leads trend */}
-      <HudFrame label="SPEND vs LEADS — LAST 30 DAYS">
+      <HudFrame>
         <Card className="bg-card/60 border-border/30">
           <CardContent className="p-4">
             <div className="h-72">
@@ -153,7 +153,7 @@ export function RecruitingDashboardTab() {
       </HudFrame>
 
       {/* Campaign Table */}
-      <HudFrame label="CAMPAIGNS">
+      <HudFrame>
         <Card className="bg-card/60 border-border/30 overflow-hidden">
           <CardContent className="p-0">
             <div className="overflow-x-auto">

@@ -226,7 +226,7 @@ export function RecruitingLeadsTab() {
       </div>
 
       {/* Lead table */}
-      <HudFrame label="LEADS">
+      <HudFrame>
         <Card className="bg-card/60 border-border/30 overflow-hidden">
           <CardContent className="p-0">
             <div className="overflow-x-auto">
