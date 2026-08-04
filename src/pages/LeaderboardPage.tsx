@@ -11,14 +11,17 @@ import { Header } from '@/components/layout/Header';
 import { Card, CardContent } from '@/components/ui/card';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
-import { fetchAgencyProduction } from '@/lib/prod-api';
+import { fetchAgencyProduction, fetchAgentProduction } from '@/lib/prod-api';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { useOrgData } from '@/contexts/OrgDataCache';
 import { DataFilters } from '@/components/filters/DataFilters';
+import { ExecutiveSummary, type LeaderboardSortKey, type ExecSummaryData } from '@/components/leaderboard/ExecutiveSummary';
+import { type KpiTileData } from '@/components/leaderboard/KpiSummaryTile';
+import { RampUpBoard, type RampUpAgent } from '@/components/leaderboard/RampUpBoard';
 import {
   Trophy, TrendingUp, ShieldCheck, AlertTriangle, ChevronRight,
-  ChevronDown, ChevronUp, Calendar, DollarSign, FileText,
+  ChevronDown, ChevronUp, Calendar, DollarSign, FileText, Rocket,
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -37,7 +40,9 @@ interface AgencyLeaderRow {
   period_ap: number;
 }
 
-type SortKey = 'rank' | 'retention' | 'policies' | 'premium' | 'at_risk' | 'period_policies' | 'period_ap';
+type SortKey = 'rank' | 'retention' | 'policies' | 'premium' | 'at_risk' | 'period_policies' | 'period_ap'
+  | 'ap' | 'apps' | 'save_rate' | 'taken_pct' | 'avg_ap' | 'agents';
+type BoardTab = 'agencies' | 'ramp_up';
 type Period = 'all' | 'year' | 'month' | 'week' | 'today';
 type Metric = 'policies' | 'premium';
 
@@ -113,6 +118,9 @@ export function LeaderboardPage() {
   const [filter, setFilter] = useState<'all' | 'above' | 'below'>('all');
   const [period, setPeriod] = useState<Period>('all');
   const [metric, setMetric] = useState<Metric>('policies');
+  const [boardTab, setBoardTab] = useState<BoardTab>('agencies');
+  const [rampUpAgents, setRampUpAgents] = useState<RampUpAgent[]>([]);
+  const [rampUpLoading, setRampUpLoading] = useState(false);
 
   // Cache period data
   const [periodData, setPeriodData] = useState<Map<string, { policies: number; ap: number }>>(new Map());
@@ -248,6 +256,60 @@ export function LeaderboardPage() {
     loadPeriodData(period);
   }, [period, loadPeriodData]);
 
+  // Load ramp-up agents (first app within last 90 days)
+  useEffect(() => {
+    if (boardTab !== 'ramp_up') return;
+    setRampUpLoading(true);
+
+    const loadRampUp = async () => {
+      try {
+        const today = new Date();
+        const ninetyDaysAgo = new Date(today);
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+        const cutoff = `${ninetyDaysAgo.getFullYear()}-${String(ninetyDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(ninetyDaysAgo.getDate()).padStart(2, '0')}`;
+
+        // Use prod-data edge function to get agent-level data
+        const allAgents = await fetchAgentProduction();
+        const rampAgents: RampUpAgent[] = [];
+
+        for (const a of allAgents) {
+          // Check if this is a ramp-up agent (first_issue_date within 90 days)
+          const firstDate = (a as any).first_issue_date;
+          if (!firstDate || firstDate < cutoff) continue;
+
+          const daysActive = Math.floor(
+            (today.getTime() - new Date(firstDate + 'T00:00:00').getTime()) / 86400000,
+          );
+
+          const totalApps = a.active_policies + a.terminated_policies + a.pending_policies;
+          const totalAP = a.active_annual_premium;
+
+          rampAgents.push({
+            agent_id: a.agent_id,
+            agent_name: a.agent_name ?? a.agent_id,
+            agency_name: (a as any).parent_agency_name ?? null,
+            first_app_date: firstDate,
+            days_active: daysActive,
+            total_apps: totalApps,
+            total_ap: totalAP,
+            avg_ap_per_app: totalApps > 0 ? totalAP / totalApps : 0,
+            retention_pct: a.retention_pct ?? null,
+            at_risk_count: a.at_risk_policies ?? 0,
+          });
+        }
+
+        setRampUpAgents(rampAgents);
+      } catch (err) {
+        console.error('Ramp-up load error:', err);
+        setRampUpAgents([]);
+      } finally {
+        setRampUpLoading(false);
+      }
+    };
+
+    loadRampUp();
+  }, [boardTab]);
+
   // Merge period data into rows
   const enrichedRows = useMemo(() => {
     if (period === 'all') return rows;
@@ -280,6 +342,85 @@ export function LeaderboardPage() {
     });
     return filtered;
   }, [enrichedRows, sortKey, sortAsc, filter, filterAgencyId]);
+
+  // Executive Summary data — compute KPI tiles from all rows
+  const execSummary = useMemo<ExecSummaryData | null>(() => {
+    if (enrichedRows.length === 0) return null;
+
+    const total = enrichedRows.length;
+    const totalAP = enrichedRows.reduce((s, r) => s + r.active_premium, 0);
+    const totalPolicies = enrichedRows.reduce((s, r) => s + r.active_policies, 0);
+    const avgRetention = enrichedRows.filter(r => r.retention_pct !== null).length > 0
+      ? enrichedRows.filter(r => r.retention_pct !== null).reduce((s, r) => s + (r.retention_pct ?? 0), 0)
+        / enrichedRows.filter(r => r.retention_pct !== null).length
+      : null;
+    const avgAP = totalPolicies > 0 ? totalAP / totalPolicies * 12 : 0; // annualized per policy
+    const aboveTarget = enrichedRows.filter(r => r.retention_pct !== null && r.retention_pct >= 90).length;
+    const totalAtRisk = enrichedRows.reduce((s, r) => s + r.at_risk_count, 0);
+
+    // Viewer's agency rank (if not org-wide)
+    const viewerRow = !isOrgWide && effectiveAgencyWritingNumber
+      ? enrichedRows.find(r => r.agency_id === effectiveAgencyWritingNumber)
+      : null;
+
+    const entityName = viewerRow?.name ?? 'All Agencies';
+    const initials = entityName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+
+    const tiles: KpiTileData[] = [
+      {
+        key: 'ap',
+        label: 'Total AP/mo',
+        value: fmt$(totalAP),
+        rank: viewerRow ? enrichedRows.sort((a, b) => b.active_premium - a.active_premium).indexOf(viewerRow) + 1 : undefined,
+        rankOf: viewerRow ? total : undefined,
+      },
+      {
+        key: 'apps',
+        label: 'Active Policies',
+        value: totalPolicies.toLocaleString(),
+        rank: viewerRow ? enrichedRows.sort((a, b) => b.active_policies - a.active_policies).indexOf(viewerRow) + 1 : undefined,
+        rankOf: viewerRow ? total : undefined,
+      },
+      {
+        key: 'save_rate',
+        label: 'Avg Retention',
+        value: avgRetention !== null ? `${avgRetention.toFixed(1)}%` : '—',
+        rank: viewerRow?.retention_pct != null
+          ? enrichedRows.filter(r => r.retention_pct !== null).sort((a, b) => (b.retention_pct ?? 0) - (a.retention_pct ?? 0)).indexOf(viewerRow) + 1
+          : undefined,
+        rankOf: viewerRow?.retention_pct != null ? enrichedRows.filter(r => r.retention_pct !== null).length : undefined,
+      },
+      {
+        key: 'taken_pct',
+        label: '≥90% Target',
+        value: `${aboveTarget}/${total}`,
+        delta: `${Math.round(aboveTarget / total * 100)}%`,
+        deltaUp: aboveTarget / total >= 0.5,
+      },
+      {
+        key: 'avg_ap',
+        label: 'Avg AP/Policy',
+        value: fmt$(avgAP),
+      },
+      {
+        key: 'at_risk',
+        label: 'Total At-Risk',
+        value: totalAtRisk.toLocaleString(),
+        delta: totalAtRisk > 0 ? `${totalAtRisk}` : undefined,
+        deltaUp: totalAtRisk === 0,
+      },
+    ];
+
+    return {
+      entityName,
+      subtitle: `${total} agencies · ${periodLabel(period)}`,
+      initials,
+      tiles,
+    };
+  }, [enrichedRows, isOrgWide, effectiveAgencyWritingNumber, period]);
+
+  // Ramp-up agent count for badge
+  const rampUpCount = rampUpAgents.length;
 
   // Stats — derived from displayed (filtered) data
   const stats = useMemo(() => {
@@ -317,6 +458,65 @@ export function LeaderboardPage() {
           <DataFilters
             selectedAgencyId={filterAgencyId}
             onAgencyChange={setFilterAgencyId}
+          />
+        )}
+
+        {/* Board Tab Switcher */}
+        <div className="flex items-center gap-1 bg-secondary/50 rounded-lg p-0.5 w-fit">
+          <button
+            onClick={() => setBoardTab('agencies')}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${
+              boardTab === 'agencies'
+                ? 'gradient-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Trophy size={14} /> Agencies
+          </button>
+          <button
+            onClick={() => setBoardTab('ramp_up')}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${
+              boardTab === 'ramp_up'
+                ? 'gradient-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Rocket size={14} /> Ramp Up
+            {rampUpCount > 0 && boardTab !== 'ramp_up' && (
+              <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-400">
+                {rampUpCount}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Ramp Up Board */}
+        {boardTab === 'ramp_up' && (
+          <RampUpBoard agents={rampUpAgents} loading={rampUpLoading} />
+        )}
+
+        {/* Agencies Board */}
+        {boardTab === 'agencies' && (<>
+
+        {/* Executive Summary */}
+        {execSummary && (
+          <ExecutiveSummary
+            data={execSummary}
+            activeSort={sortKey as LeaderboardSortKey}
+            onSortChange={(key) => {
+              // Map exec summary keys to table sort keys
+              const keyMap: Record<string, SortKey> = {
+                ap: 'premium',
+                apps: 'policies',
+                save_rate: 'retention',
+                at_risk: 'at_risk',
+                avg_ap: 'premium',
+                taken_pct: 'retention',
+              };
+              const mapped = keyMap[key] || 'rank';
+              if (sortKey === mapped) setSortAsc(p => !p);
+              else { setSortKey(mapped); setSortAsc(false); }
+            }}
           />
         )}
 
@@ -546,6 +746,8 @@ export function LeaderboardPage() {
             )}
           </CardContent>
         </Card>
+
+        </>)}{/* end boardTab === 'agencies' */}
       </div>
     </div>
   );
