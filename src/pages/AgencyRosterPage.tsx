@@ -402,7 +402,7 @@ export function AgencyRosterPage() {
           <div className="bg-card rounded-xl border border-border p-4">
             <div className="flex items-center justify-between gap-4">
               <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/70" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input
                   type="text"
                   placeholder="Search by name, email, phone, NPN..."

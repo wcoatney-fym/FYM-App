@@ -69,7 +69,7 @@ export const AgencyDealsTab: React.FC<AgencyDealsTabProps> = ({ agencyId, deals,
 
       <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/70" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             type="text"
             placeholder="Search deals..."
@@ -137,7 +137,7 @@ export const AgencyDealsTab: React.FC<AgencyDealsTabProps> = ({ agencyId, deals,
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-6 py-12 text-center">
-                    <TrendingUp className="w-8 h-8 text-muted-foreground/60 mx-auto mb-2" />
+                    <TrendingUp className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
                     <p className="text-sm text-muted-foreground">
                       {deals.length === 0 ? 'No deals yet. Connect GHL or add deals manually.' : 'No deals match your filters.'}
                     </p>
@@ -226,7 +226,7 @@ const AddDealModal: React.FC<{
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h3 className="font-semibold text-foreground">Add Deal</h3>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-secondary transition-colors">
-            <X className="w-5 h-5 text-muted-foreground/70" />
+            <X className="w-5 h-5 text-muted-foreground" />
           </button>
         </div>
 

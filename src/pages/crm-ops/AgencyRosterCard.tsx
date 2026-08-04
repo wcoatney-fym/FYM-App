@@ -114,7 +114,7 @@ export const AgencyRosterCard: React.FC<AgencyRosterCardProps> = ({
                   ? `${populatedCount.toLocaleString()}/200 records`
                   : `${upload.row_count.toLocaleString()} records`}
               </p>
-              <p className="text-xs text-muted-foreground/70 mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 Uploaded {formatDate(upload.uploaded_at)}
               </p>
             </div>
@@ -159,7 +159,7 @@ export const AgencyRosterCard: React.FC<AgencyRosterCardProps> = ({
         <div className="p-5">
           <div className="flex flex-col items-center text-center py-4">
             <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center mb-3">
-              <Upload className="w-5 h-5 text-muted-foreground/70" />
+              <Upload className="w-5 h-5 text-muted-foreground" />
             </div>
             <p className="text-sm text-muted-foreground mb-4">No roster uploaded</p>
             <button

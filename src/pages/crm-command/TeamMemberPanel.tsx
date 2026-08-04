@@ -15,10 +15,10 @@ const skillColors: Record<SkillCategoryKey, string> = {
   recruiting: 'bg-green-400', retention: 'bg-rose-400', ghl: 'bg-violet-400',
 };
 const confidenceStyle: Record<string, string> = {
-  low: 'text-muted-foreground/70', medium: 'text-sky-400', high: 'text-emerald-400',
+  low: 'text-muted-foreground', medium: 'text-sky-400', high: 'text-emerald-400',
 };
 const statusColors: Record<string, string> = {
-  backlog: 'bg-slate-400/10 text-muted-foreground/70', todo: 'bg-sky-400/10 text-sky-400',
+  backlog: 'bg-slate-400/10 text-muted-foreground', todo: 'bg-sky-400/10 text-sky-400',
   in_progress: 'bg-amber-400/10 text-amber-400', review: 'bg-purple-400/10 text-purple-400',
   done: 'bg-emerald-400/10 text-emerald-400',
 };
@@ -96,7 +96,7 @@ export function TeamMemberPanel({ member, allTasks, onClose, onUpdate }: Props) 
                 );
               })}
             </div>
-            <p className="text-[10px] text-muted-foreground/60 mt-2">Confidence firms up as tasks complete. Low = seed estimate.</p>
+            <p className="text-[10px] text-muted-foreground mt-2">Confidence firms up as tasks complete. Low = seed estimate.</p>
           </div>
           {openTasks.length > 0 && (
             <div>
@@ -105,7 +105,7 @@ export function TeamMemberPanel({ member, allTasks, onClose, onUpdate }: Props) 
                 {openTasks.slice(0, 8).map((task) => (
                   <div key={task.id} className="flex items-start gap-2.5 p-2.5 rounded-lg bg-secondary/30 border border-border/30">
                     <div className="mt-0.5">
-                      {task.status === 'in_progress' ? <Clock className="w-3 h-3 text-amber-400" /> : overdueTasks.includes(task) ? <AlertCircle className="w-3 h-3 text-red-400" /> : <BarChart2 className="w-3 h-3 text-muted-foreground/60" />}
+                      {task.status === 'in_progress' ? <Clock className="w-3 h-3 text-amber-400" /> : overdueTasks.includes(task) ? <AlertCircle className="w-3 h-3 text-red-400" /> : <BarChart2 className="w-3 h-3 text-muted-foreground" />}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 min-w-0">{task.aiGenerated && <Bot className="w-2.5 h-2.5 text-primary flex-shrink-0" />}<p className="text-xs font-medium truncate">{task.title}</p></div>
@@ -125,7 +125,7 @@ export function TeamMemberPanel({ member, allTasks, onClose, onUpdate }: Props) 
             <div className="space-y-3 p-4 rounded-xl bg-secondary/20 border border-border/30">
               <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Edit Profile</p>
               <div><label className="text-[11px] text-muted-foreground font-medium">Role</label><input value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} className="w-full mt-1 bg-secondary/50 border border-border/50 rounded-lg px-3 py-2 text-xs outline-none focus:border-primary/50" /></div>
-              <div><label className="text-[11px] text-muted-foreground font-medium">Task Capacity</label><p className="text-[10px] text-muted-foreground/60 mb-1">Max concurrent tasks before they show as at-limit</p><input type="number" min={1} max={50} value={form.capacity} onChange={(e) => setForm((f) => ({ ...f, capacity: Number(e.target.value) }))} className="w-full bg-secondary/50 border border-border/50 rounded-lg px-3 py-2 text-xs outline-none focus:border-primary/50" /></div>
+              <div><label className="text-[11px] text-muted-foreground font-medium">Task Capacity</label><p className="text-[10px] text-muted-foreground mb-1">Max concurrent tasks before they show as at-limit</p><input type="number" min={1} max={50} value={form.capacity} onChange={(e) => setForm((f) => ({ ...f, capacity: Number(e.target.value) }))} className="w-full bg-secondary/50 border border-border/50 rounded-lg px-3 py-2 text-xs outline-none focus:border-primary/50" /></div>
             </div>
           )}
         </div>

@@ -84,7 +84,7 @@ export function CrmOpsPage() {
       <div>
         <Header title="CRM Ops" />
         <div className="text-center py-12 text-muted-foreground">
-          <Database className="w-12 h-12 mx-auto mb-3 text-muted-foreground/50" />
+          <Database className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
           <p className="font-medium">Portal connection not configured</p>
           <p className="text-sm mt-1">
             Set VITE_PORTAL_SUPABASE_URL and VITE_PORTAL_SUPABASE_KEY to

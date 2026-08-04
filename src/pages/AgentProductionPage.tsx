@@ -95,7 +95,7 @@ function statusBadge(status: string, isAtRisk: boolean) {
 }
 
 function retentionColor(pct: number | null) {
-  if (pct === null) return 'text-muted-foreground/70';
+  if (pct === null) return 'text-muted-foreground';
   if (pct >= 90) return 'text-emerald-400';
   if (pct >= 85) return 'text-amber-400';
   return 'text-red-400';
@@ -391,7 +391,7 @@ export function AgentProductionPage() {
               fmt: fmtNum,
               sub: `${stats.terminated_policies} terminated`,
               icon: AlertTriangle,
-              color: stats.at_risk_policies > 0 ? 'text-red-400' : 'text-muted-foreground/70',
+              color: stats.at_risk_policies > 0 ? 'text-red-400' : 'text-muted-foreground',
               bg: stats.at_risk_policies > 0 ? 'bg-red-500/10' : 'bg-secondary',
             },
           ].map(card => (
@@ -406,7 +406,7 @@ export function AgentProductionPage() {
                         format={card.fmt}
                         className={`text-xl font-bold mt-1 block font-data ${card.title === '90-Day Retention' ? card.color : 'text-foreground'}`}
                       />
-                      {card.sub && <p className="text-xs text-muted-foreground/70 mt-0.5">{card.sub}</p>}
+                      {card.sub && <p className="text-xs text-muted-foreground mt-0.5">{card.sub}</p>}
                     </div>
                     <div className={`p-2 rounded-lg ${card.bg}`}>
                       <card.icon size={18} className={card.color} />
@@ -555,7 +555,7 @@ export function AgentProductionPage() {
                 ))}
               </div>
               <div className="relative w-40">
-                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/50" />
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="Search..."
                   value={search}
@@ -638,7 +638,7 @@ export function AgentProductionPage() {
                             )}
                           </span>
                           <span className={`text-center font-data text-xs ${
-                            p.draft_count >= 3 ? 'text-emerald-400' : p.draft_count > 0 ? 'text-foreground/70' : 'text-muted-foreground/40'
+                            p.draft_count >= 3 ? 'text-emerald-400' : p.draft_count > 0 ? 'text-foreground/70' : 'text-muted-foreground'
                           }`}>
                             {p.draft_count}
                           </span>
@@ -646,7 +646,7 @@ export function AgentProductionPage() {
                             {p.flag_type ? (
                               <span className="text-xs text-amber-400">{p.flag_type}</span>
                             ) : (
-                              <span className="text-muted-foreground/30">—</span>
+                              <span className="text-muted-foreground">—</span>
                             )}
                           </span>
                         </div>

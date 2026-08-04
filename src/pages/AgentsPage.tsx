@@ -172,13 +172,13 @@ export function AgentsPage() {
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div>
                 <CardTitle className="text-base font-semibold text-foreground">All Agents</CardTitle>
-                <p className="text-xs text-muted-foreground/70 mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5">
                   {displayRows.length.toLocaleString()} agents
                   {filterAgencyId ? ' (filtered)' : ''}
                 </p>
               </div>
               <div className="relative w-full sm:w-72">
-                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/70" />
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="Search name, writing #, agency…"
                   value={search}
@@ -243,7 +243,7 @@ export function AgentsPage() {
                     >
                       <TableCell className="font-medium text-foreground">
                         <span className="text-cyan-400 hover:underline">
-                          {a.full_name || <span className="text-muted-foreground/70 italic">Unknown</span>}
+                          {a.full_name || <span className="text-muted-foreground italic">Unknown</span>}
                         </span>
                       </TableCell>
                       <TableCell className="font-data text-sm text-foreground/80">
@@ -268,7 +268,7 @@ export function AgentsPage() {
                         {a.at_risk_policies > 0 ? (
                           <span className="text-red-400 font-medium">{a.at_risk_policies.toLocaleString()}</span>
                         ) : (
-                          <span className="text-muted-foreground/40">0</span>
+                          <span className="text-muted-foreground">0</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right font-data font-medium text-foreground/80">
@@ -278,7 +278,7 @@ export function AgentsPage() {
                   ))}
                   {pagedRows.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center py-10 text-muted-foreground/70">
+                      <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
                         {loading ? 'Loading…' : scopedAgents.length === 0 ? 'No agent data found.' : 'No agents match your search.'}
                       </TableCell>
                     </TableRow>
@@ -342,7 +342,7 @@ function AgentDetailPopup({ agent, onClose }: { agent: UnifiedAgent; onClose: ()
     ? Math.max(0, Math.min(100, Math.round(retentionPct * (1 - atRiskRatio * 0.5))))
     : null;
 
-  const healthColor = healthScore == null ? 'text-muted-foreground/40'
+  const healthColor = healthScore == null ? 'text-muted-foreground'
     : healthScore >= 90 ? 'text-emerald-400'
     : healthScore >= 75 ? 'text-amber-400'
     : 'text-red-400';
@@ -445,7 +445,7 @@ function DetailField({ label, value, mono = false, highlight = false }: {
   return (
     <div>
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className={`text-sm mt-0.5 ${mono ? 'font-mono' : ''} ${highlight ? 'text-amber-400 font-medium' : 'text-foreground'} ${!value ? 'text-muted-foreground/50 italic' : ''}`}>
+      <dd className={`text-sm mt-0.5 ${mono ? 'font-mono' : ''} ${highlight ? 'text-amber-400 font-medium' : 'text-foreground'} ${!value ? 'text-muted-foreground italic' : ''}`}>
         {value || '—'}
       </dd>
     </div>

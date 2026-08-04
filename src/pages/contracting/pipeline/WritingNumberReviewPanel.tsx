@@ -238,9 +238,9 @@ export function WritingNumberReviewPanel({
                   <div className="flex items-center justify-between px-3 py-2.5">
                     <div className="flex items-center gap-2 flex-1 min-w-0">
                       {sub.submission_method === 'image' ? (
-                        <Upload className="w-3.5 h-3.5 text-muted-foreground/70 flex-shrink-0" />
+                        <Upload className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                       ) : (
-                        <PenLine className="w-3.5 h-3.5 text-muted-foreground/70 flex-shrink-0" />
+                        <PenLine className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                       )}
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-foreground">
@@ -252,11 +252,11 @@ export function WritingNumberReviewPanel({
                           </span>
                           {sub.ai_extracted_number &&
                             sub.ai_extracted_number !== sub.writing_number && (
-                              <span className="text-[10px] text-muted-foreground/70">
+                              <span className="text-[10px] text-muted-foreground">
                                 (AI read: {sub.ai_extracted_number})
                               </span>
                             )}
-                          <span className="text-[10px] text-muted-foreground/70">
+                          <span className="text-[10px] text-muted-foreground">
                             ·{' '}
                             {new Date(sub.created_at).toLocaleDateString(
                               'en-US',
@@ -348,7 +348,7 @@ export function WritingNumberReviewPanel({
 
           {resolvedSubs.length > 0 && (
             <div className="space-y-1.5">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/70">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                 History
               </p>
               {resolvedSubs.map((sub) => (

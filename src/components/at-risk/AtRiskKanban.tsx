@@ -345,7 +345,7 @@ export function AtRiskKanban({ filterAgencyId }: AtRiskKanbanProps) {
                     format={(n: number) => `$${Math.round(n).toLocaleString()}`}
                     className="text-xl font-bold text-foreground mt-0.5 block"
                   />
-                  <p className="text-[10px] text-muted-foreground/70">annual</p>
+                  <p className="text-[10px] text-muted-foreground">annual</p>
                 </div>
                 <div className="p-2 rounded-lg bg-rose-500/10">
                   <DollarSign size={16} className="text-rose-400" />
@@ -374,12 +374,12 @@ export function AtRiskKanban({ filterAgencyId }: AtRiskKanbanProps) {
           </button>
         ))}
         <div className="relative ml-auto">
-          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/50" />
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Search client, agent, policy #"
-            className="bg-card border border-border rounded-lg pl-8 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/50 w-52"
+            className="bg-card border border-border rounded-lg pl-8 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 w-52"
           />
         </div>
         <button
@@ -395,7 +395,7 @@ export function AtRiskKanban({ filterAgencyId }: AtRiskKanbanProps) {
       {/* Kanban board */}
       {policies.length === 0 ? (
         <Card className="border-border">
-          <CardContent className="py-12 text-center text-muted-foreground/70 text-sm">
+          <CardContent className="py-12 text-center text-muted-foreground text-sm">
             No at-risk policies right now. Nice and clean.
           </CardContent>
         </Card>
@@ -428,13 +428,13 @@ export function AtRiskKanban({ filterAgencyId }: AtRiskKanbanProps) {
                 <div className={`flex items-center gap-1.5 px-1 pb-2 border-b ${stage.accent} mb-2`}>
                   <span className={`w-2 h-2 rounded-full ${stage.dot} shrink-0`} />
                   <span className="text-[11px] font-semibold text-foreground/80 truncate">{stage.label}</span>
-                  <span className="text-[11px] text-muted-foreground/50 ml-auto">{cards.length}</span>
+                  <span className="text-[11px] text-muted-foreground ml-auto">{cards.length}</span>
                 </div>
 
                 {/* Cards */}
                 <div className="space-y-2 min-h-[40px]">
                   {cards.length === 0 ? (
-                    <p className="text-[11px] text-muted-foreground/30 px-1 py-3 text-center">—</p>
+                    <p className="text-[11px] text-muted-foreground px-1 py-3 text-center">—</p>
                   ) : (
                     cards.map(p => {
                       const level = urgencyLevel(p.days_since_draft);
@@ -489,7 +489,7 @@ export function AtRiskKanban({ filterAgencyId }: AtRiskKanbanProps) {
                           </p>
 
                           {/* Agent */}
-                          <p className="text-[10px] text-muted-foreground/70 mt-0.5 truncate">
+                          <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
                             {p.agent_name || 'Unassigned'}
                             {p.writing_number ? ` · #${p.writing_number}` : ''}
                           </p>

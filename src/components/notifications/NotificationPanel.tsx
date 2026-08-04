@@ -163,7 +163,7 @@ export function NotificationBell() {
           'relative flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200',
           open
             ? 'bg-primary/20 text-primary'
-            : 'text-muted-foreground/50 hover:text-muted-foreground hover:bg-secondary/60'
+            : 'text-muted-foreground hover:text-muted-foreground hover:bg-secondary/60'
         )}
         title="Notifications"
       >
@@ -206,7 +206,7 @@ export function NotificationBell() {
               )}
               <button
                 onClick={() => setOpen(false)}
-                className="text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+                className="text-muted-foreground hover:text-muted-foreground transition-colors"
               >
                 <X size={14} />
               </button>
@@ -216,7 +216,7 @@ export function NotificationBell() {
           {/* Notification list */}
           <div className="flex-1 overflow-y-auto scrollbar-thin">
             {loading && notifications.length === 0 ? (
-              <div className="flex items-center justify-center py-12 text-muted-foreground/40">
+              <div className="flex items-center justify-center py-12 text-muted-foreground">
                 <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
               </div>
             ) : notifications.length === 0 ? (
@@ -225,7 +225,7 @@ export function NotificationBell() {
                   <CheckCircle2 size={20} className="text-emerald-400" />
                 </div>
                 <p className="text-sm font-semibold text-foreground">All clear</p>
-                <p className="text-[11px] text-muted-foreground/60 mt-1">No notifications right now</p>
+                <p className="text-[11px] text-muted-foreground mt-1">No notifications right now</p>
               </div>
             ) : (
               <div className="py-1">
@@ -269,17 +269,17 @@ export function NotificationBell() {
                             )}>
                               {meta.label}
                             </span>
-                            <span className="text-[10px] text-muted-foreground/40 ml-auto flex-shrink-0">
+                            <span className="text-[10px] text-muted-foreground ml-auto flex-shrink-0">
                               {timeAgo(notif.timestamp)}
                             </span>
                           </div>
                           <p className={cn(
                             'text-[12px] leading-tight',
-                            notif.read ? 'text-muted-foreground/60' : 'text-foreground font-medium'
+                            notif.read ? 'text-muted-foreground' : 'text-foreground font-medium'
                           )}>
                             {notif.title}
                           </p>
-                          <p className="text-[11px] text-muted-foreground/50 mt-0.5 leading-snug">
+                          <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
                             {notif.body}
                           </p>
                         </div>
@@ -294,7 +294,7 @@ export function NotificationBell() {
           {/* Footer */}
           {notifications.length > 0 && (
             <div className="border-t border-border/30 px-4 py-2.5 flex items-center justify-between">
-              <span className="text-[10px] text-muted-foreground/40">
+              <span className="text-[10px] text-muted-foreground">
                 {notifications.length} notification{notifications.length !== 1 ? 's' : ''}
               </span>
               <button

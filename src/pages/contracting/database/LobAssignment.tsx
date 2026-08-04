@@ -241,9 +241,9 @@ export function LobAssignment({
           </div>
         </div>
         {expanded ? (
-          <ChevronUp className="w-5 h-5 text-muted-foreground/70" />
+          <ChevronUp className="w-5 h-5 text-muted-foreground" />
         ) : (
-          <ChevronDown className="w-5 h-5 text-muted-foreground/70" />
+          <ChevronDown className="w-5 h-5 text-muted-foreground" />
         )}
       </button>
 

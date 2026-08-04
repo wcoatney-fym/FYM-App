@@ -387,7 +387,7 @@ export function ContractingDashboardTab() {
         ))}
       </div>
 
-      <p className="text-xs text-muted-foreground/70">
+      <p className="text-xs text-muted-foreground">
         Last updated{' '}
         {new Intl.DateTimeFormat('en-US', {
           timeZone: 'America/Chicago',
@@ -428,7 +428,7 @@ export function ContractingDashboardTab() {
                     {isExpanded ? (
                       <ChevronUp size={18} />
                     ) : (
-                      <ChevronDown size={18} className="text-muted-foreground/70" />
+                      <ChevronDown size={18} className="text-muted-foreground" />
                     )}
                   </button>
 
@@ -534,13 +534,13 @@ export function ContractingDashboardTab() {
                   className="pb-3 border-b border-border/50 last:border-0"
                 >
                   <p className="text-sm text-foreground">{activity.details}</p>
-                  <p className="text-xs text-muted-foreground/70 mt-1">
+                  <p className="text-xs text-muted-foreground mt-1">
                     {timeAgo(activity.created_at)}
                   </p>
                 </div>
               ))
             ) : (
-              <p className="text-sm text-muted-foreground/70 text-center py-4">
+              <p className="text-sm text-muted-foreground text-center py-4">
                 No recent activity
               </p>
             )}

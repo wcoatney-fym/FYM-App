@@ -41,7 +41,7 @@ export function DeltaBadge({
 
   if (d.dir === 'flat') {
     return (
-      <span className={`inline-flex items-center gap-0.5 ${size === 'sm' ? 'text-xs' : 'text-sm'} text-muted-foreground/50`}>
+      <span className={`inline-flex items-center gap-0.5 ${size === 'sm' ? 'text-xs' : 'text-sm'} text-muted-foreground`}>
         <Minus size={size === 'sm' ? 10 : 12} />
         0%
       </span>

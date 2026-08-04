@@ -132,9 +132,9 @@ export const TemplateManagementTab: React.FC = () => {
 
       {otherTemplates.length === 0 && !crossSellTemplate ? (
         <div className="glass rounded-xl p-12 text-center">
-          <FileSpreadsheet className="w-12 h-12 text-muted-foreground/60 mx-auto mb-3" />
+          <FileSpreadsheet className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
           <p className="text-muted-foreground">No templates uploaded yet</p>
-          <p className="text-sm text-muted-foreground/70 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Upload a CSV file to create a downloadable template for agencies
           </p>
         </div>
@@ -232,7 +232,7 @@ const CrossSellTemplateCard: React.FC<{
       </div>
 
       <div className="flex items-center justify-between pt-3 border-t border-border/50">
-        <p className="text-xs text-muted-foreground/70">
+        <p className="text-xs text-muted-foreground">
           {new Date(template.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
         </p>
         <div className="flex items-center gap-2">
@@ -287,7 +287,7 @@ const TemplateCard: React.FC<{
           </span>
         ))}
         {template.headers.length > 6 && (
-          <span className="inline-flex px-2 py-0.5 bg-secondary text-muted-foreground/70 rounded text-xs">
+          <span className="inline-flex px-2 py-0.5 bg-secondary text-muted-foreground rounded text-xs">
             +{template.headers.length - 6} more
           </span>
         )}
@@ -295,7 +295,7 @@ const TemplateCard: React.FC<{
     </div>
 
     <div className="flex items-center justify-between pt-3 border-t border-border/50">
-      <p className="text-xs text-muted-foreground/70">
+      <p className="text-xs text-muted-foreground">
         {new Date(template.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
       </p>
       <div className="flex items-center gap-1">
@@ -308,7 +308,7 @@ const TemplateCard: React.FC<{
         </button>
         <button
           onClick={onDelete}
-          className="p-1.5 text-muted-foreground/70 hover:text-red-500 hover:bg-red-500/20 rounded-lg transition-colors"
+          className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/20 rounded-lg transition-colors"
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>
@@ -400,7 +400,7 @@ const CrossSellUploadModal: React.FC<{
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="text-lg font-bold text-foreground">Upload Cross-Sell Defaults</h2>
           <button onClick={onClose} className="p-1 hover:bg-secondary rounded transition-colors">
-            <X className="w-5 h-5 text-muted-foreground/70" />
+            <X className="w-5 h-5 text-muted-foreground" />
           </button>
         </div>
         <div className="px-6 py-5 space-y-4">
@@ -416,7 +416,7 @@ const CrossSellUploadModal: React.FC<{
           </div>
 
           <div className="border-2 border-dashed border-border rounded-xl p-6 text-center hover:border-primary transition-colors">
-            <FileSpreadsheet className="w-8 h-8 text-muted-foreground/60 mx-auto mb-2" />
+            <FileSpreadsheet className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
             <p className="text-sm text-muted-foreground mb-3">Upload your filled CSV file</p>
             <input
               ref={fileRef}
@@ -586,7 +586,7 @@ const UploadTemplateModal: React.FC<{
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="text-lg font-bold text-primary">Upload Template</h2>
           <button onClick={onClose} className="p-1 hover:bg-secondary rounded transition-colors">
-            <X className="w-5 h-5 text-muted-foreground/70" />
+            <X className="w-5 h-5 text-muted-foreground" />
           </button>
         </div>
 
@@ -606,9 +606,9 @@ const UploadTemplateModal: React.FC<{
                 onClick={() => fileRef.current?.click()}
                 className="w-full flex flex-col items-center justify-center py-8 border-2 border-dashed border-border rounded-lg hover:border-primary/40 hover:bg-cyan-500/30 transition-colors cursor-pointer"
               >
-                <Upload className="w-8 h-8 text-muted-foreground/70 mb-2" />
+                <Upload className="w-8 h-8 text-muted-foreground mb-2" />
                 <p className="text-sm font-medium text-muted-foreground">Click to select a CSV file</p>
-                <p className="text-xs text-muted-foreground/70 mt-1">The headers will be used as template columns</p>
+                <p className="text-xs text-muted-foreground mt-1">The headers will be used as template columns</p>
               </button>
             ) : (
               <div className="flex items-center gap-3 p-3 bg-cyan-500/10 rounded-lg border border-blue-500/20">

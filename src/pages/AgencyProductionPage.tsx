@@ -269,7 +269,7 @@ export function AgencyProductionPage() {
               fmt: fmtNum,
               sub: agents.length > 0 ? `${agents.length} agents` : 'No linked agents',
               icon: Users,
-              color: stats.at_risk_policies > 0 ? 'text-red-400' : 'text-muted-foreground/70',
+              color: stats.at_risk_policies > 0 ? 'text-red-400' : 'text-muted-foreground',
               bg: stats.at_risk_policies > 0 ? 'bg-red-500/10' : 'bg-secondary',
             },
           ].map(card => (
@@ -284,7 +284,7 @@ export function AgencyProductionPage() {
                         format={card.fmt}
                         className="text-2xl font-bold text-foreground mt-1 block font-data"
                       />
-                      {card.sub && <p className="text-xs text-muted-foreground/70 mt-0.5">{card.sub}</p>}
+                      {card.sub && <p className="text-xs text-muted-foreground mt-0.5">{card.sub}</p>}
                     </div>
                     <div className={`p-2.5 rounded-lg ${card.bg}`}>
                       <card.icon size={20} className={card.color} />
@@ -404,7 +404,7 @@ export function AgencyProductionPage() {
               )}
             </CardTitle>
             <div className="relative w-48">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/50" />
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search agents..."
                 value={search}
@@ -441,7 +441,7 @@ export function AgencyProductionPage() {
                         {agent.agent_name || 'Unknown Agent'}
                       </p>
                       {agent.writing_number && (
-                        <p className="text-xs text-muted-foreground/60 font-data">WN: {agent.writing_number}</p>
+                        <p className="text-xs text-muted-foreground font-data">WN: {agent.writing_number}</p>
                       )}
                     </div>
                     <span className="text-right text-muted-foreground font-data self-center">
@@ -454,7 +454,7 @@ export function AgencyProductionPage() {
                       {fmtNum(agent.policies_this_month)}
                     </span>
                     <span className={`text-right font-medium font-data self-center ${
-                      agent.retention_pct === null ? 'text-muted-foreground/40'
+                      agent.retention_pct === null ? 'text-muted-foreground'
                         : Number(agent.retention_pct) >= 90 ? 'text-emerald-400'
                         : Number(agent.retention_pct) >= 85 ? 'text-amber-400'
                         : 'text-red-400'
@@ -462,17 +462,17 @@ export function AgencyProductionPage() {
                       {agent.retention_pct !== null ? `${agent.retention_pct}%` : '—'}
                     </span>
                     <span className={`text-right font-data self-center ${
-                      agent.at_risk_policies > 0 ? 'text-red-400 font-medium' : 'text-muted-foreground/40'
+                      agent.at_risk_policies > 0 ? 'text-red-400 font-medium' : 'text-muted-foreground'
                     }`}>
                       {agent.at_risk_policies || '—'}
                     </span>
                     <span className="text-center self-center">
                       {agent.agent_id ? (
                         <Link to={`/production/${agencyId}/agent/${agent.agent_id}`} state={{ from: `/production/${agencyId}` }}>
-                          <ChevronRight size={14} className="text-muted-foreground/40 hover:text-primary transition-colors" />
+                          <ChevronRight size={14} className="text-muted-foreground hover:text-primary transition-colors" />
                         </Link>
                       ) : (
-                        <ChevronRight size={14} className="text-muted-foreground/20" />
+                        <ChevronRight size={14} className="text-muted-foreground" />
                       )}
                     </span>
                   </div>

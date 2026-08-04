@@ -429,7 +429,7 @@ export function ContractingHierarchyTab() {
   if (!portalSupabase) {
     return (
       <div className="text-center py-12 text-muted-foreground">
-        <Database className="w-12 h-12 mx-auto mb-3 text-muted-foreground/50" />
+        <Database className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
         <p className="font-medium">Portal connection not configured</p>
         <p className="text-sm mt-1">
           Set VITE_PORTAL_SUPABASE_URL and VITE_PORTAL_SUPABASE_KEY to enable.
@@ -510,7 +510,7 @@ export function ContractingHierarchyTab() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by agency name..."
-            className="w-full pl-10 pr-4 py-2.5 border border-border rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-transparent bg-card text-foreground placeholder:text-muted-foreground/60"
+            className="w-full pl-10 pr-4 py-2.5 border border-border rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-transparent bg-card text-foreground placeholder:text-muted-foreground"
           />
         </div>
         <div className="relative flex-1">
@@ -520,7 +520,7 @@ export function ContractingHierarchyTab() {
             value={principalSearch}
             onChange={(e) => setPrincipalSearch(e.target.value)}
             placeholder="Search by principal agent..."
-            className="w-full pl-10 pr-4 py-2.5 border border-border rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-transparent bg-card text-foreground placeholder:text-muted-foreground/60"
+            className="w-full pl-10 pr-4 py-2.5 border border-border rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-transparent bg-card text-foreground placeholder:text-muted-foreground"
           />
         </div>
       </div>
@@ -687,12 +687,12 @@ const TreeNode: React.FC<{
 
         {node.principal_agent && (
           <div className="hidden sm:flex flex-col items-end text-right mr-2 flex-shrink-0">
-            <span className="text-[10px] font-medium text-muted-foreground/50 uppercase tracking-wider">
+            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
               Principal Agent
             </span>
             <span className="text-xs font-semibold text-foreground/80 mt-0.5">{node.principal_agent}</span>
             {node.principal_agent_npn && (
-              <span className="text-[10px] text-muted-foreground/50 font-mono">
+              <span className="text-[10px] text-muted-foreground font-mono">
                 NPN {node.principal_agent_npn}
               </span>
             )}
@@ -705,7 +705,7 @@ const TreeNode: React.FC<{
               e.stopPropagation();
               onDelete(node);
             }}
-            className="p-1.5 rounded-md text-muted-foreground/50 opacity-0 group-hover:opacity-100 hover:text-red-400 hover:bg-red-500/10 transition-all"
+            className="p-1.5 rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-red-400 hover:bg-red-500/10 transition-all"
             title="Delete agency"
           >
             <Trash2 className="w-4 h-4" />
@@ -856,7 +856,7 @@ const PendingIntakeTray: React.FC<{
                       {' · '}
                       {new Date(s.created_at).toLocaleDateString()}
                     </p>
-                    <p className="text-xs text-muted-foreground/50 italic">
+                    <p className="text-xs text-muted-foreground italic">
                       Parent assigned during approval
                     </p>
                   </div>
@@ -896,7 +896,7 @@ const PendingIntakeTray: React.FC<{
                 </div>
                 {(s.additional_contacts ?? []).length > 0 && (
                   <div className="mt-2">
-                    <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase mb-1">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-1">
                       Additional Contacts
                     </p>
                     <div className="space-y-1">
@@ -955,7 +955,7 @@ const ApproveIntakeModal: React.FC<{
                 </option>
               ))}
             </select>
-            <p className="text-xs text-muted-foreground/50 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               Required — every new agency must map to a parent.
             </p>
           </div>
@@ -982,7 +982,7 @@ const ApproveIntakeModal: React.FC<{
 
 const IntakeField: React.FC<{ label: string; value: string }> = ({ label, value }) => (
   <div className="flex items-center gap-2">
-    <span className="text-muted-foreground/50">{label}:</span>
+    <span className="text-muted-foreground">{label}:</span>
     <span className="font-medium text-foreground/80 truncate">{value}</span>
   </div>
 );
@@ -1620,7 +1620,7 @@ const ContractingOnboardingSubTab: React.FC<{
             {step.done ? (
               <CheckCircle2 className="w-5 h-5 text-emerald-400 mt-0.5 flex-shrink-0" />
             ) : (
-              <Circle className="w-5 h-5 text-muted-foreground/50 mt-0.5 flex-shrink-0" />
+              <Circle className="w-5 h-5 text-muted-foreground mt-0.5 flex-shrink-0" />
             )}
             <div>
               <p className={`text-sm font-medium ${step.done ? 'text-emerald-400' : 'text-foreground/80'}`}>
@@ -1748,7 +1748,7 @@ const ContractingOnboardingSubTab: React.FC<{
                 </a>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground/50 italic">Not assigned</p>
+              <p className="text-sm text-muted-foreground italic">Not assigned</p>
             )}
           </div>
 
@@ -1779,7 +1779,7 @@ const ContractingOnboardingSubTab: React.FC<{
                 </button>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground/50 italic">Not set</p>
+              <p className="text-sm text-muted-foreground italic">Not set</p>
             )}
           </div>
         </div>
@@ -1842,7 +1842,7 @@ const ContractingOnboardingSubTab: React.FC<{
                 placeholder="e.g. 12345678"
               />
             ) : (
-              <p className={`text-sm font-medium ${agency.agency_npn ? 'text-foreground' : 'text-muted-foreground/50 italic'}`}>
+              <p className={`text-sm font-medium ${agency.agency_npn ? 'text-foreground' : 'text-muted-foreground italic'}`}>
                 {agency.agency_npn || 'Not provided'}
               </p>
             )}
@@ -1861,7 +1861,7 @@ const ContractingOnboardingSubTab: React.FC<{
                 placeholder="e.g. 12-3456789"
               />
             ) : (
-              <p className={`text-sm font-medium ${agency.agency_ein ? 'text-foreground' : 'text-muted-foreground/50 italic'}`}>
+              <p className={`text-sm font-medium ${agency.agency_ein ? 'text-foreground' : 'text-muted-foreground italic'}`}>
                 {agency.agency_ein || 'Not provided'}
               </p>
             )}
@@ -1880,7 +1880,7 @@ const ContractingOnboardingSubTab: React.FC<{
                 placeholder="Full name"
               />
             ) : (
-              <p className={`text-sm font-medium ${agency.principal_agent ? 'text-foreground' : 'text-muted-foreground/50 italic'}`}>
+              <p className={`text-sm font-medium ${agency.principal_agent ? 'text-foreground' : 'text-muted-foreground italic'}`}>
                 {agency.principal_agent || 'Not provided'}
               </p>
             )}
@@ -1900,7 +1900,7 @@ const ContractingOnboardingSubTab: React.FC<{
               />
             ) : (
               <p
-                className={`text-sm font-medium ${agency.principal_agent_npn ? 'text-foreground' : 'text-muted-foreground/50 italic'}`}
+                className={`text-sm font-medium ${agency.principal_agent_npn ? 'text-foreground' : 'text-muted-foreground italic'}`}
               >
                 {agency.principal_agent_npn || 'Not provided'}
               </p>
@@ -1924,7 +1924,7 @@ const ContractingOnboardingSubTab: React.FC<{
               />
             ) : (
               <p
-                className={`text-sm font-medium ${agency.contracting_email ? 'text-foreground' : 'text-muted-foreground/50 italic'}`}
+                className={`text-sm font-medium ${agency.contracting_email ? 'text-foreground' : 'text-muted-foreground italic'}`}
               >
                 {agency.contracting_email || 'Not provided'}
               </p>
@@ -1945,7 +1945,7 @@ const ContractingOnboardingSubTab: React.FC<{
               />
             ) : (
               <p
-                className={`text-sm font-medium ${agency.contracting_contact ? 'text-foreground' : 'text-muted-foreground/50 italic'}`}
+                className={`text-sm font-medium ${agency.contracting_contact ? 'text-foreground' : 'text-muted-foreground italic'}`}
               >
                 {agency.contracting_contact || 'Not provided'}
               </p>
@@ -1999,7 +1999,7 @@ const ContractingOnboardingSubTab: React.FC<{
             </div>
           </div>
         ) : (
-          <p className={`text-sm ${agency.street_address || agency.city ? 'text-foreground' : 'text-muted-foreground/50 italic'}`}>
+          <p className={`text-sm ${agency.street_address || agency.city ? 'text-foreground' : 'text-muted-foreground italic'}`}>
             {[agency.street_address, agency.city, agency.agency_state, agency.zip].filter(Boolean).join(', ') ||
               'Not provided'}
           </p>
@@ -2030,13 +2030,13 @@ const ContractingOnboardingSubTab: React.FC<{
         </div>
 
         {!editing && additionalContacts.length === 0 && (
-          <p className="text-sm text-muted-foreground/50 italic">No additional contacts on file.</p>
+          <p className="text-sm text-muted-foreground italic">No additional contacts on file.</p>
         )}
 
         {editing ? (
           <div className="space-y-3">
             {additionalContacts.length === 0 && (
-              <p className="text-xs text-muted-foreground/50 italic">No contacts — click Add above.</p>
+              <p className="text-xs text-muted-foreground italic">No contacts — click Add above.</p>
             )}
             {additionalContacts.map((c, i) => (
               <div key={i} className="relative border border-border rounded-lg p-3 bg-secondary/10">
@@ -2047,7 +2047,7 @@ const ContractingOnboardingSubTab: React.FC<{
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
-                <p className="text-[10px] font-semibold text-muted-foreground/50 uppercase mb-2">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-2">
                   Contact {i + 1}
                 </p>
                 <div className="grid grid-cols-2 gap-2">
@@ -2077,7 +2077,7 @@ const ContractingOnboardingSubTab: React.FC<{
               <div key={i} className="text-sm">
                 <span className="font-medium text-foreground">{c.name}</span>
                 {c.title && <span className="text-muted-foreground"> · {c.title}</span>}
-                {c.department && <span className="text-muted-foreground/50"> ({c.department})</span>}
+                {c.department && <span className="text-muted-foreground"> ({c.department})</span>}
                 {c.email && <span className="text-muted-foreground"> · {c.email}</span>}
                 {c.phone && <span className="text-muted-foreground"> · {c.phone}</span>}
               </div>
@@ -2172,7 +2172,7 @@ const InternalNotesSection: React.FC<{
       <div className="flex items-center gap-2 mb-4">
         <StickyNote className="w-4 h-4 text-muted-foreground" />
         <h4 className="font-semibold text-foreground text-sm">Internal Notes</h4>
-        <span className="text-xs text-muted-foreground/50 ml-auto">
+        <span className="text-xs text-muted-foreground ml-auto">
           {notes.length > 0 ? `${notes.length} entr${notes.length === 1 ? 'y' : 'ies'}` : ''}
         </span>
       </div>
@@ -2193,11 +2193,11 @@ const InternalNotesSection: React.FC<{
           onKeyDown={handleKeyDown}
           rows={focused ? 3 : 1}
           placeholder="Add a note… (Cmd+Enter to save)"
-          className="w-full px-3 py-2 text-sm bg-transparent border-none outline-none resize-none placeholder:text-muted-foreground/50 text-foreground"
+          className="w-full px-3 py-2 text-sm bg-transparent border-none outline-none resize-none placeholder:text-muted-foreground text-foreground"
         />
         {focused && (
           <div className="flex items-center justify-between px-3 pb-2">
-            <span className="text-[10px] text-muted-foreground/50">Cmd+Enter to save · Esc to cancel</span>
+            <span className="text-[10px] text-muted-foreground">Cmd+Enter to save · Esc to cancel</span>
             <button
               onClick={handleAddNote}
               disabled={notesSaving || !noteInput.trim()}
@@ -2211,7 +2211,7 @@ const InternalNotesSection: React.FC<{
       </div>
 
       {notes.length === 0 ? (
-        <p className="text-sm text-muted-foreground/50 italic">No notes yet.</p>
+        <p className="text-sm text-muted-foreground italic">No notes yet.</p>
       ) : (
         <div className="space-y-3">
           {notes.map((note, i) => (
@@ -2492,7 +2492,7 @@ const HierarchyRosterSubTab: React.FC<{ agency: PortalCrmAgency }> = ({ agency }
 
       {!uploadId ? (
         <div className="text-center py-12 border-2 border-dashed border-border rounded-lg">
-          <Upload className="w-10 h-10 text-muted-foreground/50 mx-auto mb-3" />
+          <Upload className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
           <p className="text-sm text-muted-foreground mb-3">No roster uploaded for this agency</p>
           <button
             onClick={() => fileInputRef.current?.click()}
@@ -2532,7 +2532,7 @@ const HierarchyRosterSubTab: React.FC<{ agency: PortalCrmAgency }> = ({ agency }
                     {row.row_data['Email'] || row.row_data['email'] || '--'}
                   </p>
                 </div>
-                <span className="text-xs text-muted-foreground/50">{row.row_data['Agent NPN'] || ''}</span>
+                <span className="text-xs text-muted-foreground">{row.row_data['Agent NPN'] || ''}</span>
               </div>
             ))}
             {filteredRows.length === 0 && (
@@ -2938,7 +2938,7 @@ const CrmToggleSubTab: React.FC<{
                 {prereq.done ? (
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                 ) : (
-                  <Circle className="w-4 h-4 text-muted-foreground/50" />
+                  <Circle className="w-4 h-4 text-muted-foreground" />
                 )}
                 <span className={`text-sm ${prereq.done ? 'text-foreground/80' : 'text-muted-foreground'}`}>
                   {prereq.label}

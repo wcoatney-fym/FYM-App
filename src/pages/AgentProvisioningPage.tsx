@@ -127,7 +127,7 @@ export function AgentProvisioningPage() {
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">{c.label}</p>
                     <p className="text-2xl font-bold text-foreground mt-1">{c.value}</p>
-                    <p className="text-xs text-muted-foreground/70 mt-0.5">{c.sub}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{c.sub}</p>
                   </div>
                   <div className="p-2.5 rounded-lg bg-cyan-500/10"><Users size={20} className="text-primary" /></div>
                 </div>
@@ -218,7 +218,7 @@ export function AgentProvisioningPage() {
                   </div>
                 </div>
 
-                <p className="text-xs text-muted-foreground/70">
+                <p className="text-xs text-muted-foreground">
                   A temporary password will be auto-generated. The account is pre-confirmed — they can log in immediately.
                 </p>
 
@@ -297,10 +297,10 @@ export function AgentProvisioningPage() {
                   {agents.map(a => (
                     <div key={a.id} className="grid grid-cols-12 gap-2 px-4 py-2.5 text-sm items-center">
                       <span className="col-span-4 font-medium text-foreground truncate">{a.full_name ?? '—'}</span>
-                      <span className={`col-span-3 font-data text-xs ${a.writing_number ? 'text-foreground/80' : 'text-muted-foreground/40'}`}>
+                      <span className={`col-span-3 font-data text-xs ${a.writing_number ? 'text-foreground/80' : 'text-muted-foreground'}`}>
                         {a.writing_number ?? 'not set'}
                       </span>
-                      <span className={`col-span-3 font-data text-xs ${a.npn ? 'text-foreground/80' : 'text-muted-foreground/40'}`}>
+                      <span className={`col-span-3 font-data text-xs ${a.npn ? 'text-foreground/80' : 'text-muted-foreground'}`}>
                         {a.npn ?? '—'}
                       </span>
                       <span className="col-span-2 text-right">
@@ -315,7 +315,7 @@ export function AgentProvisioningPage() {
                     </div>
                   ))}
                   {agents.length === 0 && (
-                    <p className="text-center py-8 text-muted-foreground/70 text-sm">No profiles yet.</p>
+                    <p className="text-center py-8 text-muted-foreground text-sm">No profiles yet.</p>
                   )}
                 </div>
               )}

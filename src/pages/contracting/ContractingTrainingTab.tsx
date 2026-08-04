@@ -227,7 +227,7 @@ export function ContractingTrainingTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <RefreshCw className="w-5 h-5 animate-spin text-muted-foreground/70 mr-2" />
+        <RefreshCw className="w-5 h-5 animate-spin text-muted-foreground mr-2" />
         <span className="text-sm text-muted-foreground">Loading training data…</span>
       </div>
     );
@@ -307,7 +307,7 @@ export function ContractingTrainingTab() {
               </select>
               <button
                 onClick={loadData}
-                className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground/70 hover:text-muted-foreground transition-colors"
+                className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-muted-foreground transition-colors"
                 title="Refresh"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
@@ -379,7 +379,7 @@ export function ContractingTrainingTab() {
 
             {/* Past sessions summary */}
             {pastSessions.length > 0 && (
-              <div className="text-xs text-muted-foreground/70 px-1">
+              <div className="text-xs text-muted-foreground px-1">
                 {pastSessions.length} past session{pastSessions.length !== 1 ? 's' : ''}
                 {' · '}
                 {attendance.length} total join click{attendance.length !== 1 ? 's' : ''}
@@ -422,7 +422,7 @@ export function ContractingTrainingTab() {
                     <span className="text-muted-foreground font-medium truncate">
                       {login.login_method}
                     </span>
-                    <span className="text-muted-foreground/70 whitespace-nowrap ml-2">
+                    <span className="text-muted-foreground whitespace-nowrap ml-2">
                       {timeAgo(login.logged_in_at)}
                     </span>
                   </div>
@@ -471,7 +471,7 @@ function KpiCard({
             <p className="text-xs text-muted-foreground font-medium">{label}</p>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground/70 mt-2">{sublabel}</p>
+        <p className="text-xs text-muted-foreground mt-2">{sublabel}</p>
       </CardContent>
     </Card>
   );
@@ -517,11 +517,11 @@ function ContentRow({
                 </span>
               )}
               {item.carrier && (
-                <span className="text-[10px] text-muted-foreground/70">{item.carrier}</span>
+                <span className="text-[10px] text-muted-foreground">{item.carrier}</span>
               )}
             </div>
           </div>
-          <div className="flex items-center gap-4 text-xs text-muted-foreground/70 shrink-0">
+          <div className="flex items-center gap-4 text-xs text-muted-foreground shrink-0">
             {item.view_count > 0 && (
               <span className="flex items-center gap-1">
                 <Eye className="w-3 h-3" /> {item.view_count}
@@ -547,25 +547,25 @@ function ContentRow({
           <div className="px-4 pb-3 border-t border-border/50">
             <div className="pt-3 grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
               <div>
-                <span className="text-muted-foreground/70 block">Type</span>
+                <span className="text-muted-foreground block">Type</span>
                 <span className="text-foreground/80 font-medium capitalize">
                   {item.content_format || item.content_type}
                 </span>
               </div>
               <div>
-                <span className="text-muted-foreground/70 block">Views</span>
+                <span className="text-muted-foreground block">Views</span>
                 <span className="text-foreground/80 font-medium">{item.view_count}</span>
               </div>
               {item.has_quiz && (
                 <>
                   <div>
-                    <span className="text-muted-foreground/70 block">Quiz Attempts</span>
+                    <span className="text-muted-foreground block">Quiz Attempts</span>
                     <span className="text-foreground/80 font-medium">
                       {item.quiz_attempt_count}
                     </span>
                   </div>
                   <div>
-                    <span className="text-muted-foreground/70 block">Avg Score</span>
+                    <span className="text-muted-foreground block">Avg Score</span>
                     <span className="text-foreground/80 font-medium">
                       {item.avg_score !== null ? `${item.avg_score.toFixed(0)}%` : '—'}
                     </span>
@@ -574,7 +574,7 @@ function ContentRow({
               )}
               {!item.has_quiz && (
                 <div>
-                  <span className="text-muted-foreground/70 block">Quiz</span>
+                  <span className="text-muted-foreground block">Quiz</span>
                   <span className="text-muted-foreground">None</span>
                 </div>
               )}
@@ -627,7 +627,7 @@ function SessionCard({ session }: { session: UpcomingSession }) {
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {session.attendance_count > 0 && (
-              <span className="text-xs text-muted-foreground/70 flex items-center gap-1">
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
                 <Users className="w-3 h-3" /> {session.attendance_count}
               </span>
             )}
@@ -661,11 +661,11 @@ function EventRow({ event }: { event: PortalTrainingEvent }) {
 
   return (
     <div className="flex items-center gap-2 px-3 py-2 bg-card border border-border/50 rounded-lg">
-      <Icon className="w-3.5 h-3.5 text-muted-foreground/70 shrink-0" />
+      <Icon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
       <div className="flex-1 min-w-0">
         <span className="text-xs text-muted-foreground font-medium">{info.label}</span>
         {event.content_title && (
-          <span className="text-xs text-muted-foreground/70 ml-1 truncate">
+          <span className="text-xs text-muted-foreground ml-1 truncate">
             — {event.content_title}
           </span>
         )}
@@ -675,7 +675,7 @@ function EventRow({ event }: { event: PortalTrainingEvent }) {
           </span>
         )}
       </div>
-      <span className="text-[10px] text-muted-foreground/70 whitespace-nowrap shrink-0">
+      <span className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">
         {timeAgo(event.created_at)}
       </span>
     </div>

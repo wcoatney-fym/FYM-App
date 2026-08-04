@@ -66,7 +66,7 @@ export function AttentionFilters({
     <div className="flex items-center justify-between flex-wrap gap-3">
       {/* Flag type filters */}
       <div className="flex items-center gap-2">
-        <span className="text-[11.5px] font-semibold text-muted-foreground/50 mr-1">Filter</span>
+        <span className="text-[11.5px] font-semibold text-muted-foreground mr-1">Filter</span>
         <Chip
           label="All"
           count={flagCounts.all}
@@ -103,7 +103,7 @@ export function AttentionFilters({
 
       {/* Action state filters */}
       <div className="flex items-center gap-2">
-        <span className="text-[11.5px] font-semibold text-muted-foreground/50 mr-1">My action</span>
+        <span className="text-[11.5px] font-semibold text-muted-foreground mr-1">My action</span>
         <Chip
           label="All"
           count={actionCounts.all}

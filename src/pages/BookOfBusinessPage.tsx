@@ -280,7 +280,7 @@ export function BookOfBusinessPage() {
             <div className="flex items-center gap-3 flex-wrap">
               {/* Search */}
               <div className="relative flex-1 min-w-[200px]">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/50" />
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="Search by policy #, agent, or agency..."
                   value={search}
@@ -455,7 +455,7 @@ export function BookOfBusinessPage() {
                             {p.flag_type || 'at-risk'}
                           </Badge>
                         ) : (
-                          <span className="text-muted-foreground/30">—</span>
+                          <span className="text-muted-foreground">—</span>
                         )}
                       </td>
                     </tr>

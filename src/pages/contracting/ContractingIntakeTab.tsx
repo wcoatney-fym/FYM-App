@@ -549,13 +549,13 @@ export function ContractingIntakeTab() {
             className="p-1.5 rounded-lg hover:bg-secondary transition-colors"
             title="Refresh"
           >
-            <RefreshCw size={14} className="text-muted-foreground/70" />
+            <RefreshCw size={14} className="text-muted-foreground" />
           </button>
         </div>
 
         {/* Search */}
         <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/70" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             type="text"
             placeholder="Search by name, email, phone, agency..."
@@ -627,7 +627,7 @@ export function ContractingIntakeTab() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3 shrink-0 ml-4">
-                      <span className="text-xs text-muted-foreground/70">
+                      <span className="text-xs text-muted-foreground">
                         {timeAgo(hire.created_at)}
                       </span>
                       <button

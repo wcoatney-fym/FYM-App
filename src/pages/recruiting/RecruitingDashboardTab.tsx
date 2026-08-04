@@ -137,7 +137,7 @@ function StageTimingSection({ timings }: { timings: StageTiming[] }) {
               <span className="text-xs text-muted-foreground">
                 med {t.medianDays > 0 ? `${t.medianDays}d` : '—'}
               </span>
-              <span className="text-xs text-muted-foreground/60">n={t.count}</span>
+              <span className="text-xs text-muted-foreground">n={t.count}</span>
             </div>
           </div>
         ))}

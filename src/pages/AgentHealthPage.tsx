@@ -240,11 +240,11 @@ export function AgentHealthPage() {
               )}
               <div className="flex gap-3 mt-3 text-sm flex-wrap">
                 <span className="text-muted-foreground"><span className="font-semibold text-foreground">{h.active_count}</span> active policies</span>
-                <span className="text-muted-foreground/70">·</span>
+                <span className="text-muted-foreground">·</span>
                 <span className="text-muted-foreground"><span className="font-semibold text-foreground">${monthlyPremium.toFixed(0)}</span>/mo premium</span>
                 {atRiskPolicies.length > 0 && (
                   <>
-                    <span className="text-muted-foreground/70">·</span>
+                    <span className="text-muted-foreground">·</span>
                     <span className="text-red-400 font-medium flex items-center gap-1"><AlertTriangle size={13} /> {atRiskPolicies.length} at risk</span>
                   </>
                 )}
@@ -252,7 +252,7 @@ export function AgentHealthPage() {
             </div>
             <div className="text-right flex-shrink-0">
               <p className={`text-5xl font-bold ${totalScoreColor(h.total_score)}`}>{h.total_score}</p>
-              <p className="text-xs text-muted-foreground/70 mt-1">Book Health Score</p>
+              <p className="text-xs text-muted-foreground mt-1">Book Health Score</p>
             </div>
           </CardContent>
         </Card>
@@ -269,12 +269,12 @@ export function AgentHealthPage() {
                 <div key={label}>
                   <div className="flex items-center justify-between mb-1.5">
                     <span className={`flex items-center gap-1.5 text-sm font-medium ${colors.text}`}>{icon} {label}</span>
-                    <span className={`text-sm font-bold ${colors.text}`}>{score} <span className="text-muted-foreground/70 font-normal">/ {max}</span></span>
+                    <span className={`text-sm font-bold ${colors.text}`}>{score} <span className="text-muted-foreground font-normal">/ {max}</span></span>
                   </div>
                   <div className="h-2 w-full rounded-full shimmer overflow-hidden">
                     <div className={`h-full rounded-full transition-all ${colors.bar}`} style={{ width: `${(score / max) * 100}%` }} />
                   </div>
-                  <p className="text-xs text-muted-foreground/70 mt-1">{detail}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{detail}</p>
                 </div>
               );
             })}
@@ -295,7 +295,7 @@ export function AgentHealthPage() {
                   <div key={p.policy_number} className="flex items-center gap-3 px-4 py-3">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-foreground">{p.policy_number}</p>
-                      <p className="text-xs text-muted-foreground/70">{p.product_type} · ${p.plan_premium}/mo · {p.billing_mode}</p>
+                      <p className="text-xs text-muted-foreground">{p.product_type} · ${p.plan_premium}/mo · {p.billing_mode}</p>
                     </div>
                     {p.flag_type && <Badge className={`text-xs border ${flagColor(p.flag_type)}`}>{flagLabel(p.flag_type)}</Badge>}
                   </div>
@@ -322,11 +322,11 @@ export function AgentHealthPage() {
                       ? <CheckCircle2 size={15} className="text-emerald-500" />
                       : p.is_at_risk
                       ? <AlertTriangle size={15} className="text-red-500" />
-                      : <Clock size={15} className="text-muted-foreground/70" />}
+                      : <Clock size={15} className="text-muted-foreground" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground">{p.policy_number}</p>
-                    <p className="text-xs text-muted-foreground/70">
+                    <p className="text-xs text-muted-foreground">
                       {p.product_type} · {p.billing_mode} · {p.draft_count} draft{p.draft_count !== 1 ? 's' : ''}
                       {p.last_contact_date && ` · last contact ${p.last_contact_date}`}
                     </p>
@@ -335,7 +335,7 @@ export function AgentHealthPage() {
                     {p.flag_type && <Badge className={`text-xs border hidden sm:inline-flex ${flagColor(p.flag_type)}`}>{flagLabel(p.flag_type)}</Badge>}
                     <div>
                       <p className="text-sm font-semibold text-foreground">${p.plan_premium?.toFixed(2)}</p>
-                      <p className="text-xs text-muted-foreground/70">/mo</p>
+                      <p className="text-xs text-muted-foreground">/mo</p>
                     </div>
                   </div>
                 </div>

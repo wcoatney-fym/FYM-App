@@ -200,7 +200,7 @@ export const AgencyGhlTab: React.FC<AgencyGhlTabProps> = ({ agencyId, config, on
                 </p>
               )}
               {config?.connection_status === 'connected' && (
-                <p className="text-xs text-muted-foreground/70 mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5">
                   Auto-syncs daily at 9am, 12pm, and 6pm EST
                 </p>
               )}
@@ -253,13 +253,13 @@ export const AgencyGhlTab: React.FC<AgencyGhlTabProps> = ({ agencyId, config, on
               <button
                 type="button"
                 onClick={() => setShowKey(!showKey)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/70 hover:text-muted-foreground"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground"
               >
                 {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
             {apiKey && !showKey && (
-              <p className="mt-1 text-xs text-muted-foreground/70 font-mono">{maskedKey}</p>
+              <p className="mt-1 text-xs text-muted-foreground font-mono">{maskedKey}</p>
             )}
           </div>
 

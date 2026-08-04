@@ -313,7 +313,7 @@ const SpecialistChangeRequestsSection: React.FC = () => {
             {pendingCount} pending, {calendarCount} awaiting confirmation
           </p>
         </div>
-        <ChevronDown className={`w-4 h-4 text-muted-foreground/70 transition-transform ${expanded ? '' : '-rotate-90'}`} />
+        <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${expanded ? '' : '-rotate-90'}`} />
       </button>
 
       {expanded && (
@@ -330,9 +330,9 @@ const SpecialistChangeRequestsSection: React.FC = () => {
                 <p className="text-xs text-muted-foreground">
                   <span className="font-medium">{req.product_name}</span> -- Change specialist to{' '}
                   <span className="font-semibold text-foreground">{req.requested_full_name}</span>{' '}
-                  <span className="text-muted-foreground/70">({req.requested_mobile})</span>
+                  <span className="text-muted-foreground">({req.requested_mobile})</span>
                 </p>
-                <p className="text-[10px] text-muted-foreground/70 mt-0.5">
+                <p className="text-[10px] text-muted-foreground mt-0.5">
                   Submitted by {req.submitted_by} -- {timeAgo(req.created_at)}
                 </p>
               </div>
@@ -357,7 +357,7 @@ const SpecialistChangeRequestsSection: React.FC = () => {
                     Confirm Change
                   </button>
                 )}
-                {processing === req.id && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground/70" />}
+                {processing === req.id && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
               </div>
             </div>
           ))}

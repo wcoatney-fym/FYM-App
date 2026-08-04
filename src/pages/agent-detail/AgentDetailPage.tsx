@@ -242,9 +242,9 @@ export function AgentDetailPage() {
           <ArrowLeft size={14} /> Back to {backLabel}
         </Link>
         <div className="text-center py-16">
-          <Users size={48} className="mx-auto text-muted-foreground/30 mb-4" />
+          <Users size={48} className="mx-auto text-muted-foreground mb-4" />
           <p className="text-lg font-medium text-muted-foreground">Agent Not Found</p>
-          <p className="text-sm text-muted-foreground/60 mt-1">No production data found for this agent.</p>
+          <p className="text-sm text-muted-foreground mt-1">No production data found for this agent.</p>
         </div>
       </div>
     );
@@ -264,7 +264,7 @@ export function AgentDetailPage() {
           >
             <ArrowLeft size={14} /> Back to {backLabel}
           </Link>
-          <span className="text-muted-foreground/30">/</span>
+          <span className="text-muted-foreground">/</span>
           <span className="text-foreground font-medium">{agentName}</span>
         </div>
         <PeriodPills
@@ -311,7 +311,7 @@ export function AgentDetailPage() {
                 format={fmt$}
                 className="text-2xl font-bold mt-1 block text-foreground"
               />
-              <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+              <p className="text-[10px] text-muted-foreground mt-0.5">
                 {fmtNum(stats.policies_this_month || 0)} apps this month
               </p>
               <DollarSign size={14} className="absolute top-3 right-3 text-cyan-500/30" />
@@ -330,7 +330,7 @@ export function AgentDetailPage() {
                       format={fmtNum}
                       className="text-2xl font-bold mt-1 block text-foreground"
                     />
-                    <p className="text-[10px] text-muted-foreground/60 mt-0.5">{fmtNum(stats.total_policies)} total</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{fmtNum(stats.total_policies)} total</p>
                   </div>
                   <div className="p-1.5 rounded-lg bg-cyan-500/10">
                     <FileText size={14} className="text-primary" />
@@ -352,7 +352,7 @@ export function AgentDetailPage() {
                       format={(n: number) => stats.retention_pct !== null ? `${n.toFixed(1)}%` : '—'}
                       className={`text-2xl font-bold mt-1 block ${retentionColor(stats.retention_pct)}`}
                     />
-                    <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
                       {stats.ever_drafted > 0 ? `${stats.retained_policies}/${stats.ever_drafted}` : 'No drafts'}
                     </p>
                   </div>
@@ -374,12 +374,12 @@ export function AgentDetailPage() {
                     <CountUp
                       end={stats.at_risk_policies}
                       format={fmtNum}
-                      className={`text-2xl font-bold mt-1 block ${stats.at_risk_policies > 0 ? 'text-red-400' : 'text-muted-foreground/70'}`}
+                      className={`text-2xl font-bold mt-1 block ${stats.at_risk_policies > 0 ? 'text-red-400' : 'text-muted-foreground'}`}
                     />
-                    <p className="text-[10px] text-muted-foreground/60 mt-0.5">{stats.terminated_policies} terminated</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{stats.terminated_policies} terminated</p>
                   </div>
                   <div className={`p-1.5 rounded-lg ${stats.at_risk_policies > 0 ? 'bg-red-500/10' : 'bg-secondary'}`}>
-                    <AlertTriangle size={14} className={stats.at_risk_policies > 0 ? 'text-red-400' : 'text-muted-foreground/40'} />
+                    <AlertTriangle size={14} className={stats.at_risk_policies > 0 ? 'text-red-400' : 'text-muted-foreground'} />
                   </div>
                 </div>
               </CardContent>

@@ -241,7 +241,7 @@ export const AgencyContactsTab: React.FC<AgencyContactsTabProps> = ({ agencyId, 
       {/* Controls */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="relative flex-1 max-w-sm w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/70" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             type="text"
             placeholder="Search name, email, phone, carrier..."
@@ -276,7 +276,7 @@ export const AgencyContactsTab: React.FC<AgencyContactsTabProps> = ({ agencyId, 
 
       {/* Status Filter */}
       <div className="flex items-center gap-2 bg-card border border-border rounded-xl p-1.5 overflow-x-auto">
-        <Filter className="w-3.5 h-3.5 text-muted-foreground/70 ml-2 flex-shrink-0" />
+        <Filter className="w-3.5 h-3.5 text-muted-foreground ml-2 flex-shrink-0" />
         {[
           { key: 'all', label: `All (${counts.all})` },
           { key: 'active', label: `Active (${counts.active})` },
@@ -354,18 +354,18 @@ export const AgencyContactsTab: React.FC<AgencyContactsTabProps> = ({ agencyId, 
                       <div className="flex flex-col gap-0.5">
                         {contact.phone && (
                           <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <Phone className="w-3 h-3 text-muted-foreground/70" />
+                            <Phone className="w-3 h-3 text-muted-foreground" />
                             {contact.phone}
                           </span>
                         )}
                         {contact.email && (
                           <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <Mail className="w-3 h-3 text-muted-foreground/70" />
+                            <Mail className="w-3 h-3 text-muted-foreground" />
                             {contact.email}
                           </span>
                         )}
                         {!contact.phone && !contact.email && (
-                          <span className="text-xs text-muted-foreground/70">--</span>
+                          <span className="text-xs text-muted-foreground">--</span>
                         )}
                       </div>
                     </td>
@@ -397,7 +397,7 @@ export const AgencyContactsTab: React.FC<AgencyContactsTabProps> = ({ agencyId, 
               {paged.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-6 py-12 text-center">
-                    <Users className="w-8 h-8 text-muted-foreground/60 mx-auto mb-2" />
+                    <Users className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
                     <p className="text-sm text-muted-foreground">
                       {contacts.length === 0 ? 'No contacts synced yet. Run a sync to pull data from GHL.' : 'No contacts match your filters.'}
                     </p>

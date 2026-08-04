@@ -129,7 +129,7 @@ export function PoliciesTab({ policies, writingNumber }: PoliciesTabProps) {
               ))}
             </div>
             <div className="relative w-40">
-              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/50" />
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search..."
                 value={search}
@@ -214,7 +214,7 @@ export function PoliciesTab({ policies, writingNumber }: PoliciesTabProps) {
                           )}
                         </span>
                         <span className={`text-center font-data text-xs ${
-                          p.draft_count >= 3 ? 'text-emerald-400' : p.draft_count > 0 ? 'text-foreground/70' : 'text-muted-foreground/40'
+                          p.draft_count >= 3 ? 'text-emerald-400' : p.draft_count > 0 ? 'text-foreground/70' : 'text-muted-foreground'
                         }`}>
                           {p.draft_count}
                         </span>

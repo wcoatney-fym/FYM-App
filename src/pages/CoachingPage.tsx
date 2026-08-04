@@ -374,7 +374,7 @@ export function CoachingPage() {
               fmt: (n: number) => n.toLocaleString(),
               sub: '30+ days since draft',
               icon: AlertTriangle,
-              color: summary.critical > 0 ? 'text-red-400' : 'text-muted-foreground/70',
+              color: summary.critical > 0 ? 'text-red-400' : 'text-muted-foreground',
               bg: summary.critical > 0 ? 'bg-red-500/10' : 'bg-secondary',
               accent: summary.critical > 0 ? 'hsl(0 84% 60%)' : 'hsl(215 20% 55%)',
             },
@@ -411,7 +411,7 @@ export function CoachingPage() {
                           format={card.fmt}
                           className="text-2xl font-bold text-foreground mt-1 block font-data"
                         />
-                        <p className="text-xs text-muted-foreground/70 mt-0.5">{card.sub}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{card.sub}</p>
                       </div>
                       <div className={`p-2.5 rounded-lg ${card.bg}`}>
                         <card.icon size={20} className={card.color} />
@@ -428,7 +428,7 @@ export function CoachingPage() {
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h2 className="text-base font-semibold text-foreground">{isAgent ? 'Your Coaching Cases' : 'Escalation Pipeline'}</h2>
-            <p className="text-xs text-muted-foreground/70 mt-0.5">{isAgent ? 'Policies your manager is coaching on your behalf.' : 'Click a card to open coaching detail and move stages.'}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{isAgent ? 'Policies your manager is coaching on your behalf.' : 'Click a card to open coaching detail and move stages.'}</p>
           </div>
           {!isAgent && (
             <Button
@@ -460,10 +460,10 @@ export function CoachingPage() {
                       {stageRows.length}
                     </Badge>
                   </div>
-                  <p className="text-[11px] text-muted-foreground/60 px-3 pt-2 pb-1">{stage.description}</p>
+                  <p className="text-[11px] text-muted-foreground px-3 pt-2 pb-1">{stage.description}</p>
                   <div className="flex-1 p-2 space-y-2 overflow-y-auto max-h-[560px] scrollbar-thin">
                     {stageRows.length === 0 && (
-                      <div className="text-center text-[11px] text-muted-foreground/40 py-6">No cases</div>
+                      <div className="text-center text-[11px] text-muted-foreground py-6">No cases</div>
                     )}
                     {stageRows.map(row => (
                       <button
@@ -490,7 +490,7 @@ export function CoachingPage() {
                             {row.plan_premium != null ? `$${row.plan_premium.toFixed(0)}` : '—'}
                           </span>
                         </div>
-                        <div className="flex items-center justify-between text-[10px] text-muted-foreground/70">
+                        <div className="flex items-center justify-between text-[10px] text-muted-foreground">
                           <span>{row.days_since_paid != null ? `${row.days_since_paid}d idle` : '—'}</span>
                           <span className="truncate max-w-[100px]" title={row.assigned_name ?? ''}>
                             {row.assigned_name ?? 'Unassigned'}
@@ -524,12 +524,12 @@ export function CoachingPage() {
                 {/* Policy details */}
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div className="flex items-center gap-2">
-                    <Building2 size={14} className="text-muted-foreground/60 flex-shrink-0" />
+                    <Building2 size={14} className="text-muted-foreground flex-shrink-0" />
                     <span className="text-muted-foreground">Agency:</span>
                     <span className="text-foreground font-medium truncate">{selectedRow.agency_name ?? selectedRow.agency_id}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <User size={14} className="text-muted-foreground/60 flex-shrink-0" />
+                    <User size={14} className="text-muted-foreground flex-shrink-0" />
                     <span className="text-muted-foreground">Agent:</span>
                     <span className="text-foreground font-medium truncate">{selectedRow.agent_name ?? '—'}</span>
                   </div>
@@ -646,7 +646,7 @@ export function CoachingPage() {
                 <div>
                   <p className="text-xs font-semibold text-muted-foreground mb-2">Coaching Notes</p>
                   {isAgent ? (
-                    <p className="text-sm text-foreground/80 whitespace-pre-wrap">{selectedRow.notes || <span className="text-muted-foreground/50 italic">No notes yet.</span>}</p>
+                    <p className="text-sm text-foreground/80 whitespace-pre-wrap">{selectedRow.notes || <span className="text-muted-foreground italic">No notes yet.</span>}</p>
                   ) : (
                     <Textarea
                       value={notesDraft}
@@ -663,7 +663,7 @@ export function CoachingPage() {
                   <div>
                     <p className="text-xs font-semibold text-muted-foreground mb-2">Resolution</p>
                     {isAgent ? (
-                      <p className="text-sm text-foreground/80 whitespace-pre-wrap">{selectedRow.resolution || <span className="text-muted-foreground/50 italic">No resolution noted.</span>}</p>
+                      <p className="text-sm text-foreground/80 whitespace-pre-wrap">{selectedRow.resolution || <span className="text-muted-foreground italic">No resolution noted.</span>}</p>
                     ) : (
                       <Textarea
                         value={resolutionDraft}
@@ -677,7 +677,7 @@ export function CoachingPage() {
                 )}
 
                 {selectedRow.escalated_at && (
-                  <p className="text-[11px] text-muted-foreground/60">
+                  <p className="text-[11px] text-muted-foreground">
                     Escalated {fmtDate(selectedRow.escalated_at)}
                   </p>
                 )}

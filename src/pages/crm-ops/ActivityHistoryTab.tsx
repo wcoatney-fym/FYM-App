@@ -342,7 +342,7 @@ export const ActivityHistoryTab: React.FC = () => {
             <tbody className="divide-y divide-border/50">
               {paginated.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-12 text-center text-sm text-muted-foreground/70">
+                  <td colSpan={4} className="px-4 py-12 text-center text-sm text-muted-foreground">
                     No activity records match the current filters
                   </td>
                 </tr>

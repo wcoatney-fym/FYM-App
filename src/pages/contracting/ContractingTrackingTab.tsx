@@ -337,7 +337,7 @@ export function ContractingTrackingTab() {
       {/* ── Filters Row ───────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/70" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             type="text"
             placeholder="Search name, email, phone, code..."
@@ -393,12 +393,12 @@ export function ContractingTrackingTab() {
           className="p-2 rounded-lg hover:bg-secondary transition-colors"
           title="Refresh"
         >
-          <RefreshCw size={14} className={loading ? 'animate-spin text-muted-foreground/70' : 'text-muted-foreground/70'} />
+          <RefreshCw size={14} className={loading ? 'animate-spin text-muted-foreground' : 'text-muted-foreground'} />
         </button>
       </div>
 
       {/* ── Count ─────────────────────────────────────────────────────── */}
-      <p className="text-xs text-muted-foreground/70">
+      <p className="text-xs text-muted-foreground">
         {filtered.length} of {agents.length} agents
       </p>
 
@@ -478,7 +478,7 @@ export function ContractingTrackingTab() {
                   <tr>
                     <td
                       colSpan={8}
-                      className="px-4 py-8 text-center text-muted-foreground/70"
+                      className="px-4 py-8 text-center text-muted-foreground"
                     >
                       No agents match the current filters.
                     </td>
@@ -545,7 +545,7 @@ export function ContractingTrackingTab() {
       {/* ── Pagination ─────────────────────────────────────────────── */}
       {!loading && totalPages > 1 && (
         <div className="flex items-center justify-between pt-2">
-          <p className="text-xs text-muted-foreground/70">
+          <p className="text-xs text-muted-foreground">
             Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
           </p>
           <div className="flex items-center gap-1">
@@ -584,7 +584,7 @@ export function ContractingTrackingTab() {
                 onClick={closeDetailModal}
                 className="p-1.5 hover:bg-secondary rounded-lg transition-colors"
               >
-                <X size={18} className="text-muted-foreground/70" />
+                <X size={18} className="text-muted-foreground" />
               </button>
             </div>
 
@@ -706,7 +706,7 @@ export function ContractingTrackingTab() {
                       </div>
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground/70 text-center py-4">
+                    <p className="text-sm text-muted-foreground text-center py-4">
                       {selectedAgent.status === 'pending' && 'Form not yet submitted'}
                       {selectedAgent.status === 'in-progress' && 'Form in progress — not yet submitted'}
                       {selectedAgent.status === 'expired' && 'Form link expired — no submission received'}
@@ -737,7 +737,7 @@ export function ContractingTrackingTab() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground/70 text-center py-4">No files uploaded</p>
+                    <p className="text-sm text-muted-foreground text-center py-4">No files uploaded</p>
                   )}
                 </div>
               </div>

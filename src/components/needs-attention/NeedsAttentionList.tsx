@@ -300,7 +300,7 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
           </div>
           <div>
             <h2 className="text-lg font-bold text-foreground">Needs Attention</h2>
-            <p className="text-xs text-muted-foreground/70">
+            <p className="text-xs text-muted-foreground">
               {policies.length} flagged · urgency-ranked
             </p>
           </div>
@@ -309,7 +309,7 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
         <div className="flex items-center gap-3">
           {/* Search */}
           <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/40" />
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
               placeholder="Search client, policy, agent…"
@@ -355,7 +355,7 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
         <Card className="p-12 text-center">
           <Award size={32} className="mx-auto text-emerald-400/50 mb-3" />
           <p className="text-sm font-semibold text-foreground">All clear</p>
-          <p className="text-xs text-muted-foreground/50 mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             {policies.length === 0
               ? 'No at-risk policies found'
               : 'No policies match the current filters'}

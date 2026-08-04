@@ -142,7 +142,7 @@ export function OverviewTab({ stats, trend, policies, dateRange }: OverviewTabPr
               <div>
                 <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Annual Premium (Active)</p>
                 <p className="text-lg font-bold text-foreground mt-0.5">{fmt$(Number(stats.active_annual_premium))}</p>
-                <p className="text-[10px] text-muted-foreground/60">Avg {fmt$(avgAP)}/policy</p>
+                <p className="text-[10px] text-muted-foreground">Avg {fmt$(avgAP)}/policy</p>
               </div>
               <div className="p-2 rounded-lg bg-cyan-500/10">
                 <DollarSign size={16} className="text-primary" />
@@ -160,7 +160,7 @@ export function OverviewTab({ stats, trend, policies, dateRange }: OverviewTabPr
                 <p className={`text-lg font-bold mt-0.5 ${retentionColor(stats.retention_pct)}`}>
                   {stats.retention_pct !== null ? `${Number(stats.retention_pct).toFixed(1)}%` : '—'}
                 </p>
-                <p className="text-[10px] text-muted-foreground/60">
+                <p className="text-[10px] text-muted-foreground">
                   {stats.ever_drafted > 0 ? `${stats.retained_policies}/${stats.ever_drafted} retained` : 'No eligible drafts'}
                 </p>
               </div>
@@ -177,15 +177,15 @@ export function OverviewTab({ stats, trend, policies, dateRange }: OverviewTabPr
             <CardContent className="p-4 flex items-center justify-between">
               <div>
                 <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Attention Items</p>
-                <p className={`text-lg font-bold mt-0.5 ${atRiskCount > 0 ? 'text-red-400' : 'text-muted-foreground/70'}`}>
+                <p className={`text-lg font-bold mt-0.5 ${atRiskCount > 0 ? 'text-red-400' : 'text-muted-foreground'}`}>
                   {atRiskCount}
                 </p>
-                <p className="text-[10px] text-muted-foreground/60">
+                <p className="text-[10px] text-muted-foreground">
                   {recentAtRisk > 0 ? `${recentAtRisk} in last 30d` : 'None in last 30d'}
                 </p>
               </div>
               <div className={`p-2 rounded-lg ${atRiskCount > 0 ? 'bg-red-500/10' : 'bg-secondary'}`}>
-                <AlertTriangle size={16} className={atRiskCount > 0 ? 'text-red-400' : 'text-muted-foreground/40'} />
+                <AlertTriangle size={16} className={atRiskCount > 0 ? 'text-red-400' : 'text-muted-foreground'} />
               </div>
             </CardContent>
           </Card>
@@ -222,19 +222,19 @@ export function OverviewTab({ stats, trend, policies, dateRange }: OverviewTabPr
               <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-3">Book Summary</p>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-xs text-muted-foreground/60">Active</p>
+                  <p className="text-xs text-muted-foreground">Active</p>
                   <p className="text-sm font-bold text-emerald-400">{fmtNum(stats.active_policies)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground/60">Terminated</p>
+                  <p className="text-xs text-muted-foreground">Terminated</p>
                   <p className="text-sm font-bold text-zinc-400">{fmtNum(stats.terminated_policies)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground/60">Pending</p>
+                  <p className="text-xs text-muted-foreground">Pending</p>
                   <p className="text-sm font-bold text-amber-400">{fmtNum(stats.pending_policies)}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground/60">MTD Apps</p>
+                  <p className="text-xs text-muted-foreground">MTD Apps</p>
                   <p className="text-sm font-bold text-foreground">{fmtNum(stats.policies_this_month)}</p>
                 </div>
               </div>

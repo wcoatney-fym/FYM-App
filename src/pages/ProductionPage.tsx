@@ -86,7 +86,7 @@ function delta(current: number, previous: number): { pct: number; dir: 'up' | 'd
 
 function DeltaBadge({ current, previous }: { current: number; previous: number }) {
   const d = delta(current, previous);
-  if (d.dir === 'flat') return <span className="text-xs text-muted-foreground/50">—</span>;
+  if (d.dir === 'flat') return <span className="text-xs text-muted-foreground">—</span>;
   return (
     <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${
       d.dir === 'up' ? 'text-emerald-400' : 'text-red-400'
@@ -397,7 +397,7 @@ export function ProductionPage() {
                         />
                         <div className="flex items-center gap-2 mt-0.5">
                           {card.sub && (
-                            <p className="text-xs text-muted-foreground/70">{card.sub}</p>
+                            <p className="text-xs text-muted-foreground">{card.sub}</p>
                           )}
                           {'delta' in card && card.delta !== undefined && (
                             <DeltaBadge current={card.end} previous={card.delta} />
@@ -423,7 +423,7 @@ export function ProductionPage() {
                 { label: 'Active', value: displayStats.activePolicies, color: 'text-emerald-400' },
                 { label: 'Pending', value: displayStats.pendingPolicies, color: 'text-amber-400' },
                 { label: 'At Risk', value: displayStats.atRiskPolicies, color: 'text-red-400' },
-                { label: 'Terminated', value: displayStats.terminatedPolicies, color: 'text-muted-foreground/70' },
+                { label: 'Terminated', value: displayStats.terminatedPolicies, color: 'text-muted-foreground' },
                 { label: 'Total', value: displayStats.totalPolicies, color: 'text-foreground' },
               ].map(s => (
                 <div key={s.label}>
@@ -572,7 +572,7 @@ export function ProductionPage() {
                     />
                   </span>
                   <span className={`text-right font-data ${
-                    agency.at_risk_policies > 0 ? 'text-red-400 font-medium' : 'text-muted-foreground/40'
+                    agency.at_risk_policies > 0 ? 'text-red-400 font-medium' : 'text-muted-foreground'
                   }`}>
                     {agency.at_risk_policies || '—'}
                   </span>

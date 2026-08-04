@@ -206,6 +206,8 @@ export function AgentDashboardPage() {
     retPct >= 80 ? 'text-cyan-400' :
     retPct >= 70 ? 'text-amber-400' : 'text-red-400';
 
+
+
   return (
     <>
       <Header title="My Dashboard" />
@@ -283,9 +285,9 @@ export function AgentDashboardPage() {
 
           {/* ── KPI Tiles ── */}
           <StaggerItem>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3" role="region" aria-label="Key performance indicators">
               {/* Active Policies */}
-              <Card className="group hover:border-primary/30 transition-colors">
+              <Card className="group hover:border-primary/30 transition-colors" aria-label={`Active Policies: ${stats.active_policies}`}>
                 <CardContent className="pt-4 pb-3">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                     Active Policies
@@ -300,7 +302,7 @@ export function AgentDashboardPage() {
               </Card>
 
               {/* Total Written */}
-              <Card className="group hover:border-primary/30 transition-colors">
+              <Card className="group hover:border-primary/30 transition-colors" aria-label={`Total Written: ${stats.total_policies}`}>
                 <CardContent className="pt-4 pb-3">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                     Total Written
@@ -315,7 +317,7 @@ export function AgentDashboardPage() {
               </Card>
 
               {/* At-Risk */}
-              <Link to="/at-risk" className="block">
+              <Link to="/at-risk" className="block" aria-label={`Needs Attention: ${stats.at_risk_policies} policies`}>
                 <Card className={`group hover:border-primary/30 transition-colors h-full ${stats.at_risk_policies > 0 ? 'border-red-500/20' : ''}`}>
                   <CardContent className="pt-4 pb-3">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -336,7 +338,7 @@ export function AgentDashboardPage() {
               </Link>
 
               {/* Retention */}
-              <Card className="group hover:border-primary/30 transition-colors">
+              <Card className="group hover:border-primary/30 transition-colors" aria-label={`Retention: ${fmtPct(retPct)}`}>
                 <CardContent className="pt-4 pb-3">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                     Retention

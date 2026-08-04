@@ -11,7 +11,7 @@ export function StatusBar() {
   }, []);
 
   return (
-    <div className="sticky top-16 z-20 flex items-center justify-between h-7 px-6 bg-secondary/40 backdrop-blur-md border-b border-border/20 text-[11px] font-data text-muted-foreground/70 select-none">
+    <div className="sticky top-16 z-20 flex items-center justify-between h-7 px-6 bg-secondary/40 backdrop-blur-md border-b border-border/20 text-[11px] font-data text-muted-foreground select-none">
       <div className="flex items-center gap-4">
         <span className="flex items-center gap-1.5">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-glow" />

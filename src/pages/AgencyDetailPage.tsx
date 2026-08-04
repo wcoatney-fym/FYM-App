@@ -56,7 +56,7 @@ function fmt$(n: number) {
 }
 
 function retentionColor(pct: number | null) {
-  if (pct === null) return 'text-muted-foreground/70';
+  if (pct === null) return 'text-muted-foreground';
   if (pct >= 90) return 'text-emerald-400';
   if (pct >= 85) return 'text-amber-400';
   return 'text-red-400';
@@ -282,7 +282,7 @@ export function AgencyDetailPage() {
               value: s?.retention_pct !== null && s?.retention_pct !== undefined ? `${s.retention_pct}%` : '—',
               sub: s ? `${s.retained_90d} of ${s.eligible_90d} eligible` : '',
               icon: TrendingUp,
-              color: s ? retentionColor(s.retention_pct) : 'text-muted-foreground/70',
+              color: s ? retentionColor(s.retention_pct) : 'text-muted-foreground',
               bg: s ? retentionBg(s.retention_pct) : 'bg-background',
             },
             {
@@ -290,7 +290,7 @@ export function AgencyDetailPage() {
               value: s ? s.at_risk_count.toString() : '—',
               sub: 'flagged policies',
               icon: AlertTriangle,
-              color: s && s.at_risk_count > 0 ? 'text-red-400' : 'text-muted-foreground/70',
+              color: s && s.at_risk_count > 0 ? 'text-red-400' : 'text-muted-foreground',
               bg: s && s.at_risk_count > 0 ? 'bg-red-500/10' : 'bg-background',
             },
             {
@@ -306,7 +306,7 @@ export function AgencyDetailPage() {
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">{card.title}</p>
                     <p className="text-2xl font-bold text-foreground mt-1">{card.value}</p>
-                    {card.sub && <p className="text-xs text-muted-foreground/70 mt-0.5">{card.sub}</p>}
+                    {card.sub && <p className="text-xs text-muted-foreground mt-0.5">{card.sub}</p>}
                   </div>
                   <div className={`p-2.5 rounded-lg ${card.bg}`}>
                     <card.icon size={20} className={card.color} />
@@ -342,7 +342,7 @@ export function AgencyDetailPage() {
                     </span>
                     <span className="text-right text-foreground/80 font-medium">{p.count}</span>
                     <span className="text-right text-foreground/80">{fmt$(p.premium)}</span>
-                    <span className={`text-right font-medium ${p.atRisk > 0 ? 'text-red-400' : 'text-muted-foreground/70'}`}>
+                    <span className={`text-right font-medium ${p.atRisk > 0 ? 'text-red-400' : 'text-muted-foreground'}`}>
                       {p.atRisk || '—'}
                     </span>
                   </div>
@@ -400,7 +400,7 @@ export function AgencyDetailPage() {
                     {atRiskPolicies.length}
                   </Badge>
                 </div>
-                {showAtRisk ? <ChevronUp size={18} className="text-muted-foreground/70" /> : <ChevronDown size={18} className="text-muted-foreground/70" />}
+                {showAtRisk ? <ChevronUp size={18} className="text-muted-foreground" /> : <ChevronDown size={18} className="text-muted-foreground" />}
               </button>
             </CardHeader>
             {showAtRisk && (
