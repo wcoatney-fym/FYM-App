@@ -3,6 +3,7 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { RoleGuard } from '@/components/auth/RoleGuard';
 import { LoginPage } from '@/pages/LoginPage';
+import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { AgenciesPage } from '@/pages/AgenciesPage';
 import { AgentsPage } from '@/pages/AgentsPage';
@@ -45,6 +46,7 @@ function App() {
         <Routes>
           {/* Public */}
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/activate/:slug" element={<ActivationPage />} />
 
           {/* Protected — AppLayout enforces auth */}
