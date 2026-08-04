@@ -8,7 +8,6 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { HudFrame } from '@/components/ui/hud-frame';
 import { StaggerContainer, StaggerItem, CountUp, RadialGauge } from '@/components/ui/animated';
-import { DeltaBadge } from '@/components/ui/delta-badge';
 import { ShieldCheck, AlertTriangle, Building2, XCircle } from 'lucide-react';
 
 interface KpiStripProps {
@@ -23,12 +22,6 @@ interface KpiStripProps {
     agencies_below_target: number;
     total_agencies: number;
   } | null;
-  comparing: boolean;
-  prevSnapshot: {
-    active: number;
-    atRisk: number;
-    terminated: number;
-  } | null;
   isOrgWide: boolean;
 }
 
@@ -38,7 +31,7 @@ function fmt$(n: number) {
   return `$${Math.round(n).toLocaleString()}`;
 }
 
-export function KpiStrip({ loading, stats: s, comparing, prevSnapshot, isOrgWide }: KpiStripProps) {
+export function KpiStrip({ loading, stats: s, isOrgWide }: KpiStripProps) {
   return (
     <StaggerContainer
       className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4"
@@ -61,9 +54,6 @@ export function KpiStrip({ loading, stats: s, comparing, prevSnapshot, isOrgWide
                         end={s?.active_policies ?? 0}
                         className="text-3xl font-bold text-foreground block"
                       />
-                      {comparing && prevSnapshot && (
-                        <DeltaBadge current={s?.active_policies ?? 0} previous={prevSnapshot.active} />
-                      )}
                     </div>
                     {s && <p className="text-sm text-muted-foreground mt-0.5 font-data">{fmt$(s.active_premium)}/mo premium</p>}
                   </div>
@@ -125,9 +115,6 @@ export function KpiStrip({ loading, stats: s, comparing, prevSnapshot, isOrgWide
                         end={s?.at_risk_count ?? 0}
                         className="text-3xl font-bold text-foreground block"
                       />
-                      {comparing && prevSnapshot && (
-                        <DeltaBadge current={s?.at_risk_count ?? 0} previous={prevSnapshot.atRisk} invertColor />
-                      )}
                     </div>
                     {s && s.at_risk_premium > 0 && (
                       <p className="text-sm text-muted-foreground mt-0.5 font-data">{fmt$(s.at_risk_premium)}/mo exposed</p>
@@ -159,9 +146,6 @@ export function KpiStrip({ loading, stats: s, comparing, prevSnapshot, isOrgWide
                         end={s?.terminated_policies ?? 0}
                         className="text-3xl font-bold text-foreground block"
                       />
-                      {comparing && prevSnapshot && (
-                        <DeltaBadge current={s?.terminated_policies ?? 0} previous={prevSnapshot.terminated} invertColor />
-                      )}
                     </div>
                   </div>
                   <div className="p-2.5 rounded-lg bg-purple-500/10" aria-hidden="true">
