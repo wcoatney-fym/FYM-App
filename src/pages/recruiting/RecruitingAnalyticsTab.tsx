@@ -16,6 +16,12 @@ import {
   MOCK_CAMPAIGN_PERFORMANCE, MOCK_CAMPAIGNS,
   MOCK_ROI_BY_AGENCY, MOCK_ROI_BY_AGENT,
 } from '@/lib/recruiting';
+import {
+  fetchCampaigns, fetchCampaignPerformance,
+  fetchRoiByAgency, fetchRoiByAgent,
+} from '@/lib/recruiting';
+import type { Campaign, CampaignPerformance as CampaignPerfType, RoiByAgency, RoiByAgent } from '@/lib/recruiting';
+import { useCachedFetch } from '@/hooks/useCachedFetch';
 
 type AnalyticsView = 'performance' | 'roi';
 
@@ -62,12 +68,20 @@ function ConversionFunnel({ funnel }: { funnel: { leads: number; contacted: numb
 
 // ── Performance View ───────────────────────────────────────────────────────
 function PerformanceView() {
-  const [selectedCampaign, setSelectedCampaign] = useState(MOCK_CAMPAIGN_PERFORMANCE[0].campaignId);
+  const { data: liveCampaigns } = useCachedFetch<Campaign[]>('recruiting-campaigns-analytics', fetchCampaigns, { maxAge: 60 * 60 * 1000 });
+  const campaigns = liveCampaigns ?? MOCK_CAMPAIGNS;
+  const [selectedCampaign, setSelectedCampaign] = useState<string>('');
 
-  const perf = useMemo(() =>
-    MOCK_CAMPAIGN_PERFORMANCE.find(p => p.campaignId === selectedCampaign) ?? MOCK_CAMPAIGN_PERFORMANCE[0],
-    [selectedCampaign]
+  // Set default selected campaign when data loads
+  const effectiveSelected = selectedCampaign || campaigns[0]?.id || '';
+
+  const { data: livePerf } = useCachedFetch<CampaignPerfType | null>(
+    `recruiting-perf-${effectiveSelected}`,
+    () => effectiveSelected ? fetchCampaignPerformance(effectiveSelected) : Promise.resolve(null),
+    { maxAge: 60 * 60 * 1000, deps: [effectiveSelected], skip: !effectiveSelected }
   );
+
+  const perf = livePerf ?? MOCK_CAMPAIGN_PERFORMANCE.find(p => p.campaignId === effectiveSelected) ?? MOCK_CAMPAIGN_PERFORMANCE[0];
 
   const chartData = useMemo(() =>
     perf.dailyData.map(d => ({
@@ -80,12 +94,12 @@ function PerformanceView() {
       {/* Campaign selector */}
       <div className="flex items-center gap-3">
         <span className="text-sm text-muted-foreground">Campaign:</span>
-        <Select value={selectedCampaign} onValueChange={setSelectedCampaign}>
+        <Select value={effectiveSelected} onValueChange={setSelectedCampaign}>
           <SelectTrigger className="w-64 bg-card/60 border-border/30">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {MOCK_CAMPAIGNS.map(c => (
+            {campaigns.map(c => (
               <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
             ))}
           </SelectContent>
@@ -162,8 +176,10 @@ function PerformanceView() {
 
 // ── ROI View ───────────────────────────────────────────────────────────────
 function RoiView() {
-  const agencyData = MOCK_ROI_BY_AGENCY;
-  const agentData = MOCK_ROI_BY_AGENT;
+  const { data: liveAgencyData } = useCachedFetch<RoiByAgency[]>('recruiting-roi-agency', fetchRoiByAgency, { maxAge: 60 * 60 * 1000 });
+  const { data: liveAgentData } = useCachedFetch<RoiByAgent[]>('recruiting-roi-agent', fetchRoiByAgent, { maxAge: 60 * 60 * 1000 });
+  const agencyData = liveAgencyData ?? MOCK_ROI_BY_AGENCY;
+  const agentData = liveAgentData ?? MOCK_ROI_BY_AGENT;
 
   const agencyChartData = useMemo(() =>
     agencyData.map(a => ({
@@ -277,10 +293,10 @@ export function RecruitingAnalyticsTab() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Mock data banner */}
-      <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs">
+      {/* Data source banner — ROI data still requires GHL integration */}
+      <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs">
         <Activity size={14} />
-        <span>Displaying sample data — connect Meta Ads API to see live analytics</span>
+        <span>Performance uses live Meta data • ROI by agency/agent requires GHL lead-to-placement mapping (coming soon)</span>
       </div>
 
       {/* View toggle */}

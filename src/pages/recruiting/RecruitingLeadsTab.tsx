@@ -173,10 +173,10 @@ export function RecruitingLeadsTab() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Mock data banner */}
+      {/* Data source banner */}
       <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs">
         <Activity size={14} />
-        <span>Displaying sample data — connect Meta Ads API to see live leads</span>
+        <span>Displaying sample data — lead sync requires GHL webhook integration (coming soon)</span>
       </div>
 
       {/* Pipeline summary */}
