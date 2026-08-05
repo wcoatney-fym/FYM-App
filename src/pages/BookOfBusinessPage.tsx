@@ -9,10 +9,11 @@ import { useCachedFetch } from '@/hooks/useCachedFetch';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { DataFilters } from '@/components/filters/DataFilters';
+import { toast } from 'sonner';
 import {
   FileText, DollarSign, AlertTriangle, Clock,
   Search, ChevronLeft, ChevronRight, Download,
-  Filter, X,
+  Filter, X, ArrowUpDown, ArrowUp, ArrowDown,
 } from 'lucide-react';
 import { PeriodPills } from '@/components/filters/PeriodPills';
 import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
@@ -38,6 +39,9 @@ interface Policy {
   days_since_paid: number | null;
 }
 
+type SortField = 'premium' | 'submit_date' | 'paid_to_date' | 'policy_nbr' | 'status' | 'annual_premium' | 'draft_count';
+type SortOrder = 'asc' | 'desc';
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 function fmt$(n: number) {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
@@ -60,11 +64,55 @@ function statusBadge(status: string) {
   return map[status] || 'bg-secondary text-muted-foreground border-border';
 }
 
+/** Map UI sort fields to edge function sort param */
+function toEdgeSort(field: SortField): string {
+  if (field === 'annual_premium') return 'premium';
+  return field;
+}
+
 const PAGE_SIZE = 25;
+
+// ── Sortable Header ────────────────────────────────────────────────────────
+function SortHeader({
+  label,
+  field,
+  currentSort,
+  currentOrder,
+  onSort,
+  align = 'left',
+  className = '',
+}: {
+  label: string;
+  field: SortField;
+  currentSort: SortField;
+  currentOrder: SortOrder;
+  onSort: (field: SortField) => void;
+  align?: 'left' | 'center' | 'right';
+  className?: string;
+}) {
+  const active = currentSort === field;
+  const alignCls = align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start';
+
+  return (
+    <th className={`px-4 py-2.5 text-xs font-semibold text-muted-foreground ${className}`}>
+      <button
+        onClick={() => onSort(field)}
+        className={`flex items-center gap-1 ${alignCls} w-full hover:text-foreground transition-colors ${active ? 'text-foreground' : ''}`}
+      >
+        {label}
+        {active ? (
+          currentOrder === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />
+        ) : (
+          <ArrowUpDown size={10} className="opacity-40" />
+        )}
+      </button>
+    </th>
+  );
+}
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function BookOfBusinessPage() {
-  const { effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide } = useEffectiveAuth();
+  const { effectiveAgencyWritingNumber, isOrgWide } = useEffectiveAuth();
   const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -74,12 +122,26 @@ export function BookOfBusinessPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [productFilter, setProductFilter] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const [filterAgentId, setFilterAgentId] = useState<string | null>(null);
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
   const dateStart = datePreset === 'allTime' ? null : dateRange.startDate.split('T')[0];
   const dateEnd = datePreset === 'allTime' ? null : dateRange.endDate.split('T')[0];
+
+  // Sorting state
+  const [sortField, setSortField] = useState<SortField>('submit_date');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+
+  function handleSort(field: SortField) {
+    if (sortField === field) {
+      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('desc');
+    }
+  }
 
   // Summary stats
   const [summaryStats, setSummaryStats] = useState({
@@ -110,7 +172,7 @@ export function BookOfBusinessPage() {
       atRisk: s.at_risk_policies,
       terminated: s.status_breakdown['terminated'] || 0,
       totalPremium: s.active_annual_premium,
-      atRiskPremium: 0,
+      atRiskPremium: s.at_risk_annual_premium ?? 0,
     });
   }, [summaryRes]);
 
@@ -125,8 +187,8 @@ export function BookOfBusinessPage() {
         status: statusFilter !== 'all' ? statusFilter : undefined,
         product_type: productFilter !== 'all' ? productFilter : undefined,
         search: search || undefined,
-        sort: 'submit_date',
-        order: 'desc',
+        sort: toEdgeSort(sortField),
+        order: sortOrder,
         page,
         page_size: PAGE_SIZE,
       });
@@ -157,33 +219,38 @@ export function BookOfBusinessPage() {
       setTotalCount(res.pagination.total_count);
     } catch (err) {
       console.error('Book load error:', err);
+      toast.error('Failed to load policies', {
+        description: err instanceof Error ? err.message : 'Check your connection and try again.',
+      });
     } finally {
       setLoading(false);
     }
-  }, [page, statusFilter, productFilter, search, effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide, filterAgencyId, filterAgentId, dateStart, dateEnd]);
+  }, [page, statusFilter, productFilter, search, effectiveAgencyWritingNumber, isOrgWide, filterAgencyId, filterAgentId, dateStart, dateEnd, sortField, sortOrder]);
 
   useEffect(() => { loadPolicies(); }, [loadPolicies]);
 
-  // Reset page on filter change
-  useEffect(() => { setPage(0); }, [statusFilter, productFilter, search, filterAgencyId, filterAgentId, dateStart, dateEnd]);
+  // Reset page on filter/sort change
+  useEffect(() => { setPage(0); }, [statusFilter, productFilter, search, filterAgencyId, filterAgentId, dateStart, dateEnd, sortField, sortOrder]);
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   // Export CSV
   async function exportCsv() {
-    let all: Policy[] = [];
-    let pg = 0;
-    const PG = 500;
-    while (true) {
-      try {
+    setExporting(true);
+    try {
+      let all: Policy[] = [];
+      let pg = 0;
+      const PG = 500;
+      while (true) {
         const agencyId = filterAgencyId || (!isOrgWide && effectiveAgencyWritingNumber ? effectiveAgencyWritingNumber : undefined);
         const res = await fetchBookOfBusiness({
           agency_id: agencyId,
+          agent_wn: filterAgentId || undefined,
           status: statusFilter !== 'all' ? statusFilter : undefined,
           product_type: productFilter !== 'all' ? productFilter : undefined,
           search: search || undefined,
-          sort: 'submit_date',
-          order: 'desc',
+          sort: toEdgeSort(sortField),
+          order: sortOrder,
           page: pg,
           page_size: PG,
         });
@@ -209,24 +276,32 @@ export function BookOfBusinessPage() {
         all = [...all, ...mapped];
         if (res.data.length < PG) break;
         pg++;
-      } catch { break; }
-    }
+      }
 
-    const headers = ['Policy #', 'Client', 'Agent', 'Writing #', 'Agency', 'Product', 'Status', 'Monthly Premium', 'Annual Premium', 'Submit Date', 'Paid To', 'Drafts', 'At Risk', 'Flag'];
-    const rows = all.map(p => [
-      p.policy_number, (p as any).client_name || '', p.agent_name || '', p.writing_number || '', p.agency_name || '',
-      p.product_type, p.status, p.monthly_premium, p.annual_premium,
-      p.policy_effective_date || '', p.paid_to_date || '', p.draft_count || '',
-      p.is_at_risk ? 'Yes' : 'No', p.flag_type || '',
-    ]);
-    const csv = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `book_of_business_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+      const headers = ['Policy #', 'Client', 'Agent', 'Writing #', 'Agency', 'Product', 'Status', 'Monthly Premium', 'Annual Premium', 'Submit Date', 'Paid To', 'Drafts', 'At Risk', 'Flag'];
+      const rows = all.map(p => [
+        p.policy_number, p.client_name || '', p.agent_name || '', p.writing_number || '', p.agency_name || '',
+        p.product_type, p.status, p.monthly_premium, p.annual_premium,
+        p.policy_effective_date || '', p.paid_to_date || '', p.draft_count || '',
+        p.is_at_risk ? 'Yes' : 'No', p.flag_type || '',
+      ]);
+      const csv = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `book_of_business_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`Exported ${all.length.toLocaleString()} policies`);
+    } catch (err) {
+      console.error('CSV export error:', err);
+      toast.error('CSV export failed', {
+        description: err instanceof Error ? err.message : 'Try again in a moment.',
+      });
+    } finally {
+      setExporting(false);
+    }
   }
 
   return (
@@ -317,9 +392,19 @@ export function BookOfBusinessPage() {
               {/* Export */}
               <button
                 onClick={exportCsv}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm bg-secondary text-muted-foreground hover:text-foreground rounded-md transition-colors"
+                disabled={exporting}
+                className="flex items-center gap-1.5 px-3 py-2 text-sm bg-secondary text-muted-foreground hover:text-foreground rounded-md transition-colors disabled:opacity-50"
               >
-                <Download size={14} /> Export CSV
+                {exporting ? (
+                  <>
+                    <div className="h-3.5 w-3.5 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+                    Exporting…
+                  </>
+                ) : (
+                  <>
+                    <Download size={14} /> Export CSV
+                  </>
+                )}
               </button>
             </div>
 
@@ -378,17 +463,17 @@ export function BookOfBusinessPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-secondary/30">
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground font-data">Policy #</th>
+                  <SortHeader label="Policy #" field="policy_nbr" currentSort={sortField} currentOrder={sortOrder} onSort={handleSort} className="font-data" />
                   <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">Client</th>
                   <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">Agent</th>
                   <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">Agency</th>
                   <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">Product</th>
-                  <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">Status</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground font-data">Monthly</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground font-data">Annual</th>
-                  <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">Submitted</th>
-                  <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">Paid To</th>
-                  <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground font-data">Drafts</th>
+                  <SortHeader label="Status" field="status" currentSort={sortField} currentOrder={sortOrder} onSort={handleSort} align="center" />
+                  <SortHeader label="Monthly" field="premium" currentSort={sortField} currentOrder={sortOrder} onSort={handleSort} align="right" className="font-data" />
+                  <SortHeader label="Annual" field="annual_premium" currentSort={sortField} currentOrder={sortOrder} onSort={handleSort} align="right" className="font-data" />
+                  <SortHeader label="Submitted" field="submit_date" currentSort={sortField} currentOrder={sortOrder} onSort={handleSort} align="center" />
+                  <SortHeader label="Paid To" field="paid_to_date" currentSort={sortField} currentOrder={sortOrder} onSort={handleSort} align="center" />
+                  <SortHeader label="Drafts" field="draft_count" currentSort={sortField} currentOrder={sortOrder} onSort={handleSort} align="center" className="font-data" />
                   <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">Flag</th>
                 </tr>
               </thead>
