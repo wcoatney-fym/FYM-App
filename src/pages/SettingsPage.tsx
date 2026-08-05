@@ -29,7 +29,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useViewAsStore } from '@/store/view-as-store';
 import type { UserRole } from '@/contexts/AuthContext';
-import { Eye, ShieldPlus, Trash2, UserPlus, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Eye, ShieldPlus, Trash2, UserPlus, CheckCircle2, AlertCircle, Users } from 'lucide-react';
 
 interface ProfileOption {
   id: string;
@@ -289,7 +289,7 @@ function FymAdminManagementCard({ currentUserId }: { currentUserId: string | nul
   );
 
   return (
-    <Card className="border-border">
+    <Card className="border-border" role="region" aria-label="FYM Admin Management">
       <CardHeader>
         <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
           <ShieldPlus size={16} className="text-[hsl(199,89%,48%)]" />
@@ -301,6 +301,7 @@ function FymAdminManagementCard({ currentUserId }: { currentUserId: string | nul
           Users listed here get org-wide, unrestricted access regardless of their profile role.
         </p>
 
+        <div aria-live="polite">
         {loading ? (
           <div className="space-y-2">
             <Skeleton className="h-12 w-full rounded-md" />
@@ -359,6 +360,7 @@ function FymAdminManagementCard({ currentUserId }: { currentUserId: string | nul
             ))}
           </div>
         )}
+        </div>
 
         {/* Add existing user as admin */}
         <div className="flex items-center gap-2 pt-2">
@@ -422,7 +424,8 @@ function FymAdminManagementCard({ currentUserId }: { currentUserId: string | nul
             </div>
           </div>
           <p className="text-xs text-muted-foreground mt-2">
-            A new auth account and admin profile will be created.
+            Creates a Supabase auth account with the shared team password and adds them to the FYM admins table.
+            The new admin should change their password after first login.
           </p>
           <AlertDialog open={showCreateConfirm} onOpenChange={setShowCreateConfirm}>
             <AlertDialogTrigger asChild>
@@ -537,7 +540,7 @@ function ViewAsCard() {
     !!selectedAgencyId && (selectedRole !== 'agent' || !!selectedAgentId);
 
   return (
-    <Card className="border-border">
+    <Card className="border-border" role="region" aria-label="View As Impersonation">
       <CardHeader>
         <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
           <Eye size={16} className="text-amber-400" />
@@ -624,11 +627,18 @@ function ViewAsCard() {
                   />
                 </SelectTrigger>
                 <SelectContent>
-                  {agents.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.full_name ?? a.writing_number ?? a.id}
-                    </SelectItem>
-                  ))}
+                  {selectedAgencyId && agents.length === 0 ? (
+                    <div className="flex flex-col items-center gap-1.5 py-4 px-3 text-center">
+                      <Users size={16} className="text-muted-foreground/60" />
+                      <p className="text-xs text-muted-foreground">No agents found for this agency</p>
+                    </div>
+                  ) : (
+                    agents.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.full_name ?? a.writing_number ?? a.id}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
