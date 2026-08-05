@@ -227,12 +227,18 @@ Deno.serve(async (req) => {
       switch (sortField) {
         case "premium":
           return dir * (a.plan_premium - b.plan_premium);
+        case "annual_premium":
+          return dir * (a.annual_premium - b.annual_premium);
         case "submit_date":
           return dir * ((a.policy_effective_date || "").localeCompare(b.policy_effective_date || ""));
         case "paid_to_date":
           return dir * ((a.paid_to_date || "").localeCompare(b.paid_to_date || ""));
         case "policy_nbr":
           return dir * a.policy_number.localeCompare(b.policy_number);
+        case "status":
+          return dir * a.status.localeCompare(b.status);
+        case "draft_count":
+          return dir * (a.draft_count - b.draft_count);
         default:
           return dir * (a.plan_premium - b.plan_premium);
       }
@@ -245,15 +251,19 @@ Deno.serve(async (req) => {
 
     // Summary stats
     const activePolicies = allPolicies.filter((p) => p.status === "active");
+    const atRiskPolicies = allPolicies.filter((p) => p.is_at_risk);
     const summary = {
       total_policies: totalCount,
       active_policies: activePolicies.length,
-      at_risk_policies: allPolicies.filter((p) => p.is_at_risk).length,
+      at_risk_policies: atRiskPolicies.length,
       active_monthly_premium: Math.round(
         activePolicies.reduce((s, p) => s + p.plan_premium, 0) * 100
       ) / 100,
       active_annual_premium: Math.round(
         activePolicies.reduce((s, p) => s + p.annual_premium, 0) * 100
+      ) / 100,
+      at_risk_annual_premium: Math.round(
+        atRiskPolicies.reduce((s, p) => s + p.annual_premium, 0) * 100
       ) / 100,
       status_breakdown: allPolicies.reduce(
         (acc, p) => {

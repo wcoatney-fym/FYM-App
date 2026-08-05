@@ -195,6 +195,7 @@ export interface BookOfBusinessSummary {
   at_risk_policies: number;
   active_monthly_premium: number;
   active_annual_premium: number;
+  at_risk_annual_premium: number;
   status_breakdown: Record<string, number>;
 }
 
