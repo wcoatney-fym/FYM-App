@@ -25,6 +25,7 @@ import {
   type AtRiskPolicy,
 } from '@/lib/prod-api';
 import { QualityCard } from '@/components/dashboard/QualityCard';
+import { HudFrame } from '@/components/ui/hud-frame';
 import { getGoal, type AgentGoal } from '@/lib/goals-api';
 import {
   getBusinessDaysInMonth,
@@ -52,19 +53,7 @@ import {
   PauseCircle,
 } from 'lucide-react';
 import { fmt$ as fmtCurrency, fmtPct } from '@/lib/formatUtils';
-
-// ── Helpers ────────────────────────────────────────────────────────────
-
-function urgencyLabel(flag: string | null, daysIdle: number | null): { label: string; severity: 'danger' | 'warning' } {
-  const days = daysIdle ?? 0;
-  if (days >= 38) return { label: `Final 7 days · Day ${days}/45`, severity: 'danger' };
-  if (days >= 30) return { label: `Critical · Day ${days}/45`, severity: 'danger' };
-  const ft = (flag || '').toLowerCase();
-  if (ft === 'future_term' || ft === 'future term') return { label: `Future Term · Day ${days}/45`, severity: 'danger' };
-  if (ft === 'pended') return { label: `Pended · ${days} days`, severity: 'warning' };
-  if (ft === 'suspended') return { label: `Suspended · ${days} days`, severity: 'warning' };
-  return { label: `At Risk · ${days} days`, severity: 'warning' };
-}
+import { urgencyLabel } from '@/lib/risk-utils';
 
 // ── Component ──────────────────────────────────────────────────────────
 
@@ -303,70 +292,84 @@ export function AgentDashboardPage() {
           <StaggerItem>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3" role="region" aria-label="Key performance indicators">
               {/* Active Policies */}
-              <Card className="group hover:border-primary/30 transition-colors" aria-label={`Active Policies: ${stats.active_policies}`}>
-                <CardContent className="pt-4 pb-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Active Policies
-                  </p>
-                  <p className="text-2xl font-bold tabular-nums text-foreground mt-1">
-                    <CountUp end={stats.active_policies} />
-                  </p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
-                    {fmtCurrency(stats.active_annual_premium)} annual premium
-                  </p>
-                </CardContent>
-              </Card>
-
-              {/* Total Written */}
-              <Card className="group hover:border-primary/30 transition-colors" aria-label={`Total Written: ${stats.total_policies}`}>
-                <CardContent className="pt-4 pb-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Total Written
-                  </p>
-                  <p className="text-2xl font-bold tabular-nums text-foreground mt-1">
-                    <CountUp end={stats.total_policies} />
-                  </p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
-                    {stats.pending_policies} pending · {stats.terminated_policies} terminated
-                  </p>
-                </CardContent>
-              </Card>
-
-              {/* At-Risk */}
-              <Link to="/at-risk" className="block" aria-label={`Needs Attention: ${stats.at_risk_policies} policies`}>
-                <Card className={`group hover:border-primary/30 transition-colors h-full ${stats.at_risk_policies > 0 ? 'border-red-500/20' : ''}`}>
+              <HudFrame>
+                <Card className="group hover:border-primary/30 transition-colors" aria-label={`Active Policies: ${stats.active_policies}`}>
                   <CardContent className="pt-4 pb-3">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Needs Attention
+                      Active Policies
                     </p>
-                    <p className={`text-2xl font-bold tabular-nums mt-1 ${stats.at_risk_policies > 0 ? 'text-red-400' : 'text-foreground'}`}>
-                      <CountUp end={stats.at_risk_policies} />
+                    <p className="text-2xl font-bold tabular-nums text-foreground mt-1">
+                      <CountUp end={stats.active_policies} />
                     </p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
-                      {stats.at_risk_policies > 0 ? (
-                        <><AlertTriangle className="w-2.5 h-2.5 text-red-400" /> Policies needing action</>
-                      ) : (
-                        '✓ No policies flagged'
-                      )}
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {fmtCurrency(stats.active_annual_premium)} annual premium
                     </p>
                   </CardContent>
                 </Card>
+              </HudFrame>
+
+              {/* Total Written */}
+              <HudFrame>
+                <Card className="group hover:border-primary/30 transition-colors" aria-label={`Total Written: ${stats.total_policies}`}>
+                  <CardContent className="pt-4 pb-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Total Written
+                    </p>
+                    <p className="text-2xl font-bold tabular-nums text-foreground mt-1">
+                      <CountUp end={stats.total_policies} />
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {stats.pending_policies} pending · {stats.terminated_policies} terminated
+                    </p>
+                  </CardContent>
+                </Card>
+              </HudFrame>
+
+              {/* At-Risk */}
+              <Link to="/at-risk" className="block" aria-label={`Needs Attention: ${stats.at_risk_policies} policies`}>
+                <HudFrame accentColor={stats.at_risk_policies > 0 ? 'hsl(0 84% 60% / 0.5)' : undefined}>
+                  <Card className={`group hover:border-primary/30 transition-colors h-full ${stats.at_risk_policies > 0 ? 'border-red-500/20' : ''}`}>
+                    <CardContent className="pt-4 pb-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Needs Attention
+                      </p>
+                      <p className={`text-2xl font-bold tabular-nums mt-1 ${stats.at_risk_policies > 0 ? 'text-red-400' : 'text-foreground'}`}>
+                        <CountUp end={stats.at_risk_policies} />
+                      </p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
+                        {stats.at_risk_policies > 0 ? (
+                          <><AlertTriangle className="w-2.5 h-2.5 text-red-400" /> Policies needing action</>
+                        ) : (
+                          '✓ No policies flagged'
+                        )}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </HudFrame>
               </Link>
 
               {/* Retention */}
-              <Card className="group hover:border-primary/30 transition-colors" aria-label={`Retention: ${fmtPct(retPct)}`}>
-                <CardContent className="pt-4 pb-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Retention
-                  </p>
-                  <p className={`text-2xl font-bold tabular-nums mt-1 ${retColor}`}>
-                    {fmtPct(retPct)}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
-                    {stats.retained_policies} of {stats.ever_drafted} retained
-                  </p>
-                </CardContent>
-              </Card>
+              <HudFrame accentColor={
+                retPct != null && retPct >= 90
+                  ? 'hsl(142 71% 45% / 0.5)'
+                  : retPct != null && retPct < 80
+                    ? 'hsl(0 84% 60% / 0.5)'
+                    : undefined
+              }>
+                <Card className="group hover:border-primary/30 transition-colors" aria-label={`Retention: ${fmtPct(retPct)}`}>
+                  <CardContent className="pt-4 pb-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Retention
+                    </p>
+                    <p className={`text-2xl font-bold tabular-nums mt-1 ${retColor}`}>
+                      {fmtPct(retPct)}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {stats.retained_policies} of {stats.ever_drafted} retained
+                    </p>
+                  </CardContent>
+                </Card>
+              </HudFrame>
             </div>
           </StaggerItem>
 
@@ -463,9 +466,33 @@ export function AgentDashboardPage() {
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                         <XAxis
                           dataKey="month"
-                          tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                          tick={(props: { x: number; y: number; payload: { value: string; index: number } }) => {
+                            const { x, y, payload } = props;
+                            const d = chartData[payload.index];
+                            return (
+                              <g transform={`translate(${x},${y})`}>
+                                <text
+                                  dy={12}
+                                  textAnchor="middle"
+                                  style={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                                >
+                                  {payload.value}
+                                </text>
+                                {d && (
+                                  <text
+                                    dy={24}
+                                    textAnchor="middle"
+                                    style={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))', opacity: 0.7 }}
+                                  >
+                                    {d.policies} apps
+                                  </text>
+                                )}
+                              </g>
+                            );
+                          }}
                           axisLine={false}
                           tickLine={false}
+                          height={40}
                         />
                         <YAxis
                           tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
@@ -490,14 +517,7 @@ export function AgentDashboardPage() {
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
-                  {/* Policy count sub-labels */}
-                  <div className="flex justify-between px-2 mt-1">
-                    {chartData.map((d, i) => (
-                      <span key={i} className="text-[9px] text-muted-foreground tabular-nums">
-                        {d.policies} apps
-                      </span>
-                    ))}
-                  </div>
+
                 </CardContent>
               </Card>
             </StaggerItem>
