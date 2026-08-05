@@ -393,7 +393,7 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
           <button
             onClick={() => fetchData(true)}
             disabled={refreshing}
-            className="p-2 rounded-lg border border-border hover:bg-muted transition-colors"
+            className="p-2 rounded-lg border border-border hover:bg-muted transition-colors disabled:opacity-50"
           >
             {refreshing ? (
               <Loader2 size={14} className="animate-spin text-muted-foreground" />
