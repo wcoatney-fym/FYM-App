@@ -21,7 +21,7 @@ import { HudFrame } from '@/components/ui/hud-frame';
 import { StaggerContainer, StaggerItem } from '@/components/ui/animated';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { fetchAgentProduction, fetchMonthlyProduction, type AgentProduction, type MonthlyProduction } from '@/lib/prod-api';
-import { getGoal, getYearGoals, upsertGoal, type AgentGoal } from '@/lib/goals-api';
+import { getGoal, getYearGoals, upsertGoal, deleteGoal, setYearlyGoal, type AgentGoal } from '@/lib/goals-api';
 import { useCachedMultiFetch } from '@/hooks/useCachedFetch';
 import {
   Target,
@@ -35,6 +35,7 @@ import {
   ArrowUp,
   ArrowDown,
   Info,
+  Copy,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { fmt$ as fmtCurrency, fmtPct } from '@/lib/formatUtils';
@@ -340,11 +341,43 @@ export function GoalPage() {
                       <X className="w-3.5 h-3.5" />
                     </Button>
                   </div>
-                  {currentGoal && (
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Current goal: {fmtCurrency(currentGoal.target_ap)}
-                    </p>
-                  )}
+                  {/* Apply to all empty future months */}
+                  <div className="flex items-center gap-3 mt-3 pt-3 border-t border-border/30">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-muted-foreground gap-1.5 hover:text-foreground"
+                      disabled={saving}
+                      onClick={async () => {
+                        const val = parseFloat(editValue.replace(/[$,]/g, ''));
+                        if (isNaN(val) || val <= 0) return;
+                        setSaving(true);
+                        try {
+                          await setYearlyGoal({
+                            user_id: userId,
+                            writing_number: effectiveWritingNumber!,
+                            agency_id: effectiveAgencyWritingNumber,
+                            year: currentYear,
+                            target_ap: val,
+                          });
+                          const goals = await getYearGoals(userId, currentYear);
+                          setYearGoals(goals);
+                          const thisMonthGoal = goals.find(g => g.month === currentMonth) ?? null;
+                          setCurrentGoal(thisMonthGoal);
+                          setEditing(false);
+                          const filled = goals.length;
+                          toast({ title: 'Goals applied', description: `${fmtCurrency(val)} set for ${filled} month${filled > 1 ? 's' : ''}` });
+                        } catch (err) {
+                          toast({ title: 'Error', description: String(err), variant: 'destructive' });
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                    >
+                      <Copy className="w-3 h-3" />
+                      Apply to all empty months
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ) : currentGoal ? (
@@ -556,6 +589,11 @@ export function GoalPage() {
                     const isPast = monthNum < currentMonth;
                     const isClickable = !isPast || isCurrent;
 
+                    // Actual AP for past/current months from prod data
+                    const monthKey = `${currentYear}-${String(monthNum).padStart(2, '0')}`;
+                    const actualAP = monthlyData.find(m => m.month === monthKey)?.annual_premium ?? null;
+                    const showActual = (isPast || isCurrent) && actualAP !== null;
+
                     return (
                       <div
                         key={name}
@@ -564,7 +602,7 @@ export function GoalPage() {
                         onClick={isClickable ? () => startEditing(monthNum) : undefined}
                         onKeyDown={isClickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startEditing(monthNum); } } : undefined}
                         className={`
-                          rounded-lg p-2.5 border text-center transition-all
+                          rounded-lg p-2.5 border text-center transition-all group relative
                           ${isCurrent
                             ? 'border-primary/40 bg-primary/5 ring-1 ring-primary/20'
                             : goal
@@ -574,6 +612,29 @@ export function GoalPage() {
                           ${isPast && !isCurrent ? 'opacity-40 cursor-default' : 'cursor-pointer hover:border-primary/40 hover:bg-primary/5'}
                         `}
                       >
+                        {/* Delete button — visible on hover for cells with goals */}
+                        {goal && isClickable && (
+                          <button
+                            type="button"
+                            className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:bg-red-500"
+                            title="Remove goal"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                await deleteGoal(goal.id);
+                                if (monthNum === currentMonth) setCurrentGoal(null);
+                                const goals = await getYearGoals(userId, currentYear);
+                                setYearGoals(goals);
+                                toast({ title: 'Goal removed', description: `${MONTH_NAMES[monthNum - 1]} goal cleared` });
+                              } catch (err) {
+                                toast({ title: 'Error', description: String(err), variant: 'destructive' });
+                              }
+                            }}
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        )}
+
                         <p className={`text-[10px] font-semibold uppercase tracking-wider ${isCurrent ? 'text-primary' : 'text-muted-foreground'}`}>
                           {name}
                         </p>
@@ -586,6 +647,21 @@ export function GoalPage() {
                             {isClickable ? '+ Set' : '—'}
                           </p>
                         )}
+
+                        {/* Actual AP for past/current months */}
+                        {showActual && goal && (
+                          <p className={`text-[9px] font-semibold mt-0.5 tabular-nums ${
+                            actualAP >= goal.target_ap ? 'text-emerald-400' : 'text-red-400'
+                          }`}>
+                            {fmtCurrency(actualAP)} actual
+                          </p>
+                        )}
+                        {showActual && !goal && (
+                          <p className="text-[9px] text-muted-foreground mt-0.5 tabular-nums">
+                            {fmtCurrency(actualAP)}
+                          </p>
+                        )}
+
                         {isCurrent && goal && (
                           <div className="mt-1.5">
                             <div className="w-full h-1 rounded-full bg-primary/10 overflow-hidden">
