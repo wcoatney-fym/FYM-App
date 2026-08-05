@@ -21,8 +21,9 @@ import {
 } from 'recharts';
 import { DataFilters } from '@/components/filters/DataFilters';
 import { type DatePreset, type DateRange, type DailyRow, type TrendPoint, DEFAULT_PRESET, getDateRange, getGranularity, aggregateTrend, fmtMonth } from '@/lib/dateUtils';
+import { toast } from 'sonner';
 import {
-  TrendingUp, DollarSign, FileText, Building2, Search,
+  TrendingUp, DollarSign, FileText, Building2, Search, Download,
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -208,6 +209,7 @@ export function ProductionPage() {
       setDateLoading(false);
     }).catch(err => {
       console.error('Production date-filtered fetch error:', err);
+      toast.error('Failed to load production data. Showing cached results.');
       setDateLoading(false);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -294,6 +296,36 @@ export function ProductionPage() {
       default: return arr;
     }
   }, [searchedAgencies, sortBy]);
+
+  // CSV export
+  const handleExport = () => {
+    const activeAgencies = sortedAgencies.filter(a => a.active_policies > 0);
+    if (activeAgencies.length === 0) return;
+    const headers = ['Agency', 'Active Policies', 'Annual Premium', 'Avg AP', 'Policies This Month', 'Policies Last Month', 'At Risk'];
+    const escCsv = (val: string | number | null | undefined): string => {
+      if (val === null || val === undefined) return '';
+      const s = String(val);
+      if (s.includes(',') || s.includes('"') || s.includes('\n')) return '"' + s.replace(/"/g, '""') + '"';
+      return s;
+    };
+    const csvRows = activeAgencies.map(a => [
+      escCsv(a.agency_name ?? a.agency_id),
+      a.active_policies,
+      Math.round(Number(a.active_annual_premium)),
+      Math.round(Number(a.avg_annual_premium)),
+      a.policies_this_month,
+      a.policies_last_month,
+      a.at_risk_policies,
+    ]);
+    const csv = [headers.join(','), ...csvRows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `fym-production-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   if (loading) {
     return (
@@ -538,6 +570,14 @@ export function ProductionPage() {
                   </button>
                 ))}
               </div>
+              <button
+                onClick={handleExport}
+                className="p-1.5 rounded-md bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Export CSV"
+                title="Export CSV"
+              >
+                <Download size={14} />
+              </button>
             </div>
           </CardHeader>
           <CardContent className="p-0">

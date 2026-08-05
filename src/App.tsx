@@ -38,6 +38,7 @@ import { PeopleGroupPage } from '@/pages/groups/PeopleGroupPage';
 import { ProductionGroupPage } from '@/pages/groups/ProductionGroupPage';
 import { QualityGroupPage } from '@/pages/groups/QualityGroupPage';
 import { RecruitingGroupPage, RecruitingDashboardTab, RecruitingLeadsTab, RecruitingAnalyticsTab } from '@/pages/recruiting';
+import { Toaster } from 'sonner';
 
 function App() {
   return (
@@ -120,6 +121,7 @@ function App() {
             <Route path="/retention" element={<Navigate to="/quality/retention" replace />} />
           </Route>
         </Routes>
+        <Toaster position="top-right" theme="dark" richColors />
       </BrowserRouter>
     </AuthProvider>
   );
