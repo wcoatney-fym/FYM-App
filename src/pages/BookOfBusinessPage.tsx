@@ -118,8 +118,6 @@ export function BookOfBusinessPage() {
   const [filterAgentId, setFilterAgentId] = useState<string | null>(null);
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
-  const dateStart = datePreset === 'allTime' ? null : dateRange.startDate.split('T')[0];
-  const dateEnd = datePreset === 'allTime' ? null : dateRange.endDate.split('T')[0];
 
   // Sorting state
   const [sortField, setSortField] = useState<SortField>('submit_date');
@@ -216,12 +214,12 @@ export function BookOfBusinessPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, statusFilter, productFilter, search, effectiveAgencyWritingNumber, isOrgWide, filterAgencyId, filterAgentId, dateStart, dateEnd, sortField, sortOrder]);
+  }, [page, statusFilter, productFilter, search, effectiveAgencyWritingNumber, isOrgWide, filterAgencyId, filterAgentId, sortField, sortOrder]);
 
   useEffect(() => { loadPolicies(); }, [loadPolicies]);
 
   // Reset page on filter/sort change
-  useEffect(() => { setPage(0); }, [statusFilter, productFilter, search, filterAgencyId, filterAgentId, dateStart, dateEnd, sortField, sortOrder]);
+  useEffect(() => { setPage(0); }, [statusFilter, productFilter, search, filterAgencyId, filterAgentId, sortField, sortOrder]);
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
@@ -458,11 +456,11 @@ export function BookOfBusinessPage() {
                 <tr className="border-b border-border bg-secondary/30">
                   <SortHeader label="Policy #" field="policy_nbr" currentSort={sortField} currentOrder={sortOrder} onSort={handleSort} className="font-data" />
                   <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">Client</th>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">Agent</th>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">Agency</th>
+                  <th className="hidden xl:table-cell px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">Agent</th>
+                  <th className="hidden xl:table-cell px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">Agency</th>
                   <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">Product</th>
                   <SortHeader label="Status" field="status" currentSort={sortField} currentOrder={sortOrder} onSort={handleSort} align="center" />
-                  <SortHeader label="Monthly" field="premium" currentSort={sortField} currentOrder={sortOrder} onSort={handleSort} align="right" className="font-data" />
+                  <SortHeader label="Monthly" field="premium" currentSort={sortField} currentOrder={sortOrder} onSort={handleSort} align="right" className="hidden lg:table-cell font-data" />
                   <SortHeader label="Annual" field="annual_premium" currentSort={sortField} currentOrder={sortOrder} onSort={handleSort} align="right" className="font-data" />
                   <SortHeader label="Submitted" field="submit_date" currentSort={sortField} currentOrder={sortOrder} onSort={handleSort} align="center" />
                   <SortHeader label="Paid To" field="paid_to_date" currentSort={sortField} currentOrder={sortOrder} onSort={handleSort} align="center" />
@@ -492,10 +490,10 @@ export function BookOfBusinessPage() {
                       <td className="px-4 py-2.5 text-foreground truncate max-w-[140px]">
                         {p.client_name || '—'}
                       </td>
-                      <td className="px-4 py-2.5 text-muted-foreground truncate max-w-[140px]">
+                      <td className="hidden xl:table-cell px-4 py-2.5 text-muted-foreground truncate max-w-[140px]">
                         {p.agent_name || '—'}
                       </td>
-                      <td className="px-4 py-2.5 text-muted-foreground truncate max-w-[140px]">
+                      <td className="hidden xl:table-cell px-4 py-2.5 text-muted-foreground truncate max-w-[140px]">
                         {p.agency_name || '—'}
                       </td>
                       <td className="px-4 py-2.5 text-center">
@@ -512,7 +510,7 @@ export function BookOfBusinessPage() {
                           {p.status}
                         </Badge>
                       </td>
-                      <td className="px-4 py-2.5 text-right font-data text-muted-foreground">
+                      <td className="hidden lg:table-cell px-4 py-2.5 text-right font-data text-muted-foreground">
                         ${Number(p.monthly_premium).toFixed(2)}
                       </td>
                       <td className="px-4 py-2.5 text-right font-data text-foreground/80 font-medium">
