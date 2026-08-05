@@ -14,6 +14,7 @@ import {
   ShieldCheck, TrendingUp, AlertTriangle, DollarSign,
   ArrowLeft, ChevronDown, ChevronUp,
 } from 'lucide-react';
+import { fmt$ } from '@/lib/formatUtils';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface AgencySummary {
@@ -53,10 +54,6 @@ interface ProductBreakdown {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
-function fmt$(n: number) {
-  return '$' + Math.round(n).toLocaleString();
-}
-
 function retentionColor(pct: number | null) {
   if (pct === null) return 'text-muted-foreground';
   if (pct >= 90) return 'text-emerald-400';

@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { FadeIn } from '@/components/ui/animated';
 import { Link } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
+import { fmt$ } from '@/lib/formatUtils';
 
 interface AgencyRisk {
   agency_id: string;
@@ -24,12 +25,6 @@ interface CoachingPanelProps {
   agencies: AgencyRisk[];
   belowTargetCount: number;
   isOrgWide: boolean;
-}
-
-function fmt$(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${Math.round(n / 1_000)}K`;
-  return `$${Math.round(n).toLocaleString()}`;
 }
 
 function retentionColor(pct: number | null) {

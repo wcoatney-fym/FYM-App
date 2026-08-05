@@ -25,6 +25,7 @@ import {
   ChevronDown, ChevronUp, Calendar, DollarSign, FileText, Rocket,
   Search, Download,
 } from 'lucide-react';
+import { fmt$ } from '@/lib/formatUtils';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface AgencyLeaderRow {
@@ -49,12 +50,6 @@ type Period = 'all' | 'year' | 'month' | 'week' | 'today';
 type Metric = 'policies' | 'premium';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
-function fmt$(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${Math.round(n / 1_000).toLocaleString()}K`;
-  return `$${Math.round(n).toLocaleString()}`;
-}
-
 function retentionColor(pct: number | null) {
   if (pct === null) return 'text-muted-foreground';
   if (pct >= 90) return 'text-emerald-400';

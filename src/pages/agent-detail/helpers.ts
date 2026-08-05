@@ -1,22 +1,10 @@
 /**
  * Agent Detail — shared formatting helpers
+ *
+ * Re-exports from the canonical formatUtils module.
+ * Page-specific helpers (retentionColor, statusBadge, etc.) stay here.
  */
-
-export function fmt$(n: number): string {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${Math.round(n / 1_000).toLocaleString()}K`;
-  return `$${Math.round(n).toLocaleString()}`;
-}
-
-export function fmtNum(n: number): string {
-  return Math.round(n).toLocaleString();
-}
-
-export function fmtDate(d: string | null): string {
-  if (!d) return '—';
-  const dt = new Date(d + 'T00:00:00');
-  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
-}
+export { fmt$, fmtNum, fmtDate } from '@/lib/formatUtils';
 
 export function retentionColor(pct: number | null): string {
   if (pct === null) return 'text-muted-foreground/70';

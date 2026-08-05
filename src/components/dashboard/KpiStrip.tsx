@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { HudFrame } from '@/components/ui/hud-frame';
 import { StaggerContainer, StaggerItem, CountUp, RadialGauge } from '@/components/ui/animated';
 import { ShieldCheck, AlertTriangle, Building2, XCircle } from 'lucide-react';
+import { fmt$ } from '@/lib/formatUtils';
 
 interface KpiStripProps {
   loading: boolean;
@@ -23,12 +24,6 @@ interface KpiStripProps {
     total_agencies: number;
   } | null;
   isOrgWide: boolean;
-}
-
-function fmt$(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${Math.round(n / 1_000)}K`;
-  return `$${Math.round(n).toLocaleString()}`;
 }
 
 export function KpiStrip({ loading, stats: s, isOrgWide }: KpiStripProps) {

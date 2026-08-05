@@ -46,19 +46,9 @@ import {
   Zap,
   PauseCircle,
 } from 'lucide-react';
+import { fmt$ as fmtCurrency, fmtPct } from '@/lib/formatUtils';
 
 // ── Helpers ────────────────────────────────────────────────────────────
-
-function fmtCurrency(n: number): string {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}K`;
-  return `$${n.toLocaleString()}`;
-}
-
-function fmtPct(n: number | null | undefined): string {
-  if (n == null) return '—';
-  return `${Math.round(n)}%`;
-}
 
 function fmtMonth(m: string): string {
   const [y, mo] = m.split('-');

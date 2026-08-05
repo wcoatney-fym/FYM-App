@@ -35,18 +35,9 @@ import {
   ArrowDown,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { fmt$ as fmtCurrency, fmtPct } from '@/lib/formatUtils';
 
 // ── Helpers ────────────────────────────────────────────────────────────
-
-function fmtCurrency(n: number): string {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}K`;
-  return `$${Math.round(n).toLocaleString()}`;
-}
-
-function fmtPct(n: number): string {
-  return `${Math.round(n)}%`;
-}
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 

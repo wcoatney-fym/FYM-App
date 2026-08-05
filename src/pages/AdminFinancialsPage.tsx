@@ -15,6 +15,7 @@ import {
   ResponsiveContainer, BarChart, Bar,
 } from 'recharts';
 import { DollarSign, ShieldAlert, TrendingDown, AlertTriangle, ChevronRight } from 'lucide-react';
+import { fmt$ } from '@/lib/formatUtils';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface CohortRow {
@@ -59,11 +60,6 @@ function retentionBadgeClass(pct: number) {
   if (pct >= 90) return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
   if (pct >= 85) return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
   return 'bg-red-500/10 text-red-400 border-red-500/20';
-}
-function fmt$(n: number) {
-  if (n >= 1_000_000) return '$' + (n / 1_000_000).toFixed(1) + 'M';
-  if (n >= 1_000) return '$' + Math.round(n / 1_000) + 'K';
-  return '$' + Math.round(n).toLocaleString();
 }
 function fmtMonth(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' });
