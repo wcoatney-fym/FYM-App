@@ -38,45 +38,16 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { fmt$ as fmtCurrency, fmtPct } from '@/lib/formatUtils';
+import {
+  getBusinessDaysInMonth,
+  getBusinessDaysRemaining,
+  getBusinessDaysElapsed,
+  getHolidaysInMonth,
+} from '@/lib/businessDays';
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-function getBusinessDaysInMonth(year: number, month: number): number {
-  let count = 0;
-  const daysInMonth = new Date(year, month, 0).getDate(); // month is 1-based here
-  for (let d = 1; d <= daysInMonth; d++) {
-    const day = new Date(year, month - 1, d).getDay();
-    if (day !== 0 && day !== 6) count++;
-  }
-  return count;
-}
-
-function getBusinessDaysRemaining(year: number, month: number): number {
-  const today = new Date();
-  const todayYear = today.getFullYear();
-  const todayMonth = today.getMonth() + 1;
-  if (year !== todayYear || month !== todayMonth) {
-    // Future or past month — return full BD count or 0
-    if (year > todayYear || (year === todayYear && month > todayMonth)) {
-      return getBusinessDaysInMonth(year, month);
-    }
-    return 0;
-  }
-  let count = 0;
-  const daysInMonth = new Date(year, month, 0).getDate();
-  const todayDate = today.getDate();
-  for (let d = todayDate + 1; d <= daysInMonth; d++) {
-    const day = new Date(year, month - 1, d).getDay();
-    if (day !== 0 && day !== 6) count++;
-  }
-  return count;
-}
-
-function getBusinessDaysElapsed(year: number, month: number): number {
-  return getBusinessDaysInMonth(year, month) - getBusinessDaysRemaining(year, month);
-}
 
 type PaceStatus = 'on_track' | 'catch_up' | 'behind' | 'no_goal';
 
@@ -166,6 +137,7 @@ export function GoalPage() {
   const bdRemaining = getBusinessDaysRemaining(currentYear, currentMonth);
   const bdElapsed = getBusinessDaysElapsed(currentYear, currentMonth);
   const expectedPacePct = bdTotal > 0 ? (bdElapsed / bdTotal) * 100 : 0;
+  const holidaysThisMonth = getHolidaysInMonth(currentYear, currentMonth);
   const paceStatus: PaceStatus = targetAP > 0 ? getPaceStatus((goalPct / expectedPacePct) * 100) : 'no_goal';
   const pace = paceConfig[paceStatus];
   const PaceIcon = pace.icon;
@@ -314,6 +286,11 @@ export function GoalPage() {
                 </h2>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {bdElapsed} of {bdTotal} business days elapsed · {bdRemaining} remaining
+                  {holidaysThisMonth.length > 0 && (
+                    <span className="text-amber-400/70 ml-1" title={holidaysThisMonth.map(h => h.name).join(', ')}>
+                      · {holidaysThisMonth.length} holiday{holidaysThisMonth.length > 1 ? 's' : ''}
+                    </span>
+                  )}
                 </p>
               </div>
               {!editing && (
