@@ -20,21 +20,6 @@ import type {
   ParseError,
 } from '../types';
 
-/** Raw row from the Manhattan XLSX */
-interface ManhattanRow {
-  AgentName: string | null;
-  AgentNumber: string | null;
-  Status: string | null;
-  Email: string | null;
-  PhoneNumber: string | number | null;
-  ContractDate: string | null;
-  AdvanceStatus: string | null;
-  TerminationDate: string | null;
-  State: string | null;
-  DirectManager: string | null;
-  Level: string | null;
-}
-
 const MANHATTAN_HEADERS = [
   'AgentName', 'AgentNumber', 'Status', 'Email', 'PhoneNumber',
   'ContractDate', 'AdvanceStatus', 'TerminationDate', 'State',
