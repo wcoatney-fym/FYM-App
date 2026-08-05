@@ -11,7 +11,7 @@ import { useOrgData } from '@/contexts/OrgDataCache';
 import { Toaster, toast } from 'sonner';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine, Legend,
+  ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { DataFilters } from '@/components/filters/DataFilters';
 import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
@@ -22,16 +22,6 @@ import {
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────
-interface CohortRow {
-  product_type: 'HI' | 'HHC';
-  cohort_month: string;
-  cohort_size: number;
-  drafted_first: number;
-  retained: number;
-  retention_pct: number | null;
-  active_premium: number | null;
-}
-
 interface AgencyOverviewRow {
   agency_id: string;
   agency_name: string | null;
@@ -46,12 +36,6 @@ interface AgencyOverviewRow {
 }
 
 
-
-interface TrendPoint {
-  cohort_month: string;
-  HI: number | null;
-  HHC: number | null;
-}
 
 type SortKey = 'agency' | 'eligible' | 'retained' | 'retention' | 'recent' | 'ap' | 'atRisk';
 
@@ -118,16 +102,11 @@ export function RetentionPage() {
 
   const loading = orgData.initialLoading;
 
-  // Derive cohort rows from cache
-  const orgCohorts = useMemo((): CohortRow[] => {
+  // Derive cohort rows from cache (combined — edge fn doesn't split by product)
+  const orgCohorts = useMemo(() => {
     return orgData.cohorts.map(c => ({
-      product_type: 'HI' as const,
       cohort_month: c.month,
-      cohort_size: c.eligible,
-      drafted_first: c.eligible,
-      retained: c.retained,
-      retention_pct: c.retention_pct,
-      active_premium: null,
+      combined: c.retention_pct,
     }));
   }, [orgData.cohorts]);
 
@@ -142,8 +121,8 @@ export function RetentionPage() {
       retained_90d: a.retained_90d,
       eligible_90d: a.eligible_90d,
       retention_pct: a.retention_pct,
-      recent_3mo_pct: (a as any).recent_3mo_pct ?? null,
-      prior_3mo_pct: (a as any).prior_3mo_pct ?? null,
+      recent_3mo_pct: a.recent_3mo_pct ?? null,
+      prior_3mo_pct: a.prior_3mo_pct ?? null,
     }));
 
     // Enrich with agency names from rcbzag
@@ -191,6 +170,8 @@ export function RetentionPage() {
     return orgCohorts.some(c => isMonthInRange(c.cohort_month));
   }, [orgCohorts, orgData.agencyCohorts, filterAgencyId, datePreset, isMonthInRange]);
 
+  type TrendDataPoint = { cohort_month: string; combined: number | null };
+
   // If date filter yields no cohorts, show all (graceful fallback)
   const effectiveIsMonthInRange = useCallback((cohortMonth: string) => {
     if (!hasCohortsInRange) return true; // fallback: show all
@@ -208,37 +189,26 @@ export function RetentionPage() {
   const summary = useMemo(() => {
     const eligible = filteredAgencies.reduce((s, a) => s + (a.eligible_90d || 0), 0);
     const retained = filteredAgencies.reduce((s, a) => s + (a.retained_90d || 0), 0);
-    const everDrafted = filteredAgencies.reduce((s, a) => s + (a.eligible_90d || 0), 0);
     const atRiskAgencies = filteredAgencies.filter(a => a.retention_pct !== null && a.retention_pct < 90).length;
-    const orgRetentionPct = everDrafted > 0 ? (retained / everDrafted) * 100 : 0;
+    const orgRetentionPct = eligible > 0 ? (retained / eligible) * 100 : 0;
     return { eligible, retained, orgRetentionPct, atRiskAgencies };
   }, [filteredAgencies]);
 
   // Trend chart data — when filtered, re-aggregate from agency cohorts; apply date range filter
   // Falls back to showing all cohorts when the selected range has none (e.g. "This Month" with no July cohorts)
-  const trendData = useMemo(() => {
+  const trendData = useMemo((): TrendDataPoint[] => {
     if (!filterAgencyId) {
-      // Org-wide: use the org-wide cohort_retention view
-      const byMonth = new Map<string, TrendPoint>();
-      orgCohorts.filter(c => effectiveIsMonthInRange(c.cohort_month)).forEach(c => {
-        const existing = byMonth.get(c.cohort_month) || { cohort_month: c.cohort_month, HI: null, HHC: null };
-        if (c.product_type === 'HI') existing.HI = c.retention_pct;
-        if (c.product_type === 'HHC') existing.HHC = c.retention_pct;
-        byMonth.set(c.cohort_month, existing);
-      });
-      return Array.from(byMonth.values()).sort((a, b) => a.cohort_month.localeCompare(b.cohort_month));
+      // Org-wide: combined retention per month
+      return orgCohorts
+        .filter(c => effectiveIsMonthInRange(c.cohort_month))
+        .map(c => ({ cohort_month: c.cohort_month, combined: c.combined }))
+        .sort((a, b) => a.cohort_month.localeCompare(b.cohort_month));
     }
-    // Filtered: rebuild from per-agency cohort data in OrgDataCache
-    const filtered = orgData.agencyCohorts.filter(c => c.agency_id === filterAgencyId && effectiveIsMonthInRange(c.month));
-    const byMonth = new Map<string, TrendPoint>();
-    filtered.forEach(c => {
-      const key = c.month;
-      const existing = byMonth.get(key) || { cohort_month: key, HI: null, HHC: null };
-      // Agency cohorts from edge fn are combined (not split by product) — show as HI line
-      existing.HI = c.retention_pct;
-      byMonth.set(key, existing);
-    });
-    return Array.from(byMonth.values()).sort((a, b) => a.cohort_month.localeCompare(b.cohort_month));
+    // Filtered: rebuild from per-agency cohort data
+    return orgData.agencyCohorts
+      .filter(c => c.agency_id === filterAgencyId && effectiveIsMonthInRange(c.month))
+      .map(c => ({ cohort_month: c.month, combined: c.retention_pct }))
+      .sort((a, b) => a.cohort_month.localeCompare(b.cohort_month));
   }, [orgCohorts, orgData.agencyCohorts, filterAgencyId, effectiveIsMonthInRange]);
 
   // Filter + sort agency table
@@ -329,14 +299,10 @@ export function RetentionPage() {
   }, [orgData.agencyCohorts, expandedAgency]);
 
   const expandedChartData = useMemo(() => {
-    const byMonth = new Map<string, { cohort_month: string; HI: number | null; HHC: number | null }>();
-    expandedCohorts.forEach(c => {
-      const existing = byMonth.get(c.cohort_month) || { cohort_month: c.cohort_month, HI: null, HHC: null };
-      if (c.product_type === 'HI') existing.HI = c.retention_pct;
-      if (c.product_type === 'HHC') existing.HHC = c.retention_pct;
-      byMonth.set(c.cohort_month, existing);
-    });
-    return Array.from(byMonth.values());
+    return expandedCohorts.map(c => ({
+      cohort_month: c.cohort_month,
+      retention: c.retention_pct,
+    }));
   }, [expandedCohorts]);
 
   if (!supabase) {
@@ -454,7 +420,7 @@ export function RetentionPage() {
         {/* Org-wide retention trend */}
         <Card className="border-border">
           <CardHeader>
-            <CardTitle className="text-base text-foreground">90-Day Retention by Cohort — HI vs HHC</CardTitle>
+            <CardTitle className="text-base text-foreground">90-Day Retention by Cohort</CardTitle>
           </CardHeader>
           <CardContent className="pb-2">
             <div className="h-72">
@@ -482,7 +448,6 @@ export function RetentionPage() {
                     ]}
                     labelFormatter={fmtMonth}
                   />
-                  <Legend wrapperStyle={{ color: 'hsl(215 20% 65%)' }} />
                   <ReferenceLine
                     y={90}
                     stroke="#ef4444"
@@ -491,21 +456,12 @@ export function RetentionPage() {
                   />
                   <Line
                     type="monotone"
-                    dataKey="HI"
-                    name="HI"
+                    dataKey="combined"
+                    name="Retention %"
                     stroke="hsl(199 89% 48%)"
                     strokeWidth={2.5}
-                    dot={{ r: 3, fill: 'hsl(199 89% 48%)' }}
-                    connectNulls
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="HHC"
-                    name="HHC"
-                    stroke="#0ea5e9"
-                    strokeWidth={2.5}
-                    strokeDasharray="5 3"
-                    dot={{ r: 3, fill: '#0ea5e9' }}
+                    dot={{ r: 4, fill: 'hsl(199 89% 48%)' }}
+                    activeDot={{ r: 6, stroke: 'hsl(199 89% 48%)', strokeWidth: 2, fill: 'hsl(222 47% 8%)' }}
                     connectNulls
                   />
                 </LineChart>
@@ -545,7 +501,7 @@ export function RetentionPage() {
               </button>
             </div>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent className="p-0 overflow-x-auto">
             {sortedAgencies.length === 0 ? (
               <div className="px-4 py-8 text-center text-muted-foreground text-sm">
                 No agency retention data available yet.
@@ -653,10 +609,8 @@ export function RetentionPage() {
                                       formatter={(value: number, name: string) => [value !== null ? `${value}%` : '—', name]}
                                       labelFormatter={fmtMonth}
                                     />
-                                    <Legend wrapperStyle={{ color: 'hsl(215 20% 65%)', fontSize: 11 }} />
                                     <ReferenceLine y={90} stroke="#ef4444" strokeDasharray="4 4" />
-                                    <Bar dataKey="HI" name="HI" fill="hsl(199 89% 48%)" radius={[3, 3, 0, 0]} />
-                                    <Bar dataKey="HHC" name="HHC" fill="#0ea5e9" radius={[3, 3, 0, 0]} />
+                                    <Bar dataKey="retention" name="Retention %" fill="hsl(199 89% 48%)" radius={[3, 3, 0, 0]} />
                                   </BarChart>
                                 </ResponsiveContainer>
                               </div>
