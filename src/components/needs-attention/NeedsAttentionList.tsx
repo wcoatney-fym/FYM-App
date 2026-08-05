@@ -13,12 +13,15 @@
  * - Respects agency filter and role-based scoping
  */
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { Bell, Award, RefreshCw, Loader2, Search } from 'lucide-react';
+import { Bell, Award, RefreshCw, Loader2, Search, Download } from 'lucide-react';
 import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { fetchAtRiskPolicies } from '@/lib/prod-api';
 import { supabase } from '@/lib/supabase';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useCachedFetch } from '@/hooks/useCachedFetch';
+import { fmt$ } from '@/lib/formatUtils';
+import { toast } from 'sonner';
 import { AttentionCard, type AttentionPolicy, type ActionState } from './AttentionCard';
 import { AttentionFilters, type FlagFilter, type ActionFilter } from './AttentionFilters';
 
@@ -288,6 +291,59 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
 
   const showAgent = !isAgent;
 
+  // ── Total premium at risk ────────────────────────────────────────────
+  const totalAnnualPremiumAtRisk = useMemo(
+    () => policies.reduce((sum, p) => sum + (p.plan_premium * 12), 0),
+    [policies]
+  );
+
+  // ── CSV export ───────────────────────────────────────────────────────
+  const [exporting, setExporting] = useState(false);
+
+  const exportCsv = useCallback(() => {
+    if (filtered.length === 0) return;
+    setExporting(true);
+    try {
+      const headers = [
+        'Policy #', 'Client', 'Product', 'Status', 'Flag', 'Day',
+        'Monthly Premium', 'Annual Premium', 'Effective Date', 'Paid To',
+        'Drafts', 'Agent WN', 'Agency', 'Action',
+      ];
+      const rows = filtered.map((p) => [
+        p.policy_number,
+        p.client_name || '',
+        p.product_type,
+        p.status,
+        p.flag_type || 'at_risk',
+        `${p.days_idle}/45`,
+        p.plan_premium.toFixed(2),
+        (p.plan_premium * 12).toFixed(2),
+        p.policy_effective_date || '',
+        p.paid_to_date || '',
+        p.draft_count || '',
+        p.agent_writing_number || '',
+        p.agency_id || '',
+        p.action_state === 'none' ? 'Unworked' : p.action_state === 'got_it' ? 'Got it' : p.action_state === 'working' ? 'Working' : 'Done',
+      ]);
+      const csv = [headers, ...rows].map((r) => r.map((c) => `"${c}"`).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `needs_attention_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`Exported ${filtered.length.toLocaleString()} policies`);
+    } catch (err) {
+      console.error('CSV export error:', err);
+      toast.error('CSV export failed', {
+        description: err instanceof Error ? err.message : 'Try again in a moment.',
+      });
+    } finally {
+      setExporting(false);
+    }
+  }, [filtered]);
+
   // ── Render ─────────────────────────────────────────────────────────────
 
   return (
@@ -301,7 +357,7 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
           <div>
             <h2 className="text-lg font-bold text-foreground">Needs Attention</h2>
             <p className="text-xs text-muted-foreground">
-              {policies.length} flagged · urgency-ranked
+              {policies.length} flagged · {fmt$(totalAnnualPremiumAtRisk)} at risk · urgency-ranked
             </p>
           </div>
         </div>
@@ -310,14 +366,28 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
           {/* Search */}
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
+            <Input
               type="text"
               placeholder="Search client, policy, agent…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="pl-8 pr-3 py-1.5 rounded-lg border border-border bg-card text-sm w-[220px] focus:outline-none focus:ring-1 focus:ring-primary/50"
+              className="pl-8 w-[220px]"
             />
           </div>
+
+          {/* CSV Export */}
+          <button
+            onClick={exportCsv}
+            disabled={exporting || filtered.length === 0}
+            className="p-2 rounded-lg border border-border hover:bg-muted transition-colors disabled:opacity-50"
+            title="Export to CSV"
+          >
+            {exporting ? (
+              <Loader2 size={14} className="animate-spin text-muted-foreground" />
+            ) : (
+              <Download size={14} className="text-muted-foreground" />
+            )}
+          </button>
 
           {/* Refresh */}
           <button
