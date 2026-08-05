@@ -39,6 +39,7 @@ interface FymAdminRow {
   fym_admin_id: string;
   user_id: string;
   added_by: string | null;
+  added_by_name: string | null;
   created_at: string;
   full_name: string | null;
 }
@@ -71,51 +72,53 @@ export function SettingsPage() {
     <div>
       <Header title="Settings" />
       <div className="p-6 max-w-2xl space-y-6">
-        <Card className="border-border">
-          <CardHeader>
-            <CardTitle className="text-base font-semibold text-foreground">Supabase Connection</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="sb-url" className="text-sm font-medium text-foreground/80">
-                Supabase URL
-              </Label>
-              <Input
-                id="sb-url"
-                placeholder="https://your-project.supabase.co"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                className="bg-card font-mono text-sm"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="sb-key" className="text-sm font-medium text-foreground/80">
-                Anon Key
-              </Label>
-              <Input
-                id="sb-key"
-                type="password"
-                placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..."
-                value={key}
-                onChange={(e) => setKey(e.target.value)}
-                className="bg-card font-mono text-sm"
-              />
-            </div>
-            <div className="flex items-center gap-3 pt-2">
-              <Button onClick={handleSave} className="bg-primary hover:bg-primary/80">
-                Save Connection
-              </Button>
-              {saved && (
-                <span className="text-sm text-emerald-400 font-medium animate-in fade-in">
-                  Saved successfully
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Credentials are stored in localStorage. They override .env values when set.
-            </p>
-          </CardContent>
-        </Card>
+        {isFymAdmin && (
+          <Card className="border-border">
+            <CardHeader>
+              <CardTitle className="text-base font-semibold text-foreground">Supabase Connection</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="sb-url" className="text-sm font-medium text-foreground/80">
+                  Supabase URL
+                </Label>
+                <Input
+                  id="sb-url"
+                  placeholder="https://your-project.supabase.co"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  className="bg-card font-mono text-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sb-key" className="text-sm font-medium text-foreground/80">
+                  Anon Key
+                </Label>
+                <Input
+                  id="sb-key"
+                  type="password"
+                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+                  value={key}
+                  onChange={(e) => setKey(e.target.value)}
+                  className="bg-card font-mono text-sm"
+                />
+              </div>
+              <div className="flex items-center gap-3 pt-2">
+                <Button onClick={handleSave} className="bg-primary hover:bg-primary/80">
+                  Save Connection
+                </Button>
+                {saved && (
+                  <span className="text-sm text-emerald-400 font-medium animate-in fade-in">
+                    Saved successfully
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Credentials are stored in localStorage. They override .env values when set.
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         {isFymAdmin && <FymAdminManagementCard currentUserId={user?.id ?? null} />}
         {isFymAdmin && <ViewAsCard />}
@@ -141,6 +144,7 @@ function FymAdminManagementCard({ currentUserId }: { currentUserId: string | nul
   const [creating, setCreating] = useState(false);
   const [createResult, setCreateResult] = useState<{ success: boolean; message: string } | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [showCreateConfirm, setShowCreateConfirm] = useState(false);
 
   async function loadAdmins() {
     if (!supabase) return;
@@ -155,13 +159,19 @@ function FymAdminManagementCard({ currentUserId }: { currentUserId: string | nul
       return;
     }
 
+    // Collect all user IDs we need names for: admin user_ids + added_by user_ids
     const userIds = (data as any[]).map((row) => row.user_id);
+    const addedByIds = (data as any[])
+      .map((row) => row.added_by)
+      .filter((id): id is string => !!id);
+    const allIds = [...new Set([...userIds, ...addedByIds])];
+
     let nameMap: Record<string, string | null> = {};
-    if (userIds.length > 0) {
+    if (allIds.length > 0) {
       const { data: profileRows } = await supabase
         .from('profiles')
         .select('id, full_name')
-        .in('id', userIds);
+        .in('id', allIds);
       nameMap = Object.fromEntries((profileRows ?? []).map((p: any) => [p.id, p.full_name]));
     }
 
@@ -170,6 +180,7 @@ function FymAdminManagementCard({ currentUserId }: { currentUserId: string | nul
         fym_admin_id: row.id,
         user_id: row.user_id,
         added_by: row.added_by,
+        added_by_name: row.added_by ? (nameMap[row.added_by] ?? null) : null,
         created_at: row.created_at,
         full_name: nameMap[row.user_id] ?? null,
       }))
@@ -300,7 +311,7 @@ function FymAdminManagementCard({ currentUserId }: { currentUserId: string | nul
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Added {new Date(a.created_at).toLocaleDateString()}
-                    {a.added_by ? ` by ${a.added_by}` : ''}
+                    {a.added_by ? ` by ${a.added_by_name ?? 'Unknown'}` : ''}
                   </p>
                 </div>
                 <AlertDialog>
@@ -401,15 +412,42 @@ function FymAdminManagementCard({ currentUserId }: { currentUserId: string | nul
             </div>
           </div>
           <p className="text-xs text-muted-foreground mt-2">
-            Account will be created with the standard FYM admin password.
+            A new auth account and admin profile will be created.
           </p>
-          <Button
-            onClick={handleCreateAdmin}
-            disabled={creating || !newFirstName.trim() || !newLastName.trim() || !newEmail.trim()}
-            className="mt-3 bg-primary hover:bg-primary/80"
-          >
-            {creating ? 'Creating…' : 'Create Admin Account'}
-          </Button>
+          <AlertDialog open={showCreateConfirm} onOpenChange={setShowCreateConfirm}>
+            <AlertDialogTrigger asChild>
+              <Button
+                disabled={creating || !newFirstName.trim() || !newLastName.trim() || !newEmail.trim()}
+                className="mt-3 bg-primary hover:bg-primary/80"
+              >
+                {creating ? 'Creating…' : 'Create Admin Account'}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Create admin account?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will create a new auth user and FYM admin profile for{' '}
+                  <span className="font-medium text-foreground">
+                    {newFirstName.trim()} {newLastName.trim()}
+                  </span>{' '}
+                  ({newEmail.trim().toLowerCase()}). They will have org-wide unrestricted access.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-primary hover:bg-primary/80"
+                  onClick={() => {
+                    setShowCreateConfirm(false);
+                    handleCreateAdmin();
+                  }}
+                >
+                  Create Account
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           {createResult && (
             <div className="mt-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-start gap-2">
