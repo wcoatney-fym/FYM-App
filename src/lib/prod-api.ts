@@ -326,6 +326,7 @@ export async function fetchRetentionSummary(params?: {
 
 export async function fetchAtRiskPolicies(params?: {
   agency_id?: string;
+  agent_id?: string;
 }): Promise<AtRiskResponse> {
   return callEdgeFunction<AtRiskResponse>('retention-data', {
     type: 'at_risk',

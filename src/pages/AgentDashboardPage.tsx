@@ -91,12 +91,12 @@ export function AgentDashboardPage() {
       agentData: () => fetchAgentProduction({ agent_id: effectiveWritingNumber! }),
       monthly: () => fetchMonthlyProduction({ agent_id: effectiveWritingNumber! }),
       atRisk: () => fetchAtRiskPolicies(
-        effectiveAgencyWritingNumber
-          ? { agency_id: effectiveAgencyWritingNumber }
+        effectiveWritingNumber
+          ? { agent_id: effectiveWritingNumber }
           : undefined
       ),
     },
-    { skip: !effectiveWritingNumber, deps: [effectiveWritingNumber, effectiveAgencyWritingNumber] }
+    { skip: !effectiveWritingNumber, deps: [effectiveWritingNumber] }
   );
 
   // Load goal separately (from local Supabase, not Max's DB)
@@ -113,12 +113,11 @@ export function AgentDashboardPage() {
   }, [cached?.agentData, effectiveWritingNumber]);
 
   const monthlyData = cached?.monthly || [];
+  // At-risk policies are now filtered server-side by agent_id
   const atRiskPolicies = useMemo((): AtRiskPolicy[] => {
     if (!cached?.atRisk?.data?.policies) return [];
-    return cached.atRisk.data.policies.filter(
-      (p: AtRiskPolicy) => p.agent_writing_number === effectiveWritingNumber
-    );
-  }, [cached?.atRisk, effectiveWritingNumber]);
+    return cached.atRisk.data.policies;
+  }, [cached?.atRisk]);
 
   const error = fetchError ? 'Failed to load your production data. Please try again.' : null;
 

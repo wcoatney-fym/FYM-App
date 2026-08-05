@@ -13,6 +13,7 @@
  * Query params:
  *   type:       "summary" | "at_risk" | "cohort" (default: "summary")
  *   agency_id:  filter by agency writing number / tracker_id
+ *   agent_id:   filter by agent writing number (narrows to a single agent)
  *   days:       retention window in days (default: 90)
  */
 
@@ -36,6 +37,7 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   const type = url.searchParams.get("type") || "summary";
   const agencyFilter = url.searchParams.get("agency_id");
+  const agentFilter = url.searchParams.get("agent_id");
   const retentionDays = Number(url.searchParams.get("days") || "90");
 
   let sql: ReturnType<typeof createProdConnection> | null = null;
@@ -140,6 +142,9 @@ Deno.serve(async (req) => {
 
         // Agency filter
         if (agencyFilter && agencyWn !== agencyFilter) continue;
+
+        // Agent filter — skip policies not belonging to the requested agent
+        if (agentFilter && agentWn !== agentFilter) continue;
 
         const agencyId = agencyWn || "unknown";
 
