@@ -5,7 +5,7 @@
  * Action state is persisted to `atrisk_tasks` in the FYM App DB.
  */
 import { useState, useEffect } from 'react';
-import { ChevronRight, Zap, AlertTriangle, PauseCircle, MessageSquarePlus } from 'lucide-react';
+import { Zap, AlertTriangle, PauseCircle, MessageSquarePlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ManagerNoteComposer } from '@/components/notes/ManagerNoteComposer';
 import { NoteDisplay } from '@/components/notes/NoteDisplay';
@@ -220,7 +220,6 @@ export function AttentionCard({ policy, showAgent = false, onActionChange, notes
           </button>
         )}
 
-        <ChevronRight size={16} className="text-muted-foreground flex-shrink-0" />
       </div>
 
       {/* Inline notes display */}

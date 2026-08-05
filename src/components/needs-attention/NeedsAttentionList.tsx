@@ -20,6 +20,7 @@ import { fetchAtRiskPolicies } from '@/lib/prod-api';
 import { supabase } from '@/lib/supabase';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useCachedFetch } from '@/hooks/useCachedFetch';
+import { fetchNotesForPolicies, type ManagerNote } from '@/lib/notes-api';
 import { fmt$ } from '@/lib/formatUtils';
 import { toast } from 'sonner';
 import { AttentionCard, type AttentionPolicy, type ActionState } from './AttentionCard';
@@ -92,6 +93,7 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
   const { effectiveAgencyWritingNumber, isOrgWide, isAgent, effectiveWritingNumber } = useEffectiveAuth();
 
   const [policies, setPolicies] = useState<AttentionPolicy[]>([]);
+  const [notesMap, setNotesMap] = useState<Map<string, ManagerNote[]>>(new Map());
   const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState('');
   const [flagFilter, setFlagFilter] = useState<FlagFilter>('all');
@@ -120,13 +122,21 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
       try {
       let taskMap = new Map<string, string>();
       if (supabase) {
-        const { data: tasks } = await supabase
-          .from('atrisk_tasks')
-          .select('policy_number, stage');
-        if (tasks) {
-          for (const t of tasks as TaskRecord[]) {
-            taskMap.set(t.policy_number, t.stage);
+        // Paginate atrisk_tasks to avoid silent 1K cap
+        const PAGE = 1000;
+        let offset = 0;
+        while (true) {
+          const { data: tasks } = await supabase
+            .from('atrisk_tasks')
+            .select('policy_number, stage')
+            .range(offset, offset + PAGE - 1);
+          if (tasks) {
+            for (const t of tasks as TaskRecord[]) {
+              taskMap.set(t.policy_number, t.stage);
+            }
           }
+          if (!tasks || tasks.length < PAGE) break;
+          offset += PAGE;
         }
       }
 
@@ -152,6 +162,12 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
 
       merged.sort(urgencySort);
       setPolicies(merged);
+
+      // Batch-fetch notes for visible policies (first PAGE_SIZE)
+      const topPolicies = merged.slice(0, PAGE_SIZE).map((p) => p.policy_number);
+      if (topPolicies.length > 0) {
+        fetchNotesForPolicies(topPolicies).then(setNotesMap);
+      }
       } catch (err) {
         console.error('NeedsAttentionList: merge error:', err);
       }
@@ -462,13 +478,28 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
               policy={policy}
               showAgent={showAgent}
               onActionChange={handleActionChange}
+              notes={notesMap.get(policy.policy_number)}
             />
           ))}
 
           {/* Load more */}
           {hasMore && (
             <button
-              onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+              onClick={() => {
+                const nextCount = visibleCount + PAGE_SIZE;
+                setVisibleCount(nextCount);
+                // Batch-fetch notes for the next page of policies
+                const nextPage = filtered.slice(visibleCount, nextCount).map((p) => p.policy_number);
+                if (nextPage.length > 0) {
+                  fetchNotesForPolicies(nextPage).then((newNotes) => {
+                    setNotesMap((prev) => {
+                      const merged = new Map(prev);
+                      for (const [k, v] of newNotes) merged.set(k, v);
+                      return merged;
+                    });
+                  });
+                }
+              }}
               className="w-full py-3 text-sm font-semibold text-muted-foreground hover:text-foreground border border-border rounded-xl hover:bg-muted transition-colors"
             >
               Show more ({filtered.length - visibleCount} remaining)
