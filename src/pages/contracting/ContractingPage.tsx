@@ -61,15 +61,15 @@ const TAB_LABELS: Record<ContractingTab, string> = {
 export function ContractingPage() {
   const { isOrgWide, loading } = useEffectiveAuth();
   const availableTabs = isOrgWide ? ALL_TABS : AGENCY_ADMIN_TABS;
-  const [activeTab, setActiveTab] = useState<ContractingTab>('hierarchy');
+  const [activeTab, setActiveTab] = useState<ContractingTab>('dashboard');
 
-  // Sync activeTab when auth resolves — isFymAdmin starts false while
-  // checkFymAdmin is in-flight, so isOrgWide is initially false and the
-  // tab list renders as AGENCY_ADMIN_TABS (hierarchy only). Once auth
-  // loads and isOrgWide flips true, bump to 'dashboard'.
+  // Sync activeTab when auth resolves — default is 'dashboard' (FYM admin,
+  // the common case). Agency admins only get the Hierarchy tab, so narrow
+  // down after auth loads. This avoids the visible tab flash that happened
+  // when defaulting to 'hierarchy' and bumping up to 'dashboard'.
   useEffect(() => {
-    if (!loading && isOrgWide && activeTab === 'hierarchy') {
-      setActiveTab('dashboard');
+    if (!loading && !isOrgWide && activeTab === 'dashboard') {
+      setActiveTab('hierarchy');
     }
   }, [loading, isOrgWide]);
 
