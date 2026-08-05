@@ -26,6 +26,11 @@ import {
 } from '@/lib/prod-api';
 import { QualityCard } from '@/components/dashboard/QualityCard';
 import { getGoal, type AgentGoal } from '@/lib/goals-api';
+import {
+  getBusinessDaysInMonth,
+  getBusinessDaysElapsed,
+} from '@/lib/businessDays';
+import { fmtMonth as fmtMonthShared } from '@/lib/dateUtils';
 import { useCachedMultiFetch } from '@/hooks/useCachedFetch';
 import {
   XAxis,
@@ -50,12 +55,6 @@ import { fmt$ as fmtCurrency, fmtPct } from '@/lib/formatUtils';
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
-function fmtMonth(m: string): string {
-  const [y, mo] = m.split('-');
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return `${months[parseInt(mo, 10) - 1]} '${y.slice(2)}`;
-}
-
 function urgencyLabel(flag: string | null, daysIdle: number | null): { label: string; severity: 'danger' | 'warning' } {
   const days = daysIdle ?? 0;
   if (days >= 38) return { label: `Final 7 days · Day ${days}/45`, severity: 'danger' };
@@ -72,6 +71,14 @@ function urgencyLabel(flag: string | null, daysIdle: number | null): { label: st
 export function AgentDashboardPage() {
   const { user, effectiveWritingNumber, profile, effectiveAgencyWritingNumber } = useEffectiveAuth();
   const [currentGoal, setCurrentGoal] = useState<AgentGoal | null>(null);
+
+  // Business-day pace (aligned with GoalPage thresholds)
+  const now = new Date();
+  const currentMonth = now.getMonth() + 1;
+  const currentYear = now.getFullYear();
+  const bdTotal = getBusinessDaysInMonth(currentYear, currentMonth);
+  const bdElapsed = getBusinessDaysElapsed(currentYear, currentMonth);
+  const expectedPacePct = bdTotal > 0 ? (bdElapsed / bdTotal) * 100 : 0;
 
   const agentName = profile?.full_name || 'Agent';
   const firstName = agentName.split(' ')[0];
@@ -126,7 +133,7 @@ export function AgentDashboardPage() {
     if (!monthlyData.length) return [];
     const sorted = [...monthlyData].sort((a, b) => a.month.localeCompare(b.month));
     return sorted.slice(-6).map(m => ({
-      month: fmtMonth(m.month),
+      month: fmtMonthShared(m.month),
       ap: m.annual_premium,
       policies: m.policies,
     }));
@@ -201,7 +208,7 @@ export function AgentDashboardPage() {
   return (
     <>
       <Header title="My Dashboard" />
-      <div className="p-6 space-y-5">
+      <div className="p-6 space-y-5 max-w-screen-xl mx-auto">
         <StaggerContainer>
 
           {/* ── Welcome + MTD Hero ── */}
@@ -242,9 +249,14 @@ export function AgentDashboardPage() {
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-white/50 mt-1">
-                  {stats.policies_this_month} policies written · Avg {fmtCurrency(stats.policies_this_month > 0 ? stats.ap_this_month / stats.policies_this_month : 0)}/app
-                </p>
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-xs text-white/50">
+                    {stats.policies_this_month} policies written · Avg {fmtCurrency(stats.policies_this_month > 0 ? stats.ap_this_month / stats.policies_this_month : 0)}/app
+                  </p>
+                  <Link to="/my-production" className="text-white/60 hover:text-white/90 flex items-center gap-0.5 text-[10px] font-medium">
+                    View production <ChevronRight className="w-3 h-3" />
+                  </Link>
+                </div>
                 {currentGoal && (() => {
                   const pct = Math.min(100, (stats.ap_this_month / currentGoal.target_ap) * 100);
                   return (
@@ -255,16 +267,31 @@ export function AgentDashboardPage() {
                           View goal <ChevronRight className="w-3 h-3" />
                         </Link>
                       </div>
-                      <div className="w-full h-2 rounded-full bg-white/15 overflow-hidden">
+                      <div className="w-full h-2.5 rounded-full bg-white/15 overflow-hidden">
                         <div
                           className="h-full rounded-full transition-all duration-1000 ease-out"
                           style={{
                             width: `${pct}%`,
-                            background: pct >= 80 ? 'linear-gradient(90deg, #86EFAC, #4ADE80)'
-                              : pct >= 50 ? 'linear-gradient(90deg, #FDE68A, #F59E0B)'
-                              : 'linear-gradient(90deg, #FCA5A5, #EF4444)',
+                            background: pct >= expectedPacePct
+                              ? 'linear-gradient(90deg, #86EFAC, #4ADE80)'
+                              : pct >= expectedPacePct * 0.7
+                                ? 'linear-gradient(90deg, #FDE68A, #F59E0B)'
+                                : 'linear-gradient(90deg, #FCA5A5, #EF4444)',
                           }}
                         />
+                      </div>
+                      {/* Expected pace marker — aligned with GoalPage */}
+                      <div className="relative mt-1">
+                        <div
+                          className="absolute -top-1 w-0.5 h-2 bg-white/40 rounded"
+                          style={{ left: `${Math.min(100, expectedPacePct)}%` }}
+                        />
+                        <div
+                          className="absolute top-1.5 text-[9px] text-white/40 font-semibold"
+                          style={{ left: `${Math.min(95, expectedPacePct)}%`, transform: 'translateX(-50%)' }}
+                        >
+                          Expected
+                        </div>
                       </div>
                     </div>
                   );
