@@ -22,7 +22,7 @@ import { RampUpBoard, type RampUpAgent } from '@/components/leaderboard/RampUpBo
 import {
   Trophy, TrendingUp, ShieldCheck, AlertTriangle, ChevronRight,
   ChevronDown, ChevronUp, Calendar, DollarSign, FileText, Rocket,
-  Search,
+  Search, Download,
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -73,6 +73,34 @@ function rankBadge(rank: number) {
   if (rank === 2) return <span className="text-lg">🥈</span>;
   if (rank === 3) return <span className="text-lg">🥉</span>;
   return <span className="text-sm font-bold text-muted-foreground tabular-nums">#{rank}</span>;
+}
+
+/** Export displayed leaderboard rows to CSV and trigger download. */
+function exportLeaderboardCsv(rows: AgencyLeaderRow[], period: Period, metric: Metric) {
+  const hasPeriodCol = period !== 'all';
+  const headers = [
+    'Rank', 'Agency', 'Agency ID', '90-Day Retention %',
+    'Active Policies', 'Premium/mo', 'At-Risk',
+    ...(hasPeriodCol ? [`${periodLabel(period)} ${metric === 'policies' ? 'Policies' : 'AP'}`] : []),
+  ];
+  const csvRows = rows.map(r => [
+    r.rank,
+    `"${(r.name ?? r.agency_id).replace(/"/g, '""')}"`,
+    r.agency_id,
+    r.retention_pct !== null ? r.retention_pct : '',
+    r.active_policies,
+    r.active_premium,
+    r.at_risk_count,
+    ...(hasPeriodCol ? [metric === 'policies' ? r.period_policies : r.period_ap] : []),
+  ]);
+  const csv = [headers.join(','), ...csvRows.map(r => r.join(','))].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `leaderboard-${period}-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 function periodLabel(p: Period) {
@@ -672,6 +700,14 @@ export function LeaderboardPage() {
           <span className="text-xs text-muted-foreground">
             {displayed.length} {displayed.length === 1 ? 'agency' : 'agencies'}
           </span>
+          {displayed.length > 0 && (
+            <button
+              onClick={() => exportLeaderboardCsv(displayed, period, metric)}
+              className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-secondary text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors"
+            >
+              <Download size={12} /> Export CSV
+            </button>
+          )}
         </div>
 
         {/* Leaderboard table — semantic HTML */}
@@ -682,10 +718,17 @@ export function LeaderboardPage() {
                 {[1, 2, 3, 4, 5].map(i => <div key={i} className="h-12 rounded shimmer" />)}
               </div>
             ) : displayed.length === 0 ? (
-              <div className="py-16 text-center text-muted-foreground">
-                {searchQuery.trim()
-                  ? `No agencies matching "${searchQuery.trim()}"`
-                  : 'No agencies match the current filter.'}
+              <div className="py-16 text-center">
+                <Trophy size={32} className="mx-auto text-muted-foreground mb-3 opacity-50" />
+                <p className="text-sm font-medium text-muted-foreground">
+                  {searchQuery.trim()
+                    ? `No agencies matching "${searchQuery.trim()}"`
+                    : 'No agencies match the current filter'}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {filter !== 'all' && `Showing: ${filter === 'above' ? '≥ 90%' : '< 90%'} retention. `}
+                  Try adjusting the retention filter or period.
+                </p>
               </div>
             ) : (
               <div className="overflow-x-auto">
