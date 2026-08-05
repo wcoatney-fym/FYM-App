@@ -19,6 +19,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { StaggerContainer, StaggerItem } from '@/components/ui/animated';
+import { HudFrame } from '@/components/ui/hud-frame';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import {
   fetchAgentProduction,
@@ -36,6 +37,7 @@ import {
   ChevronUp,
   ChevronDown,
   Download,
+  Sparkles,
 } from 'lucide-react';
 import { fmt$ as fmtCurrency, fmtPct, retentionColor } from '@/lib/formatUtils';
 
@@ -88,16 +90,35 @@ function exportTeamCsv(rows: AgentRow[]) {
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
+/** Expected goal % for the current day of the month — memoized per render cycle. */
+let _cachedExpectedPct: { key: string; value: number } | null = null;
+function getExpectedPct(): number {
+  const now = new Date();
+  const key = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+  if (_cachedExpectedPct?.key === key) return _cachedExpectedPct.value;
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const value = (now.getDate() / daysInMonth) * 100;
+  _cachedExpectedPct = { key, value };
+  return value;
+}
+
 function getPaceStatus(goalPct: number | null): 'on_track' | 'catch_up' | 'behind' | 'no_goal' {
   if (goalPct == null) return 'no_goal';
-  const now = new Date();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const dayOfMonth = now.getDate();
-  const expectedPct = (dayOfMonth / daysInMonth) * 100;
-  const ratio = goalPct / expectedPct;
+  const ratio = goalPct / getExpectedPct();
   if (ratio >= 0.9) return 'on_track';
   if (ratio >= 0.6) return 'catch_up';
   return 'behind';
+}
+
+/** Agents with very few total policies are likely new to FYM. */
+const NEW_AGENT_THRESHOLD = 3;
+function isNewAgent(agent: AgentProduction): boolean {
+  return agent.total_policies <= NEW_AGENT_THRESHOLD;
+}
+
+/** Agents with zero MTD production are visually dimmed. */
+function isInactive(agent: AgentRow): boolean {
+  return agent.ap_this_month === 0 && agent.policies_this_month === 0;
 }
 
 const paceColors = {
@@ -301,72 +322,82 @@ export function ManagerTeamPage() {
           {/* ── Summary Strip ── */}
           <StaggerItem>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-1">
-              <Card>
-                <CardContent className="pt-4 pb-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Team Size</p>
-                  <p className="text-2xl font-bold tabular-nums text-foreground mt-1">{summary.total}</p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">agents in your book</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-4 pb-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Book MTD AP</p>
-                  <p className="text-2xl font-bold tabular-nums text-foreground mt-1">{fmtCurrency(summary.totalAP)}</p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">{summary.totalApps} apps submitted</p>
-                </CardContent>
-              </Card>
+              <HudFrame>
+                <Card>
+                  <CardContent className="pt-4 pb-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Team Size</p>
+                    <p className="text-2xl font-bold tabular-nums text-foreground mt-1">{summary.total}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">agents in your book</p>
+                  </CardContent>
+                </Card>
+              </HudFrame>
+              <HudFrame>
+                <Card>
+                  <CardContent className="pt-4 pb-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Book MTD AP</p>
+                    <p className="text-2xl font-bold tabular-nums text-foreground mt-1">{fmtCurrency(summary.totalAP)}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{summary.totalApps} apps submitted</p>
+                  </CardContent>
+                </Card>
+              </HudFrame>
               {/* ── Team Goal KPI ── */}
-              <Card>
-                <CardContent className="pt-4 pb-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Team Goal</p>
-                  {summary.teamGoalAP > 0 ? (
-                    <>
-                      <p className={`text-2xl font-bold tabular-nums mt-1 ${
-                        (summary.teamGoalPct ?? 0) >= 100 ? 'text-emerald-400'
-                          : (summary.teamGoalPct ?? 0) >= 70 ? 'text-foreground'
-                          : 'text-amber-400'
-                      }`}>
-                        {Math.round(summary.teamGoalPct!)}%
-                      </p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">
-                        {fmtCurrency(summary.totalAP)} of {fmtCurrency(summary.teamGoalAP)} · {summary.agentsWithGoals} set
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-lg font-bold text-muted-foreground mt-1">—</p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">no goals set</p>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-4 pb-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Goal Pacing</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-sm font-bold text-emerald-400 tabular-nums">{summary.onTrack}</span>
-                    <span className="text-xs text-muted-foreground">·</span>
-                    <span className="text-sm font-bold text-amber-400 tabular-nums">{summary.catchUp}</span>
-                    <span className="text-xs text-muted-foreground">·</span>
-                    <span className="text-sm font-bold text-red-400 tabular-nums">{summary.behind}</span>
-                  </div>
-                  {/* Pace strip */}
-                  {summary.total > 0 && (
-                    <div className="flex h-1.5 rounded-full overflow-hidden mt-2">
-                      <div className="bg-emerald-400" style={{ width: `${(summary.onTrack / summary.total) * 100}%` }} />
-                      <div className="bg-amber-400" style={{ width: `${(summary.catchUp / summary.total) * 100}%` }} />
-                      <div className="bg-red-400" style={{ width: `${(summary.behind / summary.total) * 100}%` }} />
+              <HudFrame>
+                <Card>
+                  <CardContent className="pt-4 pb-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Team Goal</p>
+                    {summary.teamGoalAP > 0 ? (
+                      <>
+                        <p className={`text-2xl font-bold tabular-nums mt-1 ${
+                          (summary.teamGoalPct ?? 0) >= 100 ? 'text-emerald-400'
+                            : (summary.teamGoalPct ?? 0) >= 70 ? 'text-foreground'
+                            : 'text-amber-400'
+                        }`}>
+                          {Math.round(summary.teamGoalPct!)}%
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          {fmtCurrency(summary.totalAP)} of {fmtCurrency(summary.teamGoalAP)} · {summary.agentsWithGoals} set
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-lg font-bold text-muted-foreground mt-1">—</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">no goals set</p>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              </HudFrame>
+              <HudFrame>
+                <Card>
+                  <CardContent className="pt-4 pb-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Goal Pacing</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-sm font-bold text-emerald-400 tabular-nums">{summary.onTrack}</span>
+                      <span className="text-xs text-muted-foreground">·</span>
+                      <span className="text-sm font-bold text-amber-400 tabular-nums">{summary.catchUp}</span>
+                      <span className="text-xs text-muted-foreground">·</span>
+                      <span className="text-sm font-bold text-red-400 tabular-nums">{summary.behind}</span>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-4 pb-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Attention Items</p>
-                  <p className="text-2xl font-bold tabular-nums text-foreground mt-1">{summary.totalAtRisk}</p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">across all agents</p>
-                </CardContent>
-              </Card>
+                    {/* Pace strip */}
+                    {summary.total > 0 && (
+                      <div className="flex h-1.5 rounded-full overflow-hidden mt-2">
+                        <div className="bg-emerald-400" style={{ width: `${(summary.onTrack / summary.total) * 100}%` }} />
+                        <div className="bg-amber-400" style={{ width: `${(summary.catchUp / summary.total) * 100}%` }} />
+                        <div className="bg-red-400" style={{ width: `${(summary.behind / summary.total) * 100}%` }} />
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </HudFrame>
+              <HudFrame>
+                <Card>
+                  <CardContent className="pt-4 pb-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Attention Items</p>
+                    <p className="text-2xl font-bold tabular-nums text-foreground mt-1">{summary.totalAtRisk}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">across all agents</p>
+                  </CardContent>
+                </Card>
+              </HudFrame>
             </div>
           </StaggerItem>
 
@@ -491,7 +522,9 @@ export function ManagerTeamPage() {
                         return (
                           <tr
                             key={wn}
-                            className="border-b border-border/50 hover:bg-secondary/10 cursor-pointer transition-colors"
+                            className={`border-b border-border/50 hover:bg-secondary/10 cursor-pointer transition-colors${
+                              isInactive(agent) ? ' opacity-50' : ''
+                            }`}
                             onClick={() => navigate(`/production/${agent.agency_id}/agent/${wn}`)}
                           >
                             {/* Agent name */}
@@ -501,9 +534,17 @@ export function ManagerTeamPage() {
                                   {(agent.agent_name || 'A').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
                                 </div>
                                 <div>
-                                  <p className="font-semibold text-sm text-foreground leading-tight">
-                                    {agent.agent_name || 'Unknown'}
-                                  </p>
+                                  <div className="flex items-center gap-1.5">
+                                    <p className="font-semibold text-sm text-foreground leading-tight">
+                                      {agent.agent_name || 'Unknown'}
+                                    </p>
+                                    {isNewAgent(agent) && (
+                                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-cyan-500/15 text-cyan-400 border border-cyan-500/25">
+                                        <Sparkles className="w-2.5 h-2.5" />
+                                        New
+                                      </span>
+                                    )}
+                                  </div>
                                   <p className="text-[10px] text-muted-foreground">{wn}</p>
                                 </div>
                               </div>
