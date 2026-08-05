@@ -20,9 +20,9 @@ export function AtRiskPage() {
   const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
 
   return (
-    <div>
+    <>
       <Header title="Needs Attention" />
-      <div className="p-6 space-y-6 max-w-screen-2xl mx-auto">
+      <div className="p-6 space-y-6 max-w-screen-xl mx-auto">
 
         {/* Filters — agency filter for FYM admins only */}
         {!isAgent && (
@@ -38,6 +38,6 @@ export function AtRiskPage() {
         <NeedsAttentionList filterAgencyId={filterAgencyId} />
 
       </div>
-    </div>
+    </>
   );
 }
