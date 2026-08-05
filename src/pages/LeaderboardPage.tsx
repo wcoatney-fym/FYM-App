@@ -6,7 +6,7 @@
  * Sortable columns, retention filter, drill-down to agency production.
  */
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent } from '@/components/ui/card';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
@@ -22,6 +22,7 @@ import { RampUpBoard, type RampUpAgent } from '@/components/leaderboard/RampUpBo
 import {
   Trophy, TrendingUp, ShieldCheck, AlertTriangle, ChevronRight,
   ChevronDown, ChevronUp, Calendar, DollarSign, FileText, Rocket,
+  Search,
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -123,6 +124,7 @@ function periodStart(p: Period): string | null {
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function LeaderboardPage() {
+  const navigate = useNavigate();
   const { effectiveAgencyWritingNumber, isOrgWide } = useEffectiveAuth();
   const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
   const orgData = useOrgData();
@@ -136,6 +138,7 @@ export function LeaderboardPage() {
   const [boardTab, setBoardTab] = useState<BoardTab>('agencies');
   const [rampUpAgents, setRampUpAgents] = useState<RampUpAgent[]>([]);
   const [rampUpLoading, setRampUpLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Cache period data
   const [periodData, setPeriodData] = useState<Map<string, { policies: number; ap: number }>>(new Map());
@@ -344,6 +347,13 @@ export function LeaderboardPage() {
     if (filterAgencyId) filtered = filtered.filter(r => r.agency_id === filterAgencyId);
     if (filter === 'above') filtered = filtered.filter(r => r.retention_pct !== null && r.retention_pct >= 90);
     if (filter === 'below') filtered = filtered.filter(r => r.retention_pct === null || r.retention_pct < 90);
+    // Agency name search
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      filtered = filtered.filter(r =>
+        (r.name?.toLowerCase().includes(q)) || r.agency_id.toLowerCase().includes(q),
+      );
+    }
 
     const dir = sortAsc ? 1 : -1;
     filtered.sort((a, b) => {
@@ -359,7 +369,7 @@ export function LeaderboardPage() {
       }
     });
     return filtered;
-  }, [enrichedRows, sortKey, sortAsc, filter, filterAgencyId]);
+  }, [enrichedRows, sortKey, sortAsc, filter, filterAgencyId, searchQuery]);
 
   // Executive Summary data — compute KPI tiles from all rows
   const execSummary = useMemo<ExecSummaryData | null>(() => {
@@ -620,7 +630,7 @@ export function LeaderboardPage() {
                         <CountUp
                           end={card.end}
                           format={card.fmt}
-                          className="text-xl font-bold text-foreground mt-0.5 block"
+                          className="text-2xl font-bold text-foreground mt-0.5 block"
                         />
                       </div>
                       <div className={`p-2 rounded-lg ${card.bg}`}>
@@ -634,8 +644,8 @@ export function LeaderboardPage() {
           ))}
         </StaggerContainer>
 
-        {/* Filter tabs */}
-        <div className="flex items-center gap-2">
+        {/* Filter tabs + search */}
+        <div className="flex flex-wrap items-center gap-2">
           {([['all', 'All'], ['above', '≥ 90%'], ['below', '< 90%']] as const).map(([key, label]) => (
             <button
               key={key}
@@ -649,12 +659,22 @@ export function LeaderboardPage() {
               {label}
             </button>
           ))}
-          <span className="ml-auto text-xs text-muted-foreground">
+          <div className="relative ml-auto">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search agencies…"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="pl-8 pr-3 py-1.5 text-sm rounded-md bg-secondary border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary w-48"
+            />
+          </div>
+          <span className="text-xs text-muted-foreground">
             {displayed.length} {displayed.length === 1 ? 'agency' : 'agencies'}
           </span>
         </div>
 
-        {/* Leaderboard table */}
+        {/* Leaderboard table — semantic HTML */}
         <Card className="border-border overflow-hidden">
           <CardContent className="p-0">
             {loading ? (
@@ -663,104 +683,109 @@ export function LeaderboardPage() {
               </div>
             ) : displayed.length === 0 ? (
               <div className="py-16 text-center text-muted-foreground">
-                No agencies match the current filter.
+                {searchQuery.trim()
+                  ? `No agencies matching "${searchQuery.trim()}"`
+                  : 'No agencies match the current filter.'}
               </div>
             ) : (
-              <>
-                <div className={`grid gap-2 px-4 py-2.5 bg-background text-xs font-semibold text-muted-foreground border-b border-border/50 ${
-                  period !== 'all' ? 'grid-cols-13' : 'grid-cols-12'
-                }`}>
-                  <span
-                    className="col-span-1 cursor-pointer hover:text-foreground"
-                    onClick={() => toggleSort('rank')}
-                  >Rank <SortArrow k="rank" /></span>
-                  <span className={period !== 'all' ? 'col-span-2' : 'col-span-3'}>Agency</span>
-                  <span
-                    className="col-span-2 text-center cursor-pointer hover:text-foreground"
-                    onClick={() => toggleSort('retention')}
-                  >90-Day Retention <SortArrow k="retention" /></span>
-                  <span
-                    className="col-span-2 text-right cursor-pointer hover:text-foreground"
-                    onClick={() => toggleSort('policies')}
-                  >Active <SortArrow k="policies" /></span>
-                  <span
-                    className="col-span-2 text-right cursor-pointer hover:text-foreground"
-                    onClick={() => toggleSort('premium')}
-                  >Premium/mo <SortArrow k="premium" /></span>
-                  {period !== 'all' && (
-                    <span
-                      className="col-span-2 text-right cursor-pointer hover:text-foreground"
-                      onClick={() => toggleSort(metric === 'policies' ? 'period_policies' : 'period_ap')}
-                    >
-                      {periodLabel(period)} {metric === 'policies' ? 'Policies' : 'AP'}
-                      <SortArrow k={metric === 'policies' ? 'period_policies' : 'period_ap'} />
-                    </span>
-                  )}
-                  <span
-                    className="col-span-1 text-center cursor-pointer hover:text-foreground"
-                    onClick={() => toggleSort('at_risk')}
-                  >At-Risk <SortArrow k="at_risk" /></span>
-                  <span className="col-span-1" />
-                </div>
-                <div className="divide-y divide-border/30">
-                  {displayed.map((r) => (
-                    <div
-                      key={r.agency_id}
-                      className={`grid gap-2 px-4 py-3 items-center text-sm hover:bg-background/80 transition-colors ${
-                        period !== 'all' ? 'grid-cols-13' : 'grid-cols-12'
-                      } ${r.rank <= 3 ? 'bg-amber-500/10' : ''} ${
-                        !isOrgWide && effectiveAgencyWritingNumber === r.agency_id ? 'ring-1 ring-primary/40 bg-primary/5' : ''
-                      }`}
-                    >
-                      <span className="col-span-1 text-center">{rankBadge(r.rank)}</span>
-                      <span className={`font-medium text-foreground truncate flex items-center gap-1.5 ${period !== 'all' ? 'col-span-2' : 'col-span-3'}`}>
-                        <span className="truncate">
-                          {r.name ?? <span className="font-data text-xs text-muted-foreground">{r.agency_id.slice(0, 12)}…</span>}
-                          {!isOrgWide && effectiveAgencyWritingNumber === r.agency_id && (
-                            <span className="ml-1.5 text-[10px] text-primary font-semibold">YOU</span>
-                          )}
-                        </span>
-                        {(agencyBattleWins.get(r.agency_id) || 0) > 0 && (
-                          <span className="text-[10px] font-data text-amber-400 whitespace-nowrap" title="Battle wins">
-                            🏆 x{agencyBattleWins.get(r.agency_id)}
-                          </span>
-                        )}
-                      </span>
-                      <span className="col-span-2 text-center">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${retentionBg(r.retention_pct)} ${retentionColor(r.retention_pct)}`}>
-                          {r.retention_pct !== null ? `${r.retention_pct}%` : '—'}
-                        </span>
-                      </span>
-                      <span className="col-span-2 text-right text-foreground/80 font-data">
-                        {r.active_policies.toLocaleString()}
-                      </span>
-                      <span className="col-span-2 text-right text-foreground/80 font-data">
-                        {fmt$(r.active_premium)}
-                      </span>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-background border-b border-border/50 text-xs font-semibold text-muted-foreground">
+                      <th
+                        className="px-4 py-2.5 text-left cursor-pointer hover:text-foreground whitespace-nowrap w-16"
+                        onClick={() => toggleSort('rank')}
+                      >Rank <SortArrow k="rank" /></th>
+                      <th className="px-2 py-2.5 text-left">Agency</th>
+                      <th
+                        className="px-2 py-2.5 text-center cursor-pointer hover:text-foreground whitespace-nowrap"
+                        onClick={() => toggleSort('retention')}
+                      >90-Day Retention <SortArrow k="retention" /></th>
+                      <th
+                        className="px-2 py-2.5 text-right cursor-pointer hover:text-foreground whitespace-nowrap"
+                        onClick={() => toggleSort('policies')}
+                      >Active <SortArrow k="policies" /></th>
+                      <th
+                        className="px-2 py-2.5 text-right cursor-pointer hover:text-foreground whitespace-nowrap"
+                        onClick={() => toggleSort('premium')}
+                      >Premium/mo <SortArrow k="premium" /></th>
                       {period !== 'all' && (
-                        <span className={`col-span-2 text-right font-data font-medium ${
-                          (metric === 'policies' ? r.period_policies : r.period_ap) > 0
-                            ? 'text-primary'
-                            : 'text-muted-foreground'
-                        }`}>
-                          {metric === 'policies'
-                            ? (r.period_policies > 0 ? r.period_policies.toLocaleString() : '—')
-                            : (r.period_ap > 0 ? fmt$(r.period_ap) : '—')
-                          }
-                        </span>
+                        <th
+                          className="px-2 py-2.5 text-right cursor-pointer hover:text-foreground whitespace-nowrap"
+                          onClick={() => toggleSort(metric === 'policies' ? 'period_policies' : 'period_ap')}
+                        >
+                          {periodLabel(period)} {metric === 'policies' ? 'Policies' : 'AP'}
+                          <SortArrow k={metric === 'policies' ? 'period_policies' : 'period_ap'} />
+                        </th>
                       )}
-                      <span className={`col-span-1 text-center font-medium font-data ${r.at_risk_count > 0 ? 'text-red-400' : 'text-muted-foreground'}`}>
-                        {r.at_risk_count || '—'}
-                      </span>
-                      <span className="col-span-1 text-center">
-                        <Link to={`/production/${r.agency_id}`}>
-                          <ChevronRight size={16} className="text-muted-foreground hover:text-primary transition-colors" />
-                        </Link>
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </>
+                      <th
+                        className="px-2 py-2.5 text-center cursor-pointer hover:text-foreground whitespace-nowrap w-20"
+                        onClick={() => toggleSort('at_risk')}
+                      >At-Risk <SortArrow k="at_risk" /></th>
+                      <th className="px-2 py-2.5 w-10" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/30">
+                    {displayed.map((r) => (
+                      <tr
+                        key={r.agency_id}
+                        onClick={() => navigate(`/production/${r.agency_id}`)}
+                        className={`cursor-pointer hover:bg-background/80 transition-colors ${
+                          r.rank <= 3 ? 'bg-amber-500/10' : ''
+                        } ${
+                          !isOrgWide && effectiveAgencyWritingNumber === r.agency_id ? 'ring-1 ring-primary/40 bg-primary/5' : ''
+                        }`}
+                      >
+                        <td className="px-4 py-3 text-center">{rankBadge(r.rank)}</td>
+                        <td className="px-2 py-3">
+                          <span className="font-medium text-foreground flex items-center gap-1.5">
+                            <span className="truncate max-w-[200px]">
+                              {r.name ?? <span className="font-data text-xs text-muted-foreground">{r.agency_id.slice(0, 12)}…</span>}
+                              {!isOrgWide && effectiveAgencyWritingNumber === r.agency_id && (
+                                <span className="ml-1.5 text-[10px] text-primary font-semibold">YOU</span>
+                              )}
+                            </span>
+                            {(agencyBattleWins.get(r.agency_id) || 0) > 0 && (
+                              <span className="text-[10px] font-data text-amber-400 whitespace-nowrap" title="Battle wins">
+                                🏆 x{agencyBattleWins.get(r.agency_id)}
+                              </span>
+                            )}
+                          </span>
+                        </td>
+                        <td className="px-2 py-3 text-center">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${retentionBg(r.retention_pct)} ${retentionColor(r.retention_pct)}`}>
+                            {r.retention_pct !== null ? `${r.retention_pct}%` : '—'}
+                          </span>
+                        </td>
+                        <td className="px-2 py-3 text-right text-foreground/80 font-data">
+                          {r.active_policies.toLocaleString()}
+                        </td>
+                        <td className="px-2 py-3 text-right text-foreground/80 font-data">
+                          {fmt$(r.active_premium)}
+                        </td>
+                        {period !== 'all' && (
+                          <td className={`px-2 py-3 text-right font-data font-medium ${
+                            (metric === 'policies' ? r.period_policies : r.period_ap) > 0
+                              ? 'text-primary'
+                              : 'text-muted-foreground'
+                          }`}>
+                            {metric === 'policies'
+                              ? (r.period_policies > 0 ? r.period_policies.toLocaleString() : '—')
+                              : (r.period_ap > 0 ? fmt$(r.period_ap) : '—')
+                            }
+                          </td>
+                        )}
+                        <td className={`px-2 py-3 text-center font-medium font-data ${r.at_risk_count > 0 ? 'text-red-400' : 'text-muted-foreground'}`}>
+                          {r.at_risk_count || '—'}
+                        </td>
+                        <td className="px-2 py-3 text-center">
+                          <ChevronRight size={16} className="text-muted-foreground" />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </CardContent>
         </Card>
