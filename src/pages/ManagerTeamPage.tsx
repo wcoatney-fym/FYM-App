@@ -37,13 +37,14 @@ import {
   ChevronDown,
   Download,
 } from 'lucide-react';
-import { fmt$ as fmtCurrency, fmtPct } from '@/lib/formatUtils';
+import { fmt$ as fmtCurrency, fmtPct, retentionColor } from '@/lib/formatUtils';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
 interface GoalRecord {
   user_id: string;
   writing_number: string;
+  agency_id: string | null;
   target_ap: number;
   month: number;
   year: number;
@@ -108,13 +109,7 @@ const paceColors = {
 
 
 
-function retColor(pct: number | null): string {
-  if (pct == null) return 'text-muted-foreground';
-  if (pct >= 90) return 'text-emerald-400';
-  if (pct >= 80) return 'text-cyan-400';
-  if (pct >= 70) return 'text-amber-400';
-  return 'text-red-400';
-}
+// retColor removed — now using shared retentionColor from formatUtils
 
 // ── Component ──────────────────────────────────────────────────────────
 
@@ -146,18 +141,22 @@ export function ManagerTeamPage() {
     { deps: [effectiveAgencyWritingNumber] }
   );
 
-  // Goals from local Supabase (not Max's DB)
+  // Goals from local Supabase (not Max's DB) — scoped to agency when available
   useEffect(() => {
     if (!supabase) return;
     (async () => {
-      const { data } = await (supabase as any)
+      let query = (supabase as any)
         .from('agent_goals')
-        .select('user_id, writing_number, target_ap, month, year')
+        .select('user_id, writing_number, agency_id, target_ap, month, year')
         .eq('month', currentMonth)
         .eq('year', currentYear);
+      if (effectiveAgencyWritingNumber) {
+        query = query.eq('agency_id', effectiveAgencyWritingNumber);
+      }
+      const { data } = await query;
       setGoals((data || []) as GoalRecord[]);
     })();
-  }, [currentMonth, currentYear]);
+  }, [currentMonth, currentYear, effectiveAgencyWritingNumber]);
 
   const loading = cacheLoading;
   const error = fetchError ? 'Failed to load team data. Please try again.' : null;
@@ -432,36 +431,42 @@ export function ManagerTeamPage() {
                       <th
                         className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground cursor-pointer select-none"
                         onClick={() => toggleSort('name')}
+                        aria-sort={sortKey === 'name' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
                       >
                         <div className="flex items-center gap-1">Agent <SortIcon col="name" /></div>
                       </th>
                       <th
                         className="text-right px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground cursor-pointer select-none"
                         onClick={() => toggleSort('ap')}
+                        aria-sort={sortKey === 'ap' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
                       >
                         <div className="flex items-center justify-end gap-1">MTD AP <SortIcon col="ap" /></div>
                       </th>
                       <th
                         className="text-right px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground cursor-pointer select-none"
                         onClick={() => toggleSort('goal')}
+                        aria-sort={sortKey === 'goal' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
                       >
                         <div className="flex items-center justify-end gap-1">vs Goal <SortIcon col="goal" /></div>
                       </th>
                       <th
                         className="text-right px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground cursor-pointer select-none"
                         onClick={() => toggleSort('apps')}
+                        aria-sort={sortKey === 'apps' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
                       >
                         <div className="flex items-center justify-end gap-1">Apps <SortIcon col="apps" /></div>
                       </th>
                       <th
                         className="text-right px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground cursor-pointer select-none"
                         onClick={() => toggleSort('retention')}
+                        aria-sort={sortKey === 'retention' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
                       >
                         <div className="flex items-center justify-end gap-1">Retention <SortIcon col="retention" /></div>
                       </th>
                       <th
                         className="text-right px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground cursor-pointer select-none"
                         onClick={() => toggleSort('attention')}
+                        aria-sort={sortKey === 'attention' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
                       >
                         <div className="flex items-center justify-end gap-1">Attention <SortIcon col="attention" /></div>
                       </th>
@@ -532,7 +537,7 @@ export function ManagerTeamPage() {
 
                             {/* Retention */}
                             <td className="px-4 py-3 text-right">
-                              <p className={`font-bold tabular-nums ${retColor(agent.retention_pct)}`}>
+                              <p className={`font-bold tabular-nums ${retentionColor(agent.retention_pct)}`}>
                                 {fmtPct(agent.retention_pct)}
                               </p>
                             </td>
