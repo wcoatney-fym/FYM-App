@@ -79,6 +79,7 @@ export interface AgentProduction {
   ever_drafted: number;
   avg_annual_premium: number;
   retention_pct: number | null;
+  earliest_issue_date: string | null;
 }
 
 export interface DailyProduction {

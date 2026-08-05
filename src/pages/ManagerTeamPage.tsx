@@ -110,10 +110,13 @@ function getPaceStatus(goalPct: number | null): 'on_track' | 'catch_up' | 'behin
   return 'behind';
 }
 
-/** Agents with very few total policies are likely new to FYM. */
-const NEW_AGENT_THRESHOLD = 3;
+/** Agents whose earliest policy is within the last 30 days. */
+const NEW_AGENT_DAYS = 30;
 function isNewAgent(agent: AgentProduction): boolean {
-  return agent.total_policies <= NEW_AGENT_THRESHOLD;
+  if (!agent.earliest_issue_date) return false;
+  const earliest = new Date(agent.earliest_issue_date + 'T00:00:00');
+  const diffMs = Date.now() - earliest.getTime();
+  return diffMs >= 0 && diffMs <= NEW_AGENT_DAYS * 86_400_000;
 }
 
 /** Agents with zero MTD production are visually dimmed. */

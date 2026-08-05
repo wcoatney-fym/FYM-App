@@ -98,6 +98,7 @@ Deno.serve(async (req) => {
       ap_this_month: number;
       retained_policies: number;
       ever_drafted: number;
+      earliest_issue_date: string | null;
     }>();
 
     const dailyMap = new Map<string, Map<string, { policies: number; annual_premium: number }>>();
@@ -258,10 +259,15 @@ Deno.serve(async (req) => {
               ap_this_month: 0,
               retained_policies: 0,
               ever_drafted: 0,
+              earliest_issue_date: null,
             });
           }
           const agt = agentMap.get(agentWn)!;
           agt.total_policies++;
+          // Track earliest app_recvd_date for tenure calculation
+          if (appRecvdDate && (!agt.earliest_issue_date || appRecvdDate < agt.earliest_issue_date)) {
+            agt.earliest_issue_date = appRecvdDate;
+          }
           if (status === "active") {
             agt.active_policies++;
             agt.active_monthly_premium += monthlyPremium;
