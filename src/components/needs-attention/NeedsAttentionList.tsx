@@ -76,6 +76,10 @@ function urgencySort(a: AttentionPolicy, b: AttentionPolicy): number {
   return b.plan_premium - a.plan_premium;
 }
 
+// ── Constants ──────────────────────────────────────────────────────────────
+
+const PAGE_SIZE = 50;
+
 // ── Props ──────────────────────────────────────────────────────────────────
 
 interface NeedsAttentionListProps {
@@ -92,6 +96,7 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
   const [query, setQuery] = useState('');
   const [flagFilter, setFlagFilter] = useState<FlagFilter>('all');
   const [actionFilter, setActionFilter] = useState<ActionFilter>('all');
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   // ── Resolve agency param ─────────────────────────────────────────────
   const resolvedAgencyId = (filterAgencyId && !filterAgencyId.startsWith('no-data:'))
@@ -184,6 +189,12 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
         const stage = actionToStage(state);
         const policy = policies.find((p) => p.policy_number === policyNumber);
 
+        // Guard: don't upsert if we can't resolve the policy's agency_id
+        if (!policy?.agency_id) {
+          console.warn('NeedsAttentionList: skipping upsert — no agency_id for', policyNumber);
+          return;
+        }
+
         // Upsert: create or update the task
         // Map stage to valid AtRiskStatus enum: 'new' | 'assigned' | 'contacted' | 'saved' | 'lost'
         const statusMap: Record<string, 'new' | 'assigned' | 'contacted' | 'saved' | 'lost'> = {
@@ -201,10 +212,10 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
           .upsert(
             {
               policy_number: policyNumber,
-              agency_id: policy?.agency_id || '',
+              agency_id: policy.agency_id,
               stage,
               status: mappedStatus,
-              flag_type: policy?.flag_type || null,
+              flag_type: policy.flag_type || null,
               due_date: null,
               assigned_by: null,
               assigned_to: null,
@@ -254,6 +265,18 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
 
     return result;
   }, [policies, flagFilter, actionFilter, query]);
+
+  // Reset visible count when filters change
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [flagFilter, actionFilter, query]);
+
+  const visiblePolicies = useMemo(
+    () => filtered.slice(0, visibleCount),
+    [filtered, visibleCount]
+  );
+
+  const hasMore = visibleCount < filtered.length;
 
   // ── Counts ─────────────────────────────────────────────────────────────
 
@@ -433,7 +456,7 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
         </Card>
       ) : (
         <div className="space-y-2">
-          {filtered.map((policy) => (
+          {visiblePolicies.map((policy) => (
             <AttentionCard
               key={policy.policy_number}
               policy={policy}
@@ -441,6 +464,16 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
               onActionChange={handleActionChange}
             />
           ))}
+
+          {/* Load more */}
+          {hasMore && (
+            <button
+              onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+              className="w-full py-3 text-sm font-semibold text-muted-foreground hover:text-foreground border border-border rounded-xl hover:bg-muted transition-colors"
+            >
+              Show more ({filtered.length - visibleCount} remaining)
+            </button>
+          )}
         </div>
       )}
     </div>
