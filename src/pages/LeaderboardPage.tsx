@@ -84,25 +84,40 @@ function periodLabel(p: Period) {
   }
 }
 
+/** Get CT-local date parts via Intl (DST-safe, no toLocaleString hack). */
+function ctToday(): { year: number; month: number; day: number } {
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Chicago',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const parts = fmt.formatToParts(new Date());
+  const get = (t: string) => Number(parts.find(p => p.type === t)!.value);
+  return { year: get('year'), month: get('month'), day: get('day') };
+}
+
+function pad2(n: number) { return String(n).padStart(2, '0'); }
+
 function periodStart(p: Period): string | null {
   if (p === 'all') return null;
-  const now = new Date();
-  const ct = new Date(now.toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+  const { year, month, day } = ctToday();
 
   switch (p) {
     case 'year':
-      return `${ct.getFullYear()}-01-01`;
+      return `${year}-01-01`;
     case 'month':
-      return `${ct.getFullYear()}-${String(ct.getMonth() + 1).padStart(2, '0')}-01`;
+      return `${year}-${pad2(month)}-01`;
     case 'week': {
-      const day = ct.getDay();
-      const diff = ct.getDate() - day + (day === 0 ? -6 : 1); // Monday
-      const monday = new Date(ct);
-      monday.setDate(diff);
-      return `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+      // Walk back to Monday
+      const d = new Date(`${year}-${pad2(month)}-${pad2(day)}T12:00:00`);
+      const dow = d.getDay(); // 0=Sun
+      const diff = dow === 0 ? 6 : dow - 1;
+      d.setDate(d.getDate() - diff);
+      return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
     }
     case 'today':
-      return `${ct.getFullYear()}-${String(ct.getMonth() + 1).padStart(2, '0')}-${String(ct.getDate()).padStart(2, '0')}`;
+      return `${year}-${pad2(month)}-${pad2(day)}`;
   }
 }
 
@@ -137,8 +152,11 @@ export function LeaderboardPage() {
 
     try {
       // Query prod DB edge function for period-filtered agency production
-      const today = new Date();
-      const endDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate() + 1).padStart(2, '0')}`;
+      // Use tomorrow in CT as exclusive end date (safe on month boundaries)
+      const { year, month, day } = ctToday();
+      const tomorrow = new Date(`${year}-${pad2(month)}-${pad2(day)}T12:00:00`);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const endDate = `${tomorrow.getFullYear()}-${pad2(tomorrow.getMonth() + 1)}-${pad2(tomorrow.getDate())}`;
       const agencies = await fetchAgencyProduction({ start_date: start, end_date: endDate });
       const agMap = new Map<string, { policies: number; ap: number }>();
       for (const a of agencies) {
