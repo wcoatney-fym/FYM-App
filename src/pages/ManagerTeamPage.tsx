@@ -35,6 +35,7 @@ import {
   ChevronRight,
   ChevronUp,
   ChevronDown,
+  Download,
 } from 'lucide-react';
 import { fmt$ as fmtCurrency, fmtPct } from '@/lib/formatUtils';
 
@@ -57,6 +58,32 @@ interface AgentRow extends AgentProduction {
 type SortKey = 'name' | 'ap' | 'goal' | 'apps' | 'retention' | 'attention';
 type SortDir = 'asc' | 'desc';
 type PaceFilter = 'all' | 'on_track' | 'catch_up' | 'behind';
+
+// ── CSV Export ─────────────────────────────────────────────────────────
+
+function exportTeamCsv(rows: AgentRow[]) {
+  const headers = [
+    'Agent', 'Writing #', 'MTD AP', 'Goal', 'Goal %', 'Apps', 'Retention %', 'Attention',
+  ];
+  const csvRows = rows.map(r => [
+    `"${(r.agent_name || 'Unknown').replace(/"/g, '""')}"`,
+    r.writing_number || r.agent_id,
+    r.ap_this_month,
+    r.goal_target_ap ?? '',
+    r.goal_pct != null ? Math.round(r.goal_pct) : '',
+    r.policies_this_month,
+    r.retention_pct != null ? r.retention_pct.toFixed(1) : '',
+    r.at_risk_count,
+  ]);
+  const csv = [headers.join(','), ...csvRows.map(r => r.join(','))].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `team-roster-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
@@ -211,7 +238,10 @@ export function ManagerTeamPage() {
     const totalAP = agents.reduce((s, a) => s + a.ap_this_month, 0);
     const totalApps = agents.reduce((s, a) => s + a.policies_this_month, 0);
     const totalAtRisk = agents.reduce((s, a) => s + a.at_risk_count, 0);
-    return { total, onTrack, catchUp, behind, totalAP, totalApps, totalAtRisk };
+    const teamGoalAP = agents.reduce((s, a) => s + (a.goal_target_ap ?? 0), 0);
+    const agentsWithGoals = agents.filter(a => a.goal_target_ap != null && a.goal_target_ap > 0).length;
+    const teamGoalPct = teamGoalAP > 0 ? (totalAP / teamGoalAP) * 100 : null;
+    return { total, onTrack, catchUp, behind, totalAP, totalApps, totalAtRisk, teamGoalAP, agentsWithGoals, teamGoalPct };
   }, [agents]);
 
   const toggleSort = (key: SortKey) => {
@@ -266,12 +296,12 @@ export function ManagerTeamPage() {
   return (
     <>
       <Header title="My Team" />
-      <div className="p-6 space-y-5">
+      <div className="p-6 space-y-5 max-w-screen-xl mx-auto">
         <StaggerContainer>
 
           {/* ── Summary Strip ── */}
           <StaggerItem>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-1">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-1">
               <Card>
                 <CardContent className="pt-4 pb-3">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Team Size</p>
@@ -284,6 +314,31 @@ export function ManagerTeamPage() {
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Book MTD AP</p>
                   <p className="text-2xl font-bold tabular-nums text-foreground mt-1">{fmtCurrency(summary.totalAP)}</p>
                   <p className="text-[10px] text-muted-foreground mt-0.5">{summary.totalApps} apps submitted</p>
+                </CardContent>
+              </Card>
+              {/* ── Team Goal KPI ── */}
+              <Card>
+                <CardContent className="pt-4 pb-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Team Goal</p>
+                  {summary.teamGoalAP > 0 ? (
+                    <>
+                      <p className={`text-2xl font-bold tabular-nums mt-1 ${
+                        (summary.teamGoalPct ?? 0) >= 100 ? 'text-emerald-400'
+                          : (summary.teamGoalPct ?? 0) >= 70 ? 'text-foreground'
+                          : 'text-amber-400'
+                      }`}>
+                        {Math.round(summary.teamGoalPct!)}%
+                      </p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        {fmtCurrency(summary.totalAP)} of {fmtCurrency(summary.teamGoalAP)} · {summary.agentsWithGoals} set
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-lg font-bold text-muted-foreground mt-1">—</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">no goals set</p>
+                    </>
+                  )}
                 </CardContent>
               </Card>
               <Card>
@@ -345,14 +400,24 @@ export function ManagerTeamPage() {
                   Behind · {summary.behind}
                 </button>
               </div>
-              <div className="relative w-60">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search agent name or #..."
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  className="pl-9 text-sm"
-                />
+              <div className="flex items-center gap-2">
+                <div className="relative w-60">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search agent name or #..."
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    className="pl-9 text-sm"
+                  />
+                </div>
+                <button
+                  onClick={() => exportTeamCsv(filteredAgents)}
+                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-muted-foreground border border-border rounded-md hover:text-foreground hover:border-primary/30 transition-colors"
+                  title="Export filtered list to CSV"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  CSV
+                </button>
               </div>
             </div>
           </StaggerItem>
