@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 // prod-api fetch functions now handled by OrgDataCache
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { useOrgData } from '@/contexts/OrgDataCache';
+import { Toaster, toast } from 'sonner';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine, Legend,
@@ -17,6 +18,7 @@ import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@
 import {
   ShieldCheck, Users, CheckCircle2, AlertTriangle,
   ArrowUpRight, ArrowDownRight, Minus, ChevronDown, ChevronRight,
+  Search, Download,
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -39,19 +41,11 @@ interface AgencyOverviewRow {
   retained_90d: number;
   eligible_90d: number;
   retention_pct: number | null;
+  recent_3mo_pct: number | null;
+  prior_3mo_pct: number | null;
 }
 
-interface AgencyCohortRow {
-  agency_id: string;
-  agency_name: string | null;
-  product_type: 'HI' | 'HHC';
-  cohort_month: string;
-  cohort_size: number;
-  drafted_first: number;
-  retained: number;
-  retention_pct: number | null;
-  active_premium: number | null;
-}
+
 
 interface TrendPoint {
   cohort_month: string;
@@ -115,7 +109,7 @@ export function RetentionPage() {
   const orgData = useOrgData();
 
   const [agencies, setAgencies] = useState<AgencyOverviewRow[]>([]);
-  const [agencyCohorts, setAgencyCohorts] = useState<AgencyCohortRow[]>([]);
+  const [agencySearch, setAgencySearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('retention');
   const [sortAsc, setSortAsc] = useState(true);
   const [expandedAgency, setExpandedAgency] = useState<string | null>(null);
@@ -148,6 +142,8 @@ export function RetentionPage() {
       retained_90d: a.retained_90d,
       eligible_90d: a.eligible_90d,
       retention_pct: a.retention_pct,
+      recent_3mo_pct: (a as any).recent_3mo_pct ?? null,
+      prior_3mo_pct: (a as any).prior_3mo_pct ?? null,
     }));
 
     // Enrich with agency names from rcbzag
@@ -171,8 +167,6 @@ export function RetentionPage() {
     } else {
       setAgencies(allAgencies);
     }
-
-    setAgencyCohorts([]);
   }, [orgData.retentionAgencies]);
 
   // Cohort retention is always a historical lookback — the time filter controls
@@ -192,10 +186,10 @@ export function RetentionPage() {
   const hasCohortsInRange = useMemo(() => {
     if (datePreset === 'allTime') return true;
     if (filterAgencyId) {
-      return agencyCohorts.some(c => c.agency_id === filterAgencyId && isMonthInRange(c.cohort_month));
+      return orgData.agencyCohorts.some(c => c.agency_id === filterAgencyId && isMonthInRange(c.month));
     }
     return orgCohorts.some(c => isMonthInRange(c.cohort_month));
-  }, [orgCohorts, agencyCohorts, filterAgencyId, datePreset, isMonthInRange]);
+  }, [orgCohorts, orgData.agencyCohorts, filterAgencyId, datePreset, isMonthInRange]);
 
   // If date filter yields no cohorts, show all (graceful fallback)
   const effectiveIsMonthInRange = useCallback((cohortMonth: string) => {
@@ -234,23 +228,27 @@ export function RetentionPage() {
       });
       return Array.from(byMonth.values()).sort((a, b) => a.cohort_month.localeCompare(b.cohort_month));
     }
-    // Filtered: rebuild from agency_cohort_retention data
-    const filtered = agencyCohorts.filter(c => c.agency_id === filterAgencyId && effectiveIsMonthInRange(c.cohort_month));
+    // Filtered: rebuild from per-agency cohort data in OrgDataCache
+    const filtered = orgData.agencyCohorts.filter(c => c.agency_id === filterAgencyId && effectiveIsMonthInRange(c.month));
     const byMonth = new Map<string, TrendPoint>();
     filtered.forEach(c => {
-      const key = c.cohort_month;
+      const key = c.month;
       const existing = byMonth.get(key) || { cohort_month: key, HI: null, HHC: null };
-      if (c.product_type === 'HI') existing.HI = c.retention_pct;
-      if (c.product_type === 'HHC') existing.HHC = c.retention_pct;
+      // Agency cohorts from edge fn are combined (not split by product) — show as HI line
+      existing.HI = c.retention_pct;
       byMonth.set(key, existing);
     });
     return Array.from(byMonth.values()).sort((a, b) => a.cohort_month.localeCompare(b.cohort_month));
-  }, [orgCohorts, agencyCohorts, filterAgencyId, effectiveIsMonthInRange]);
+  }, [orgCohorts, orgData.agencyCohorts, filterAgencyId, effectiveIsMonthInRange]);
 
   // Filter + sort agency table
   const sortedAgencies = useMemo(() => {
     let arr = [...agencies];
     if (filterAgencyId) arr = arr.filter(a => a.agency_id === filterAgencyId);
+    if (agencySearch.trim()) {
+      const q = agencySearch.trim().toLowerCase();
+      arr = arr.filter(a => (a.agency_name || a.agency_id).toLowerCase().includes(q));
+    }
     const dir = sortAsc ? 1 : -1;
     arr.sort((a, b) => {
       switch (sortKey) {
@@ -263,7 +261,7 @@ export function RetentionPage() {
         case 'retention':
           return dir * ((a.retention_pct ?? -1) - (b.retention_pct ?? -1));
         case 'recent':
-          return dir * ((a.retention_pct ?? -1) - (b.retention_pct ?? -1));
+          return dir * ((a.recent_3mo_pct ?? -1) - (b.recent_3mo_pct ?? -1));
         case 'ap':
           return dir * ((a.active_premium || 0) - (b.active_premium || 0));
         case 'atRisk':
@@ -273,7 +271,31 @@ export function RetentionPage() {
       }
     });
     return arr;
-  }, [agencies, sortKey, sortAsc, filterAgencyId]);
+  }, [agencies, sortKey, sortAsc, filterAgencyId, agencySearch]);
+
+  function exportCsv() {
+    const rows = [['Agency', 'Eligible', 'Retained', 'Retention %', 'Recent 3mo %', 'Active AP', 'At-Risk']];
+    sortedAgencies.forEach(a => {
+      rows.push([
+        a.agency_name || a.agency_id,
+        String(a.eligible_90d),
+        String(a.retained_90d),
+        a.retention_pct !== null ? `${a.retention_pct}%` : '',
+        a.recent_3mo_pct !== null ? `${a.recent_3mo_pct}%` : '',
+        a.active_premium !== null ? String(Math.round(Number(a.active_premium))) : '',
+        String(a.at_risk_count || 0),
+      ]);
+    });
+    const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `retention-breakdown-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('CSV exported');
+  }
 
   function handleSort(key: SortKey) {
     if (sortKey === key) {
@@ -290,10 +312,21 @@ export function RetentionPage() {
 
   const expandedCohorts = useMemo(() => {
     if (!expandedAgency) return [];
-    return agencyCohorts
+    return orgData.agencyCohorts
       .filter(c => c.agency_id === expandedAgency)
+      .map(c => ({
+        agency_id: c.agency_id,
+        agency_name: null as string | null,
+        product_type: 'Combined' as string,
+        cohort_month: c.month,
+        cohort_size: c.eligible,
+        drafted_first: c.eligible,
+        retained: c.retained,
+        retention_pct: c.retention_pct,
+        active_premium: null as number | null,
+      }))
       .sort((a, b) => a.cohort_month.localeCompare(b.cohort_month));
-  }, [agencyCohorts, expandedAgency]);
+  }, [orgData.agencyCohorts, expandedAgency]);
 
   const expandedChartData = useMemo(() => {
     const byMonth = new Map<string, { cohort_month: string; HI: number | null; HHC: number | null }>();
@@ -321,13 +354,20 @@ export function RetentionPage() {
     return (
       <>
         <Header title="Retention" />
-        <div className="p-6 text-center text-muted-foreground">Loading…</div>
+        <div className="p-6 space-y-6 max-w-screen-xl mx-auto">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map(i => <div key={i} className="h-28 rounded-lg shimmer" />)}
+          </div>
+          <div className="h-72 rounded-lg shimmer" />
+          <div className="h-64 rounded-lg shimmer" />
+        </div>
       </>
     );
   }
 
   return (
     <>
+      <Toaster position="top-right" richColors />
       <Header title="Retention" />
       <div className="p-6 space-y-6 max-w-screen-xl mx-auto">
 
@@ -396,7 +436,7 @@ export function RetentionPage() {
                         <CountUp
                           end={card.end}
                           format={card.fmt}
-                          className="text-2xl font-bold text-foreground mt-1 block font-data"
+                          className="text-3xl font-bold text-foreground mt-1 block font-data"
                         />
                         {card.sub && <p className="text-xs text-muted-foreground mt-0.5">{card.sub}</p>}
                       </div>
@@ -481,10 +521,29 @@ export function RetentionPage() {
               Agency Retention Breakdown
               {agencies.length > 0 && (
                 <Badge className="ml-2 bg-secondary text-muted-foreground border-border border">
-                  {agencies.length}
+                  {sortedAgencies.length}
                 </Badge>
               )}
             </CardTitle>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Search agencies…"
+                  value={agencySearch}
+                  onChange={e => setAgencySearch(e.target.value)}
+                  className="h-8 pl-8 pr-3 text-sm rounded-md border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary w-48"
+                />
+              </div>
+              <button
+                onClick={exportCsv}
+                className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium rounded-md border border-border bg-background text-foreground hover:bg-secondary transition-colors"
+                aria-label="Export retention data as CSV"
+              >
+                <Download size={14} /> CSV
+              </button>
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             {sortedAgencies.length === 0 ? (
@@ -523,7 +582,12 @@ export function RetentionPage() {
                   return (
                     <div key={agency.agency_id}>
                       <div
+                        role="button"
+                        tabIndex={0}
+                        aria-expanded={isExpanded}
+                        aria-label={`${agency.agency_name || agency.agency_id} retention details`}
                         onClick={() => toggleExpand(agency.agency_id)}
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleExpand(agency.agency_id); } }}
                         className={`grid grid-cols-9 gap-2 px-4 py-3 text-sm row-hover cursor-pointer ${
                           below90 ? 'bg-red-500/5' : ''
                         }`}
@@ -547,11 +611,11 @@ export function RetentionPage() {
                         <span className={`text-right font-medium font-data self-center ${retentionColor(agency.retention_pct)}`}>
                           {agency.retention_pct !== null ? `${agency.retention_pct}%` : '—'}
                         </span>
-                        <span className={`text-right font-medium font-data self-center ${retentionColor(agency.retention_pct)}`}>
-                          {agency.retention_pct !== null ? `${agency.retention_pct}%` : '—'}
+                        <span className={`text-right font-medium font-data self-center ${retentionColor(agency.recent_3mo_pct)}`}>
+                          {agency.recent_3mo_pct !== null ? `${agency.recent_3mo_pct}%` : '—'}
                         </span>
                         <span className="text-right self-center flex justify-end">
-                          <TrendBadge recent={agency.retention_pct} prior={null} />
+                          <TrendBadge recent={agency.recent_3mo_pct} prior={agency.prior_3mo_pct} />
                         </span>
                         <span className="text-right text-foreground font-data font-medium self-center">
                           {agency.active_premium !== null ? fmt$(Number(agency.active_premium)) : '—'}
