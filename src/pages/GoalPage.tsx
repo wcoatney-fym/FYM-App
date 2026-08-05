@@ -16,6 +16,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import { StaggerContainer, StaggerItem } from '@/components/ui/animated';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { fetchAgentProduction, fetchMonthlyProduction, type AgentProduction, type MonthlyProduction } from '@/lib/prod-api';
@@ -29,7 +30,6 @@ import {
   Edit3,
   Check,
   X,
-  Activity,
   AlertTriangle,
   ArrowUp,
   ArrowDown,
@@ -224,16 +224,60 @@ export function GoalPage() {
     setEditing(true);
   };
 
-  // ── Loading ──
+  // ── Loading skeleton ──
   if (loading) {
     return (
       <>
         <Header title="My Goal" />
-        <div className="p-6 flex items-center justify-center min-h-[400px]">
-          <div className="text-center">
-            <Activity className="w-8 h-8 text-primary/40 animate-pulse mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground">Loading goals…</p>
+        <div className="p-6 space-y-5 max-w-screen-xl mx-auto">
+          {/* Page header skeleton */}
+          <div className="flex items-center justify-between">
+            <div>
+              <Skeleton className="h-6 w-48 mb-2" />
+              <Skeleton className="h-3 w-64" />
+            </div>
+            <Skeleton className="h-8 w-24 rounded-md" />
           </div>
+
+          {/* Hero card skeleton */}
+          <Skeleton className="h-[220px] w-full rounded-xl" />
+
+          {/* Projection card skeleton */}
+          <Card>
+            <CardContent className="pt-5 pb-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Skeleton className="w-7 h-7 rounded-lg" />
+                <div>
+                  <Skeleton className="h-4 w-36 mb-1" />
+                  <Skeleton className="h-2.5 w-28" />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                {[1, 2, 3].map(i => (
+                  <div key={i}>
+                    <Skeleton className="h-2.5 w-16 mb-2" />
+                    <Skeleton className="h-6 w-20 mb-1" />
+                    <Skeleton className="h-2.5 w-24" />
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Calendar grid skeleton */}
+          <Card>
+            <CardContent className="pt-5 pb-4">
+              <div className="flex items-center justify-between mb-4">
+                <Skeleton className="h-4 w-36" />
+                <Skeleton className="h-3 w-28" />
+              </div>
+              <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <Skeleton key={i} className="h-16 rounded-lg" />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </>
     );
@@ -242,7 +286,7 @@ export function GoalPage() {
   return (
     <>
       <Header title="My Goal" />
-      <div className="p-6 space-y-5">
+      <div className="p-6 space-y-5 max-w-screen-xl mx-auto">
         <StaggerContainer>
 
           {/* ── Page header ── */}
@@ -499,7 +543,7 @@ export function GoalPage() {
                   </p>
                 </div>
 
-                <div className="grid grid-cols-4 md:grid-cols-6 gap-2">
+                <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
                   {MONTH_NAMES.map((name, idx) => {
                     const monthNum = idx + 1;
                     const goal = yearGoals.find(g => g.month === monthNum);
