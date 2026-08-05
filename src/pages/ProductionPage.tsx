@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-
+import { DeltaBadge } from '@/components/ui/delta-badge';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { HudFrame } from '@/components/ui/hud-frame';
 import { supabase } from '@/lib/supabase';
@@ -18,10 +18,9 @@ import {
   ResponsiveContainer, ComposedChart, Legend,
 } from 'recharts';
 import { DataFilters } from '@/components/filters/DataFilters';
-import { type DatePreset, type DateRange, type DailyRow, type TrendPoint, DEFAULT_PRESET, getDateRange, getGranularity, aggregateTrend } from '@/lib/dateUtils';
+import { type DatePreset, type DateRange, type DailyRow, type TrendPoint, DEFAULT_PRESET, getDateRange, getGranularity, aggregateTrend, fmtMonth } from '@/lib/dateUtils';
 import {
   TrendingUp, DollarSign, FileText, Building2,
-  ArrowUpRight, ArrowDownRight,
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -78,30 +77,7 @@ function fmtNum(n: number) {
   return n.toLocaleString();
 }
 
-function delta(current: number, previous: number): { pct: number; dir: 'up' | 'down' | 'flat' } {
-  if (previous === 0) return { pct: current > 0 ? 100 : 0, dir: current > 0 ? 'up' : 'flat' };
-  const pct = Math.round(((current - previous) / previous) * 100);
-  return { pct: Math.abs(pct), dir: pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat' };
-}
 
-function DeltaBadge({ current, previous }: { current: number; previous: number }) {
-  const d = delta(current, previous);
-  if (d.dir === 'flat') return <span className="text-xs text-muted-foreground">—</span>;
-  return (
-    <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${
-      d.dir === 'up' ? 'text-emerald-400' : 'text-red-400'
-    }`}>
-      {d.dir === 'up' ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-      {d.pct}%
-    </span>
-  );
-}
-
-function fmtMonth(iso: string) {
-  const [y, m] = iso.split('-');
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `${months[parseInt(m) - 1]} '${y.slice(2)}`;
-}
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function ProductionPage() {
@@ -113,7 +89,7 @@ export function ProductionPage() {
   const [localAgencies, setLocalAgencies] = useState<AgencyRow[]>([]);
   const [localMonthly, setLocalMonthly] = useState<RawMonthlyRow[]>([]);
   const [localDaily, setLocalDaily] = useState<DailyRow[]>([]);
-  const [_dateLoading, setDateLoading] = useState(false);
+  const [dateLoading, setDateLoading] = useState(false);
   const [sortBy, setSortBy] = useState<'ap' | 'policies' | 'growth'>('ap');
   const [filterAgentId, setFilterAgentId] = useState<string | null>(null);
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
@@ -339,6 +315,14 @@ export function ProductionPage() {
           onDateRangeChange={(range, preset) => { setDateRange(range); setDatePreset(preset); }}
         />
 
+        {/* Date-loading overlay */}
+        {dateLoading && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="h-4 w-4 border-2 border-primary/40 border-t-primary rounded-full animate-spin" />
+            Updating data…
+          </div>
+        )}
+
         {/* Hero KPI Cards */}
         <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
@@ -393,7 +377,7 @@ export function ProductionPage() {
                         <CountUp
                           end={card.end}
                           format={card.fmt}
-                          className="text-2xl font-bold text-foreground mt-1 block font-data"
+                          className="text-3xl font-bold text-foreground mt-1 block font-data"
                         />
                         <div className="flex items-center gap-2 mt-0.5">
                           {card.sub && (
