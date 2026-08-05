@@ -48,6 +48,36 @@ export async function fetchNotesForPolicy(policyNumber: string): Promise<Manager
   return data ?? [];
 }
 
+/** Batch-fetch notes for multiple policies in a single query */
+export async function fetchNotesForPolicies(policyNumbers: string[]): Promise<Map<string, ManagerNote[]>> {
+  const map = new Map<string, ManagerNote[]>();
+  if (!supabase || policyNumbers.length === 0) return map;
+
+  // Supabase .in() has a practical limit; chunk at 200
+  const CHUNK = 200;
+  for (let i = 0; i < policyNumbers.length; i += CHUNK) {
+    const batch = policyNumbers.slice(i, i + CHUNK);
+    const { data, error } = await supabase
+      .from('manager_notes')
+      .select('*')
+      .in('policy_number', batch)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('[Notes] fetchNotesForPolicies error:', error);
+      continue;
+    }
+    for (const note of (data ?? []) as ManagerNote[]) {
+      if (!note.policy_number) continue;
+      const existing = map.get(note.policy_number) ?? [];
+      existing.push(note);
+      map.set(note.policy_number, existing);
+    }
+  }
+  return map;
+}
+
 /** Fetch notes for a specific agent (by writing number) */
 export async function fetchNotesForAgent(agentWritingNumber: string): Promise<ManagerNote[]> {
   if (!supabase) return [];
