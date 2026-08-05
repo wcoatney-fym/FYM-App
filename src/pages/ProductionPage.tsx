@@ -2,7 +2,9 @@ import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-
+import { DeltaBadge } from '@/components/ui/delta-badge';
+import { Input } from '@/components/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { HudFrame } from '@/components/ui/hud-frame';
 import { supabase } from '@/lib/supabase';
@@ -18,10 +20,10 @@ import {
   ResponsiveContainer, ComposedChart, Legend,
 } from 'recharts';
 import { DataFilters } from '@/components/filters/DataFilters';
-import { type DatePreset, type DateRange, type DailyRow, type TrendPoint, DEFAULT_PRESET, getDateRange, getGranularity, aggregateTrend } from '@/lib/dateUtils';
+import { type DatePreset, type DateRange, type DailyRow, type TrendPoint, DEFAULT_PRESET, getDateRange, getGranularity, aggregateTrend, fmtMonth } from '@/lib/dateUtils';
+import { toast } from 'sonner';
 import {
-  TrendingUp, DollarSign, FileText, Building2,
-  ArrowUpRight, ArrowDownRight,
+  TrendingUp, DollarSign, FileText, Building2, Search, Download,
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -78,30 +80,7 @@ function fmtNum(n: number) {
   return n.toLocaleString();
 }
 
-function delta(current: number, previous: number): { pct: number; dir: 'up' | 'down' | 'flat' } {
-  if (previous === 0) return { pct: current > 0 ? 100 : 0, dir: current > 0 ? 'up' : 'flat' };
-  const pct = Math.round(((current - previous) / previous) * 100);
-  return { pct: Math.abs(pct), dir: pct > 0 ? 'up' : pct < 0 ? 'down' : 'flat' };
-}
 
-function DeltaBadge({ current, previous }: { current: number; previous: number }) {
-  const d = delta(current, previous);
-  if (d.dir === 'flat') return <span className="text-xs text-muted-foreground">—</span>;
-  return (
-    <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${
-      d.dir === 'up' ? 'text-emerald-400' : 'text-red-400'
-    }`}>
-      {d.dir === 'up' ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-      {d.pct}%
-    </span>
-  );
-}
-
-function fmtMonth(iso: string) {
-  const [y, m] = iso.split('-');
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `${months[parseInt(m) - 1]} '${y.slice(2)}`;
-}
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function ProductionPage() {
@@ -113,8 +92,9 @@ export function ProductionPage() {
   const [localAgencies, setLocalAgencies] = useState<AgencyRow[]>([]);
   const [localMonthly, setLocalMonthly] = useState<RawMonthlyRow[]>([]);
   const [localDaily, setLocalDaily] = useState<DailyRow[]>([]);
-  const [_dateLoading, setDateLoading] = useState(false);
+  const [dateLoading, setDateLoading] = useState(false);
   const [sortBy, setSortBy] = useState<'ap' | 'policies' | 'growth'>('ap');
+  const [search, setSearch] = useState('');
   const [filterAgentId, setFilterAgentId] = useState<string | null>(null);
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
@@ -229,6 +209,7 @@ export function ProductionPage() {
       setDateLoading(false);
     }).catch(err => {
       console.error('Production date-filtered fetch error:', err);
+      toast.error('Failed to load production data. Showing cached results.');
       setDateLoading(false);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -294,8 +275,16 @@ export function ProductionPage() {
     };
   }, [stats, filterAgencyId, filteredAgencies]);
 
+  const searchedAgencies = useMemo(() => {
+    if (!search) return filteredAgencies;
+    const q = search.toLowerCase();
+    return filteredAgencies.filter(a =>
+      (a.agency_name ?? a.agency_id).toLowerCase().includes(q)
+    );
+  }, [filteredAgencies, search]);
+
   const sortedAgencies = useMemo(() => {
-    const arr = [...filteredAgencies];
+    const arr = [...searchedAgencies];
     switch (sortBy) {
       case 'ap': return arr.sort((a, b) => Number(b.active_annual_premium) - Number(a.active_annual_premium));
       case 'policies': return arr.sort((a, b) => b.policies_this_month - a.policies_this_month);
@@ -306,7 +295,37 @@ export function ProductionPage() {
       });
       default: return arr;
     }
-  }, [filteredAgencies, sortBy]);
+  }, [searchedAgencies, sortBy]);
+
+  // CSV export
+  const handleExport = () => {
+    const activeAgencies = sortedAgencies.filter(a => a.active_policies > 0);
+    if (activeAgencies.length === 0) return;
+    const headers = ['Agency', 'Active Policies', 'Annual Premium', 'Avg AP', 'Policies This Month', 'Policies Last Month', 'At Risk'];
+    const escCsv = (val: string | number | null | undefined): string => {
+      if (val === null || val === undefined) return '';
+      const s = String(val);
+      if (s.includes(',') || s.includes('"') || s.includes('\n')) return '"' + s.replace(/"/g, '""') + '"';
+      return s;
+    };
+    const csvRows = activeAgencies.map(a => [
+      escCsv(a.agency_name ?? a.agency_id),
+      a.active_policies,
+      Math.round(Number(a.active_annual_premium)),
+      Math.round(Number(a.avg_annual_premium)),
+      a.policies_this_month,
+      a.policies_last_month,
+      a.at_risk_policies,
+    ]);
+    const csv = [headers.join(','), ...csvRows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `fym-production-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   if (loading) {
     return (
@@ -338,6 +357,14 @@ export function ProductionPage() {
           onAgentChange={setFilterAgentId}
           onDateRangeChange={(range, preset) => { setDateRange(range); setDatePreset(preset); }}
         />
+
+        {/* Date-loading overlay */}
+        {dateLoading && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="h-4 w-4 border-2 border-primary/40 border-t-primary rounded-full animate-spin" />
+            Updating data…
+          </div>
+        )}
 
         {/* Hero KPI Cards */}
         <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -393,7 +420,7 @@ export function ProductionPage() {
                         <CountUp
                           end={card.end}
                           format={card.fmt}
-                          className="text-2xl font-bold text-foreground mt-1 block font-data"
+                          className="text-3xl font-bold text-foreground mt-1 block font-data"
                         />
                         <div className="flex items-center gap-2 mt-0.5">
                           {card.sub && (
@@ -511,74 +538,106 @@ export function ProductionPage() {
 
         {/* Agency Breakdown Table */}
         <Card className="border-border">
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <CardTitle className="text-base text-foreground">Agency Breakdown</CardTitle>
-            <div className="flex gap-1">
-              {[
-                { key: 'ap' as const, label: 'By AP' },
-                { key: 'policies' as const, label: 'By Volume' },
-                { key: 'growth' as const, label: 'By Growth' },
-              ].map(btn => (
-                <button
-                  key={btn.key}
-                  onClick={() => setSortBy(btn.key)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                    sortBy === btn.key
-                      ? 'gradient-primary text-primary-foreground'
-                      : 'bg-secondary text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {btn.label}
-                </button>
-              ))}
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="relative flex-1 sm:flex-initial sm:w-56">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search agencies…"
+                  className="pl-8 h-8 text-xs"
+                  aria-label="Search agencies"
+                />
+              </div>
+              <div className="flex gap-1">
+                {[
+                  { key: 'ap' as const, label: 'By AP' },
+                  { key: 'policies' as const, label: 'By Volume' },
+                  { key: 'growth' as const, label: 'By Growth' },
+                ].map(btn => (
+                  <button
+                    key={btn.key}
+                    onClick={() => setSortBy(btn.key)}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                      sortBy === btn.key
+                        ? 'gradient-primary text-primary-foreground'
+                        : 'bg-secondary text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {btn.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={handleExport}
+                className="p-1.5 rounded-md bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                aria-label="Export CSV"
+                title="Export CSV"
+              >
+                <Download size={14} />
+              </button>
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="divide-y divide-border/30">
-              <div className="grid grid-cols-8 gap-2 px-4 py-2 bg-secondary/30 text-xs font-semibold text-muted-foreground font-data">
-                <span className="col-span-2">Agency</span>
-                <span className="text-right">Active</span>
-                <span className="text-right">Annual Premium</span>
-                <span className="text-right">Avg AP</span>
-                <span className="text-right">This Month</span>
-                <span className="text-right">vs Last</span>
-                <span className="text-right">At Risk</span>
-              </div>
-              {sortedAgencies.filter(a => a.active_policies > 0).map(agency => (
-                <Link
-                  key={agency.agency_id}
-                  to={`/production/${agency.agency_id}`}
-                  className="grid grid-cols-8 gap-2 px-4 py-3 text-sm row-hover cursor-pointer group"
-                >
-                  <span className="col-span-2 font-medium text-foreground truncate group-hover:text-primary transition-colors">
-                    {agency.agency_name || agency.agency_id.slice(0, 12) + '…'}
-                  </span>
-                  <span className="text-right text-muted-foreground font-data">
-                    {fmtNum(agency.active_policies)}
-                  </span>
-                  <span className="text-right text-foreground/80 font-medium font-data">
-                    {fmt$(Number(agency.active_annual_premium))}
-                  </span>
-                  <span className="text-right text-muted-foreground font-data">
-                    {fmt$(Number(agency.avg_annual_premium))}
-                  </span>
-                  <span className="text-right text-foreground font-data font-medium">
-                    {fmtNum(agency.policies_this_month)}
-                  </span>
-                  <span className="text-right">
-                    <DeltaBadge
-                      current={agency.policies_this_month}
-                      previous={agency.policies_last_month}
-                    />
-                  </span>
-                  <span className={`text-right font-data ${
-                    agency.at_risk_policies > 0 ? 'text-red-400 font-medium' : 'text-muted-foreground'
-                  }`}>
-                    {agency.at_risk_policies || '—'}
-                  </span>
-                </Link>
-              ))}
-            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="font-data text-xs w-[25%]">Agency</TableHead>
+                  <TableHead className="font-data text-xs text-right">Active</TableHead>
+                  <TableHead className="font-data text-xs text-right hidden md:table-cell">Annual Premium</TableHead>
+                  <TableHead className="font-data text-xs text-right hidden lg:table-cell">Avg AP</TableHead>
+                  <TableHead className="font-data text-xs text-right">This Month</TableHead>
+                  <TableHead className="font-data text-xs text-right hidden sm:table-cell">vs Last</TableHead>
+                  <TableHead className="font-data text-xs text-right">At Risk</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sortedAgencies.filter(a => a.active_policies > 0).map(agency => (
+                  <TableRow key={agency.agency_id} className="cursor-pointer group">
+                    <TableCell className="py-3">
+                      <Link
+                        to={`/production/${agency.agency_id}`}
+                        className="font-medium text-foreground truncate block group-hover:text-primary transition-colors"
+                      >
+                        {agency.agency_name || agency.agency_id.slice(0, 12) + '…'}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground font-data">
+                      {fmtNum(agency.active_policies)}
+                    </TableCell>
+                    <TableCell className="text-right text-foreground/80 font-medium font-data hidden md:table-cell">
+                      {fmt$(Number(agency.active_annual_premium))}
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground font-data hidden lg:table-cell">
+                      {fmt$(Number(agency.avg_annual_premium))}
+                    </TableCell>
+                    <TableCell className="text-right text-foreground font-data font-medium">
+                      {fmtNum(agency.policies_this_month)}
+                    </TableCell>
+                    <TableCell className="text-right hidden sm:table-cell">
+                      <DeltaBadge
+                        current={agency.policies_this_month}
+                        previous={agency.policies_last_month}
+                      />
+                    </TableCell>
+                    <TableCell className={`text-right font-data ${
+                      agency.at_risk_policies > 0 ? 'text-red-400 font-medium' : 'text-muted-foreground'
+                    }`}>
+                      {agency.at_risk_policies || '—'}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {sortedAgencies.filter(a => a.active_policies > 0).length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                      {search ? `No agencies matching "${search}"` : 'No active agencies'}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       </div>
