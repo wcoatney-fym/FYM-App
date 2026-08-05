@@ -27,15 +27,9 @@ import {
   Eye,
 } from 'lucide-react';
 import { useAgentDirectory, type UnifiedAgent } from '@/hooks/useAgentDirectory';
+import { fmt$ } from '@/lib/formatUtils';
 
 const PAGE_SIZE = 50;
-
-const fmt$ = (n: number) =>
-  n.toLocaleString('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  });
 
 export function AgentDatabaseTab() {
   const {

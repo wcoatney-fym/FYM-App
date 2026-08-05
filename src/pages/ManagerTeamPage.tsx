@@ -36,6 +36,7 @@ import {
   ChevronUp,
   ChevronDown,
 } from 'lucide-react';
+import { fmt$ as fmtCurrency, fmtPct } from '@/lib/formatUtils';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -58,17 +59,6 @@ type SortDir = 'asc' | 'desc';
 type PaceFilter = 'all' | 'on_track' | 'catch_up' | 'behind';
 
 // ── Helpers ────────────────────────────────────────────────────────────
-
-function fmtCurrency(n: number): string {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}K`;
-  return `$${Math.round(n).toLocaleString()}`;
-}
-
-function fmtPct(n: number | null): string {
-  if (n == null) return '—';
-  return `${Math.round(n)}%`;
-}
 
 function getPaceStatus(goalPct: number | null): 'on_track' | 'catch_up' | 'behind' | 'no_goal' {
   if (goalPct == null) return 'no_goal';

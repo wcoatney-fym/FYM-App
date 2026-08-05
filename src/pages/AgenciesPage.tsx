@@ -28,6 +28,7 @@ import {
   Search, Building2, ChevronRight, ChevronUp, ChevronDown,
   Download, ChevronLeft,
 } from 'lucide-react';
+import { fmt$ } from '@/lib/formatUtils';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface AgencyRow {
@@ -61,12 +62,6 @@ function retentionBadge(pct: number | null) {
   if (pct >= 90) return <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 border text-[10px] px-1.5 py-0">On target</Badge>;
   if (pct >= 85) return <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20 border text-[10px] px-1.5 py-0">At risk</Badge>;
   return <Badge className="bg-red-500/10 text-red-400 border-red-500/20 border text-[10px] px-1.5 py-0">Below target</Badge>;
-}
-
-function fmt$(n: number) {
-  if (n >= 1_000_000) return '$' + (n / 1_000_000).toFixed(1) + 'M';
-  if (n >= 1_000) return '$' + Math.round(n / 1_000).toLocaleString() + 'K';
-  return '$' + Math.round(n).toLocaleString();
 }
 
 function escCsv(val: string | number | null | undefined): string {

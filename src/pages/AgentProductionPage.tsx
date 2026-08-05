@@ -26,6 +26,7 @@ import {
   AlertTriangle, Search, Download, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { fmt$, fmtNum, fmtDate } from '@/lib/formatUtils';
 import { TimePeriodSelector } from '@/components/filters/TimePeriodSelector';
 import { type DatePreset, type DateRange, type TrendPoint, DEFAULT_PRESET, getDateRange, getGranularity, bucketKey, fmtBucketLabel } from '@/lib/dateUtils';
 
@@ -71,19 +72,6 @@ interface ProductMix { product_type: string; count: number }
 type PolicySort = 'effective' | 'premium' | 'status' | 'drafts' | 'paid';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
-function fmt$(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${Math.round(n / 1_000).toLocaleString()}K`;
-  return `$${Math.round(n).toLocaleString()}`;
-}
-function fmtNum(n: number) { return n.toLocaleString(); }
-
-function fmtDate(d: string | null) {
-  if (!d) return '—';
-  const dt = new Date(d + 'T00:00:00');
-  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
-}
-
 function statusBadge(status: string, isAtRisk: boolean) {
   if (isAtRisk) return { label: 'At Risk', cls: 'bg-red-500/15 text-red-400 border-red-500/20' };
   switch (status) {

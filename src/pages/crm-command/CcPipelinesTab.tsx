@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { fetchBookOfBusiness } from '@/lib/prod-api';
 import { useOrgData } from '@/contexts/OrgDataCache';
 import { useCachedFetch } from '@/hooks/useCachedFetch';
+import { fmt$ } from '@/lib/formatUtils';
 
 type PipelineTab = 'placements' | 'cancellations' | 'retention' | 'revenue';
 
@@ -47,12 +48,6 @@ interface RevenueMonthRow {
   month: string;
   policies: number;
   annual_premium: number;
-}
-
-function fmt$(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
-  return `$${Math.round(n).toLocaleString()}`;
 }
 
 export function CcPipelinesTab() {

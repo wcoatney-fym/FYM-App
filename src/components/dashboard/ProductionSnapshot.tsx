@@ -18,6 +18,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import type { TrendPoint } from '@/lib/dateUtils';
+import { fmt$ } from '@/lib/formatUtils';
 
 interface PrevSnapshot {
   totalWritten: number;
@@ -44,12 +45,6 @@ interface ProductionSnapshotProps {
   datePreset: string;
   comparing?: boolean;
   prevSnapshot?: PrevSnapshot | null;
-}
-
-function fmt$(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${Math.round(n / 1_000)}K`;
-  return `$${Math.round(n).toLocaleString()}`;
 }
 
 export function ProductionSnapshot({ snapshot, datePreset, comparing, prevSnapshot }: ProductionSnapshotProps) {

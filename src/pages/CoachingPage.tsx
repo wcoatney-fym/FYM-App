@@ -18,6 +18,7 @@ import {
   AlertTriangle, TrendingUp, DollarSign, ShieldCheck,
   ArrowLeft, ArrowRight, RefreshCw, Calendar, User, Building2,
 } from 'lucide-react';
+import { fmt$, fmtDate } from '@/lib/formatUtils';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface CoachingRow {
@@ -80,12 +81,6 @@ type StageKey = typeof STAGES[number]['key'];
 const STAGE_ORDER: StageKey[] = STAGES.map(s => s.key);
 
 // ── Helpers ────────────────────────────────────────────────────────────────
-function fmt$(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${Math.round(n / 1_000).toLocaleString()}K`;
-  return `$${Math.round(n).toLocaleString()}`;
-}
-
 function priorityFromDays(days: number | null | undefined): 'critical' | 'high' | 'medium' {
   if (days === null || days === undefined) return 'medium';
   if (days >= 30) return 'critical';
@@ -103,11 +98,6 @@ function productBadgeClass(product: string | null) {
   if (product === 'HHC') return 'bg-sky-500/10 text-sky-400 border-sky-500/30';
   if (product === 'HI') return 'bg-violet-500/10 text-violet-400 border-violet-500/30';
   return 'bg-secondary text-muted-foreground border-border';
-}
-
-function fmtDate(iso: string | null) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 }
 
 const PAGE = 500;

@@ -24,6 +24,7 @@ import {
   type RosterValidationError,
 } from '@/lib/roster-normalizer';
 import { fetchAgencyRosterData } from '@/lib/prod-api';
+import { fmt$ } from '@/lib/formatUtils';
 
 /* ── Types ──────────────────────────────────────────────────────────── */
 
@@ -69,9 +70,6 @@ interface RosterAgent {
 }
 
 const PAGE_SIZE = 25;
-
-const fmt$ = (n: number) =>
-  n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 
 /* ── Main Page ──────────────────────────────────────────────────────── */
 

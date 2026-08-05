@@ -12,6 +12,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { StaggerContainer, StaggerItem } from '@/components/ui/animated';
 import { Rocket, TrendingUp, Clock, Target, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { fmt$ } from '@/lib/formatUtils';
 
 export interface RampUpAgent {
   agent_id: string;
@@ -29,12 +30,6 @@ export interface RampUpAgent {
 interface RampUpBoardProps {
   agents: RampUpAgent[];
   loading?: boolean;
-}
-
-function fmt$(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${Math.round(n / 1_000).toLocaleString()}K`;
-  return `$${Math.round(n).toLocaleString()}`;
 }
 
 function paceLabel(daysActive: number, apps: number): { text: string; color: string } {

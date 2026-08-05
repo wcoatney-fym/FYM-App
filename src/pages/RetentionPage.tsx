@@ -20,6 +20,7 @@ import {
   ArrowUpRight, ArrowDownRight, Minus, ChevronDown, ChevronRight,
   Search, Download,
 } from 'lucide-react';
+import { fmt$, fmtNum } from '@/lib/formatUtils';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface AgencyOverviewRow {
@@ -40,14 +41,6 @@ interface AgencyOverviewRow {
 type SortKey = 'agency' | 'eligible' | 'retained' | 'retention' | 'recent' | 'ap' | 'atRisk';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
-function fmt$(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${Math.round(n / 1_000).toLocaleString()}K`;
-  return `$${Math.round(n).toLocaleString()}`;
-}
-function fmtNum(n: number) {
-  return n.toLocaleString();
-}
 function fmtMonth(iso: string) {
   const d = new Date(iso);
   return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' });

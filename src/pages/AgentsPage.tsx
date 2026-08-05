@@ -14,14 +14,9 @@ import {
   ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
   X, Loader2,
 } from 'lucide-react';
+import { fmt$ } from '@/lib/formatUtils';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
-function fmt$(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${Math.round(n / 1_000).toLocaleString()}K`;
-  return `$${Math.round(n).toLocaleString()}`;
-}
-
 function fmtPhone(raw: string | null): string {
   if (!raw) return '';
   const digits = raw.replace(/\D/g, '');

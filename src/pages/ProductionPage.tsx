@@ -22,6 +22,7 @@ import {
 import { DataFilters } from '@/components/filters/DataFilters';
 import { type DatePreset, type DateRange, type DailyRow, type TrendPoint, DEFAULT_PRESET, getDateRange, getGranularity, aggregateTrend, fmtMonth } from '@/lib/dateUtils';
 import { toast } from 'sonner';
+import { fmt$, fmtNum } from '@/lib/formatUtils';
 import {
   TrendingUp, DollarSign, FileText, Building2, Search, Download,
 } from 'lucide-react';
@@ -68,19 +69,6 @@ interface RawMonthlyRow {
   policies: number;
   annual_premium: number;
 }
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-function fmt$(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${Math.round(n / 1_000).toLocaleString()}K`;
-  return `$${Math.round(n).toLocaleString()}`;
-}
-
-function fmtNum(n: number) {
-  return n.toLocaleString();
-}
-
-
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function ProductionPage() {

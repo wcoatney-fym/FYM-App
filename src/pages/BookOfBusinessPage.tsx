@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent } from '@/components/ui/card';
+import { HudFrame } from '@/components/ui/hud-frame';
 import { Badge } from '@/components/ui/badge';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { Input } from '@/components/ui/input';
@@ -10,6 +11,7 @@ import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { DataFilters } from '@/components/filters/DataFilters';
 import { toast } from 'sonner';
+import { fmt$, fmtNum, fmtDate } from '@/lib/formatUtils';
 import {
   FileText, DollarSign, AlertTriangle, Clock,
   Search, ChevronLeft, ChevronRight, Download,
@@ -43,17 +45,6 @@ type SortField = 'premium' | 'submit_date' | 'paid_to_date' | 'policy_nbr' | 'st
 type SortOrder = 'asc' | 'desc';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
-function fmt$(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${Math.round(n / 1_000).toLocaleString()}K`;
-  return `$${Math.round(n).toLocaleString()}`;
-}
-function fmtNum(n: number) { return n.toLocaleString(); }
-function fmtDate(d: string | null) {
-  if (!d) return '—';
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
-}
-
 function statusBadge(status: string) {
   const map: Record<string, string> = {
     active: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
@@ -322,29 +313,31 @@ export function BookOfBusinessPage() {
         {/* Summary Strip */}
         <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { title: 'Active Policies', end: summaryStats.active, icon: FileText, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-            { title: 'Annual Premium', end: summaryStats.totalPremium, fmt: fmt$, icon: DollarSign, color: 'text-primary', bg: 'bg-cyan-500/10' },
-            { title: 'At Risk', end: summaryStats.atRisk, icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/10' },
-            { title: 'At-Risk Premium', end: summaryStats.atRiskPremium, fmt: fmt$, icon: Clock, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+            { title: 'Active Policies', end: summaryStats.active, icon: FileText, color: 'text-emerald-400', bg: 'bg-emerald-500/10', accent: 'hsl(142 71% 45% / 0.4)' },
+            { title: 'Annual Premium', end: summaryStats.totalPremium, fmt: fmt$, icon: DollarSign, color: 'text-primary', bg: 'bg-cyan-500/10', accent: 'hsl(199 89% 48% / 0.5)' },
+            { title: 'At Risk', end: summaryStats.atRisk, icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-500/10', accent: 'hsl(0 84% 60% / 0.5)' },
+            { title: 'At-Risk Premium', end: summaryStats.atRiskPremium, fmt: fmt$, icon: Clock, color: 'text-amber-400', bg: 'bg-amber-500/10', accent: 'hsl(38 92% 50% / 0.5)' },
           ].map(card => (
             <StaggerItem key={card.title}>
-              <Card className="border-border">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground">{card.title}</p>
-                      <CountUp
-                        end={card.end}
-                        format={card.fmt || fmtNum}
-                        className="text-xl font-bold text-foreground mt-0.5 block font-data"
-                      />
+              <HudFrame accentColor={card.accent}>
+                <Card className="border-border">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{card.title}</p>
+                        <CountUp
+                          end={card.end}
+                          format={card.fmt || fmtNum}
+                          className="text-2xl font-bold text-foreground mt-1 block font-data"
+                        />
+                      </div>
+                      <div className={`p-2.5 rounded-lg ${card.bg}`}>
+                        <card.icon size={20} className={card.color} />
+                      </div>
                     </div>
-                    <div className={`p-2 rounded-lg ${card.bg}`}>
-                      <card.icon size={18} className={card.color} />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </HudFrame>
             </StaggerItem>
           ))}
         </StaggerContainer>
