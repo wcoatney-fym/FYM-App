@@ -29,7 +29,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useViewAsStore } from '@/store/view-as-store';
 import type { UserRole } from '@/contexts/AuthContext';
-import { Eye, ShieldPlus, Trash2, UserPlus, CheckCircle2, AlertCircle, Users } from 'lucide-react';
+import { Eye, ShieldPlus, Trash2, UserPlus, CheckCircle2, AlertCircle, Users, Settings } from 'lucide-react';
 
 interface ProfileOption {
   id: string;
@@ -122,12 +122,40 @@ export function SettingsPage() {
               <p className="text-xs text-muted-foreground">
                 Credentials are stored in localStorage. They override .env values when set.
               </p>
+              {(url || key) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    localStorage.removeItem('fym_supabase_url');
+                    localStorage.removeItem('fym_supabase_anon_key');
+                    setUrl('');
+                    setKey('');
+                    setSaved(false);
+                  }}
+                  className="text-muted-foreground hover:text-red-400 hover:bg-red-500/10 h-7 px-2 text-xs"
+                >
+                  Clear overrides &amp; use .env defaults
+                </Button>
+              )}
             </CardContent>
           </Card></StaggerItem>
         )}
 
         {isFymAdmin && <StaggerItem><FymAdminManagementCard currentUserId={user?.id ?? null} /></StaggerItem>}
         {isFymAdmin && <StaggerItem><ViewAsCard /></StaggerItem>}
+
+        {!isFymAdmin && (
+          <StaggerItem>
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="w-12 h-12 rounded-xl bg-muted/30 flex items-center justify-center mb-4">
+                <Settings size={24} className="text-muted-foreground/50" />
+              </div>
+              <p className="text-sm font-medium text-foreground/70">No settings available for your role</p>
+              <p className="text-xs text-muted-foreground mt-1">Contact an FYM admin if you need access changes.</p>
+            </div>
+          </StaggerItem>
+        )}
         </StaggerContainer>
       </div>
     </div>
