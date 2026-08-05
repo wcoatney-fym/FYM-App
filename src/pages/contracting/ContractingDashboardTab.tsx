@@ -24,6 +24,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import { HudFrame } from '@/components/ui/hud-frame';
 import { portalSupabase } from '@/lib/portal-supabase';
 import { timeAgo } from '@/lib/contracting/helpers';
 import type { PortalActivityLog, AgencyName } from '@/lib/contracting/types';
@@ -209,6 +210,7 @@ export function ContractingDashboardTab() {
         accent: 'text-amber-400',
         bg: 'bg-amber-500/10',
         border: 'border-amber-500/20',
+        hudAccent: 'hsl(38 92% 50% / 0.4)',
       },
       {
         title: 'Pending Verification',
@@ -217,6 +219,7 @@ export function ContractingDashboardTab() {
         accent: 'text-yellow-400',
         bg: 'bg-amber-500/10',
         border: 'border-yellow-500/20',
+        hudAccent: 'hsl(48 96% 53% / 0.4)',
       },
       {
         title: 'In Progress',
@@ -225,6 +228,7 @@ export function ContractingDashboardTab() {
         accent: 'text-cyan-400',
         bg: 'bg-cyan-500/10',
         border: 'border-blue-500/20',
+        hudAccent: 'hsl(199 89% 48% / 0.4)',
       },
       {
         title: 'Completed',
@@ -233,6 +237,7 @@ export function ContractingDashboardTab() {
         accent: 'text-emerald-400',
         bg: 'bg-emerald-500/10',
         border: 'border-emerald-500/20',
+        hudAccent: 'hsl(142 71% 45% / 0.4)',
       },
     ],
     [counts]
@@ -299,95 +304,98 @@ export function ContractingDashboardTab() {
   return (
     <div className="space-y-6">
       {/* ── Cumulative Performance Hero ─────────────────────────────────── */}
-      <div className="bg-gradient-to-r from-[hsl(199,89%,48%)] to-[hsl(142,71%,45%)] rounded-xl p-8 text-white relative overflow-hidden">
-        <div className="relative">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center">
-              <TrendingUp size={18} className="mr-2 text-amber-300" />
-              <h2 className="text-lg font-bold">Cumulative Performance</h2>
+      <HudFrame accentColor="hsl(199 89% 48% / 0.5)">
+        <div className="gradient-primary rounded-xl p-8 text-white relative overflow-hidden">
+          <div className="relative">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center">
+                <TrendingUp size={18} className="mr-2 text-amber-300" />
+                <h2 className="text-lg font-bold">Cumulative Performance</h2>
+              </div>
+              <button
+                onClick={loadData}
+                className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+                title="Refresh data"
+              >
+                <RefreshCw size={14} className="text-white/60" />
+              </button>
             </div>
-            <button
-              onClick={loadData}
-              className="p-1.5 rounded-lg hover:bg-card/10 transition-colors"
-              title="Refresh data"
-            >
-              <RefreshCw size={14} className="text-white/60" />
-            </button>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-card/10 backdrop-blur-sm rounded-xl p-6 border border-white/10">
-              <div className="flex items-center mb-3">
-                <div className="p-2 bg-amber-400/20 rounded-lg mr-3">
-                  <UserPlus size={18} className="text-amber-300" />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-black/20 backdrop-blur-sm rounded-xl p-6 border border-white/15">
+                <div className="flex items-center mb-3">
+                  <div className="p-2 bg-amber-400/20 rounded-lg mr-3">
+                    <UserPlus size={18} className="text-amber-300" />
+                  </div>
+                  <span className="text-sm font-medium text-white/80">
+                    Total New Hires
+                  </span>
                 </div>
-                <span className="text-sm font-medium text-white/80">
-                  Total New Hires
-                </span>
-              </div>
-              <div className="text-3xl font-bold">
-                {metrics.totalNewHires.toLocaleString()}
-              </div>
-              <p className="text-xs text-white/50 mt-2">
-                All-time new hire entries
-              </p>
-            </div>
-            <div className="bg-card/10 backdrop-blur-sm rounded-xl p-6 border border-white/10">
-              <div className="flex items-center mb-3">
-                <div className="p-2 bg-amber-400/20 rounded-lg mr-3">
-                  <Mail size={18} className="text-amber-300" />
+                <div className="text-3xl font-bold">
+                  {metrics.totalNewHires.toLocaleString()}
                 </div>
-                <span className="text-sm font-medium text-white/80">
-                  Forms Sent
-                </span>
+                <p className="text-xs text-white/50 mt-2">
+                  All-time new hire entries
+                </p>
               </div>
-              <div className="text-3xl font-bold">
-                {metrics.totalFormsSent.toLocaleString()}
-              </div>
-              <p className="text-xs text-white/50 mt-2">
-                Total forms sent to agents
-              </p>
-            </div>
-            <div className="bg-card/10 backdrop-blur-sm rounded-xl p-6 border border-white/10">
-              <div className="flex items-center mb-3">
-                <div className="p-2 bg-amber-400/20 rounded-lg mr-3">
-                  <CheckCircle size={18} className="text-amber-300" />
+              <div className="bg-black/20 backdrop-blur-sm rounded-xl p-6 border border-white/15">
+                <div className="flex items-center mb-3">
+                  <div className="p-2 bg-amber-400/20 rounded-lg mr-3">
+                    <Mail size={18} className="text-amber-300" />
+                  </div>
+                  <span className="text-sm font-medium text-white/80">
+                    Forms Sent
+                  </span>
                 </div>
-                <span className="text-sm font-medium text-white/80">
-                  Forms Completed
-                </span>
+                <div className="text-3xl font-bold">
+                  {metrics.totalFormsSent.toLocaleString()}
+                </div>
+                <p className="text-xs text-white/50 mt-2">
+                  Total forms sent to agents
+                </p>
               </div>
-              <div className="text-3xl font-bold">
-                {metrics.totalFormsCompleted.toLocaleString()}
+              <div className="bg-black/20 backdrop-blur-sm rounded-xl p-6 border border-white/15">
+                <div className="flex items-center mb-3">
+                  <div className="p-2 bg-amber-400/20 rounded-lg mr-3">
+                    <CheckCircle size={18} className="text-amber-300" />
+                  </div>
+                  <span className="text-sm font-medium text-white/80">
+                    Forms Completed
+                  </span>
+                </div>
+                <div className="text-3xl font-bold">
+                  {metrics.totalFormsCompleted.toLocaleString()}
+                </div>
+                <p className="text-xs text-white/50 mt-2">
+                  Successfully completed forms
+                </p>
               </div>
-              <p className="text-xs text-white/50 mt-2">
-                Successfully completed forms
-              </p>
             </div>
           </div>
         </div>
-      </div>
+      </HudFrame>
 
       {/* ── KPI Cards ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {kpiCards.map((card) => (
-          <Card
-            key={card.title}
-            className={`${card.border} hover:glow-primary transition-shadow`}
-          >
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className={`p-2.5 rounded-lg ${card.bg}`}>
-                  <card.icon size={18} className={card.accent} />
+          <HudFrame key={card.title} accentColor={card.hudAccent}>
+            <Card
+              className={`${card.border} hover:glow-primary transition-shadow`}
+            >
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <div className={`p-2.5 rounded-lg ${card.bg}`}>
+                    <card.icon size={18} className={card.accent} />
+                  </div>
+                  <span className={`text-2xl font-bold ${card.accent}`}>
+                    {card.count.toLocaleString()}
+                  </span>
                 </div>
-                <span className={`text-2xl font-bold ${card.accent}`}>
-                  {card.count.toLocaleString()}
-                </span>
-              </div>
-              <h3 className="text-muted-foreground text-sm font-medium">
-                {card.title}
-              </h3>
-            </CardContent>
-          </Card>
+                <h3 className="text-muted-foreground text-sm font-medium">
+                  {card.title}
+                </h3>
+              </CardContent>
+            </Card>
+          </HudFrame>
         ))}
       </div>
 
