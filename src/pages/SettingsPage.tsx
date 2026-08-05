@@ -5,6 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { StaggerContainer, StaggerItem } from '@/components/ui/animated';
 import {
   Select,
   SelectContent,
@@ -71,9 +73,13 @@ export function SettingsPage() {
   return (
     <div>
       <Header title="Settings" />
-      <div className="p-6 max-w-2xl space-y-6">
+      <div className="p-6 max-w-3xl">
+        <p className="text-sm text-muted-foreground mb-6">
+          Manage connections, admin access, and impersonation controls.
+        </p>
+        <StaggerContainer className="space-y-6">
         {isFymAdmin && (
-          <Card className="border-border">
+          <StaggerItem><Card className="border-border">
             <CardHeader>
               <CardTitle className="text-base font-semibold text-foreground">Supabase Connection</CardTitle>
             </CardHeader>
@@ -117,11 +123,12 @@ export function SettingsPage() {
                 Credentials are stored in localStorage. They override .env values when set.
               </p>
             </CardContent>
-          </Card>
+          </Card></StaggerItem>
         )}
 
-        {isFymAdmin && <FymAdminManagementCard currentUserId={user?.id ?? null} />}
-        {isFymAdmin && <ViewAsCard />}
+        {isFymAdmin && <StaggerItem><FymAdminManagementCard currentUserId={user?.id ?? null} /></StaggerItem>}
+        {isFymAdmin && <StaggerItem><ViewAsCard /></StaggerItem>}
+        </StaggerContainer>
       </div>
     </div>
   );
@@ -295,7 +302,10 @@ function FymAdminManagementCard({ currentUserId }: { currentUserId: string | nul
         </p>
 
         {loading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <div className="space-y-2">
+            <Skeleton className="h-12 w-full rounded-md" />
+            <Skeleton className="h-12 w-full rounded-md" />
+          </div>
         ) : admins.length === 0 ? (
           <p className="text-sm text-muted-foreground">No FYM admins registered yet.</p>
         ) : (
@@ -588,7 +598,7 @@ function ViewAsCard() {
             <Label className="text-sm font-medium text-foreground/80">Agency</Label>
             <Select value={selectedAgencyId} onValueChange={setSelectedAgencyId}>
               <SelectTrigger className="bg-secondary/20">
-                <SelectValue placeholder={loadingAgencies ? 'Loading…' : 'Select agency…'} />
+                <SelectValue placeholder={loadingAgencies ? 'Loading agencies…' : 'Select agency…'} />
               </SelectTrigger>
               <SelectContent>
                 {agencies.map((a) => (
