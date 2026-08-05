@@ -93,42 +93,43 @@ export function ContractingDashboardTab() {
     }
 
     try {
-      // Fetch all agents (status only) + new hires + activity log in parallel
-      const [agentsRes, newHiresRes, allNewHiresRes, logsRes] =
+      // Server-side count aggregates — no need to pull every row
+      const [pendingRes, inProgressRes, completedRes, expiredRes, terminatedRes, totalAgentsRes, newHiresRes, allNewHiresRes, logsRes] =
         await Promise.all([
-          portalSupabase.from('agents').select('status'),
-          portalSupabase
-            .from('new_hires')
-            .select('id', { count: 'exact', head: true })
-            .eq('processed', false),
-          portalSupabase
-            .from('new_hires')
-            .select('id', { count: 'exact', head: true }),
-          portalSupabase
-            .from('activity_log')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(10),
+          portalSupabase.from('agents').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+          portalSupabase.from('agents').select('id', { count: 'exact', head: true }).eq('status', 'in-progress'),
+          portalSupabase.from('agents').select('id', { count: 'exact', head: true }).eq('status', 'completed'),
+          portalSupabase.from('agents').select('id', { count: 'exact', head: true }).eq('status', 'expired'),
+          portalSupabase.from('agents').select('id', { count: 'exact', head: true }).eq('status', 'terminated'),
+          portalSupabase.from('agents').select('id', { count: 'exact', head: true }),
+          portalSupabase.from('new_hires').select('id', { count: 'exact', head: true }).eq('processed', false),
+          portalSupabase.from('new_hires').select('id', { count: 'exact', head: true }),
+          portalSupabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(10),
         ]);
 
-      if (agentsRes.error) throw agentsRes.error;
+      // Throw on first error
+      for (const res of [pendingRes, inProgressRes, completedRes, expiredRes, terminatedRes, totalAgentsRes, newHiresRes, allNewHiresRes]) {
+        if (res.error) throw res.error;
+      }
 
-      const agents = agentsRes.data ?? [];
+      const pending = pendingRes.count ?? 0;
+      const inProgress = inProgressRes.count ?? 0;
+      const completed = completedRes.count ?? 0;
+      const totalAgents = totalAgentsRes.count ?? 0;
 
       setCounts({
-        pending: agents.filter((a) => a.status === 'pending').length,
-        inProgress: agents.filter((a) => a.status === 'in-progress').length,
-        completed: agents.filter((a) => a.status === 'completed').length,
-        expired: agents.filter((a) => a.status === 'expired').length,
-        terminated: agents.filter((a) => a.status === 'terminated').length,
+        pending,
+        inProgress,
+        completed,
+        expired: expiredRes.count ?? 0,
+        terminated: terminatedRes.count ?? 0,
         newHires: newHiresRes.count ?? 0,
       });
 
       setMetrics({
         totalNewHires: allNewHiresRes.count ?? 0,
-        totalFormsSent: agents.length,
-        totalFormsCompleted: agents.filter((a) => a.status === 'completed')
-          .length,
+        totalFormsSent: totalAgents,
+        totalFormsCompleted: completed,
       });
 
       setActivities((logsRes.data as PortalActivityLog[]) ?? []);
@@ -148,23 +149,26 @@ export function ContractingDashboardTab() {
       setAgencyLoading(true);
 
       try {
-        const { data, error: err } = await portalSupabase
-          .from('agents')
-          .select('status')
-          .eq('agency', agency);
+        // Server-side count aggregates per agency
+        const [totalRes, pendingRes, inProgressRes, completedRes] =
+          await Promise.all([
+            portalSupabase.from('agents').select('id', { count: 'exact', head: true }).eq('agency', agency),
+            portalSupabase.from('agents').select('id', { count: 'exact', head: true }).eq('agency', agency).eq('status', 'pending'),
+            portalSupabase.from('agents').select('id', { count: 'exact', head: true }).eq('agency', agency).eq('status', 'in-progress'),
+            portalSupabase.from('agents').select('id', { count: 'exact', head: true }).eq('agency', agency).eq('status', 'completed'),
+          ]);
 
-        if (err) throw err;
+        for (const res of [totalRes, pendingRes, inProgressRes, completedRes]) {
+          if (res.error) throw res.error;
+        }
 
-        const agents = data ?? [];
-        const formsSent = agents.length;
-        const completed = agents.filter(
-          (a) => a.status === 'completed'
-        ).length;
+        const formsSent = totalRes.count ?? 0;
+        const completed = completedRes.count ?? 0;
 
         setAgencyData({
           formsSent,
-          pending: agents.filter((a) => a.status === 'pending').length,
-          inProgress: agents.filter((a) => a.status === 'in-progress').length,
+          pending: pendingRes.count ?? 0,
+          inProgress: inProgressRes.count ?? 0,
           completed,
           completionPct:
             formsSent > 0 ? Math.round((completed / formsSent) * 100) : 0,
