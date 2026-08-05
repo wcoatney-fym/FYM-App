@@ -30,3 +30,26 @@ export function fmtPct(n: number | null | undefined): string {
   if (n === null || n === undefined) return '—';
   return `${n.toFixed(1)}%`;
 }
+
+/**
+ * Tailwind text color class for a retention percentage.
+ * 90%+ = green, 85%+ = amber, below = red, null = muted.
+ * Single source of truth — replaces 5+ local retColor/retentionColor copies.
+ */
+export function retentionColor(pct: number | null | undefined): string {
+  if (pct == null) return 'text-muted-foreground';
+  if (pct >= 90) return 'text-emerald-400';
+  if (pct >= 85) return 'text-amber-400';
+  return 'text-red-400';
+}
+
+/**
+ * Tailwind background tint for a retention percentage (subtle row highlight).
+ * Pairs with retentionColor for consistent visual language.
+ */
+export function retentionBg(pct: number | null | undefined): string {
+  if (pct == null) return '';
+  if (pct >= 90) return 'bg-emerald-500/[0.03]';
+  if (pct >= 85) return 'bg-amber-500/[0.03]';
+  return 'bg-red-500/[0.03]';
+}
