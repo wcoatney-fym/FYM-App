@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { HudFrame } from '@/components/ui/hud-frame';
 import { StaggerContainer, StaggerItem } from '@/components/ui/animated';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { fetchAgentProduction, fetchMonthlyProduction, type AgentProduction, type MonthlyProduction } from '@/lib/prod-api';
@@ -33,6 +34,7 @@ import {
   AlertTriangle,
   ArrowUp,
   ArrowDown,
+  Info,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { fmt$ as fmtCurrency, fmtPct } from '@/lib/formatUtils';
@@ -105,9 +107,10 @@ export function GoalPage() {
   const [yearGoals, setYearGoals] = useState<AgentGoal[]>([]);
   const [saving, setSaving] = useState(false);
 
-  // Edit state
+  // Edit state — supports editing any month via calendar cells
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
+  const [editingMonth, setEditingMonth] = useState<number>(currentMonth);
 
   const userId = user?.id ?? '';
 
@@ -188,6 +191,14 @@ export function GoalPage() {
     return yearGoals.reduce((sum, g) => sum + g.target_ap, 0);
   }, [yearGoals]);
 
+  // ── Projection confidence ──
+  const projectionConfidence = useMemo(() => {
+    const months = yearProjection?.monthsUsed ?? 0;
+    if (months >= 6) return { label: 'High', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/30' };
+    if (months >= 3) return { label: 'Medium', color: 'text-amber-400', bg: 'bg-amber-500/10 border-amber-500/30' };
+    return { label: 'Low', color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/30' };
+  }, [yearProjection?.monthsUsed]);
+
   // ── Handlers ──
   const handleSaveGoal = async () => {
     if (!userId || !effectiveWritingNumber) return;
@@ -202,13 +213,13 @@ export function GoalPage() {
         user_id: userId,
         writing_number: effectiveWritingNumber,
         agency_id: effectiveAgencyWritingNumber,
-        month: currentMonth,
+        month: editingMonth,
         year: currentYear,
         target_ap: val,
       });
-      setCurrentGoal(goal);
+      if (editingMonth === currentMonth) setCurrentGoal(goal);
       setEditing(false);
-      toast({ title: 'Goal saved', description: `${MONTH_NAMES[currentMonth - 1]} goal set to ${fmtCurrency(val)}` });
+      toast({ title: 'Goal saved', description: `${MONTH_NAMES[editingMonth - 1]} goal set to ${fmtCurrency(val)}` });
       // Refresh year goals
       const goals = await getYearGoals(userId, currentYear);
       setYearGoals(goals);
@@ -219,8 +230,13 @@ export function GoalPage() {
     }
   };
 
-  const startEditing = () => {
-    setEditValue(currentGoal ? String(currentGoal.target_ap) : '');
+  const startEditing = (month?: number) => {
+    const targetMonth = month ?? currentMonth;
+    setEditingMonth(targetMonth);
+    const existingGoal = targetMonth === currentMonth
+      ? currentGoal
+      : yearGoals.find(g => g.month === targetMonth) ?? null;
+    setEditValue(existingGoal ? String(existingGoal.target_ap) : '');
     setEditing(true);
   };
 
@@ -304,7 +320,7 @@ export function GoalPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={startEditing}
+                  onClick={() => startEditing()}
                   className="gap-1.5"
                 >
                   <Edit3 className="w-3.5 h-3.5" />
@@ -322,7 +338,7 @@ export function GoalPage() {
                   <div className="flex items-center gap-2 mb-3">
                     <Target className="w-5 h-5 text-primary" />
                     <span className="font-semibold text-sm text-foreground">
-                      Set your {MONTH_NAMES[currentMonth - 1]} AP goal
+                      Set your {MONTH_NAMES[editingMonth - 1]} AP goal
                     </span>
                   </div>
                   <div className="flex items-center gap-3">
@@ -454,7 +470,7 @@ export function GoalPage() {
                   <p className="text-xs text-muted-foreground mb-4 max-w-sm mx-auto">
                     Set a monthly AP target to track your pacing, see your required daily production, and project your year-end numbers.
                   </p>
-                  <Button onClick={startEditing} size="sm" className="gap-1.5">
+                  <Button onClick={() => startEditing()} size="sm" className="gap-1.5">
                     <Target className="w-3.5 h-3.5" />
                     Set My Goal
                   </Button>
@@ -466,18 +482,29 @@ export function GoalPage() {
           {/* ── Year-End Projection Card ── */}
           {yearProjection && (
             <StaggerItem>
+              <HudFrame accentColor="hsl(199 89% 48% / 0.4)">
               <Card>
                 <CardContent className="pt-5 pb-5">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <TrendingUp className="w-4 h-4 text-primary" />
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <TrendingUp className="w-4 h-4 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">Year-End Projection</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          Based on {yearProjection.monthsUsed}-month average
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">Year-End Projection</p>
-                      <p className="text-[10px] text-muted-foreground">
-                        Based on {yearProjection.monthsUsed}-month average
-                      </p>
-                    </div>
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] ${projectionConfidence.bg} ${projectionConfidence.color} gap-1`}
+                      title={`Confidence based on ${yearProjection.monthsUsed} month(s) of data. 6+ = High, 3-5 = Medium, 1-2 = Low.`}
+                    >
+                      <Info className="w-2.5 h-2.5" />
+                      {projectionConfidence.label} Confidence
+                    </Badge>
                   </div>
 
                   <div className="grid grid-cols-3 gap-4">
@@ -526,6 +553,7 @@ export function GoalPage() {
                   </div>
                 </CardContent>
               </Card>
+              </HudFrame>
             </StaggerItem>
           )}
 
@@ -549,19 +577,24 @@ export function GoalPage() {
                     const goal = yearGoals.find(g => g.month === monthNum);
                     const isCurrent = monthNum === currentMonth;
                     const isPast = monthNum < currentMonth;
+                    const isClickable = !isPast || isCurrent;
 
                     return (
                       <div
                         key={name}
+                        role={isClickable ? 'button' : undefined}
+                        tabIndex={isClickable ? 0 : undefined}
+                        onClick={isClickable ? () => startEditing(monthNum) : undefined}
+                        onKeyDown={isClickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startEditing(monthNum); } } : undefined}
                         className={`
-                          rounded-lg p-2.5 border text-center transition-all cursor-default
+                          rounded-lg p-2.5 border text-center transition-all
                           ${isCurrent
                             ? 'border-primary/40 bg-primary/5 ring-1 ring-primary/20'
                             : goal
                               ? 'border-border bg-secondary/10'
                               : 'border-dashed border-border/50 bg-transparent'
                           }
-                          ${isPast && !goal ? 'opacity-40' : ''}
+                          ${isPast && !isCurrent ? 'opacity-40 cursor-default' : 'cursor-pointer hover:border-primary/40 hover:bg-primary/5'}
                         `}
                       >
                         <p className={`text-[10px] font-semibold uppercase tracking-wider ${isCurrent ? 'text-primary' : 'text-muted-foreground'}`}>
@@ -572,7 +605,9 @@ export function GoalPage() {
                             {fmtCurrency(goal.target_ap)}
                           </p>
                         ) : (
-                          <p className="text-xs text-muted-foreground mt-1">—</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {isClickable ? '+ Set' : '—'}
+                          </p>
                         )}
                         {isCurrent && goal && (
                           <div className="mt-1.5">
