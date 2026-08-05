@@ -12,6 +12,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
 import { fetchAgencyProduction, fetchAgentProduction } from '@/lib/prod-api';
+import { useCachedFetch } from '@/hooks/useCachedFetch';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { useOrgData } from '@/contexts/OrgDataCache';
@@ -143,8 +144,34 @@ export function LeaderboardPage() {
   // Cache period data
   const [periodData, setPeriodData] = useState<Map<string, { policies: number; ap: number }>>(new Map());
 
-  // Battle wins per agency (trophy count badge)
-  const [agencyBattleWins, setAgencyBattleWins] = useState<Map<string, number>>(new Map());
+  // Battle wins per agency (trophy count badge) — cached, wins don't change often
+  const { data: agencyBattleWins } = useCachedFetch<Map<string, number>>(
+    'leaderboard-battle-wins',
+    async () => {
+      if (!supabase) return new Map();
+      const PAGE = 100;
+      let offset = 0;
+      const winMap = new Map<string, number>();
+      let done = false;
+      while (!done) {
+        const { data: winData } = await (supabase as any)
+          .from('battle_participants')
+          .select('agency_id')
+          .eq('is_winner', true)
+          .not('agency_id', 'is', null)
+          .range(offset, offset + PAGE - 1);
+        if (!winData || winData.length === 0) { done = true; break; }
+        for (const w of winData as any[]) {
+          if (!w.agency_id) continue;
+          winMap.set(w.agency_id, (winMap.get(w.agency_id) || 0) + 1);
+        }
+        if (winData.length < PAGE) done = true;
+        else offset += PAGE;
+      }
+      return winMap;
+    },
+    { maxAge: 4 * 60 * 60 * 1000 }, // 4 hour cache — battles don't change often
+  );
 
   const loadPeriodData = useCallback(async (p: Period) => {
     const start = periodStart(p);
@@ -244,32 +271,6 @@ export function LeaderboardPage() {
       setRows(ranked);
     }
 
-    // Battle wins per agency — light-touch trophy badge
-    if (supabase) {
-      const PAGE = 100;
-      let offset = 0;
-      const winMap = new Map<string, number>();
-      const loadWins = async () => {
-        let done = false;
-        while (!done) {
-          const { data: winData } = await (supabase as any)
-            .from('battle_participants')
-            .select('agency_id')
-            .eq('is_winner', true)
-            .not('agency_id', 'is', null)
-            .range(offset, offset + PAGE - 1);
-          if (!winData || winData.length === 0) { done = true; break; }
-          for (const w of winData as any[]) {
-            if (!w.agency_id) continue;
-            winMap.set(w.agency_id, (winMap.get(w.agency_id) || 0) + 1);
-          }
-          if (winData.length < PAGE) done = true;
-          else offset += PAGE;
-        }
-        setAgencyBattleWins(winMap);
-      };
-      loadWins();
-    }
   }, [orgData.retentionAgencies]);
 
   // Load period data when period changes
@@ -289,8 +290,8 @@ export function LeaderboardPage() {
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
         const cutoff = `${ninetyDaysAgo.getFullYear()}-${String(ninetyDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(ninetyDaysAgo.getDate()).padStart(2, '0')}`;
 
-        // Use prod-data edge function to get agent-level data
-        const allAgents = await fetchAgentProduction();
+        // Server-side date filter — only fetch agents with activity in last 90 days
+        const allAgents = await fetchAgentProduction({ start_date: cutoff });
         const rampAgents: RampUpAgent[] = [];
 
         for (const a of allAgents) {
@@ -745,9 +746,9 @@ export function LeaderboardPage() {
                                 <span className="ml-1.5 text-[10px] text-primary font-semibold">YOU</span>
                               )}
                             </span>
-                            {(agencyBattleWins.get(r.agency_id) || 0) > 0 && (
+                            {(agencyBattleWins?.get(r.agency_id) || 0) > 0 && (
                               <span className="text-[10px] font-data text-amber-400 whitespace-nowrap" title="Battle wins">
-                                🏆 x{agencyBattleWins.get(r.agency_id)}
+                                🏆 x{agencyBattleWins?.get(r.agency_id)}
                               </span>
                             )}
                           </span>
