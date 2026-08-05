@@ -45,17 +45,7 @@ interface AgencyOverviewRow {
   prior_3mo_pct: number | null;
 }
 
-interface AgencyCohortRow {
-  agency_id: string;
-  agency_name: string | null;
-  product_type: 'HI' | 'HHC';
-  cohort_month: string;
-  cohort_size: number;
-  drafted_first: number;
-  retained: number;
-  retention_pct: number | null;
-  active_premium: number | null;
-}
+
 
 interface TrendPoint {
   cohort_month: string;
@@ -327,7 +317,7 @@ export function RetentionPage() {
       .map(c => ({
         agency_id: c.agency_id,
         agency_name: null as string | null,
-        product_type: 'HI' as const,
+        product_type: 'Combined' as string,
         cohort_month: c.month,
         cohort_size: c.eligible,
         drafted_first: c.eligible,
