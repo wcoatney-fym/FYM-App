@@ -241,6 +241,8 @@ export interface AgencyRetentionSummary {
   retained_90d: number;
   eligible_90d: number;
   retention_pct: number | null;
+  recent_3mo_pct: number | null;
+  prior_3mo_pct: number | null;
 }
 
 export interface OrgRetentionSummary {
@@ -294,9 +296,18 @@ export interface CohortEntry {
   retention_pct: number | null;
 }
 
+export interface AgencyCohortEntry {
+  agency_id: string;
+  month: string;
+  eligible: number;
+  retained: number;
+  retention_pct: number | null;
+}
+
 export interface CohortResponse {
   data: {
     cohorts: CohortEntry[];
+    agency_cohorts?: AgencyCohortEntry[];
   };
   _source: string;
   _elapsed_ms: number;

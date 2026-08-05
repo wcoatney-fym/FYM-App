@@ -78,6 +78,8 @@ Deno.serve(async (req) => {
 
     // Cohort map: issue month → { eligible, retained }
     const cohortMap = new Map<string, { eligible: number; retained: number }>();
+    // Per-agency cohort map: agencyId → month → { eligible, retained }
+    const agencyCohortMap = new Map<string, Map<string, { eligible: number; retained: number }>>();
 
     const now = new Date();
     const retentionCutoff = new Date(now.getTime() - retentionDays * 24 * 60 * 60 * 1000);
@@ -219,8 +221,8 @@ Deno.serve(async (req) => {
 
             if (isRetained) bucket.retained++;
 
-            // Cohort tracking
-            if (type === "cohort") {
+            // Cohort tracking (org-wide + per-agency)
+            if (type === "cohort" || type === "summary") {
               const monthKey = appRecvdDate.slice(0, 7);
               if (!cohortMap.has(monthKey)) {
                 cohortMap.set(monthKey, { eligible: 0, retained: 0 });
@@ -228,6 +230,18 @@ Deno.serve(async (req) => {
               const cohort = cohortMap.get(monthKey)!;
               cohort.eligible++;
               if (isRetained) cohort.retained++;
+
+              // Per-agency cohort
+              if (!agencyCohortMap.has(agencyId)) {
+                agencyCohortMap.set(agencyId, new Map());
+              }
+              const agencyMonths = agencyCohortMap.get(agencyId)!;
+              if (!agencyMonths.has(monthKey)) {
+                agencyMonths.set(monthKey, { eligible: 0, retained: 0 });
+              }
+              const ac = agencyMonths.get(monthKey)!;
+              ac.eligible++;
+              if (isRetained) ac.retained++;
             }
           }
         }
@@ -241,6 +255,42 @@ Deno.serve(async (req) => {
 
     switch (type) {
       case "summary": {
+        // Compute recent-3-month retention per agency from agencyCohortMap
+        const now3mo = new Date();
+        now3mo.setMonth(now3mo.getMonth() - 3);
+        const recent3moStart = now3mo.toISOString().slice(0, 7); // e.g. "2026-05"
+
+        function computeRecent3mo(agencyId: string): number | null {
+          const months = agencyCohortMap.get(agencyId);
+          if (!months) return null;
+          let elig = 0, ret = 0;
+          for (const [month, c] of months) {
+            if (month >= recent3moStart) {
+              elig += c.eligible;
+              ret += c.retained;
+            }
+          }
+          return elig > 0 ? Math.round((ret / elig) * 1000) / 10 : null;
+        }
+
+        // Compute prior-3-month retention per agency (the 3 months before recent 3)
+        const now6mo = new Date();
+        now6mo.setMonth(now6mo.getMonth() - 6);
+        const prior3moStart = now6mo.toISOString().slice(0, 7);
+
+        function computePrior3mo(agencyId: string): number | null {
+          const months = agencyCohortMap.get(agencyId);
+          if (!months) return null;
+          let elig = 0, ret = 0;
+          for (const [month, c] of months) {
+            if (month >= prior3moStart && month < recent3moStart) {
+              elig += c.eligible;
+              ret += c.retained;
+            }
+          }
+          return elig > 0 ? Math.round((ret / elig) * 1000) / 10 : null;
+        }
+
         // Return per-agency retention summaries
         const summaries = Array.from(buckets.values()).map((b) => ({
           agency_id: b.agency_id,
@@ -253,6 +303,8 @@ Deno.serve(async (req) => {
           retention_pct: b.eligible > 0
             ? Math.round((b.retained / b.eligible) * 1000) / 10
             : null,
+          recent_3mo_pct: computeRecent3mo(b.agency_id),
+          prior_3mo_pct: computePrior3mo(b.agency_id),
         }));
 
         // Org-wide totals
@@ -309,7 +361,7 @@ Deno.serve(async (req) => {
       }
 
       case "cohort": {
-        // Return monthly cohort retention breakdown
+        // Return monthly cohort retention breakdown (org-wide)
         const cohorts = Array.from(cohortMap.entries())
           .map(([month, c]) => ({
             month,
@@ -321,7 +373,32 @@ Deno.serve(async (req) => {
           }))
           .sort((a, b) => a.month.localeCompare(b.month));
 
-        result = { cohorts };
+        // Per-agency monthly cohort breakdown
+        const agencyCohorts: Array<{
+          agency_id: string;
+          month: string;
+          eligible: number;
+          retained: number;
+          retention_pct: number | null;
+        }> = [];
+        for (const [agencyId, months] of agencyCohortMap) {
+          for (const [month, c] of months) {
+            agencyCohorts.push({
+              agency_id: agencyId,
+              month,
+              eligible: c.eligible,
+              retained: c.retained,
+              retention_pct: c.eligible > 0
+                ? Math.round((c.retained / c.eligible) * 1000) / 10
+                : null,
+            });
+          }
+        }
+        agencyCohorts.sort((a, b) =>
+          a.agency_id.localeCompare(b.agency_id) || a.month.localeCompare(b.month)
+        );
+
+        result = { cohorts, agency_cohorts: agencyCohorts };
         break;
       }
 

@@ -29,6 +29,7 @@ import {
   fetchMonthlyProduction,
   type AgencyRetentionSummary,
   type CohortEntry,
+  type AgencyCohortEntry,
   type AgencyProduction,
   type DailyProduction,
   type MonthlyProduction,
@@ -86,6 +87,8 @@ export interface OrgDataState {
   retentionSummary: RetentionSummaryResponse | null;
   /** Monthly cohort entries */
   cohorts: CohortEntry[];
+  /** Per-agency monthly cohort entries */
+  agencyCohorts: AgencyCohortEntry[];
   /** Per-agency production stats */
   agencyProduction: AgencyProduction[];
   /** Day-level production rows (all agencies) */
@@ -106,6 +109,7 @@ const defaultState: OrgDataState = {
   retentionAgencies: [],
   retentionSummary: null,
   cohorts: [],
+  agencyCohorts: [],
   agencyProduction: [],
   dailyProduction: [],
   monthlyProduction: [],
@@ -139,6 +143,7 @@ export function OrgDataProvider({ children }: { children: ReactNode }) {
   const [cohorts, setCohorts] = useState<CohortEntry[]>(
     hasPersistedData ? persisted.current!.cohorts : []
   );
+  const [agencyCohorts, setAgencyCohorts] = useState<AgencyCohortEntry[]>([]);
   const [agencyProduction, setAgencyProduction] = useState<AgencyProduction[]>(
     hasPersistedData ? persisted.current!.agencyProduction : []
   );
@@ -182,6 +187,7 @@ export function OrgDataProvider({ children }: { children: ReactNode }) {
       setRetentionSummary(retRes);
       setRetentionAgencies(retRes.data.agencies);
       setCohorts(cohortRes.data.cohorts);
+      setAgencyCohorts(cohortRes.data.agency_cohorts ?? []);
       setAgencyProduction(prodRes);
 
       if (allTime) {
@@ -223,6 +229,7 @@ export function OrgDataProvider({ children }: { children: ReactNode }) {
     retentionAgencies,
     retentionSummary,
     cohorts,
+    agencyCohorts,
     agencyProduction,
     dailyProduction,
     monthlyProduction,
