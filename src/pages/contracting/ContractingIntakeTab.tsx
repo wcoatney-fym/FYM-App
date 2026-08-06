@@ -27,6 +27,7 @@ import {
   Phone,
   Building2,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Card, CardContent } from '@/components/ui/card';
 import { portalSupabase } from '@/lib/portal-supabase';
 import { timeAgo, formatPhoneDisplay } from '@/lib/contracting/helpers';
@@ -80,6 +81,10 @@ export function ContractingIntakeTab() {
     message?: string;
   } | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [processingHireId, setProcessingHireId] = useState<string | null>(null);
+
+  // Form field errors
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   // Stats
   const [processedCount, setProcessedCount] = useState(0);
@@ -137,17 +142,53 @@ export function ContractingIntakeTab() {
   const generateSecurityCode = () =>
     Math.floor(100000 + Math.random() * 900000).toString();
 
+  // ── Validation ──────────────────────────────────────────────────────────
+
+  const validateEmail = (email: string): boolean =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  const validatePhone = (phone: string): boolean => {
+    const digits = phone.replace(/\D/g, '');
+    return digits.length === 10 || (digits.length === 11 && digits.startsWith('1'));
+  };
+
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (!formData.firstName.trim()) errors.firstName = 'First name is required';
+    if (!formData.lastName.trim()) errors.lastName = 'Last name is required';
+
+    if (!formData.email.trim()) {
+      errors.email = 'Email is required';
+    } else if (!validateEmail(formData.email.trim())) {
+      errors.email = 'Enter a valid email address';
+    }
+
+    if (!formData.phone.trim()) {
+      errors.phone = 'Phone is required';
+    } else if (!validatePhone(formData.phone.trim())) {
+      errors.phone = 'Enter a valid 10-digit phone number';
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // Clear field error on change
+  const updateField = (field: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    if (fieldErrors[field]) {
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+  };
+
   const handleSendForm = async () => {
     if (!portalSupabase) return;
-    if (
-      !formData.firstName.trim() ||
-      !formData.lastName.trim() ||
-      !formData.email.trim() ||
-      !formData.phone.trim()
-    ) {
-      setSendResult({ success: false, message: 'All fields are required.' });
-      return;
-    }
+    if (!validateForm()) return;
 
     setSending(true);
     setSendResult(null);
@@ -187,6 +228,7 @@ export function ContractingIntakeTab() {
         .eq('id', agent.id);
 
       // Fire the populate webhook to trigger GHL/Zapier
+      let webhookFailed = false;
       try {
         await firePopulateWebhook({
           firstName: formData.firstName.trim(),
@@ -200,7 +242,11 @@ export function ContractingIntakeTab() {
           expirationDate: expiration.toISOString(),
         });
       } catch (webhookErr) {
+        webhookFailed = true;
         console.warn('[Contracting Intake] Webhook failed (form still created):', webhookErr);
+        toast.warning('Form created, but automation trigger failed. The agent won\'t receive an automatic notification — send the link manually or contact support.', {
+          duration: 8000,
+        });
       }
 
       // Log activity
@@ -214,6 +260,9 @@ export function ContractingIntakeTab() {
         success: true,
         url: generatedUrl,
         code: securityCode,
+        message: webhookFailed
+          ? 'Form created but automation failed — send the link manually.'
+          : undefined,
       });
 
       // Reset form
@@ -225,6 +274,7 @@ export function ContractingIntakeTab() {
         formType: 'field',
         agency: 'FYM',
       });
+      setFieldErrors({});
     } catch (err) {
       console.error('[Contracting Intake] Send error:', err);
       setSendResult({
@@ -237,6 +287,9 @@ export function ContractingIntakeTab() {
   };
 
   const handleProcessHire = async (hire: PortalNewHire) => {
+    if (!portalSupabase) return;
+    setProcessingHireId(hire.id);
+
     // Pre-fill the form generator with this hire's data
     setFormData({
       firstName: hire.first_name,
@@ -248,16 +301,96 @@ export function ContractingIntakeTab() {
     });
     setShowFormGen(true);
     setSendResult(null);
+    setFieldErrors({});
 
-    // Mark as processed
-    if (portalSupabase) {
+    try {
+      // Generate and send the form first
+      const securityCode = generateSecurityCode();
+      const expiration = new Date();
+      expiration.setHours(expiration.getHours() + 72);
+
+      const { data: agent, error: insertErr } = await portalSupabase
+        .from('agents')
+        .insert({
+          first_name: hire.first_name.trim(),
+          last_name: hire.last_name.trim(),
+          email: hire.email.trim(),
+          phone: (hire.phone || '').trim(),
+          form_type: 'field' as AgentFormType,
+          agency: ((hire.agency as AgencyName) || 'FYM'),
+          security_code: securityCode,
+          status: 'pending',
+          date_sent: new Date().toISOString(),
+          expiration_date: expiration.toISOString(),
+          form_url: `${PORTAL_BASE_URL}/intake/field`,
+        })
+        .select()
+        .single();
+
+      if (insertErr) throw insertErr;
+
+      const generatedUrl = `${PORTAL_BASE_URL}/intake/field?id=${agent.id}`;
+
+      await portalSupabase
+        .from('agents')
+        .update({ form_url: generatedUrl })
+        .eq('id', agent.id);
+
+      // Fire webhook
+      let webhookFailed = false;
+      try {
+        await firePopulateWebhook({
+          firstName: hire.first_name.trim(),
+          lastName: hire.last_name.trim(),
+          email: hire.email.trim(),
+          phone: (hire.phone || '').trim(),
+          formType: 'field',
+          agency: (hire.agency as AgencyName) || 'FYM',
+          generatedUrl,
+          securityCode,
+          expirationDate: expiration.toISOString(),
+        });
+      } catch (webhookErr) {
+        webhookFailed = true;
+        console.warn('[Contracting Intake] Webhook failed:', webhookErr);
+        toast.warning('Form created, but automation trigger failed. Send the link manually or contact support.', {
+          duration: 8000,
+        });
+      }
+
+      // Log activity
+      await portalSupabase.from('activity_log').insert({
+        agent_id: agent.id,
+        action: 'form_sent',
+        details: `Intake form sent to ${hire.first_name} ${hire.last_name} (${hire.agency || 'FYM'}) — via queue`,
+      });
+
+      // Only NOW mark as processed — form was successfully created
       await portalSupabase
         .from('new_hires')
         .update({ processed: true })
         .eq('id', hire.id);
 
-      // Refresh the list
+      setSendResult({
+        success: true,
+        url: generatedUrl,
+        code: securityCode,
+        message: webhookFailed
+          ? 'Form created but automation failed — send the link manually.'
+          : undefined,
+      });
+
+      toast.success(`Form sent to ${hire.first_name} ${hire.last_name}`);
       loadNewHires();
+    } catch (err) {
+      console.error('[Contracting Intake] Process hire error:', err);
+      toast.error(`Failed to send form: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setSendResult({
+        success: false,
+        message: err instanceof Error ? err.message : 'Failed to process hire',
+      });
+    } finally {
+      setProcessingHireId(null);
     }
   };
 
@@ -362,12 +495,15 @@ export function ContractingIntakeTab() {
                 <input
                   type="text"
                   value={formData.firstName}
-                  onChange={(e) =>
-                    setFormData({ ...formData, firstName: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  onChange={(e) => updateField('firstName', e.target.value)}
+                  className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+                    fieldErrors.firstName ? 'border-red-500/50 ring-1 ring-red-500/30' : 'border-border'
+                  }`}
                   placeholder="John"
                 />
+                {fieldErrors.firstName && (
+                  <p className="text-xs text-red-400 mt-1">{fieldErrors.firstName}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground/80 mb-1">
@@ -376,12 +512,15 @@ export function ContractingIntakeTab() {
                 <input
                   type="text"
                   value={formData.lastName}
-                  onChange={(e) =>
-                    setFormData({ ...formData, lastName: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  onChange={(e) => updateField('lastName', e.target.value)}
+                  className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+                    fieldErrors.lastName ? 'border-red-500/50 ring-1 ring-red-500/30' : 'border-border'
+                  }`}
                   placeholder="Smith"
                 />
+                {fieldErrors.lastName && (
+                  <p className="text-xs text-red-400 mt-1">{fieldErrors.lastName}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground/80 mb-1">
@@ -390,12 +529,15 @@ export function ContractingIntakeTab() {
                 <input
                   type="email"
                   value={formData.email}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  onChange={(e) => updateField('email', e.target.value)}
+                  className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+                    fieldErrors.email ? 'border-red-500/50 ring-1 ring-red-500/30' : 'border-border'
+                  }`}
                   placeholder="john@example.com"
                 />
+                {fieldErrors.email && (
+                  <p className="text-xs text-red-400 mt-1">{fieldErrors.email}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground/80 mb-1">
@@ -404,12 +546,15 @@ export function ContractingIntakeTab() {
                 <input
                   type="tel"
                   value={formData.phone}
-                  onChange={(e) =>
-                    setFormData({ ...formData, phone: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  onChange={(e) => updateField('phone', e.target.value)}
+                  className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+                    fieldErrors.phone ? 'border-red-500/50 ring-1 ring-red-500/30' : 'border-border'
+                  }`}
                   placeholder="(555) 123-4567"
                 />
+                {fieldErrors.phone && (
+                  <p className="text-xs text-red-400 mt-1">{fieldErrors.phone}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground/80 mb-1">
@@ -482,6 +627,11 @@ export function ContractingIntakeTab() {
                     <p className="text-sm font-medium text-emerald-300 flex items-center gap-1.5">
                       <CheckCircle size={14} /> Form sent successfully
                     </p>
+                    {sendResult.message && (
+                      <p className="text-xs text-amber-400 flex items-center gap-1.5">
+                        <AlertCircle size={12} /> {sendResult.message}
+                      </p>
+                    )}
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-emerald-400 font-medium w-20">
@@ -632,9 +782,19 @@ export function ContractingIntakeTab() {
                       </span>
                       <button
                         onClick={() => handleProcessHire(hire)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-xs font-medium rounded-lg hover:bg-primary/80 transition-colors"
+                        disabled={processingHireId === hire.id}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-xs font-medium rounded-lg hover:bg-primary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
-                        <Send size={12} /> Send Form
+                        {processingHireId === hire.id ? (
+                          <>
+                            <RefreshCw size={12} className="animate-spin" />
+                            Sending...
+                          </>
+                        ) : (
+                          <>
+                            <Send size={12} /> Send Form
+                          </>
+                        )}
                       </button>
                     </div>
                   </div>
