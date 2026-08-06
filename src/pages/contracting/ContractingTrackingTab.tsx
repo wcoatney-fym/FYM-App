@@ -106,6 +106,7 @@ export function ContractingTrackingTab() {
   const [submission, setSubmission] = useState<PortalIntakeRecord | null>(null);
   const [files, setFiles] = useState<PortalUploadedFile[]>([]);
   const [modalLoading, setModalLoading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   // Sort
   const [sortField, setSortField] = useState<SortField>('date_sent');
@@ -219,6 +220,15 @@ export function ContractingTrackingTab() {
     [agents]
   );
 
+  // Status counts for filter dropdown labels
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const a of agents) {
+      counts[a.status] = (counts[a.status] ?? 0) + 1;
+    }
+    return counts;
+  }, [agents]);
+
   // ── CSV export ──────────────────────────────────────────────────────────
 
   const exportToCSV = async () => {
@@ -284,6 +294,7 @@ export function ContractingTrackingTab() {
     setFiles([]);
     setModalLoading(true);
     setSsnVisible(false); // Always start masked
+    setDownloadError(null);
 
     try {
       const [subRes, fileRes] = await Promise.all([
@@ -313,9 +324,11 @@ export function ContractingTrackingTab() {
     setSubmission(null);
     setFiles([]);
     setSsnVisible(false);
+    setDownloadError(null);
   };
 
   const downloadFile = (file: PortalUploadedFile) => {
+    setDownloadError(null);
     try {
       const byteChars = atob(file.file_data);
       const byteNums = new Array(byteChars.length);
@@ -333,8 +346,9 @@ export function ContractingTrackingTab() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch {
-      console.error('[Contracting Tracking] Download error');
+    } catch (err) {
+      console.error('[Contracting Tracking] Download error:', err);
+      setDownloadError(`Failed to download "${file.file_name}". The file data may be corrupted.`);
     }
   };
 
@@ -383,12 +397,12 @@ export function ContractingTrackingTab() {
           onChange={(e) => setStatusFilter(e.target.value)}
           className="px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-card"
         >
-          <option value="">All Statuses</option>
-          <option value="pending">Pending</option>
-          <option value="in-progress">In Progress</option>
-          <option value="completed">Completed</option>
-          <option value="expired">Expired</option>
-          <option value="terminated">Terminated</option>
+          <option value="">All Statuses ({agents.length})</option>
+          <option value="pending">Pending ({statusCounts['pending'] ?? 0})</option>
+          <option value="in-progress">In Progress ({statusCounts['in-progress'] ?? 0})</option>
+          <option value="completed">Completed ({statusCounts['completed'] ?? 0})</option>
+          <option value="expired">Expired ({statusCounts['expired'] ?? 0})</option>
+          <option value="terminated">Terminated ({statusCounts['terminated'] ?? 0})</option>
         </select>
         <select
           value={formTypeFilter}
@@ -766,6 +780,11 @@ export function ContractingTrackingTab() {
               {/* Uploaded Files */}
               <div className="bg-background rounded-lg p-4">
                 <h3 className="text-sm font-semibold text-foreground mb-3">Uploaded Files</h3>
+                {downloadError && (
+                  <div className="flex items-center gap-2 p-2.5 mb-3 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400">
+                    <AlertCircle size={14} className="shrink-0" /> {downloadError}
+                  </div>
+                )}
                 {files.length > 0 ? (
                   <div className="space-y-2">
                     {files.map((file) => (
