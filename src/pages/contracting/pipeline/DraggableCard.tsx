@@ -39,6 +39,10 @@ interface DraggableCardProps {
   onClick: () => void;
   /** True when rendered inside DragOverlay (ghost card) */
   isOverlay?: boolean;
+  /** Bulk selection mode */
+  selectMode?: boolean;
+  /** Whether this card is currently selected */
+  isSelected?: boolean;
 }
 
 export function DraggableCard({
@@ -48,12 +52,19 @@ export function DraggableCard({
   isPushing,
   onClick,
   isOverlay = false,
+  selectMode = false,
+  isSelected = false,
 }: DraggableCardProps) {
   // Only use the draggable hook for the real card, not the overlay clone
-  const { attributes, listeners, setNodeRef, isDragging } = isOverlay
+  const draggable = isOverlay
     ? { attributes: {}, listeners: {}, setNodeRef: undefined, isDragging: false }
     : // eslint-disable-next-line react-hooks/rules-of-hooks
       useDraggable({ id: record.id });
+
+  // In select mode, disable drag listeners
+  const { attributes, listeners, setNodeRef, isDragging } = selectMode
+    ? { ...draggable, listeners: {}, attributes: {} }
+    : draggable;
 
   const progress = computeProgress(record, stageSteps);
   const health = stageHealth(record);
@@ -71,8 +82,10 @@ export function DraggableCard({
       className={`w-full text-left bg-card rounded-lg border p-3 glow-sm hover:glow-primary transition-all touch-none ${
         isOverlay
           ? 'rotate-2 scale-105 ring-2 ring-blue-400 shadow-xl opacity-90'
-          : 'cursor-grab active:cursor-grabbing'
-      } ${
+          : selectMode
+            ? 'cursor-pointer'
+            : 'cursor-grab active:cursor-grabbing'
+      } ${isSelected ? 'ring-2 ring-primary/60 bg-primary/5' : ''} ${
         progress.allComplete
           ? 'border-emerald-500/30 ring-1 ring-emerald-200 shadow-emerald-100'
           : HEALTH_BORDER[health]
@@ -81,7 +94,18 @@ export function DraggableCard({
       }`}
     >
       <div className="flex items-start gap-2">
-        <User className="w-3.5 h-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
+        {selectMode && (
+          <span className={`w-4 h-4 mt-0.5 flex-shrink-0 rounded border flex items-center justify-center transition-colors ${
+            isSelected
+              ? 'bg-primary border-primary'
+              : 'border-border'
+          }`}>
+            {isSelected && (
+              <CheckCircle2 className="w-3 h-3 text-white" />
+            )}
+          </span>
+        )}
+        {!selectMode && <User className="w-3.5 h-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />}
         <span className="text-sm font-semibold text-foreground line-clamp-2 leading-tight flex-1">
           {record.agent_name || 'Unnamed'}
         </span>
