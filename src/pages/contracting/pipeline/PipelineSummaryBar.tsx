@@ -30,9 +30,39 @@ const AGENT_COMPLETABLE_KEYS: Record<
 interface PipelineSummaryBarProps {
   records: PortalPipelineRecord[];
   stageSteps: PortalPipelineStageStep[];
+  loading?: boolean;
 }
 
-export function PipelineSummaryBar({ records, stageSteps }: PipelineSummaryBarProps) {
+function SummarySkeleton() {
+  return (
+    <div className="bg-card rounded-xl border border-border glow-sm mb-4 overflow-hidden">
+      <div className="px-4 py-3 flex items-center gap-3">
+        <div className="w-8 h-8 rounded-lg bg-secondary/60 animate-pulse" />
+        <div className="space-y-1.5">
+          <div className="h-3.5 w-32 rounded bg-secondary/60 animate-pulse" />
+          <div className="h-2.5 w-44 rounded bg-secondary/40 animate-pulse" />
+        </div>
+      </div>
+      <div className="px-4 pb-4 pt-1 space-y-2 border-t border-border/50">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <div className="w-[140px] flex-shrink-0">
+              <div className="h-3 w-20 rounded bg-secondary/40 animate-pulse ml-auto" />
+            </div>
+            <div className="flex-1 bg-secondary/40 rounded-full h-5 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-secondary/60 animate-pulse"
+                style={{ width: `${Math.max(15, Math.random() * 70)}%` }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function PipelineSummaryBar({ records, stageSteps, loading }: PipelineSummaryBarProps) {
   const [collapsed, setCollapsed] = useState(false);
 
   const { stageCounts, maxCount, totalAgents, pendingReviews } = useMemo(() => {
@@ -94,6 +124,8 @@ export function PipelineSummaryBar({ records, stageSteps }: PipelineSummaryBarPr
     (sum, r) => sum + r.count,
     0
   );
+
+  if (loading) return <SummarySkeleton />;
 
   return (
     <div className="bg-card rounded-xl border border-border glow-sm mb-4 overflow-hidden">
