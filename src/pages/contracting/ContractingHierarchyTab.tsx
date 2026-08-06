@@ -2383,8 +2383,8 @@ const HierarchyRosterSubTab: React.FC<{ agency: PortalCrmAgency }> = ({ agency }
         if (crmNumber) row['All Templates | Agent CRM #'] = crmNumber;
         if (calendarEmbed) row['Calendar Embed Code'] = calendarEmbed;
         if (urlPrefix) {
-          row['Digital Business Card Home Page'] = `${urlPrefix}.my-agent-appt.com/r${seat}-click-to-schedule`;
-          row['Appt Booked Confirmation Page'] = `${urlPrefix}.my-agent-appt.com/r${seat}-youre-confirmed`;
+          row['Digital Business Card Home Page'] = `https://${urlPrefix}.my-agent-appt.com/r${seat}-click-to-schedule`;
+          row['Appt Booked Confirmation Page'] = `https://${urlPrefix}.my-agent-appt.com/r${seat}-youre-confirmed`;
         }
         rowsToInsert.push({ upload_id: uploadIdVal, row_data: row });
       }

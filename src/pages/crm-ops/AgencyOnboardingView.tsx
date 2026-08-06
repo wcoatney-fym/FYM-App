@@ -1039,8 +1039,8 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
                         <Globe className="w-3.5 h-3.5 text-muted-foreground" />
                         <span className="text-xs font-medium text-muted-foreground">URL Preview (Seat 1)</span>
                       </div>
-                      <p className="text-xs text-muted-foreground font-mono">{urlPrefix.trim()}.my-agent-appt.com/r1-click-to-schedule</p>
-                      <p className="text-xs text-muted-foreground font-mono">{urlPrefix.trim()}.my-agent-appt.com/r1-youre-confirmed</p>
+                      <p className="text-xs text-muted-foreground font-mono">https://{urlPrefix.trim()}.my-agent-appt.com/r1-click-to-schedule</p>
+                      <p className="text-xs text-muted-foreground font-mono">https://{urlPrefix.trim()}.my-agent-appt.com/r1-youre-confirmed</p>
                     </div>
                   )}
                 </div>

@@ -262,10 +262,10 @@ export async function fireZapForAgency(
       crmNumber: crmNumber || rd['All Templates | Agent CRM #'] || '',
       agency: agency.name,
       digitalBusinessCardUrl: urlPrefix
-        ? `${urlPrefix}.my-agent-appt.com/r${seatNum}-click-to-schedule`
+        ? `https://${urlPrefix}.my-agent-appt.com/r${seatNum}-click-to-schedule`
         : rd['Digital Business Card Home Page'] || '',
       confirmationPageUrl: urlPrefix
-        ? `${urlPrefix}.my-agent-appt.com/r${seatNum}-youre-confirmed`
+        ? `https://${urlPrefix}.my-agent-appt.com/r${seatNum}-youre-confirmed`
         : rd['Appt Booked Confirmation Page'] || '',
       calendarEmbedCode: calendarEmbed || rd['Calendar Embed Code'] || '',
     });
@@ -298,10 +298,10 @@ export async function fireZapForAgency(
         crmNumber: crmNumber || rd['All Templates | Agent CRM #'] || '',
         agency: agency.name,
         digitalBusinessCardUrl: urlPrefix
-          ? `${urlPrefix}.my-agent-appt.com/r${seatNum}-click-to-schedule`
+          ? `https://${urlPrefix}.my-agent-appt.com/r${seatNum}-click-to-schedule`
           : rd['Digital Business Card Home Page'] || '',
         confirmationPageUrl: urlPrefix
-          ? `${urlPrefix}.my-agent-appt.com/r${seatNum}-youre-confirmed`
+          ? `https://${urlPrefix}.my-agent-appt.com/r${seatNum}-youre-confirmed`
           : rd['Appt Booked Confirmation Page'] || '',
         calendarEmbedCode: calendarEmbed || rd['Calendar Embed Code'] || '',
       });
@@ -357,8 +357,8 @@ export async function padRosterTo200(
     if (crmNumber) row['All Templates | Agent CRM #'] = crmNumber;
     if (calendarEmbed) row['Calendar Embed Code'] = calendarEmbed;
     if (urlPrefix) {
-      row['Digital Business Card Home Page'] = `${urlPrefix}.my-agent-appt.com/r${seat}-click-to-schedule`;
-      row['Appt Booked Confirmation Page'] = `${urlPrefix}.my-agent-appt.com/r${seat}-youre-confirmed`;
+      row['Digital Business Card Home Page'] = `https://${urlPrefix}.my-agent-appt.com/r${seat}-click-to-schedule`;
+      row['Appt Booked Confirmation Page'] = `https://${urlPrefix}.my-agent-appt.com/r${seat}-youre-confirmed`;
     }
     return row;
   };
@@ -382,8 +382,8 @@ export async function padRosterTo200(
       if (crmNumber) updatedData['All Templates | Agent CRM #'] = crmNumber;
       if (calendarEmbed) updatedData['Calendar Embed Code'] = calendarEmbed;
       if (urlPrefix && seat) {
-        updatedData['Digital Business Card Home Page'] = `${urlPrefix}.my-agent-appt.com/r${seat}-click-to-schedule`;
-        updatedData['Appt Booked Confirmation Page'] = `${urlPrefix}.my-agent-appt.com/r${seat}-youre-confirmed`;
+        updatedData['Digital Business Card Home Page'] = `https://${urlPrefix}.my-agent-appt.com/r${seat}-click-to-schedule`;
+        updatedData['Appt Booked Confirmation Page'] = `https://${urlPrefix}.my-agent-appt.com/r${seat}-youre-confirmed`;
       }
       await supabase
         .from('crm_roster')
