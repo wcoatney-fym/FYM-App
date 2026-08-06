@@ -11,8 +11,8 @@
  */
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const portalUrl = import.meta.env.VITE_PORTAL_SUPABASE_URL || '';
-const portalKey = import.meta.env.VITE_PORTAL_SUPABASE_KEY || '';
+export const portalUrl = import.meta.env.VITE_PORTAL_SUPABASE_URL || '';
+export const portalKey = import.meta.env.VITE_PORTAL_SUPABASE_KEY || '';
 
 if (!portalUrl || !portalKey) {
   console.warn(
