@@ -115,16 +115,22 @@ export function PipelineBoard() {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<AgentPipelineStage | null>(null);
   const [pushingIds, setPushingIds] = useState<Set<string>>(new Set());
-  const [toastMsg, setToastMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [toastMsg, setToastMsg] = useState<{
+    text: string;
+    type: 'success' | 'error';
+    retry?: () => void;
+  } | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [ghlConnected, setGhlConnected] = useState(false);
   const [ghlPipelineId, setGhlPipelineId] = useState<string | null>(null);
   const toastTimer = useRef<number>();
 
-  const showToast = (text: string, type: 'success' | 'error') => {
-    setToastMsg({ text, type });
+  const showToast = (text: string, type: 'success' | 'error', retry?: () => void) => {
+    setToastMsg({ text, type, retry });
     if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = window.setTimeout(() => setToastMsg(null), 3500);
+    // Error toasts with retry stay longer so the user can click
+    const duration = type === 'error' && retry ? 8000 : 3500;
+    toastTimer.current = window.setTimeout(() => setToastMsg(null), duration);
   };
 
   // ── Data loading ─────────────────────────────────────────────────────────
@@ -264,7 +270,11 @@ export function PipelineBoard() {
       setRecords((prev) =>
         prev.map((r) => (r.id === recordId ? record : r))
       );
-      showToast(result.error || 'Failed to move agent', 'error');
+      showToast(
+        result.error || 'Failed to move agent',
+        'error',
+        () => handleStageChange(recordId, newStage),
+      );
     }
 
     setPushingIds((prev) => {
@@ -405,7 +415,7 @@ export function PipelineBoard() {
       </div>
 
       {/* Summary Bar */}
-      <PipelineSummaryBar records={records} stageSteps={stageSteps} />
+      <PipelineSummaryBar records={records} stageSteps={stageSteps} loading={loading} />
 
       {/* Board */}
       <div className="flex-1 overflow-x-auto pb-4">
@@ -448,7 +458,7 @@ export function PipelineBoard() {
               {/* Cards */}
               <div
                 className="flex-1 overflow-y-auto p-2 space-y-2"
-                style={{ maxHeight: 'min(calc(100vh - 380px), 540px)' }}
+                style={{ maxHeight: 'var(--pipeline-col-height, min(calc(100vh - 380px), 540px))' }}
               >
                 {col.records.map((record) => {
                   const progress = computeProgress(record, stageSteps);
@@ -587,13 +597,25 @@ export function PipelineBoard() {
       {/* Toast */}
       {toastMsg && (
         <div
-          className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-lg glow-primary text-sm font-medium transition-all ${
+          className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-lg glow-primary text-sm font-medium transition-all flex items-center gap-3 ${
             toastMsg.type === 'success'
               ? 'bg-emerald-500 text-white'
               : 'bg-red-600 text-white'
           }`}
         >
           {toastMsg.text}
+          {toastMsg.type === 'error' && toastMsg.retry && (
+            <button
+              onClick={() => {
+                const retryFn = toastMsg.retry!;
+                setToastMsg(null);
+                retryFn();
+              }}
+              className="ml-1 px-2.5 py-1 rounded bg-white/20 hover:bg-white/30 text-white text-xs font-bold transition-colors"
+            >
+              Retry
+            </button>
+          )}
         </div>
       )}
 
