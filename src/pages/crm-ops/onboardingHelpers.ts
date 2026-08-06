@@ -12,8 +12,8 @@ import type { CrmAgency } from '@/lib/crm/types';
 import { UserCheck, Phone, Upload, Database } from 'lucide-react';
 
 export const STEPS = [
-  { key: 'phone_setup', label: 'Phone & Subaccount Setup', icon: Phone },
   { key: 'csr', label: 'CSR Assignment', icon: UserCheck },
+  { key: 'phone_setup', label: 'Phone & Subaccount Setup', icon: Phone },
   { key: 'roster', label: 'Agent Roster Upload', icon: Upload },
   { key: 'dba', label: 'DBA Client Roster Upload', icon: Database },
 ] as const;
