@@ -134,11 +134,11 @@ export function CcDashboardTab() {
     (async () => {
       const { data: nameData } = await (supabase as any)
         .from('agencies')
-        .select('tracker_id, name');
+        .select('writing_number, name');
       if (nameData) {
         const nm = new Map<string, string>();
         for (const a of nameData as any[]) {
-          if (a.tracker_id) nm.set(a.tracker_id, a.name);
+          if (a.writing_number) nm.set(a.writing_number, a.name);
         }
         setInsightNames(nm);
       }

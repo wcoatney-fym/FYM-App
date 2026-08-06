@@ -92,12 +92,11 @@ export function AgenciesPage() {
     (async () => {
       const { data: agencyNames } = await (supabase as any)
         .from('agencies')
-        .select('tracker_id, writing_number, name, slug, is_active');
+        .select('id, writing_number, name, slug, is_active');
       if (agencyNames) {
         const nm = new Map<string, { name: string; slug?: string; is_active: boolean }>();
         for (const a of agencyNames as any[]) {
           if (a.writing_number) nm.set(a.writing_number, { name: a.name, slug: a.slug ?? undefined, is_active: a.is_active });
-          if (a.tracker_id) nm.set(a.tracker_id, { name: a.name, slug: a.slug ?? undefined, is_active: a.is_active });
         }
         setNameMap(nm);
       }

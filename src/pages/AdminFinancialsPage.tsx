@@ -79,16 +79,15 @@ export function AdminFinancialsPage() {
       const { data: agencyNames } = await scopeToAgency(
         (supabase as any)
           .from('agencies')
-          .select('tracker_id, writing_number, name'),
+          .select('id, writing_number, name'),
         isOrgWide,
         effectiveAgencyId,
-        'tracker_id'
+        'id'
       );
       if (agencyNames) {
         const nm = new Map<string, string>();
         for (const a of agencyNames as any[]) {
           if (a.writing_number) nm.set(a.writing_number, a.name);
-          if (a.tracker_id) nm.set(a.tracker_id, a.name);
         }
         setNameMap(nm);
       }

@@ -28,7 +28,7 @@ interface AgencySummary {
 }
 
 interface AgencyInfo {
-  tracker_id: string;
+  writing_number: string | null;
   name: string;
   slug: string | null;
   is_active: boolean;
@@ -89,21 +89,22 @@ export function AgencyDetailPage() {
       let resolved = agencyId;
       const { data: byWn } = await (supabase as any)
         .from('agencies')
-        .select('tracker_id, writing_number, name, slug, is_active')
+        .select('id, writing_number, name, slug, is_active')
         .eq('writing_number', agencyId)
         .maybeSingle();
       if (byWn) {
         setInfo(byWn as AgencyInfo);
         resolved = byWn.writing_number;
       } else {
-        const { data: byTracker } = await (supabase as any)
+        // Fallback: try matching by agency UUID (legacy routes)
+        const { data: byId } = await (supabase as any)
           .from('agencies')
-          .select('tracker_id, writing_number, name, slug, is_active')
-          .eq('tracker_id', agencyId)
+          .select('id, writing_number, name, slug, is_active')
+          .eq('id', agencyId)
           .maybeSingle();
-        if (byTracker) {
-          setInfo(byTracker as AgencyInfo);
-          resolved = byTracker.writing_number || agencyId;
+        if (byId) {
+          setInfo(byId as AgencyInfo);
+          resolved = byId.writing_number || agencyId;
         }
       }
       setResolvedWritingNumber(resolved);

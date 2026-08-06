@@ -1,15 +1,14 @@
 /**
- * FYM's agency tracker_id — used to default FYM admin views to FYM's own data.
- * This matches the `tracker_id` column in the `agencies` table and the
- * `agency_id` column in data tables (policy_cache, views, etc.).
+ * FYM's agency writing number — the root depth-01 entity in UNL's hierarchy.
+ * Used to identify FYM-direct policies in Max's prod DB.
  */
-export const FYM_AGENCY_TRACKER_ID = '04813b3b-4a2c-4c55-9f7d-3964d26533f3';
+export const FYM_AGENCY_WRITING_NUMBER = '202JVV00';
 
 /**
- * Internal agency tracker_ids — FYM + Wisechoice (Will's personal agency).
+ * Internal agency writing numbers — FYM + Wisechoice (Will's personal agency).
  * Used for "internal" vs "all agencies" scoping where relevant.
  */
-export const FYM_INTERNAL_AGENCY_IDS = [
-  '04813b3b-4a2c-4c55-9f7d-3964d26533f3', // FYM
-  '982f4e5d-cdff-4b25-bde2-e80c27c4274b', // Wisechoice Senior Advisors
+export const FYM_INTERNAL_WRITING_NUMBERS = [
+  '202JVV00',  // FYM
+  '202LAX00',  // Wisechoice Senior Advisors
 ];
