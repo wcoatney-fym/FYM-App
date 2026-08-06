@@ -9,13 +9,15 @@
  *
  * All data reads/writes go through portalSupabase (akhojh…).
  */
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   Upload,
   FileSpreadsheet,
   Loader2,
   Shield,
   AlertTriangle,
+  Link2,
+
 } from 'lucide-react';
 import { portalSupabase } from '@/lib/portal-supabase';
 import {
@@ -26,6 +28,9 @@ import {
 } from '@/lib/carrier-upload';
 import { CarrierUploadReportPanel } from './CarrierUploadReportPanel';
 import { UploadHistoryTable } from './UploadHistoryTable';
+import { AliasManagementPanel } from './AliasManagementPanel';
+
+type TabView = 'upload' | 'aliases';
 
 export function CarrierUploadTab() {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -35,6 +40,8 @@ export function CarrierUploadTab() {
   const [progress, setProgress] = useState('');
   const [report, setReport] = useState<CarrierUploadReport | null>(null);
   const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState<TabView>('upload');
+  const [aliasCount, setAliasCount] = useState<number | null>(null);
 
   const handleFile = useCallback(
     async (file: File) => {
@@ -99,6 +106,19 @@ export function CarrierUploadTab() {
     if (fileRef.current) fileRef.current.value = '';
   };
 
+  // Load alias count for the stats badge
+  useEffect(() => {
+    if (!portalSupabase) return;
+    (async () => {
+      try {
+        const { count, error } = await portalSupabase
+          .from('carrier_entity_aliases')
+          .select('*', { count: 'exact', head: true });
+        if (!error && count !== null) setAliasCount(count);
+      } catch { /* ignore */ }
+    })();
+  }, [report]); // Refresh after upload completes
+
   if (!portalSupabase) {
     return (
       <div className="text-center py-12 text-muted-foreground">
@@ -124,17 +144,55 @@ export function CarrierUploadTab() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">
-          Carrier Hierarchy Upload
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Upload a carrier hierarchy report to match agents, assign writing
-          numbers, and update carrier tags automatically.
-        </p>
+      {/* Header + tab switcher */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">
+            Carrier Hierarchy Upload
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Upload carrier reports, review matches, and manage persistent aliases.
+          </p>
+        </div>
+        <div className="flex gap-1 bg-secondary/20 rounded-lg p-1 border border-border">
+          <button
+            onClick={() => setActiveTab('upload')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+              activeTab === 'upload'
+                ? 'bg-card text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Upload className="w-3.5 h-3.5" />
+            Upload
+          </button>
+          <button
+            onClick={() => setActiveTab('aliases')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+              activeTab === 'aliases'
+                ? 'bg-card text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Link2 className="w-3.5 h-3.5" />
+            Aliases
+            {aliasCount !== null && aliasCount > 0 && (
+              <span className="bg-purple-500/20 text-purple-400 text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                {aliasCount}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
+      {/* Aliases tab */}
+      {activeTab === 'aliases' && portalSupabase && (
+        <AliasManagementPanel supabase={portalSupabase} />
+      )}
+
+      {/* Upload tab */}
+      {activeTab !== 'aliases' && (
+        <>
       {/* Carrier selector */}
       <div className="flex items-center gap-3">
         <label className="text-sm font-medium text-foreground/80">
@@ -253,6 +311,8 @@ export function CarrierUploadTab() {
 
       {/* Upload history */}
       <UploadHistoryTable supabase={portalSupabase} />
+        </>
+      )}
     </div>
   );
 }

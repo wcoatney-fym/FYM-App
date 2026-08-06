@@ -23,6 +23,7 @@ import {
   Loader2,
   RotateCcw,
   ArrowRight,
+  Link2,
 } from 'lucide-react';
 import type {
   CarrierUploadReport,
@@ -59,6 +60,16 @@ interface Props {
 
 export function CarrierUploadReportPanel({ report, supabase, onReset }: Props) {
   const { summary, agent_results, agency_results, carrier } = report;
+
+  // Count alias-resolved items (these auto-resolved from prior uploads)
+  const aliasResolvedCount = useMemo(
+    () => agent_results.filter((r) => r.alias_resolved).length,
+    [agent_results],
+  );
+  const agencyAliasResolvedCount = useMemo(
+    () => agency_results.filter((r) => r.alias_resolved).length,
+    [agency_results],
+  );
 
   // Partition agents by tier
   const exactMatches = useMemo(
@@ -259,7 +270,7 @@ export function CarrierUploadReportPanel({ report, supabase, onReset }: Props) {
       </div>
 
       {/* Summary KPI cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
         <KpiCard
           label="Total Agents"
           value={summary.total_agents}
@@ -273,6 +284,15 @@ export function CarrierUploadReportPanel({ report, supabase, onReset }: Props) {
           color="text-emerald-400"
           bgColor="bg-emerald-500/10"
           borderColor="border-emerald-500/20"
+        />
+        <KpiCard
+          label="Alias Resolved"
+          value={aliasResolvedCount}
+          icon={Link2}
+          color="text-purple-400"
+          bgColor="bg-purple-500/10"
+          borderColor="border-purple-500/20"
+          subtitle={aliasResolvedCount > 0 ? 'from prior uploads' : undefined}
         />
         <KpiCard
           label="Fuzzy Matches"
@@ -306,11 +326,28 @@ export function CarrierUploadReportPanel({ report, supabase, onReset }: Props) {
         />
       </div>
 
+      {/* Alias learning callout — shows when aliases saved time */}
+      {aliasResolvedCount > 0 && (
+        <div className="flex items-center gap-3 bg-purple-500/10 border border-purple-500/20 rounded-lg px-5 py-3">
+          <Link2 className="w-5 h-5 text-purple-400 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-purple-300">
+              {aliasResolvedCount} agent{aliasResolvedCount !== 1 ? 's' : ''}
+              {agencyAliasResolvedCount > 0 && ` + ${agencyAliasResolvedCount} agenc${agencyAliasResolvedCount !== 1 ? 'ies' : 'y'}`}
+              {' '}auto-resolved from prior uploads
+            </p>
+            <p className="text-xs text-purple-400/70">
+              These matched instantly via aliases saved from previous manual resolutions — no review needed.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Exact matches — collapsed summary */}
       {exactMatches.length > 0 && (
         <CollapsibleSection
           title={`Exact Matches — ${exactMatches.length} auto-applied`}
-          subtitle="Carrier tags and writing numbers already written"
+          subtitle={`Carrier tags and writing numbers already written${aliasResolvedCount > 0 ? ` (${aliasResolvedCount} via alias)` : ''}`}
           icon={CheckCircle2}
           iconColor="text-emerald-400"
           open={showExact}
@@ -362,8 +399,14 @@ export function CarrierUploadReportPanel({ report, supabase, onReset }: Props) {
                     <td className="px-4 py-2">
                       <StatusBadge status={m.carrier_agent.status} />
                     </td>
-                    <td className="px-4 py-2 text-xs text-muted-foreground">
-                      {m.alias_resolved ? 'Alias' : 'Name'}
+                    <td className="px-4 py-2 text-xs">
+                      {m.alias_resolved ? (
+                        <span className="inline-flex items-center gap-1 text-purple-400 font-semibold">
+                          <Link2 className="w-3 h-3" /> Alias
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">Name</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -588,6 +631,7 @@ function KpiCard({
   color,
   bgColor,
   borderColor,
+  subtitle,
 }: {
   label: string;
   value: number;
@@ -595,6 +639,7 @@ function KpiCard({
   color: string;
   bgColor?: string;
   borderColor?: string;
+  subtitle?: string;
 }) {
   return (
     <div
@@ -605,6 +650,9 @@ function KpiCard({
       <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
         {label}
       </p>
+      {subtitle && (
+        <p className="text-[9px] text-muted-foreground mt-0.5">{subtitle}</p>
+      )}
     </div>
   );
 }
