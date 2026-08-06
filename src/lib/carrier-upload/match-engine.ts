@@ -3,11 +3,15 @@
  *
  * Three-tier matching pipeline:
  * 1. Alias lookup — check carrier_entity_aliases for persistent mappings
- * 2. Exact match — case-insensitive first+last name match
+ * 2. Exact match — first+last name OR phone match (case-insensitive)
  * 3. Fuzzy match — Levenshtein-based similarity with confidence score
  *
- * For agents: matches against portal `agents` table
- * For agencies: matches against `hierarchy_agencies` table
+ * For agents: matches against the UNIFIED agent directory —
+ *   Tier 1: agency_rosters in rcbzag (confirmed agents with name/phone/NPN)
+ *   Tier 2: Max's prod DB via agent-directory edge function (all who've written)
+ *   Roster agents take priority; prod agents fill the gaps.
+ *
+ * For agencies: matches against `hierarchy_agencies` table on portal (akhojh)
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
@@ -18,16 +22,25 @@ import type {
   CarrierEntityAlias,
   SupportedCarrier,
 } from './types';
+import { fetchAgentDirectory } from '@/lib/prod-api';
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
-interface PortalAgent {
+/**
+ * Unified agent record — merged from roster + prod DB.
+ * This is the same two-tier model the Database/Agents tab uses.
+ */
+interface UnifiedMatchAgent {
+  /** Stable ID — roster UUID or "prod-{writing_number}" */
   id: string;
-  first_name: string | null;
-  last_name: string | null;
+  first_name: string;
+  last_name: string;
+  phone: string | null;
   email: string | null;
-  agency: string | null;
-  tags: string[] | null;
+  agency_name: string | null;
+  writing_number: string | null;
+  /** 'roster' = from agency_rosters, 'prod' = from Max's DB */
+  source: 'roster' | 'prod';
 }
 
 interface PortalAgency {
@@ -42,24 +55,32 @@ interface ExistingLobAssignment {
 }
 
 /**
- * Match a batch of carrier agents against portal data.
+ * Match a batch of carrier agents against the unified agent directory.
+ *
+ * @param portalSupabase — portal Supabase client (akhojh — for aliases, LOBs, agencies)
+ * @param appSupabase — FYM App Supabase client (rcbzag — for agency_rosters)
+ * @param carrier — which carrier this report is from
+ * @param carrierAgents — normalized agents from the carrier report
  */
 export async function matchAgents(
-  supabase: SupabaseClient,
+  portalSupabase: SupabaseClient,
   carrier: SupportedCarrier,
   carrierAgents: NormalizedCarrierAgent[],
+  appSupabase?: SupabaseClient,
 ): Promise<AgentMatchResult[]> {
-  // 1. Load all portal agents (we need the full list for fuzzy matching)
-  const portalAgents = await loadPortalAgents(supabase);
+  // 1. Load the unified agent directory (roster + prod DB)
+  const unifiedAgents = await loadUnifiedAgents(appSupabase || portalSupabase);
 
   // 2. Load persistent aliases for this carrier + entity_type=agent
-  const aliases = await loadAliases(supabase, carrier, 'agent');
+  const aliases = await loadAliases(portalSupabase, carrier, 'agent');
 
   // 3. Load existing LOB assignments for conflict detection
-  const existingLobs = await loadExistingLobs(supabase, carrier);
+  const existingLobs = await loadExistingLobs(portalSupabase, carrier);
 
   // 4. Match each carrier agent
-  return carrierAgents.map((ca) => matchSingleAgent(ca, portalAgents, aliases, existingLobs, carrier));
+  return carrierAgents.map((ca) =>
+    matchSingleAgent(ca, unifiedAgents, aliases, existingLobs, carrier),
+  );
 }
 
 /**
@@ -84,12 +105,21 @@ export async function matchAgencies(
 
 function matchSingleAgent(
   ca: NormalizedCarrierAgent,
-  portalAgents: PortalAgent[],
+  agents: UnifiedMatchAgent[],
   aliases: CarrierEntityAlias[],
   existingLobs: ExistingLobAssignment[],
   carrier: SupportedCarrier,
 ): AgentMatchResult {
-  const base: Omit<AgentMatchResult, 'match_tier' | 'matched_agent_id' | 'matched_agent_name' | 'confidence' | 'alias_resolved' | 'writing_number_conflict' | 'existing_writing_number'> = {
+  const base: Omit<
+    AgentMatchResult,
+    | 'match_tier'
+    | 'matched_agent_id'
+    | 'matched_agent_name'
+    | 'confidence'
+    | 'alias_resolved'
+    | 'writing_number_conflict'
+    | 'existing_writing_number'
+  > = {
     carrier_agent: ca,
   };
 
@@ -98,8 +128,13 @@ function matchSingleAgent(
     (a) => normalize(a.carrier_name) === normalize(ca.raw_name),
   );
   if (alias) {
-    const matched = portalAgents.find((p) => p.id === alias.matched_entity_id);
-    const conflict = checkWritingNumberConflict(alias.matched_entity_id, carrier, ca.carrier_writing_number, existingLobs);
+    const matched = agents.find((p) => p.id === alias.matched_entity_id);
+    const conflict = checkWritingNumberConflict(
+      alias.matched_entity_id,
+      carrier,
+      ca.carrier_writing_number,
+      existingLobs,
+    );
     return {
       ...base,
       match_tier: 'exact',
@@ -112,26 +147,39 @@ function matchSingleAgent(
     };
   }
 
-  // Step 2: Exact name match (case-insensitive, trimmed)
+  // Step 2: Exact match — first+last name OR phone
   const caFirst = normalize(ca.first_name);
   const caLast = normalize(ca.last_name);
   const caFull = normalize(ca.raw_name);
+  const caPhone = normalizePhone(ca.phone);
 
-  const exactMatch = portalAgents.find((p) => {
+  const exactMatch = agents.find((p) => {
+    // 2a: Phone match — if both have phones and they match, it's exact
+    if (caPhone && caPhone.length >= 7) {
+      const pPhone = normalizePhone(p.phone);
+      if (pPhone && pPhone === caPhone) return true;
+    }
+
+    // 2b: First + last name match (case-insensitive, trimmed)
     const pFirst = normalize(p.first_name || '');
     const pLast = normalize(p.last_name || '');
-    const pFull = normalize(`${p.first_name || ''} ${p.last_name || ''}`);
 
-    // Try first+last match
     if (caFirst && caLast && pFirst && pLast) {
       return caFirst === pFirst && caLast === pLast;
     }
-    // Try full name match (for business entities)
+
+    // 2c: Full name match (for business entities)
+    const pFull = normalize(`${p.first_name || ''} ${p.last_name || ''}`);
     return caFull === pFull && caFull.length > 0;
   });
 
   if (exactMatch) {
-    const conflict = checkWritingNumberConflict(exactMatch.id, carrier, ca.carrier_writing_number, existingLobs);
+    const conflict = checkWritingNumberConflict(
+      exactMatch.id,
+      carrier,
+      ca.carrier_writing_number,
+      existingLobs,
+    );
     return {
       ...base,
       match_tier: 'exact',
@@ -144,11 +192,16 @@ function matchSingleAgent(
     };
   }
 
-  // Step 3: Fuzzy match
-  const fuzzyResult = findBestFuzzyMatch(ca, portalAgents);
+  // Step 3: Fuzzy match — name similarity + phone boost
+  const fuzzyResult = findBestFuzzyMatch(ca, agents);
 
   if (fuzzyResult && fuzzyResult.confidence >= FUZZY_THRESHOLD) {
-    const conflict = checkWritingNumberConflict(fuzzyResult.agent.id, carrier, ca.carrier_writing_number, existingLobs);
+    const conflict = checkWritingNumberConflict(
+      fuzzyResult.agent.id,
+      carrier,
+      ca.carrier_writing_number,
+      existingLobs,
+    );
     return {
       ...base,
       match_tier: 'fuzzy',
@@ -234,28 +287,180 @@ function matchSingleAgency(
   };
 }
 
-// ─── Data Loading ────────────────────────────────────────────────────────────
+// ─── Data Loading — Unified Agent Directory ──────────────────────────────────
 
-async function loadPortalAgents(supabase: SupabaseClient): Promise<PortalAgent[]> {
-  const all: PortalAgent[] = [];
-  const PAGE_SIZE = 1000;
-  let offset = 0;
+/** Roster row from rcbzag.agency_rosters */
+interface RosterRow {
+  id: string;
+  first_name: string;
+  last_name: string;
+  phone: string | null;
+  email: string | null;
+  agency_id: string;
+  unl_writing_number: string | null;
+  manhattan_writing_number: string | null;
+  gtl_writing_number: string | null;
+  ahl_writing_number: string | null;
+  heartland_writing_number: string | null;
+}
 
-  while (true) {
-    const { data, error } = await supabase
-      .from('agents')
-      .select('id, first_name, last_name, email, agency, tags')
-      .range(offset, offset + PAGE_SIZE - 1);
+interface AgencyRow {
+  id: string;
+  name: string;
+  writing_number: string | null;
+}
 
-    if (error) throw error;
-    if (!data || data.length === 0) break;
-    all.push(...(data as PortalAgent[]));
-    if (data.length < PAGE_SIZE) break;
-    offset += PAGE_SIZE;
+/**
+ * Load the unified agent directory — same two-tier model as the Agents tab:
+ *   Tier 1: agency_rosters in rcbzag (confirmed roster uploads)
+ *   Tier 2: Max's prod DB via agent-directory edge function
+ *
+ * Roster agents take priority — if a writing number appears in both,
+ * the roster version wins (it has confirmed identity data + phone/email).
+ */
+async function loadUnifiedAgents(
+  appSupabase: SupabaseClient,
+): Promise<UnifiedMatchAgent[]> {
+  const unified: UnifiedMatchAgent[] = [];
+  const seenWns = new Set<string>();
+
+  // ── Tier 1: Load roster agents from rcbzag ──────────────────────
+  try {
+    // Load agencies for name resolution
+    const agencyMap = new Map<string, AgencyRow>();
+    const { data: agencyData } = await appSupabase
+      .from('agencies')
+      .select('id, name, writing_number')
+      .order('name');
+
+    for (const a of (agencyData || []) as AgencyRow[]) {
+      agencyMap.set(a.id, a);
+    }
+
+    // Load all active roster entries (paginated)
+    const PAGE = 1000;
+    let offset = 0;
+
+    while (true) {
+      const { data, error } = await appSupabase
+        .from('agency_rosters')
+        .select(
+          'id, first_name, last_name, phone, email, agency_id, unl_writing_number, manhattan_writing_number, gtl_writing_number, ahl_writing_number, heartland_writing_number',
+        )
+        .eq('status', 'active')
+        .range(offset, offset + PAGE - 1);
+
+      if (error) {
+        // Table might not exist on portal DB — graceful fallback
+        if (error.code === 'PGRST205' || error.message?.includes('Could not find')) {
+          console.warn('[match-engine] agency_rosters not found — skipping roster tier');
+          break;
+        }
+        throw error;
+      }
+
+      const rows = (data || []) as RosterRow[];
+      if (rows.length === 0) break;
+
+      for (const r of rows) {
+        const agency = agencyMap.get(r.agency_id);
+        const wn = r.unl_writing_number?.trim() || null;
+        if (wn) seenWns.add(wn);
+
+        unified.push({
+          id: r.id,
+          first_name: r.first_name || '',
+          last_name: r.last_name || '',
+          phone: r.phone || null,
+          email: r.email || null,
+          agency_name: agency?.name || null,
+          writing_number: wn,
+          source: 'roster',
+        });
+      }
+
+      if (rows.length < PAGE) break;
+      offset += PAGE;
+    }
+  } catch (err) {
+    console.warn('[match-engine] Roster load failed, continuing with prod only:', err);
   }
 
-  return all;
+  // ── Tier 2: Load prod DB agents via edge function ───────────────
+  try {
+    let page = 1;
+    const PAGE_SIZE = 500;
+
+    while (true) {
+      const res = await fetchAgentDirectory({ page, page_size: PAGE_SIZE });
+
+      for (const a of res.data) {
+        // Skip if this writing number is already in a roster
+        if (a.writing_number && seenWns.has(a.writing_number)) continue;
+        if (a.writing_number) seenWns.add(a.writing_number);
+
+        // Parse name — prod DB stores "First Last" (title-cased by edge fn)
+        const nameParts = parseProdName(a.agent_name);
+
+        unified.push({
+          id: `prod-${a.writing_number}`,
+          first_name: nameParts.first,
+          last_name: nameParts.last,
+          phone: null, // Prod DB doesn't have phone
+          email: null, // Prod DB doesn't have email
+          agency_name: a.agency_name || null,
+          writing_number: a.writing_number,
+          source: 'prod',
+        });
+      }
+
+      if (page >= res.pagination.total_pages) break;
+      page++;
+    }
+  } catch (err) {
+    console.warn('[match-engine] Prod DB agent load failed:', err);
+    // If prod fails but we have roster agents, continue with those
+    if (unified.length === 0) throw err;
+  }
+
+  console.log(
+    `[match-engine] Loaded ${unified.length} unified agents (${unified.filter((a) => a.source === 'roster').length} roster, ${unified.filter((a) => a.source === 'prod').length} prod)`,
+  );
+
+  return unified;
 }
+
+/** Parse prod DB name — edge fn title-cases, format is "First Last" */
+function parseProdName(raw: string | null): { first: string; last: string } {
+  if (!raw) return { first: '', last: '' };
+  const trimmed = raw.trim();
+
+  // Check for "LAST, FIRST" format (some prod DB entries)
+  if (trimmed.includes(',')) {
+    const [last, ...rest] = trimmed.split(',');
+    const first = rest.join(',').trim();
+    return { first: titleCase(first), last: titleCase(last) };
+  }
+
+  // "First Last" or single word
+  const parts = trimmed.split(/\s+/);
+  if (parts.length >= 2) {
+    return {
+      first: titleCase(parts.slice(0, -1).join(' ')),
+      last: titleCase(parts[parts.length - 1]),
+    };
+  }
+
+  return { first: titleCase(trimmed), last: '' };
+}
+
+function titleCase(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// ─── Portal Data Loading (agencies, aliases, LOBs) ──────────────────────────
 
 async function loadPortalAgencies(supabase: SupabaseClient): Promise<PortalAgency[]> {
   const all: PortalAgency[] = [];
@@ -290,7 +495,19 @@ async function loadAliases(
     .eq('carrier', carrier)
     .eq('entity_type', entityType);
 
-  if (error) throw error;
+  // Gracefully handle missing table (migration not yet deployed)
+  if (error) {
+    if (
+      error.code === 'PGRST205' ||
+      error.message?.includes('Could not find the table')
+    ) {
+      console.warn(
+        '[match-engine] carrier_entity_aliases table not found — skipping alias lookup',
+      );
+      return [];
+    }
+    throw error;
+  }
   return (data as CarrierEntityAlias[]) || [];
 }
 
@@ -314,19 +531,33 @@ const FUZZY_THRESHOLD = 60;
 
 function findBestFuzzyMatch(
   ca: NormalizedCarrierAgent,
-  portalAgents: PortalAgent[],
-): { agent: PortalAgent; confidence: number } | null {
+  agents: UnifiedMatchAgent[],
+): { agent: UnifiedMatchAgent; confidence: number } | null {
   const caFull = normalize(ca.raw_name);
   if (!caFull) return null;
 
-  let bestMatch: PortalAgent | null = null;
+  const caPhone = normalizePhone(ca.phone);
+
+  let bestMatch: UnifiedMatchAgent | null = null;
   let bestScore = 0;
 
-  for (const pa of portalAgents) {
+  for (const pa of agents) {
     const paFull = normalize(`${pa.first_name || ''} ${pa.last_name || ''}`);
     if (!paFull) continue;
 
-    const score = similarity(caFull, paFull);
+    let score = similarity(caFull, paFull);
+
+    // Phone boost — if phones are close but not exact, bump confidence
+    if (caPhone && caPhone.length >= 7) {
+      const paPhone = normalizePhone(pa.phone);
+      if (paPhone && paPhone.length >= 7) {
+        // Last 7 digits match = strong phone signal
+        if (caPhone.slice(-7) === paPhone.slice(-7)) {
+          score = Math.min(1, score + 0.15);
+        }
+      }
+    }
+
     if (score > bestScore) {
       bestScore = score;
       bestMatch = pa;
@@ -383,7 +614,8 @@ function checkWritingNumberConflict(
   );
 
   if (!existing) return { hasConflict: false, existingNumber: null };
-  if (existing.writing_number === newNumber) return { hasConflict: false, existingNumber: null };
+  if (existing.writing_number === newNumber)
+    return { hasConflict: false, existingNumber: null };
 
   return { hasConflict: true, existingNumber: existing.writing_number };
 }
@@ -401,7 +633,16 @@ function normalize(s: string): string {
     .trim();
 }
 
-function formatAgentName(a: PortalAgent): string {
+/** Normalize a phone number — strip non-digits, return last 10 digits */
+function normalizePhone(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length < 7) return null;
+  // Return last 10 digits (strip country code)
+  return digits.slice(-10);
+}
+
+function formatAgentName(a: UnifiedMatchAgent): string {
   return [a.first_name, a.last_name].filter(Boolean).join(' ') || 'Unknown';
 }
 
@@ -435,9 +676,9 @@ function levenshtein(a: string, b: string): number {
     for (let i = 1; i <= a.length; i++) {
       const cost = a[i - 1] === b[j - 1] ? 0 : 1;
       const val = Math.min(
-        row[i] + 1,        // deletion
-        prev + 1,           // insertion
-        row[i - 1] + cost,  // substitution
+        row[i] + 1, // deletion
+        prev + 1, // insertion
+        row[i - 1] + cost, // substitution
       );
       row[i - 1] = prev;
       prev = val;

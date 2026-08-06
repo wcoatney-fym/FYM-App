@@ -30,11 +30,12 @@ import { buildCarrierTag } from './types';
 /**
  * Process a carrier hierarchy report file end-to-end.
  *
- * @param supabase — portal Supabase client
+ * @param supabase — portal Supabase client (akhojh — aliases, LOBs, agencies, upload history)
  * @param file — the XLSX file (ArrayBuffer)
  * @param carrier — which carrier this report is from
  * @param fileName — original file name for audit trail
  * @param uploadedBy — who uploaded (display name or ID)
+ * @param appSupabase — FYM App Supabase client (rcbzag — for agency_rosters in unified agent directory)
  */
 export async function processCarrierUpload(
   supabase: SupabaseClient,
@@ -42,6 +43,7 @@ export async function processCarrierUpload(
   carrier: SupportedCarrier,
   fileName: string,
   uploadedBy?: string,
+  appSupabase?: SupabaseClient,
 ): Promise<CarrierUploadReport> {
   // 1. Create upload record
   const uploadId = await createUploadRecord(supabase, carrier, fileName, uploadedBy);
@@ -50,8 +52,8 @@ export async function processCarrierUpload(
     // 2. Parse the XLSX file
     const parseResult = parseFile(file, carrier);
 
-    // 3. Run match engine
-    const agentResults = await matchAgents(supabase, carrier, parseResult.agents);
+    // 3. Run match engine — unified agent directory (roster + prod DB)
+    const agentResults = await matchAgents(supabase, carrier, parseResult.agents, appSupabase);
     const agencyResults = await matchAgencies(supabase, carrier, parseResult.agencies);
 
     // 4. Auto-apply exact matches
