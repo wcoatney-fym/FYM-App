@@ -29,6 +29,27 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Skeleton } from '@/components/ui/skeleton';
 import { portalSupabase } from '@/lib/portal-supabase';
 import { timeAgo, formatPhoneDisplay } from '@/lib/contracting/helpers';
 import { firePopulateWebhook } from '@/lib/contracting/portal-webhooks';
@@ -82,6 +103,11 @@ export function ContractingIntakeTab() {
   } | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [processingHireId, setProcessingHireId] = useState<string | null>(null);
+
+  // Confirmation dialog state
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingHire, setPendingHire] = useState<PortalNewHire | null>(null);
+  const [confirmSource, setConfirmSource] = useState<'manual' | 'queue'>('manual');
 
   // Form field errors
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -186,9 +212,44 @@ export function ContractingIntakeTab() {
     }
   };
 
-  const handleSendForm = async () => {
-    if (!portalSupabase) return;
+  // ── Confirmation flow ───────────────────────────────────────────────────
+
+  const requestManualSendConfirm = () => {
     if (!validateForm()) return;
+    setConfirmSource('manual');
+    setPendingHire(null);
+    setConfirmOpen(true);
+  };
+
+  const requestQueueSendConfirm = (hire: PortalNewHire) => {
+    setConfirmSource('queue');
+    setPendingHire(hire);
+    setConfirmOpen(true);
+  };
+
+  const handleConfirmedSend = () => {
+    setConfirmOpen(false);
+    if (confirmSource === 'queue' && pendingHire) {
+      executeProcessHire(pendingHire);
+    } else {
+      executeSendForm();
+    }
+  };
+
+  const confirmName = confirmSource === 'queue' && pendingHire
+    ? `${pendingHire.first_name} ${pendingHire.last_name}`
+    : `${formData.firstName} ${formData.lastName}`.trim();
+
+  const confirmAgency = confirmSource === 'queue' && pendingHire
+    ? pendingHire.agency || 'FYM'
+    : formData.agency;
+
+  const confirmFormType = confirmSource === 'queue'
+    ? 'Field'
+    : FORM_TYPES.find((ft) => ft.value === formData.formType)?.label || formData.formType;
+
+  const executeSendForm = async () => {
+    if (!portalSupabase) return;
 
     setSending(true);
     setSendResult(null);
@@ -286,7 +347,11 @@ export function ContractingIntakeTab() {
     }
   };
 
-  const handleProcessHire = async (hire: PortalNewHire) => {
+  const handleProcessHire = (hire: PortalNewHire) => {
+    requestQueueSendConfirm(hire);
+  };
+
+  const executeProcessHire = async (hire: PortalNewHire) => {
     if (!portalSupabase) return;
     setProcessingHireId(hire.id);
 
@@ -488,122 +553,106 @@ export function ContractingIntakeTab() {
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground/80 mb-1">
-                  First Name
-                </label>
-                <input
-                  type="text"
+              <div className="space-y-1.5">
+                <Label htmlFor="intake-first-name">First Name</Label>
+                <Input
+                  id="intake-first-name"
                   value={formData.firstName}
                   onChange={(e) => updateField('firstName', e.target.value)}
-                  className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${
-                    fieldErrors.firstName ? 'border-red-500/50 ring-1 ring-red-500/30' : 'border-border'
-                  }`}
+                  className={fieldErrors.firstName ? 'border-red-500/50 ring-1 ring-red-500/30' : ''}
                   placeholder="John"
                 />
                 {fieldErrors.firstName && (
-                  <p className="text-xs text-red-400 mt-1">{fieldErrors.firstName}</p>
+                  <p className="text-xs text-red-400">{fieldErrors.firstName}</p>
                 )}
               </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground/80 mb-1">
-                  Last Name
-                </label>
-                <input
-                  type="text"
+              <div className="space-y-1.5">
+                <Label htmlFor="intake-last-name">Last Name</Label>
+                <Input
+                  id="intake-last-name"
                   value={formData.lastName}
                   onChange={(e) => updateField('lastName', e.target.value)}
-                  className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${
-                    fieldErrors.lastName ? 'border-red-500/50 ring-1 ring-red-500/30' : 'border-border'
-                  }`}
+                  className={fieldErrors.lastName ? 'border-red-500/50 ring-1 ring-red-500/30' : ''}
                   placeholder="Smith"
                 />
                 {fieldErrors.lastName && (
-                  <p className="text-xs text-red-400 mt-1">{fieldErrors.lastName}</p>
+                  <p className="text-xs text-red-400">{fieldErrors.lastName}</p>
                 )}
               </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground/80 mb-1">
-                  Email
-                </label>
-                <input
+              <div className="space-y-1.5">
+                <Label htmlFor="intake-email">Email</Label>
+                <Input
+                  id="intake-email"
                   type="email"
                   value={formData.email}
                   onChange={(e) => updateField('email', e.target.value)}
-                  className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${
-                    fieldErrors.email ? 'border-red-500/50 ring-1 ring-red-500/30' : 'border-border'
-                  }`}
+                  className={fieldErrors.email ? 'border-red-500/50 ring-1 ring-red-500/30' : ''}
                   placeholder="john@example.com"
                 />
                 {fieldErrors.email && (
-                  <p className="text-xs text-red-400 mt-1">{fieldErrors.email}</p>
+                  <p className="text-xs text-red-400">{fieldErrors.email}</p>
                 )}
               </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground/80 mb-1">
-                  Phone
-                </label>
-                <input
+              <div className="space-y-1.5">
+                <Label htmlFor="intake-phone">Phone</Label>
+                <Input
+                  id="intake-phone"
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => updateField('phone', e.target.value)}
-                  className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${
-                    fieldErrors.phone ? 'border-red-500/50 ring-1 ring-red-500/30' : 'border-border'
-                  }`}
+                  className={fieldErrors.phone ? 'border-red-500/50 ring-1 ring-red-500/30' : ''}
                   placeholder="(555) 123-4567"
                 />
                 {fieldErrors.phone && (
-                  <p className="text-xs text-red-400 mt-1">{fieldErrors.phone}</p>
+                  <p className="text-xs text-red-400">{fieldErrors.phone}</p>
                 )}
               </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground/80 mb-1">
-                  Form Type
-                </label>
-                <select
+              <div className="space-y-1.5">
+                <Label>Form Type</Label>
+                <Select
                   value={formData.formType}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      formType: e.target.value as AgentFormType,
-                    })
+                  onValueChange={(v) =>
+                    setFormData({ ...formData, formType: v as AgentFormType })
                   }
-                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
                 >
-                  {FORM_TYPES.map((ft) => (
-                    <option key={ft.value} value={ft.value}>
-                      {ft.label}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className="bg-secondary/50">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FORM_TYPES.map((ft) => (
+                      <SelectItem key={ft.value} value={ft.value}>
+                        {ft.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground/80 mb-1">
-                  Agency
-                </label>
-                <select
+              <div className="space-y-1.5">
+                <Label>Agency</Label>
+                <Select
                   value={formData.agency}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      agency: e.target.value as AgencyName,
-                    })
+                  onValueChange={(v) =>
+                    setFormData({ ...formData, agency: v as AgencyName })
                   }
-                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
                 >
-                  {AGENCIES.map((ag) => (
-                    <option key={ag.value} value={ag.value}>
-                      {ag.label}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className="bg-secondary/50">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {AGENCIES.map((ag) => (
+                      <SelectItem key={ag.value} value={ag.value}>
+                        {ag.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
-            <button
-              onClick={handleSendForm}
+            <Button
+              onClick={requestManualSendConfirm}
               disabled={sending}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/80 disabled:opacity-50 transition-colors"
+              className="gap-2"
             >
               {sending ? (
                 <RefreshCw size={14} className="animate-spin" />
@@ -611,7 +660,7 @@ export function ContractingIntakeTab() {
                 <Send size={14} />
               )}
               {sending ? 'Sending...' : 'Generate & Send Form'}
-            </button>
+            </Button>
 
             {/* Send result */}
             {sendResult && (
@@ -706,22 +755,36 @@ export function ContractingIntakeTab() {
         {/* Search */}
         <div className="relative mb-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
-            type="text"
+          <Input
             placeholder="Search by name, email, phone, agency..."
             value={hiresSearch}
             onChange={(e) => setHiresSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-border text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-card"
+            className="pl-9 rounded-xl bg-card"
           />
         </div>
 
         {hiresLoading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="h-20 rounded-xl bg-secondary/30 animate-pulse"
-              />
+              <Card key={i} className="border-border">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-4">
+                    <Skeleton className="w-10 h-10 rounded-full" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-4 w-36" />
+                      <div className="flex gap-3">
+                        <Skeleton className="h-3 w-40" />
+                        <Skeleton className="h-3 w-28" />
+                        <Skeleton className="h-3 w-16" />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Skeleton className="h-3 w-12" />
+                      <Skeleton className="h-7 w-24 rounded-lg" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             ))}
           </div>
         ) : filteredHires.length === 0 ? (
@@ -780,10 +843,11 @@ export function ContractingIntakeTab() {
                       <span className="text-xs text-muted-foreground">
                         {timeAgo(hire.created_at)}
                       </span>
-                      <button
+                      <Button
+                        size="sm"
                         onClick={() => handleProcessHire(hire)}
                         disabled={processingHireId === hire.id}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-xs font-medium rounded-lg hover:bg-primary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="gap-1.5"
                       >
                         {processingHireId === hire.id ? (
                           <>
@@ -795,7 +859,7 @@ export function ContractingIntakeTab() {
                             <Send size={12} /> Send Form
                           </>
                         )}
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 </CardContent>
@@ -804,6 +868,37 @@ export function ContractingIntakeTab() {
           </div>
         )}
       </div>
+      {/* ── Confirmation Dialog ──────────────────────────────────────── */}
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Send Intake Form?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  This will create an agent record in the portal and trigger GHL
+                  to deliver the intake form.
+                </p>
+                <div className="rounded-lg border border-border bg-secondary/30 p-3 space-y-1">
+                  <p className="text-sm font-medium text-foreground">
+                    {confirmName}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {confirmFormType} form · {confirmAgency}
+                  </p>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmedSend}>
+              <Send size={14} className="mr-1.5" />
+              Send Form
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
