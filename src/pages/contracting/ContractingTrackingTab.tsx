@@ -200,7 +200,7 @@ export function ContractingTrackingTab() {
 
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field)
-      return <ArrowUpDown size={12} className="text-slate-300" />;
+      return <ArrowUpDown size={12} className="text-muted-foreground" />;
     return sortDir === 'asc' ? (
       <ArrowUp size={12} className="text-primary" />
     ) : (
@@ -389,13 +389,13 @@ export function ContractingTrackingTab() {
             placeholder="Search name, email, phone, code..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-card"
+            className="w-full pl-9 pr-4 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-card"
           />
         </div>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-card"
+          className="px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-card"
         >
           <option value="">All Statuses ({agents.length})</option>
           <option value="pending">Pending ({statusCounts['pending'] ?? 0})</option>
@@ -407,7 +407,7 @@ export function ContractingTrackingTab() {
         <select
           value={formTypeFilter}
           onChange={(e) => setFormTypeFilter(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-card"
+          className="px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-card"
         >
           <option value="">All Form Types</option>
           {uniqueFormTypes.map((ft) => (
@@ -419,7 +419,7 @@ export function ContractingTrackingTab() {
         <select
           value={agencyFilter}
           onChange={(e) => setAgencyFilter(e.target.value)}
-          className="px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-card"
+          className="px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-ring bg-card"
         >
           <option value="">All Agencies</option>
           {uniqueAgencies.map((ag) => (
@@ -544,7 +544,7 @@ export function ContractingTrackingTab() {
                       <td className="px-4 py-3 font-medium text-foreground whitespace-nowrap">
                         <span className="inline-flex items-center gap-1.5">
                           {agent.first_name} {agent.last_name}
-                          <Eye size={12} className="text-slate-300" />
+                          <Eye size={12} className="text-muted-foreground" />
                         </span>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
