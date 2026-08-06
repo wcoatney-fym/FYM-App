@@ -44,11 +44,12 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { supabase } from '@/lib/crm/portal-client';
-import { fireCrmOnboardingWebhook, warmUpCrmOnboardingWebhook, fireCrossSellConfirmWebhook } from '@/lib/crm/webhooks';
+import { fireCrossSellConfirmWebhook } from '@/lib/crm/webhooks';
 import type { CrmAgency, CrmTemplate } from '@/lib/crm/types';
 import { parseCSV } from '@/lib/crm/csv-parser';
 import { ConfirmationModal } from './ConfirmationModal';
-import { STEPS, getStepIndex, getStepState, escapeField, padRosterTo200, handleUndoStep } from './onboardingHelpers';
+import { STEPS, getStepIndex, getStepState, escapeField, padRosterTo200, handleUndoStep, fireZapForAgency } from './onboardingHelpers';
+import type { ZapFireResult } from './onboardingHelpers';
 import { CrossSellSection } from './CrossSellSection';
 import { normalizeRosterRows, ROSTER_TEMPLATE_HEADERS } from '@/lib/crm/roster-normalizer';
 
@@ -72,11 +73,25 @@ export const AgencyOnboardingView: React.FC<AgencyOnboardingViewProps> = ({
   const currentIdx = getStepIndex(agency);
   const isTest = agency.is_test;
 
+  const [zapResult, setZapResult] = useState<ZapFireResult | null>(null);
+  const [zapSending, setZapSending] = useState(false);
+  const [zapProgress, setZapProgress] = useState({ sent: 0, total: 0, failed: 0 });
+
+  const handleAutoZapFire = async (freshAgency?: CrmAgency) => {
+    const target = freshAgency || agency;
+    setZapSending(true);
+    setZapResult(null);
+    setZapProgress({ sent: 0, total: 0, failed: 0 });
+    const result = await fireZapForAgency(target, (p) => setZapProgress(p));
+    setZapResult(result);
+    setZapSending(false);
+  };
+
   const renderStepBody = (idx: number) => {
     if (idx === 0) return <CsrStep agency={agency} onRefresh={refreshAgency} />;
     if (idx === 1) return <PhoneSetupStep agency={agency} onRefresh={refreshAgency} />;
     if (idx === 2) return <RosterStep agency={agency} onRefresh={refreshAgency} />;
-    if (idx === 3) return <DbaStep agency={agency} onRefresh={refreshAgency} />;
+    if (idx === 3) return <DbaStep agency={agency} onRefresh={refreshAgency} onZapFire={handleAutoZapFire} />;
     return null;
   };
 
@@ -163,10 +178,19 @@ export const AgencyOnboardingView: React.FC<AgencyOnboardingViewProps> = ({
       )}
 
       {agency.onboarding_status === 'onboarding_complete' ? (
-        <CompletionState agency={agency} isTest={isTest} onBack={onBack} onReset={async () => {
-          await handleUndoStep(0, agency);
-          await refreshAgency();
-        }} />
+        <CompletionState
+          agency={agency}
+          isTest={isTest}
+          onBack={onBack}
+          onReset={async () => {
+            await handleUndoStep(0, agency);
+            await refreshAgency();
+          }}
+          zapResult={zapResult}
+          zapSending={zapSending}
+          zapProgress={zapProgress}
+          onResendZap={() => handleAutoZapFire()}
+        />
       ) : (
         <div className="space-y-4">
           {STEPS.map((step, idx) => {
@@ -316,7 +340,11 @@ const CompletionState: React.FC<{
   isTest: boolean;
   onBack: () => void;
   onReset: () => void;
-}> = ({ agency, isTest, onBack, onReset }) => {
+  zapResult: ZapFireResult | null;
+  zapSending: boolean;
+  zapProgress: { sent: number; total: number; failed: number };
+  onResendZap: () => void;
+}> = ({ agency, isTest, onBack, onReset, zapResult, zapSending, zapProgress, onResendZap }) => {
   const [resetting, setResetting] = useState(false);
 
   const handleReset = async () => {
@@ -331,15 +359,66 @@ const CompletionState: React.FC<{
         <CheckCircle2 className="w-10 h-10 text-emerald-400" />
       </div>
       <h3 className="text-2xl font-bold text-foreground mb-2">Onboarding Complete</h3>
-      <p className="text-muted-foreground mb-6">
+      <p className="text-muted-foreground mb-4">
         {agency.name} has been fully onboarded and is ready to use the CRM.
       </p>
-      <div className="flex items-center justify-center gap-3">
+
+      {zapSending && zapProgress.total > 0 && (
+        <div className="max-w-md mx-auto mb-6">
+          <div className="flex items-center justify-between text-sm text-muted-foreground mb-1.5">
+            <span>Sending agents to Zap {zapProgress.sent + zapProgress.failed} of {zapProgress.total}...</span>
+            <span className="tabular-nums font-medium">
+              {Math.round(((zapProgress.sent + zapProgress.failed) / zapProgress.total) * 100)}%
+            </span>
+          </div>
+          <div className="w-full h-3 bg-secondary/80 rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-500 ease-out"
+              style={{
+                width: `${((zapProgress.sent + zapProgress.failed) / zapProgress.total) * 100}%`,
+                background: zapProgress.failed > 0
+                  ? 'linear-gradient(90deg, #f59e0b, #ef4444)'
+                  : 'linear-gradient(90deg, #f59e0b, #22c55e)',
+              }}
+            />
+          </div>
+          <div className="flex items-center justify-center gap-4 mt-1.5 text-xs text-muted-foreground">
+            <span className="text-emerald-400 font-medium">{zapProgress.sent} sent</span>
+            {zapProgress.failed > 0 && (
+              <span className="text-red-400 font-medium">{zapProgress.failed} failed</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {zapResult && (
+        <div className={`max-w-md mx-auto mb-6 px-4 py-3 rounded-lg text-sm font-medium ${
+          zapResult.failed === 0 && zapResult.sent > 0
+            ? 'bg-emerald-500/10 text-emerald-400 border border-green-500/20'
+            : zapResult.sent === 0
+            ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+            : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+        }`}>
+          {zapResult.sent === 0 && zapResult.failed === 0
+            ? 'Zaps are paused for this agency. No rows were sent.'
+            : `Sent ${zapResult.sent} of ${zapResult.total} agents to Zap.${zapResult.failed > 0 ? ` ${zapResult.failed} failed.` : ''}`}
+        </div>
+      )}
+
+      <div className="flex items-center justify-center gap-3 flex-wrap">
         <button
           onClick={onBack}
           className="px-5 py-2.5 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors"
         >
           Back to Agencies
+        </button>
+        <button
+          onClick={onResendZap}
+          disabled={zapSending}
+          className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg hover:bg-amber-500/20 transition-colors disabled:opacity-50"
+        >
+          <Zap className="w-4 h-4" />
+          {zapSending ? 'Sending...' : 'Re-send to Zap'}
         </button>
         {isTest && (
           <button
@@ -1151,123 +1230,8 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
   const [showSendBack, setShowSendBack] = useState(false);
   const [sendBackReason, setSendBackReason] = useState('');
   const [sendingBack, setSendingBack] = useState(false);
-  const [zapSending, setZapSending] = useState(false);
-  const [zapProgress, setZapProgress] = useState({ sent: 0, total: 0, failed: 0 });
-  const [zapResult, setZapResult] = useState<{ sent: number; failed: number; total: number } | null>(null);
-  const [zapConfirmOpen, setZapConfirmOpen] = useState(false);
 
-  const handleFireToZap = async () => {
-    setZapConfirmOpen(false);
-    setZapSending(true);
-    setZapResult(null);
 
-    const { data: agencyData } = await supabase
-      .from('hierarchy_agencies')
-      .select('zaps_paused')
-      .eq('name', agency.name)
-      .maybeSingle();
-
-    if (agencyData?.zaps_paused) {
-      setZapSending(false);
-      setZapResult({ sent: 0, failed: 0, total: 0 });
-      return;
-    }
-
-    const { data: uploads } = await supabase
-      .from('crm_roster_uploads')
-      .select('id, headers')
-      .eq('agency', agency.name)
-      .order('uploaded_at', { ascending: false })
-      .limit(1);
-
-    if (!uploads || uploads.length === 0) {
-      setZapSending(false);
-      setZapResult({ sent: 0, failed: 0, total: 0 });
-      return;
-    }
-
-    const { data: rows } = await supabase
-      .from('crm_roster')
-      .select('row_data')
-      .eq('upload_id', uploads[0].id)
-      .order('created_at');
-
-    const populatedRows = (rows || []).filter((r: { row_data: Record<string, string> }) => r.row_data['First Name']?.trim());
-
-    if (populatedRows.length === 0) {
-      setZapSending(false);
-      setZapResult({ sent: 0, failed: 0, total: 0 });
-      return;
-    }
-
-    const total = populatedRows.length;
-    setZapProgress({ sent: 0, total, failed: 0 });
-
-    await warmUpCrmOnboardingWebhook();
-    await new Promise((r) => setTimeout(r, 1500));
-
-    let sent = 0;
-    let failed = 0;
-    const failedRows: typeof populatedRows = [];
-
-    for (const row of populatedRows) {
-      const rd = row.row_data as Record<string, string>;
-      const success = await fireCrmOnboardingWebhook({
-        seatNumber: rd['Seat Number'] || '',
-        agentNpn: rd['Agent NPN'] || '',
-        firstName: rd['First Name'] || '',
-        lastName: rd['Last Name'] || '',
-        email: rd['Email'] || '',
-        phone: rd['Phone'] || '',
-        profileImage: rd['All Templates | Agent Profile Image'] || '',
-        crmNumber: rd['All Templates | Agent CRM #'] || '',
-        agency: agency.name,
-        digitalBusinessCardUrl: rd['Digital Business Card Home Page'] || '',
-        confirmationPageUrl: rd['Appt Booked Confirmation Page'] || '',
-        calendarEmbedCode: rd['Calendar Embed Code'] || '',
-      });
-
-      if (success) {
-        sent++;
-      } else {
-        failed++;
-        failedRows.push(row);
-      }
-      setZapProgress({ sent, total, failed });
-      await new Promise((r) => setTimeout(r, 3000));
-    }
-
-    if (failedRows.length > 0) {
-      await new Promise((r) => setTimeout(r, 5000));
-      for (const row of failedRows) {
-        const rd = row.row_data as Record<string, string>;
-        const success = await fireCrmOnboardingWebhook({
-          seatNumber: rd['Seat Number'] || '',
-          agentNpn: rd['Agent NPN'] || '',
-          firstName: rd['First Name'] || '',
-          lastName: rd['Last Name'] || '',
-          email: rd['Email'] || '',
-          phone: rd['Phone'] || '',
-          profileImage: rd['All Templates | Agent Profile Image'] || '',
-          crmNumber: rd['All Templates | Agent CRM #'] || '',
-          agency: agency.name,
-          digitalBusinessCardUrl: rd['Digital Business Card Home Page'] || '',
-          confirmationPageUrl: rd['Appt Booked Confirmation Page'] || '',
-          calendarEmbedCode: rd['Calendar Embed Code'] || '',
-        });
-
-        if (success) {
-          sent++;
-          failed--;
-          setZapProgress({ sent, total, failed });
-        }
-        await new Promise((r) => setTimeout(r, 5000));
-      }
-    }
-
-    setZapSending(false);
-    setZapResult({ sent, failed, total });
-  };
 
   const handleView = async () => {
     setViewLoading(true);
@@ -1532,64 +1496,9 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
                   <Undo2 className="w-4 h-4" />
                   Send Back
                 </button>
-                {agency.roster_confirmed && (
-                  <button
-                    onClick={() => { setZapResult(null); setZapConfirmOpen(true); }}
-                    disabled={zapSending}
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-amber-500/100 rounded-lg hover:bg-amber-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Zap className="w-4 h-4" />
-                    {zapSending
-                      ? `Sending ${zapProgress.sent}/${zapProgress.total}...`
-                      : 'Send to Zap'}
-                  </button>
-                )}
               </div>
               {!agency.roster_confirmed && (
                 <p className="text-xs text-muted-foreground mt-2">Confirm will lock in the roster and unlock Step 3</p>
-              )}
-
-              {zapSending && zapProgress.total > 0 && (
-                <div className="mt-4">
-                  <div className="flex items-center justify-between text-sm text-muted-foreground mb-1.5">
-                    <span>Sending {zapProgress.sent + zapProgress.failed} of {zapProgress.total}...</span>
-                    <span className="tabular-nums font-medium">
-                      {Math.round(((zapProgress.sent + zapProgress.failed) / zapProgress.total) * 100)}%
-                    </span>
-                  </div>
-                  <div className="w-full h-3 bg-secondary/80 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-500 ease-out"
-                      style={{
-                        width: `${((zapProgress.sent + zapProgress.failed) / zapProgress.total) * 100}%`,
-                        background: zapProgress.failed > 0
-                          ? 'linear-gradient(90deg, #f59e0b, #ef4444)'
-                          : 'linear-gradient(90deg, #f59e0b, #22c55e)',
-                      }}
-                    />
-                  </div>
-                  <div className="flex items-center gap-4 mt-1.5 text-xs text-muted-foreground">
-                    <span className="text-emerald-400 font-medium">{zapProgress.sent} sent</span>
-                    {zapProgress.failed > 0 && (
-                      <span className="text-red-400 font-medium">{zapProgress.failed} failed</span>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {zapResult && (
-                <div className={`mt-4 px-4 py-3 rounded-lg text-sm font-medium ${
-                  zapResult.failed === 0 && zapResult.sent > 0
-                    ? 'bg-emerald-500/10 text-emerald-400 border border-green-500/20'
-                    : zapResult.sent === 0
-                    ? 'bg-red-500/10 text-red-400 border border-red-500/20'
-                    : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                }`}>
-                  {zapResult.sent === 0 && zapResult.failed === 0
-                    ? 'Zaps are paused for this agency. No rows were sent.'
-                    : `Sent ${zapResult.sent} of ${zapResult.total} agents to Zap.${zapResult.failed > 0 ? ` ${zapResult.failed} failed.` : ''}`}
-                  <button onClick={() => setZapResult(null)} className="ml-3 underline opacity-70 hover:opacity-100">Dismiss</button>
-                </div>
               )}
             </div>
           )}
@@ -1655,37 +1564,6 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
         </div>
       )}
 
-      {zapConfirmOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-card rounded-xl shadow-none max-w-md w-full">
-            <div className="px-6 py-4 border-b border-border">
-              <h2 className="text-lg font-bold text-amber-400">Send Roster to Zap</h2>
-            </div>
-            <div className="px-6 py-5">
-              <p className="text-foreground/80">
-                This will send the populated agent rows from the roster
-                to the onboarding Zap for <span className="font-semibold">{agency.name}</span>, one at a time.
-              </p>
-              <p className="text-muted-foreground text-sm mt-2">Each row includes: Seat Number, First Name, Last Name, Email, Phone, Agent NPN, Profile Image, and CRM Number.</p>
-            </div>
-            <div className="px-6 py-4 bg-muted rounded-b-xl flex justify-end gap-3">
-              <button
-                onClick={() => setZapConfirmOpen(false)}
-                className="px-4 py-2 text-sm font-medium text-foreground/80 glass rounded-lg hover:bg-muted transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleFireToZap}
-                className="px-4 py-2 text-sm font-medium text-white bg-amber-500/100 rounded-lg hover:bg-amber-500 transition-colors"
-              >
-                Send All
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {showView && (
         <div className="fixed inset-0 bg-black/60 flex flex-col z-50">
           <div className="flex items-center justify-between px-6 py-4 bg-card border-b border-border">
@@ -1742,7 +1620,7 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
   );
 };
 
-const DbaStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agency, onRefresh }) => {
+const DbaStep: React.FC<{ agency: CrmAgency; onRefresh: () => void; onZapFire: (agency?: CrmAgency) => void }> = ({ agency, onRefresh, onZapFire }) => {
   const [templates, setTemplates] = useState<CrmTemplate[]>([]);
   const [uploadedFile, setUploadedFile] = useState<{ name: string; rowCount: number } | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -1799,6 +1677,8 @@ const DbaStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
     });
     setConfirming(false);
     await onRefresh();
+    // Auto-fire Zap with current agency data overlay
+    onZapFire(agency);
   };
 
   useEffect(() => {
@@ -1916,6 +1796,8 @@ const DbaStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
     setConfirming(false);
     setShowConfirm(false);
     await onRefresh();
+    // Auto-fire Zap with current agency data overlay
+    onZapFire(agency);
   };
 
   const handleView = async () => {

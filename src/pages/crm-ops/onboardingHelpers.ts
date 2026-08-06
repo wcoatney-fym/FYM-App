@@ -9,6 +9,7 @@
 // @ts-nocheck
 import { supabase } from '@/lib/crm/portal-client';
 import type { CrmAgency } from '@/lib/crm/types';
+import { fireCrmOnboardingWebhook, warmUpCrmOnboardingWebhook } from '@/lib/crm/webhooks';
 import { UserCheck, Phone, Upload, Database } from 'lucide-react';
 
 export const STEPS = [
@@ -177,6 +178,144 @@ export async function handleUndoStep(
       message: `[TEST] DBA upload undone for ${agency.name} -- step 4 reset`,
     });
   }
+}
+
+export interface ZapFireResult {
+  sent: number;
+  failed: number;
+  total: number;
+}
+
+/**
+ * Fire the CRM onboarding webhook for all populated roster rows.
+ * Overlays current agency data (calendar embed, URL prefix, business details)
+ * onto each row at fire time — so timing of when each field was saved doesn't matter.
+ */
+export async function fireZapForAgency(
+  agency: CrmAgency,
+  onProgress?: (progress: { sent: number; failed: number; total: number }) => void
+): Promise<ZapFireResult> {
+  // Check if zaps are paused
+  const { data: agencyData } = await supabase
+    .from('hierarchy_agencies')
+    .select('zaps_paused, calendar_embed_code, agency_url_prefix, crm_number, business_name, business_logo_url')
+    .eq('id', agency.id)
+    .maybeSingle();
+
+  if (agencyData?.zaps_paused) {
+    return { sent: 0, failed: 0, total: 0 };
+  }
+
+  // Re-read agency fields live for overlay
+  const calendarEmbed = agencyData?.calendar_embed_code?.trim() || '';
+  const urlPrefix = agencyData?.agency_url_prefix?.trim() || '';
+  const crmNumber = agencyData?.crm_number?.trim() || '';
+
+  // Get latest roster upload
+  const { data: uploads } = await supabase
+    .from('crm_roster_uploads')
+    .select('id')
+    .eq('agency', agency.name)
+    .order('uploaded_at', { ascending: false })
+    .limit(1);
+
+  if (!uploads || uploads.length === 0) {
+    return { sent: 0, failed: 0, total: 0 };
+  }
+
+  const { data: rows } = await supabase
+    .from('crm_roster')
+    .select('row_data')
+    .eq('upload_id', uploads[0].id)
+    .order('created_at');
+
+  const populatedRows = (rows || []).filter(
+    (r: { row_data: Record<string, string> }) => r.row_data['First Name']?.trim()
+  );
+
+  if (populatedRows.length === 0) {
+    return { sent: 0, failed: 0, total: 0 };
+  }
+
+  const total = populatedRows.length;
+  let sent = 0;
+  let failed = 0;
+
+  await warmUpCrmOnboardingWebhook();
+  await new Promise((r) => setTimeout(r, 1500));
+
+  const failedRows: typeof populatedRows = [];
+
+  for (const row of populatedRows) {
+    const rd = row.row_data as Record<string, string>;
+    const seatNum = rd['Seat Number'] || '';
+
+    // Overlay current agency data onto each row at fire time
+    const success = await fireCrmOnboardingWebhook({
+      seatNumber: seatNum,
+      agentNpn: rd['Agent NPN'] || '',
+      firstName: rd['First Name'] || '',
+      lastName: rd['Last Name'] || '',
+      email: rd['Email'] || '',
+      phone: rd['Phone'] || '',
+      profileImage: rd['All Templates | Agent Profile Image'] || '',
+      crmNumber: crmNumber || rd['All Templates | Agent CRM #'] || '',
+      agency: agency.name,
+      digitalBusinessCardUrl: urlPrefix
+        ? `${urlPrefix}.my-agent-appt.com/r${seatNum}-click-to-schedule`
+        : rd['Digital Business Card Home Page'] || '',
+      confirmationPageUrl: urlPrefix
+        ? `${urlPrefix}.my-agent-appt.com/r${seatNum}-youre-confirmed`
+        : rd['Appt Booked Confirmation Page'] || '',
+      calendarEmbedCode: calendarEmbed || rd['Calendar Embed Code'] || '',
+    });
+
+    if (success) {
+      sent++;
+    } else {
+      failed++;
+      failedRows.push(row);
+    }
+    onProgress?.({ sent, total, failed });
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+
+  // Retry failed rows once
+  if (failedRows.length > 0) {
+    await new Promise((r) => setTimeout(r, 5000));
+    for (const row of failedRows) {
+      const rd = row.row_data as Record<string, string>;
+      const seatNum = rd['Seat Number'] || '';
+
+      const success = await fireCrmOnboardingWebhook({
+        seatNumber: seatNum,
+        agentNpn: rd['Agent NPN'] || '',
+        firstName: rd['First Name'] || '',
+        lastName: rd['Last Name'] || '',
+        email: rd['Email'] || '',
+        phone: rd['Phone'] || '',
+        profileImage: rd['All Templates | Agent Profile Image'] || '',
+        crmNumber: crmNumber || rd['All Templates | Agent CRM #'] || '',
+        agency: agency.name,
+        digitalBusinessCardUrl: urlPrefix
+          ? `${urlPrefix}.my-agent-appt.com/r${seatNum}-click-to-schedule`
+          : rd['Digital Business Card Home Page'] || '',
+        confirmationPageUrl: urlPrefix
+          ? `${urlPrefix}.my-agent-appt.com/r${seatNum}-youre-confirmed`
+          : rd['Appt Booked Confirmation Page'] || '',
+        calendarEmbedCode: calendarEmbed || rd['Calendar Embed Code'] || '',
+      });
+
+      if (success) {
+        sent++;
+        failed--;
+        onProgress?.({ sent, total, failed });
+      }
+      await new Promise((r) => setTimeout(r, 5000));
+    }
+  }
+
+  return { sent, failed, total };
 }
 
 export function escapeField(value: string): string {

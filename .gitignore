@@ -25,3 +25,4 @@ dist-ssr
 *.sw?
 supabase/.temp/
 20260727000002_retention_cohort_views.sql
+scripts/cli-mock-upload.ts
