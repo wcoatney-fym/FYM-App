@@ -29,6 +29,10 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
+  CheckSquare,
+  Square,
+  X,
+  ArrowRightLeft,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { portalSupabase, portalUrl, portalKey } from '@/lib/portal-supabase';
@@ -150,6 +154,10 @@ export function PipelineBoard() {
   const [ghlConnected, setGhlConnected] = useState(false);
   const [ghlPipelineId, setGhlPipelineId] = useState<string | null>(null);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  // Bulk selection
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkMoving, setBulkMoving] = useState(false);
   const toastTimer = useRef<number>();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -279,6 +287,69 @@ export function PipelineBoard() {
   const handleRecordUpdated = (updated: PortalPipelineRecord) => {
     setRecords((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
     setSelectedRecord(updated);
+  };
+
+  // ── Bulk actions ──────────────────────────────────────────────────────
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  };
+
+  const handleBulkMove = async (newStage: AgentPipelineStage) => {
+    if (selectedIds.size === 0) return;
+    setBulkMoving(true);
+    const ids = [...selectedIds];
+    let successCount = 0;
+    let failCount = 0;
+    for (const id of ids) {
+      const record = records.find((r) => r.id === id);
+      if (!record || record.stage === newStage) continue;
+
+      setPushingIds((prev) => new Set(prev).add(id));
+      setRecords((prev) =>
+        prev.map((r) =>
+          r.id === id
+            ? { ...r, stage: newStage, stage_entered_at: new Date().toISOString() }
+            : r
+        )
+      );
+
+      const result = await pushStageChange(id, newStage);
+      if (result.success && result.record) {
+        setRecords((prev) =>
+          prev.map((r) => (r.id === id ? result.record! : r))
+        );
+        successCount++;
+      } else {
+        setRecords((prev) =>
+          prev.map((r) => (r.id === id ? record : r))
+        );
+        failCount++;
+      }
+      setPushingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
+    const stageLabel = STAGES.find((s) => s.key === newStage)?.label || newStage;
+    if (failCount === 0) {
+      showToast(`Moved ${successCount} agent${successCount !== 1 ? 's' : ''} to ${stageLabel}`, 'success');
+    } else {
+      showToast(`${successCount} moved, ${failCount} failed → ${stageLabel}`, 'error');
+    }
+    clearSelection();
+    setBulkMoving(false);
   };
 
   const handleStageChange = async (
@@ -450,10 +521,59 @@ export function PipelineBoard() {
           </button>
         </div>
 
+        {/* Bulk select toggle */}
+        <button
+          onClick={() => {
+            if (selectMode) clearSelection();
+            else setSelectMode(true);
+          }}
+          className={`flex items-center gap-1.5 px-3 py-2 border rounded-lg text-sm transition-colors ${
+            selectMode
+              ? 'border-primary bg-primary/10 text-primary font-medium'
+              : 'border-border text-muted-foreground hover:bg-background'
+          }`}
+          title={selectMode ? 'Exit selection mode' : 'Select agents for bulk move'}
+        >
+          {selectMode ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+          Select
+        </button>
+
         <span className="text-sm text-muted-foreground ml-auto">
           {totalCount} agent{totalCount !== 1 ? 's' : ''} in pipeline
         </span>
       </div>
+
+      {/* Bulk action bar */}
+      {selectMode && selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 mb-3 px-4 py-2.5 rounded-lg bg-primary/10 border border-primary/20">
+          <span className="text-sm font-semibold text-primary">
+            {selectedIds.size} selected
+          </span>
+          <div className="relative">
+            <ArrowRightLeft className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary" />
+            <select
+              disabled={bulkMoving}
+              onChange={(e) => {
+                if (e.target.value) handleBulkMove(e.target.value as AgentPipelineStage);
+                e.target.value = '';
+              }}
+              className="pl-10 pr-8 py-2 border border-primary/30 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent bg-card appearance-none disabled:opacity-50"
+            >
+              <option value="">Move selected to…</option>
+              {STAGES.map((s) => (
+                <option key={s.key} value={s.key}>{s.label}</option>
+              ))}
+            </select>
+          </div>
+          {bulkMoving && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
+          <button
+            onClick={clearSelection}
+            className="ml-auto flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-muted-foreground hover:bg-background border border-border transition-colors"
+          >
+            <X className="w-3.5 h-3.5" /> Clear
+          </button>
+        </div>
+      )}
 
       {/* Summary Bar */}
       <PipelineSummaryBar records={records} stageSteps={stageSteps} loading={loading} />
@@ -505,7 +625,9 @@ export function PipelineBoard() {
                   readyCount={col.readyCount}
                   stageSteps={stageSteps}
                   pushingIds={pushingIds}
-                  onCardClick={setSelectedRecord}
+                  onCardClick={selectMode ? (r) => toggleSelect(r.id) : setSelectedRecord}
+                  selectMode={selectMode}
+                  selectedIds={selectedIds}
                 />
               ))}
             </div>

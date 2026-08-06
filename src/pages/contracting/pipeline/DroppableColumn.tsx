@@ -20,6 +20,8 @@ interface DroppableColumnProps {
   stageSteps: PortalPipelineStageStep[];
   pushingIds: Set<string>;
   onCardClick: (record: PortalPipelineRecord) => void;
+  selectMode?: boolean;
+  selectedIds?: Set<string>;
 }
 
 export function DroppableColumn({
@@ -31,6 +33,8 @@ export function DroppableColumn({
   stageSteps,
   pushingIds,
   onCardClick,
+  selectMode = false,
+  selectedIds,
 }: DroppableColumnProps) {
   const { isOver, setNodeRef } = useDroppable({ id: stageKey });
 
@@ -77,6 +81,8 @@ export function DroppableColumn({
             stageKey={stageKey}
             isPushing={pushingIds.has(record.id)}
             onClick={() => onCardClick(record)}
+            selectMode={selectMode}
+            isSelected={selectedIds?.has(record.id) ?? false}
           />
         ))}
         {records.length === 0 && (
