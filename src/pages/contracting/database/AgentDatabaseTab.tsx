@@ -1,21 +1,18 @@
 /**
- * AgentDatabaseTab — Unified agent directory with two-tier resolution
+ * AgentDatabaseTab — FYM-only agent directory
  *
- * Tier 1: agency_rosters in rcbzag (confirmed agents — name/NPN/WN)
- * Tier 2: Max's prod DB fallback (distinct agents from roster_hierarchy_json)
+ * Shows agents from three FYM-specific sources:
+ *   1. Intake form completions (portal agents table)
+ *   2. FYM agency roster uploads
+ *   3. FYM's direct agents in the production file
  *
- * Merges both tiers into a single searchable, filterable table with
- * production metrics (policy count, AP, at-risk). Roster agents show
- * a badge; prod-only agents show a different badge.
- *
- * Replaces the old portal-only AgentDatabaseTab that read from akhojh
- * agents table (completed contracting records only).
+ * Sub-agency agents (Guardian, Wisechoice, etc.) do NOT appear here.
+ * Those belong on the Agents page.
  */
 import { useState } from 'react';
 import {
   Search,
   FileDown,
-  Database,
   Loader2,
   ShieldCheck,
   Globe,
@@ -25,8 +22,11 @@ import {
   Users,
   AlertTriangle,
   Eye,
+  FileText,
+  ClipboardCheck,
+  Database,
 } from 'lucide-react';
-import { useAgentDirectory, type UnifiedAgent } from '@/hooks/useAgentDirectory';
+import { useFymAgentDirectory, type FymAgent } from '@/hooks/useFymAgentDirectory';
 import { fmt$ } from '@/lib/formatUtils';
 
 const PAGE_SIZE = 50;
@@ -34,34 +34,27 @@ const PAGE_SIZE = 50;
 export function AgentDatabaseTab() {
   const {
     filteredAgents,
-    agencies,
     loading,
     error,
     searchTerm,
     setSearchTerm,
-    agencyFilter,
-    setAgencyFilter,
     sourceFilter,
     setSourceFilter,
     totalRoster,
+    totalIntake,
     totalProd,
-    rosterAgencyCount,
     refresh,
-  } = useAgentDirectory();
+  } = useFymAgentDirectory();
 
   const [page, setPage] = useState(0);
-  const [detailAgent, setDetailAgent] = useState<UnifiedAgent | null>(null);
+  const [detailAgent, setDetailAgent] = useState<FymAgent | null>(null);
 
   // Reset page when filters change
   const handleSearch = (v: string) => {
     setSearchTerm(v);
     setPage(0);
   };
-  const handleAgency = (v: string) => {
-    setAgencyFilter(v);
-    setPage(0);
-  };
-  const handleSource = (v: '' | 'roster' | 'prod') => {
+  const handleSource = (v: '' | 'roster' | 'intake' | 'prod') => {
     setSourceFilter(v);
     setPage(0);
   };
@@ -86,7 +79,6 @@ export function AgentDatabaseTab() {
       'Agent Name',
       'Writing Number',
       'NPN',
-      'Agency',
       'Source',
       'Email',
       'Phone',
@@ -95,6 +87,9 @@ export function AgentDatabaseTab() {
       'Total Policies',
       'Active AP',
       'Total AP',
+      'Form Type',
+      'Intake Status',
+      'CRM Onboarded',
       'GTL WN',
       'Is Manager',
     ];
@@ -106,8 +101,13 @@ export function AgentDatabaseTab() {
           escapeField(agent.full_name),
           escapeField(agent.writing_number || ''),
           escapeField(agent.npn || ''),
-          escapeField(agent.agency_name || ''),
-          escapeField(agent.source === 'roster' ? 'Roster' : 'Production DB'),
+          escapeField(
+            agent.source === 'roster'
+              ? 'Roster'
+              : agent.source === 'intake'
+              ? 'Intake Form'
+              : 'Production DB'
+          ),
           escapeField(agent.email || ''),
           escapeField(agent.phone || ''),
           String(agent.active_policies),
@@ -115,6 +115,9 @@ export function AgentDatabaseTab() {
           String(agent.total_policies),
           String(agent.active_annual_premium),
           String(agent.total_annual_premium),
+          escapeField(agent.form_type || ''),
+          escapeField(agent.intake_status || ''),
+          agent.crm_onboarded ? 'Yes' : 'No',
           escapeField(agent.gtl_writing_number || ''),
           agent.is_manager ? 'Yes' : 'No',
         ].join(',')
@@ -127,7 +130,7 @@ export function AgentDatabaseTab() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `agent-directory-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `fym-agent-directory-${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -139,7 +142,7 @@ export function AgentDatabaseTab() {
       <div className="flex items-center justify-center py-16">
         <Loader2 className="w-6 h-6 animate-spin text-cyan-400 mr-2" />
         <span className="text-muted-foreground">
-          Loading agent directory…
+          Loading FYM agent directory…
         </span>
       </div>
     );
@@ -162,20 +165,20 @@ export function AgentDatabaseTab() {
     );
   }
 
+
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-2xl font-bold text-foreground">
-            Agent Directory
+            FYM Agent Directory
           </h2>
           <p className="text-muted-foreground mt-1">
             {filteredAgents.length.toLocaleString()} agent
             {filteredAgents.length !== 1 ? 's' : ''}
-            {agencyFilter || sourceFilter || searchTerm
-              ? ` (filtered)`
-              : ''}
+            {sourceFilter || searchTerm ? ' (filtered)' : ''}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -197,91 +200,90 @@ export function AgentDatabaseTab() {
       </div>
 
       {/* Source summary cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-4">
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            Rostered Agents
+            Rostered
           </div>
           <div className="text-2xl font-bold text-foreground">
             {totalRoster.toLocaleString()}
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            {rosterAgencyCount} agenc{rosterAgencyCount !== 1 ? 'ies' : 'y'} with confirmed rosters
+            FYM agency roster
+          </p>
+        </div>
+        <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-4">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+            <ClipboardCheck className="w-4 h-4 text-purple-400" />
+            Intake Forms
+          </div>
+          <div className="text-2xl font-bold text-foreground">
+            {totalIntake.toLocaleString()}
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Completed contracting intake
           </p>
         </div>
         <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-4">
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
             <Globe className="w-4 h-4 text-blue-400" />
-            Production DB Agents
+            Production File
           </div>
           <div className="text-2xl font-bold text-foreground">
             {totalProd.toLocaleString()}
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            From agencies without roster uploads
+            FYM direct in prod DB
           </p>
         </div>
         <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-4">
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
             <Users className="w-4 h-4 text-cyan-400" />
-            Total Directory
+            FYM Directory
           </div>
           <div className="text-2xl font-bold text-foreground">
-            {(totalRoster + totalProd).toLocaleString()}
+            {filteredAgents.length.toLocaleString()}
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            Unified two-tier resolution
+            Deduplicated across sources
           </p>
         </div>
       </div>
 
       {/* Filters */}
       <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input
               type="text"
-              placeholder="Search name, WN, NPN, email…"
+              placeholder="Search name, WN, NPN, email, phone…"
               value={searchTerm}
               onChange={(e) => handleSearch(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-secondary border border-border rounded-md text-sm focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50"
             />
           </div>
 
-          {/* Agency filter */}
-          <select
-            value={agencyFilter}
-            onChange={(e) => handleAgency(e.target.value)}
-            className="px-4 py-2 bg-secondary border border-border rounded-md text-sm focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50"
-          >
-            <option value="">All Agencies</option>
-            {agencies.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name}
-                {a.has_roster ? ' ✓' : ''} ({a.agent_count})
-              </option>
-            ))}
-          </select>
-
           {/* Source filter */}
           <select
             value={sourceFilter}
             onChange={(e) =>
-              handleSource(e.target.value as '' | 'roster' | 'prod')
+              handleSource(e.target.value as '' | 'roster' | 'intake' | 'prod')
             }
             className="px-4 py-2 bg-secondary border border-border rounded-md text-sm focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50"
           >
             <option value="">All Sources</option>
             <option value="roster">Rostered Only</option>
-            <option value="prod">Production DB Only</option>
+            <option value="intake">Intake Forms Only</option>
+            <option value="prod">Production File Only</option>
           </select>
 
           {/* Count display */}
           <div className="flex items-center justify-end text-sm text-muted-foreground">
-            Showing {pageAgents.length} of {filteredAgents.length.toLocaleString()}
+            Showing {pageAgents.length} of{' '}
+            {filteredAgents.length.toLocaleString()}
           </div>
         </div>
       </div>
@@ -300,9 +302,6 @@ export function AgentDatabaseTab() {
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   NPN
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Agency
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Source
@@ -328,10 +327,11 @@ export function AgentDatabaseTab() {
               {pageAgents.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={10}
+                    colSpan={9}
                     className="px-4 py-12 text-center text-muted-foreground"
                   >
-                    {filteredAgents.length === 0 && (searchTerm || agencyFilter || sourceFilter)
+                    {filteredAgents.length === 0 &&
+                    (searchTerm || sourceFilter)
                       ? 'No agents match the current filters'
                       : 'No agents found'}
                   </td>
@@ -374,29 +374,14 @@ export function AgentDatabaseTab() {
                       {agent.npn || '—'}
                     </td>
 
-                    {/* Agency */}
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-foreground/80">
-                      {agent.agency_name || agent.agency_wn || '—'}
-                    </td>
-
                     {/* Source badge */}
                     <td className="px-4 py-3 whitespace-nowrap">
-                      {agent.source === 'roster' ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-emerald-500/20 text-emerald-400 rounded-full">
-                          <ShieldCheck className="w-3 h-3" />
-                          Roster
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-blue-500/20 text-blue-400 rounded-full">
-                          <Globe className="w-3 h-3" />
-                          Prod DB
-                        </span>
-                      )}
+                      <SourceBadge source={agent.source} />
                     </td>
 
                     {/* Active policies */}
                     <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium text-foreground">
-                      {agent.active_policies}
+                      {agent.active_policies || '—'}
                     </td>
 
                     {/* At-risk */}
@@ -407,18 +392,22 @@ export function AgentDatabaseTab() {
                           {agent.at_risk_policies}
                         </span>
                       ) : (
-                        <span className="text-muted-foreground">0</span>
+                        <span className="text-muted-foreground">
+                          {agent.total_policies > 0 ? '0' : '—'}
+                        </span>
                       )}
                     </td>
 
                     {/* Total policies */}
                     <td className="px-4 py-3 whitespace-nowrap text-right text-sm text-foreground/80">
-                      {agent.total_policies}
+                      {agent.total_policies || '—'}
                     </td>
 
                     {/* Active AP */}
                     <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium text-foreground">
-                      {fmt$(agent.active_annual_premium)}
+                      {agent.active_annual_premium > 0
+                        ? fmt$(agent.active_annual_premium)
+                        : '—'}
                     </td>
 
                     {/* Actions */}
@@ -475,13 +464,41 @@ export function AgentDatabaseTab() {
   );
 }
 
+// ── Source Badge ──────────────────────────────────────────────────────
+
+function SourceBadge({ source }: { source: 'roster' | 'intake' | 'prod' }) {
+  switch (source) {
+    case 'roster':
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-emerald-500/20 text-emerald-400 rounded-full">
+          <ShieldCheck className="w-3 h-3" />
+          Roster
+        </span>
+      );
+    case 'intake':
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-purple-500/20 text-purple-400 rounded-full">
+          <FileText className="w-3 h-3" />
+          Intake
+        </span>
+      );
+    case 'prod':
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-blue-500/20 text-blue-400 rounded-full">
+          <Globe className="w-3 h-3" />
+          Prod DB
+        </span>
+      );
+  }
+}
+
 // ── Detail Modal ──────────────────────────────────────────────────────
 
 function AgentDirectoryDetailModal({
   agent,
   onClose,
 }: {
-  agent: UnifiedAgent;
+  agent: FymAgent;
   onClose: () => void;
 }) {
   return (
@@ -494,20 +511,15 @@ function AgentDirectoryDetailModal({
               {agent.full_name}
             </h2>
             <div className="flex items-center gap-2 mt-1">
-              {agent.source === 'roster' ? (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-emerald-500/20 text-emerald-400 rounded-full">
-                  <ShieldCheck className="w-3 h-3" />
-                  Rostered Agent
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-blue-500/20 text-blue-400 rounded-full">
-                  <Globe className="w-3 h-3" />
-                  Production DB
-                </span>
-              )}
+              <SourceBadge source={agent.source} />
               {agent.is_manager && (
                 <span className="px-2 py-0.5 text-xs font-medium bg-amber-500/20 text-amber-400 rounded-full">
                   Manager
+                </span>
+              )}
+              {agent.crm_onboarded && (
+                <span className="px-2 py-0.5 text-xs font-medium bg-cyan-500/20 text-cyan-400 rounded-full">
+                  CRM Onboarded
                 </span>
               )}
             </div>
@@ -530,18 +542,33 @@ function AgentDirectoryDetailModal({
             <div className="grid grid-cols-2 gap-3">
               <DetailField label="First Name" value={agent.first_name} />
               <DetailField label="Last Name" value={agent.last_name} />
-              <DetailField label="UNL Writing #" value={agent.writing_number} mono />
+              <DetailField
+                label="UNL Writing #"
+                value={agent.writing_number}
+                mono
+              />
               <DetailField label="NPN" value={agent.npn} mono />
               <DetailField label="Email" value={agent.email} />
               <DetailField label="Phone" value={agent.phone} />
-              <DetailField label="Agency" value={agent.agency_name} />
-              <DetailField
-                label="Agency WN"
-                value={agent.agency_wn}
-                mono
-              />
             </div>
           </div>
+
+          {/* Intake info (if from intake) */}
+          {agent.source === 'intake' && (
+            <div>
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+                Intake Form
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                <DetailField label="Form Type" value={agent.form_type} />
+                <DetailField label="Status" value={agent.intake_status} />
+                <DetailField
+                  label="CRM Onboarded"
+                  value={agent.crm_onboarded ? 'Yes' : 'No'}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Carrier Writing Numbers (roster only) */}
           {agent.source === 'roster' && (
@@ -638,11 +665,9 @@ function DetailField({
     <div>
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd
-        className={`text-sm mt-0.5 ${
-          mono ? 'font-mono' : ''
-        } ${highlight ? 'text-amber-400 font-medium' : 'text-foreground'} ${
-          !value ? 'text-muted-foreground italic' : ''
-        }`}
+        className={`text-sm mt-0.5 ${mono ? 'font-mono' : ''} ${
+          highlight ? 'text-amber-400 font-medium' : 'text-foreground'
+        } ${!value ? 'text-muted-foreground italic' : ''}`}
       >
         {value || '—'}
       </dd>
