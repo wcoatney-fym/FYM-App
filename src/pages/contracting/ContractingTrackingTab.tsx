@@ -21,6 +21,7 @@ import {
   FileDown,
   ChevronLeft,
   ChevronRight,
+  Check,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -213,6 +214,11 @@ export function ContractingTrackingTab() {
     [agents]
   );
 
+  const uniqueAgencies = useMemo(
+    () => [...new Set(agents.map((a) => a.agency).filter(Boolean))].sort(),
+    [agents]
+  );
+
   // ── CSV export ──────────────────────────────────────────────────────────
 
   const exportToCSV = async () => {
@@ -402,9 +408,11 @@ export function ContractingTrackingTab() {
           className="px-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-card"
         >
           <option value="">All Agencies</option>
-          <option value="FYM">FYM</option>
-          <option value="Wisechoice">Wisechoice</option>
-          <option value="Aspire">Aspire</option>
+          {uniqueAgencies.map((ag) => (
+            <option key={ag} value={ag}>
+              {ag}
+            </option>
+          ))}
         </select>
         <button
           onClick={exportToCSV}
@@ -497,13 +505,16 @@ export function ContractingTrackingTab() {
                   <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase">
                     Completed
                   </th>
+                  <th className="text-center px-4 py-3 text-xs font-medium text-muted-foreground uppercase">
+                    CRM
+                  </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-border">
                 {filtered.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={9}
                       className="px-4 py-8 text-center text-muted-foreground"
                     >
                       No agents match the current filters.
@@ -558,6 +569,13 @@ export function ContractingTrackingTab() {
                               { month: 'short', day: 'numeric' }
                             )
                           : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-center whitespace-nowrap">
+                        {agent.crm_onboarded ? (
+                          <Check size={16} className="text-emerald-500 mx-auto" />
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </td>
                     </tr>
                   ))
