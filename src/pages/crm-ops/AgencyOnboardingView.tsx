@@ -517,7 +517,7 @@ const CsrStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
     await onRefresh();
   };
 
-  const inputClass = 'w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm';
+  const inputClass = 'w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm bg-card text-foreground';
 
   return (
     <>
@@ -859,7 +859,7 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
                     type="text"
                     value={businessName}
                     onChange={(e) => setBusinessName(e.target.value)}
-                    className="w-full max-w-sm px-4 py-2.5 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm"
+                    className="w-full max-w-sm px-4 py-2.5 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm bg-card"
                     placeholder="Agency business name"
                   />
                 </div>
@@ -937,7 +937,7 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
                     value={calendarEmbed}
                     onChange={(e) => setCalendarEmbed(e.target.value)}
                     rows={3}
-                    className="w-full px-4 py-2.5 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm font-mono"
+                    className="w-full px-4 py-2.5 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm font-mono bg-card"
                     placeholder='<iframe src="https://..." ...></iframe>'
                   />
                   <p className="text-xs text-muted-foreground mt-1">This will be applied to all 200 roster rows</p>
@@ -1630,7 +1630,7 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
                   value={sendBackReason}
                   onChange={(e) => setSendBackReason(e.target.value)}
                   rows={3}
-                  className="w-full px-4 py-2.5 border border-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-ring text-sm resize-none"
+                  className="w-full px-4 py-2.5 border border-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-ring text-sm resize-none bg-card"
                   placeholder="Explain why the roster is being sent back..."
                 />
               </div>
@@ -2143,7 +2143,7 @@ const DbaStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
                   value={sendBackReason}
                   onChange={(e) => setSendBackReason(e.target.value)}
                   rows={3}
-                  className="w-full px-4 py-2.5 border border-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-ring text-sm resize-none"
+                  className="w-full px-4 py-2.5 border border-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-ring text-sm resize-none bg-card"
                   placeholder="Explain why the DBA roster is being sent back..."
                 />
               </div>

@@ -437,7 +437,7 @@ export const CrossSellSection: React.FC<CrossSellSectionProps> = ({ agencyId, ag
                         type="text"
                         value={state.name}
                         onChange={(e) => updateProductName(product.product_number, e.target.value)}
-                        className="w-full max-w-md px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm"
+                        className="w-full max-w-md px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm bg-card"
                       />
                       <p className="text-[11px] text-muted-foreground mt-1">Changing this generates an AI prompt for content</p>
                     </div>

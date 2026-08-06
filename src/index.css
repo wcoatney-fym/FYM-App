@@ -4,6 +4,8 @@
 
 @layer base {
   :root {
+    color-scheme: dark;
+
     /* ── Dark Futuristic Theme ─────────────────────────────────── */
     /* Base: deep space navy with subtle blue undertone */
     --background: 222 47% 6%;
@@ -306,6 +308,24 @@
   width: 100%;
   position: relative;
   z-index: 1;
+}
+
+/* Force native form elements to match dark theme.
+   Prevents white-on-white text in unstyled inputs/selects/textareas.
+   Activation pages override with explicit bg-white + text-fym-ink. */
+input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
+select,
+textarea {
+  background-color: hsl(var(--card));
+  color: hsl(var(--foreground));
+}
+input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file'])::placeholder,
+textarea::placeholder {
+  color: hsl(var(--muted-foreground));
+}
+select option {
+  background-color: hsl(var(--card));
+  color: hsl(var(--foreground));
 }
 
 /* Make all recharts text readable on dark bg */

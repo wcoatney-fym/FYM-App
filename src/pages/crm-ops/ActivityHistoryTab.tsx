@@ -291,7 +291,7 @@ export const ActivityHistoryTab: React.FC = () => {
                 type="date"
                 value={startDate}
                 onChange={(e) => { setStartDate(e.target.value); setPage(0); }}
-                className="w-full pl-8 pr-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-primary"
+                className="w-full pl-8 pr-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-primary bg-card"
               />
             </div>
           </div>
@@ -305,7 +305,7 @@ export const ActivityHistoryTab: React.FC = () => {
                 type="date"
                 value={endDate}
                 onChange={(e) => { setEndDate(e.target.value); setPage(0); }}
-                className="w-full pl-8 pr-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-primary"
+                className="w-full pl-8 pr-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-primary bg-card"
               />
             </div>
           </div>
@@ -320,7 +320,7 @@ export const ActivityHistoryTab: React.FC = () => {
                 value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
                 placeholder="Search descriptions..."
-                className="w-full pl-8 pr-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-primary"
+                className="w-full pl-8 pr-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-primary bg-card"
               />
             </div>
           </div>
