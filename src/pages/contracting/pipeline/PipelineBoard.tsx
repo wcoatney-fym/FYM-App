@@ -2,25 +2,33 @@
  * PipelineBoard — Kanban board for agent pipeline.
  * Ported from CRM Portal's AgentPipelineBoard.
  * Reads from portal DB (akhojh…) via portal-supabase.ts.
+ *
+ * Uses @dnd-kit/core for touch + pointer + keyboard drag-and-drop.
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  TouchSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  type DragStartEvent,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
   Search,
   RefreshCw,
-  Clock,
-  User,
-  Building2,
-  Filter,
-  PenLine,
   Wifi,
   WifiOff,
   Loader2,
   Download,
-  CheckCircle2,
-  ArrowRight,
+  Filter,
   ListChecks,
-  FileCheck,
   AlertCircle,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { portalSupabase, portalUrl, portalKey } from '@/lib/portal-supabase';
@@ -32,9 +40,9 @@ import type {
 import { PipelineSummaryBar } from './PipelineSummaryBar';
 import { PipelineDetailModal } from './PipelineDetailModal';
 import { StageStepsEditor } from './StageStepsEditor';
-import { ProgressRing } from './ProgressRing';
-import { timeAgo } from '@/lib/contracting/helpers';
-import { computeProgress, stageHealth } from './pipelineProgress';
+import { DroppableColumn } from './DroppableColumn';
+import { DraggableCard } from './DraggableCard';
+import { computeProgress } from './pipelineProgress';
 
 // ─── Stage definitions ───────────────────────────────────────────────────────
 
@@ -52,12 +60,6 @@ export const STAGES: { key: AgentPipelineStage; label: string; color: string }[]
   { key: 'actively_selling', label: 'Actively Selling', color: 'bg-amber-500/10 border-amber-500/20' },
   { key: 'terminated', label: 'Terminated', color: 'bg-red-500/10 border-red-500/20' },
 ];
-
-const HEALTH_BORDER: Record<string, string> = {
-  fresh: 'border-border',
-  aging: 'border-amber-500/30',
-  stalled: 'border-red-500/30',
-};
 
 // ─── Edge function calls (portal Supabase) ─────────────────────────────────
 
@@ -88,6 +90,45 @@ async function pushStageChange(
   return await res.json();
 }
 
+// ─── Scroll indicator hook ───────────────────────────────────────────────────
+
+function useScrollIndicators(ref: React.RefObject<HTMLDivElement | null>) {
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const update = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 8);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 8);
+  }, [ref]);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener('scroll', update);
+      ro.disconnect();
+    };
+  }, [ref, update]);
+
+  const scrollBy = useCallback(
+    (dir: 'left' | 'right') => {
+      ref.current?.scrollBy({
+        left: dir === 'left' ? -240 : 240,
+        behavior: 'smooth',
+      });
+    },
+    [ref],
+  );
+
+  return { canScrollLeft, canScrollRight, scrollBy, refresh: update };
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function PipelineBoard() {
@@ -99,8 +140,6 @@ export function PipelineBoard() {
   const [agencies, setAgencies] = useState<string[]>([]);
   const [showStepsEditor, setShowStepsEditor] = useState(false);
   const [stageSteps, setStageSteps] = useState<PortalPipelineStageStep[]>([]);
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dragOverStage, setDragOverStage] = useState<AgentPipelineStage | null>(null);
   const [pushingIds, setPushingIds] = useState<Set<string>>(new Set());
   const [toastMsg, setToastMsg] = useState<{
     text: string;
@@ -110,7 +149,23 @@ export function PipelineBoard() {
   const [syncing, setSyncing] = useState(false);
   const [ghlConnected, setGhlConnected] = useState(false);
   const [ghlPipelineId, setGhlPipelineId] = useState<string | null>(null);
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const toastTimer = useRef<number>();
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const { canScrollLeft, canScrollRight, scrollBy, refresh: refreshScroll } =
+    useScrollIndicators(scrollRef);
+
+  // ── dnd-kit sensors ──────────────────────────────────────────────────────
+
+  const pointerSensor = useSensor(PointerSensor, {
+    activationConstraint: { distance: 8 },
+  });
+  const touchSensor = useSensor(TouchSensor, {
+    activationConstraint: { delay: 200, tolerance: 6 },
+  });
+  const keyboardSensor = useSensor(KeyboardSensor);
+  const sensors = useSensors(pointerSensor, touchSensor, keyboardSensor);
 
   const showToast = (text: string, type: 'success' | 'error', retry?: () => void) => {
     setToastMsg({ text, type, retry });
@@ -170,6 +225,11 @@ export function PipelineBoard() {
     return () => clearInterval(interval);
   }, [loadData, loadGhlConfig, loadStageSteps]);
 
+  // Refresh scroll indicators after data loads
+  useEffect(() => {
+    if (!loading) refreshScroll();
+  }, [loading, records, refreshScroll]);
+
   // ── GHL sync ─────────────────────────────────────────────────────────────
 
   const handleSyncFromGhl = async () => {
@@ -223,7 +283,7 @@ export function PipelineBoard() {
 
   const handleStageChange = async (
     recordId: string,
-    newStage: AgentPipelineStage
+    newStage: AgentPipelineStage,
   ) => {
     const record = records.find((r) => r.id === recordId);
     if (!record || record.stage === newStage) return;
@@ -250,7 +310,7 @@ export function PipelineBoard() {
         STAGES.find((s) => s.key === newStage)?.label || newStage;
       showToast(
         `Moved to ${stageLabel}${result.ghl_pushed ? ' (synced to GHL)' : ''}`,
-        'success'
+        'success',
       );
     } else {
       // Revert
@@ -271,36 +331,30 @@ export function PipelineBoard() {
     });
   };
 
-  // ── Drag and drop ────────────────────────────────────────────────────────
+  // ── dnd-kit handlers ─────────────────────────────────────────────────────
 
-  const handleDragStart = (e: React.DragEvent, recordId: string) => {
-    e.dataTransfer.setData('text/plain', recordId);
-    e.dataTransfer.effectAllowed = 'move';
-    setDraggingId(recordId);
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveDragId(String(event.active.id));
   };
 
-  const handleDragEnd = () => {
-    setDraggingId(null);
-    setDragOverStage(null);
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveDragId(null);
+
+    if (!over) return;
+
+    const recordId = String(active.id);
+    const newStage = String(over.id) as AgentPipelineStage;
+
+    // Validate the drop target is a stage column
+    if (STAGES.some((s) => s.key === newStage)) {
+      handleStageChange(recordId, newStage);
+    }
   };
 
-  const handleDragOver = (e: React.DragEvent, stageKey: AgentPipelineStage) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    setDragOverStage(stageKey);
-  };
-
-  const handleDragLeave = () => {
-    setDragOverStage(null);
-  };
-
-  const handleDrop = (e: React.DragEvent, stageKey: AgentPipelineStage) => {
-    e.preventDefault();
-    const recordId = e.dataTransfer.getData('text/plain');
-    setDragOverStage(null);
-    setDraggingId(null);
-    if (recordId) handleStageChange(recordId, stageKey);
-  };
+  const activeDragRecord = activeDragId
+    ? records.find((r) => r.id === activeDragId) ?? null
+    : null;
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -404,182 +458,76 @@ export function PipelineBoard() {
       {/* Summary Bar */}
       <PipelineSummaryBar records={records} stageSteps={stageSteps} loading={loading} />
 
-      {/* Board */}
-      <div className="flex-1 overflow-x-auto pb-4">
-        <div className="flex gap-3 min-w-max h-full">
-          {groupedByStage.map((col) => (
-            <div
-              key={col.key}
-              onDragOver={(e) => handleDragOver(e, col.key)}
-              onDragLeave={handleDragLeave}
-              onDrop={(e) => handleDrop(e, col.key)}
-              className={`w-[220px] flex-shrink-0 rounded-xl border ${col.color} flex flex-col transition-all ${
-                dragOverStage === col.key
-                  ? 'ring-2 ring-blue-400 ring-offset-1 scale-[1.01]'
-                  : ''
-              }`}
-            >
-              {/* Column Header */}
-              <div className="p-3 border-b border-inherit">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-foreground/80 truncate pr-2">
-                    {col.label}
-                  </h3>
-                  <span
-                    className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
-                      col.key === 'terminated'
-                        ? 'bg-red-500/20 text-red-400'
-                        : 'bg-card/80 text-muted-foreground border border-border'
-                    }`}
-                  >
-                    {col.records.length}
-                  </span>
-                </div>
-                {col.readyCount > 0 && (
-                  <div className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-400">
-                    <CheckCircle2 className="w-3 h-3" /> {col.readyCount} ready
-                  </div>
-                )}
-              </div>
-
-              {/* Cards */}
-              <div
-                className="flex-1 overflow-y-auto p-2 space-y-2"
-                style={{ maxHeight: 'var(--pipeline-col-height, min(calc(100vh - 380px), 540px))' }}
+      {/* Board with scroll indicators */}
+      <DndContext
+        sensors={sensors}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="flex-1 relative">
+          {/* Left scroll fade + arrow */}
+          {canScrollLeft && (
+            <>
+              <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
+              <button
+                onClick={() => scrollBy('left')}
+                className="absolute left-1 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-card border border-border shadow-lg flex items-center justify-center hover:bg-background transition-colors"
+                aria-label="Scroll left"
               >
-                {col.records.map((record) => {
-                  const progress = computeProgress(record, stageSteps);
-                  const health = stageHealth(record);
-                  return (
-                    <div
-                      key={record.id}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, record.id)}
-                      onDragEnd={handleDragEnd}
-                      onClick={() => setSelectedRecord(record)}
-                      className={`w-full text-left bg-card rounded-lg border p-3 glow-sm hover:glow-primary transition-all cursor-grab active:cursor-grabbing ${
-                        progress.allComplete
-                          ? 'border-emerald-500/30 ring-1 ring-emerald-200 shadow-emerald-100'
-                          : HEALTH_BORDER[health]
-                      } ${draggingId === record.id ? 'opacity-50 scale-95' : ''} ${
-                        pushingIds.has(record.id) ? 'animate-pulse' : ''
-                      }`}
-                    >
-                      <div className="flex items-start gap-2">
-                        <User className="w-3.5 h-3.5 text-muted-foreground mt-0.5 flex-shrink-0" />
-                        <span className="text-sm font-semibold text-foreground line-clamp-2 leading-tight flex-1">
-                          {record.agent_name || 'Unnamed'}
-                        </span>
-                        {progress.total > 0 && (
-                          <ProgressRing
-                            fraction={progress.fraction}
-                            completed={progress.completedCount}
-                            total={progress.total}
-                            complete={progress.allComplete}
-                          />
-                        )}
-                      </div>
-                      {progress.total > 0 &&
-                        (progress.allComplete ? (
-                          <div className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded px-1.5 py-0.5">
-                            <CheckCircle2 className="w-3 h-3" /> Ready to advance
-                          </div>
-                        ) : progress.nextStep ? (
-                          <div className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
-                            <ArrowRight className="w-3 h-3 text-blue-400 flex-shrink-0" />
-                            <span className="truncate">
-                              Next: {progress.nextStep.label}
-                            </span>
-                          </div>
-                        ) : null)}
-                      {record.agency && (
-                        <div className="flex items-center gap-1.5 mt-2">
-                          <Building2 className="w-3 h-3 text-muted-foreground" />
-                          <span className="text-[11px] text-muted-foreground truncate">
-                            {record.agency}
-                          </span>
-                        </div>
-                      )}
-                      {record.tags && record.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-2">
-                          {record.tags.slice(0, 3).map((tag) => (
-                            <span
-                              key={tag}
-                              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-cyan-500/10 text-primary border border-blue-500/20 truncate max-w-[90px]"
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                          {record.tags.length > 3 && (
-                            <span className="text-[10px] text-muted-foreground">
-                              +{record.tags.length - 3}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                      <div className="flex items-center justify-between mt-2">
-                        <div className="flex items-center gap-1 flex-wrap gap-y-0.5">
-                          <Clock className="w-3 h-3 text-muted-foreground" />
-                          <span className="text-[11px] text-muted-foreground">
-                            {timeAgo(record.stage_entered_at)}
-                          </span>
-                          {record.updated_by_source && (
-                            <span
-                              className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold border ${
-                                record.updated_by_source === 'training_hub'
-                                  ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
-                                  : record.updated_by_source === 'contracting_portal'
-                                    ? 'bg-cyan-500/10 text-cyan-400 border-blue-500/20'
-                                    : record.updated_by_source === 'ghl_webhook'
-                                      ? 'bg-amber-500/10 text-amber-400 border-orange-500/20'
-                                      : 'bg-secondary text-muted-foreground border-border'
-                              }`}
-                            >
-                              {record.updated_by_source === 'training_hub'
-                                ? 'Training'
-                                : record.updated_by_source === 'contracting_portal'
-                                  ? 'Contracting'
-                                  : record.updated_by_source === 'ghl_webhook'
-                                    ? 'GHL'
-                                    : record.updated_by_source}
-                            </span>
-                          )}
-                        </div>
-                        {pushingIds.has(record.id) ? (
-                          <Loader2 className="w-3 h-3 text-primary animate-spin" />
-                        ) : record.wn_pending_review ? (
-                          <div className="flex items-center gap-1 bg-amber-500/10 border border-amber-500/20 rounded px-1.5 py-0.5">
-                            <FileCheck className="w-3 h-3 text-amber-400" />
-                            <span className="text-[10px] text-amber-400 font-bold">
-                              {record.wn_pending_count > 0
-                                ? `${record.wn_pending_count} WN`
-                                : 'WN'}
-                            </span>
-                          </div>
-                        ) : (col.key === 'hip_broker_ready' ||
-                            col.key === 'hip_career_ready') &&
-                          record.writing_numbers ? (
-                          <div className="flex items-center gap-1">
-                            <PenLine className="w-3 h-3 text-emerald-500" />
-                            <span className="text-[10px] text-emerald-400 font-medium truncate max-w-[60px]">
-                              {record.writing_numbers}
-                            </span>
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  );
-                })}
-                {col.records.length === 0 && (
-                  <div className="text-center py-6 text-xs text-muted-foreground">
-                    No agents
-                  </div>
-                )}
-              </div>
+                <ChevronLeft className="w-4 h-4 text-muted-foreground" />
+              </button>
+            </>
+          )}
+
+          {/* Right scroll fade + arrow */}
+          {canScrollRight && (
+            <>
+              <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
+              <button
+                onClick={() => scrollBy('right')}
+                className="absolute right-1 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-card border border-border shadow-lg flex items-center justify-center hover:bg-background transition-colors"
+                aria-label="Scroll right"
+              >
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              </button>
+            </>
+          )}
+
+          <div ref={scrollRef} className="overflow-x-auto pb-4 h-full">
+            <div className="flex gap-3 min-w-max h-full">
+              {groupedByStage.map((col) => (
+                <DroppableColumn
+                  key={col.key}
+                  stageKey={col.key}
+                  label={col.label}
+                  color={col.color}
+                  records={col.records}
+                  readyCount={col.readyCount}
+                  stageSteps={stageSteps}
+                  pushingIds={pushingIds}
+                  onCardClick={setSelectedRecord}
+                />
+              ))}
             </div>
-          ))}
+          </div>
         </div>
-      </div>
+
+        {/* Drag overlay — rendered above everything for the dragged card ghost */}
+        <DragOverlay dropAnimation={null}>
+          {activeDragRecord && (
+            <div className="w-[204px]">
+              <DraggableCard
+                record={activeDragRecord}
+                stageSteps={stageSteps}
+                stageKey={activeDragRecord.stage}
+                isPushing={false}
+                onClick={() => {}}
+                isOverlay
+              />
+            </div>
+          )}
+        </DragOverlay>
+      </DndContext>
 
       {/* Toast */}
       {toastMsg && (
