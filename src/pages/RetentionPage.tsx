@@ -122,13 +122,12 @@ export function RetentionPage() {
     if (supabase && allAgencies.length > 0) {
       (supabase as any)
         .from('agencies')
-        .select('tracker_id, writing_number, name')
+        .select('id, writing_number, name')
         .then(({ data: nameData }: { data: any }) => {
           if (nameData) {
             const nameMap = new Map<string, string>();
             for (const a of nameData as any[]) {
               if (a.writing_number) nameMap.set(a.writing_number, a.name);
-              if (a.tracker_id) nameMap.set(a.tracker_id, a.name);
             }
             allAgencies.forEach(a => {
               a.agency_name = nameMap.get(a.agency_id) ?? null;

@@ -6,7 +6,6 @@ import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@
 
 interface AgencyOption {
   id: string;
-  tracker_id: string | null;
   writing_number: string | null;
   name: string;
 }
@@ -24,7 +23,7 @@ interface DataFiltersProps {
   showAgentFilter?: boolean;
   /** Show time period filter (default true) */
   showTimePeriod?: boolean;
-  /** Current selected agency tracker_id (matches agency_id in data tables) */
+  /** Current selected agency writing_number (matches agency_id in edge functions) */
   selectedAgencyId: string | null;
   /** Current selected agent writing_number */
   selectedAgentId?: string | null;
@@ -32,7 +31,7 @@ interface DataFiltersProps {
   selectedPreset?: DatePreset;
   /** Current date range */
   selectedDateRange?: DateRange;
-  /** Callback when agency changes — receives tracker_id or null */
+  /** Callback when agency changes — receives writing_number or null */
   onAgencyChange: (agencyId: string | null) => void;
   /** Callback when agent changes — receives writing_number or null */
   onAgentChange?: (agentId: string | null) => void;
@@ -66,7 +65,7 @@ export function DataFilters({
     if (!supabase) { setLoadingAgencies(false); return; }
     supabase
       .from('agencies')
-      .select('id, tracker_id, writing_number, name')
+      .select('id, writing_number, name')
       .eq('is_active', true)
       .order('name')
       .then(({ data }) => {
@@ -83,9 +82,8 @@ export function DataFilters({
     }
     setLoadingAgents(true);
     // Get profiles for agents in this agency — match by agency_id UUID
-    // Find the agency by writing_number (primary) or tracker_id (fallback)
-    const agency = agencies.find(a => a.writing_number === selectedAgencyId)
-      || agencies.find(a => a.tracker_id === selectedAgencyId);
+    // Find the agency by writing_number
+    const agency = agencies.find(a => a.writing_number === selectedAgencyId);
     if (!agency) { setLoadingAgents(false); return; }
 
     supabase

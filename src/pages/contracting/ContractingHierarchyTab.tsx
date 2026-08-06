@@ -53,6 +53,7 @@ import { portalSupabase } from '@/lib/portal-supabase';
 import { parseCSV } from '@/lib/contracting/csvParser';
 import { normalizeRosterRows } from '@/lib/contracting/rosterNormalizer';
 import { createActivationRecord, sendOnboardingEmail } from '@/lib/contracting/onboarding-service';
+import { triggerAgencySync } from '@/lib/sync-agencies';
 import type {
   PortalCrmAgency,
   AgencyIntakeSubmission,
@@ -312,6 +313,9 @@ export function ContractingHierarchyTab() {
         portalSlug: slug,
         portalPassword: portalPassword,
       }).catch((e) => console.error('Failed to send onboarding email:', e));
+
+      // Sync hierarchy → FYM App agencies table (best-effort, don't block UI)
+      triggerAgencySync().catch((e) => console.error('Agency sync failed:', e));
     }
     return error?.message || null;
   };
@@ -421,6 +425,8 @@ export function ContractingHierarchyTab() {
       if (selectedAgency && removedIds.has(selectedAgency.id)) {
         setSelectedAgency(null);
       }
+      // Sync hierarchy → FYM App agencies table (best-effort)
+      triggerAgencySync().catch((e) => console.error('Agency sync after delete failed:', e));
     }
     setDeleting(false);
     setDeleteTarget(null);

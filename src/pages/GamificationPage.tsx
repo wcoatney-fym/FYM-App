@@ -76,7 +76,7 @@ interface ChallengeParticipant {
 }
 
 interface AgencyOption {
-  tracker_id: string;
+  writing_number: string;
   name: string;
 }
 
@@ -177,7 +177,7 @@ export function GamificationPage() {
   // Org-wide admins can pick any agency; agency admins are locked to their own.
   const scopedAgencies = useMemo(() => {
     if (isOrgWide || !effectiveAgencyId) return agencies;
-    return agencies.filter(a => a.tracker_id === effectiveAgencyId);
+    return agencies.filter(a => a.writing_number === effectiveAgencyId);
   }, [agencies, isOrgWide, effectiveAgencyId]);
 
   // ── Create Battle form state ──
@@ -207,12 +207,12 @@ export function GamificationPage() {
     const [battleRows, challengeRows, agencyRows] = await Promise.all([
       fetchAllRows<Battle>('battles', '*', (q) => q.order('created_at', { ascending: false })),
       fetchAllRows<Challenge>('challenges', '*', (q) => q.order('created_at', { ascending: false })),
-      fetchAllRows<AgencyOption>('agencies', 'tracker_id, name'),
+      fetchAllRows<AgencyOption>('agencies', 'writing_number, name'),
     ]);
 
     setBattles(battleRows);
     setChallenges(challengeRows);
-    setAgencies(agencyRows.filter(a => a.tracker_id));
+    setAgencies(agencyRows.filter(a => a.writing_number));
 
     // Load participants for each battle
     if (battleRows.length > 0) {
@@ -858,7 +858,7 @@ export function GamificationPage() {
                       >
                         <option value="">Select an agency…</option>
                         {scopedAgencies.map(a => (
-                          <option key={a.tracker_id} value={a.tracker_id}>{a.name}</option>
+                          <option key={a.writing_number} value={a.writing_number}>{a.name}</option>
                         ))}
                       </select>
                     </div>

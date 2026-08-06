@@ -175,16 +175,15 @@ export function DashboardPage() {
   useEffect(() => {
     if (!supabase) return;
     scopeToAgency(
-      (supabase as any).from('agencies').select('tracker_id, writing_number, name'),
+      (supabase as any).from('agencies').select('id, writing_number, name'),
       isOrgWide,
       effectiveAgencyId,
-      'tracker_id'
+      'id'
     ).then((r: { data: any }) => {
       const nm = new Map<string, string>();
       if (r.data) {
         for (const a of r.data as any[]) {
           if (a.writing_number) nm.set(a.writing_number, a.name);
-          if (a.tracker_id) nm.set(a.tracker_id, a.name);
         }
       }
       setNameMap(nm);
