@@ -26,6 +26,9 @@ import {
   Mail,
   Phone,
   Building2,
+  Eye,
+  EyeOff,
+  Undo2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent } from '@/components/ui/card';
@@ -112,6 +115,12 @@ export function ContractingIntakeTab() {
   // Form field errors
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
+  // Show processed toggle
+  const [showProcessed, setShowProcessed] = useState(false);
+  const [processedHires, setProcessedHires] = useState<PortalNewHire[]>([]);
+  const [processedLoading, setProcessedLoading] = useState(false);
+  const [requeueingId, setRequeueingId] = useState<string | null>(null);
+
   // Stats
   const [processedCount, setProcessedCount] = useState(0);
 
@@ -142,11 +151,34 @@ export function ContractingIntakeTab() {
     }
   }, []);
 
+  const loadProcessedHires = useCallback(async () => {
+    if (!portalSupabase) return;
+    setProcessedLoading(true);
+    try {
+      const { data } = await portalSupabase
+        .from('new_hires')
+        .select('*')
+        .eq('processed', true)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      setProcessedHires((data as PortalNewHire[]) ?? []);
+    } catch (err) {
+      console.error('[Contracting Intake] Load processed error:', err);
+    } finally {
+      setProcessedLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadNewHires();
     const interval = setInterval(loadNewHires, 60_000);
     return () => clearInterval(interval);
   }, [loadNewHires]);
+
+  // Load processed hires when toggle is turned on
+  useEffect(() => {
+    if (showProcessed) loadProcessedHires();
+  }, [showProcessed, loadProcessedHires]);
 
   // ── Filtered hires ──────────────────────────────────────────────────────
 
@@ -459,6 +491,26 @@ export function ContractingIntakeTab() {
     }
   };
 
+  const handleRequeue = async (hire: PortalNewHire) => {
+    if (!portalSupabase) return;
+    setRequeueingId(hire.id);
+    try {
+      await portalSupabase
+        .from('new_hires')
+        .update({ processed: false })
+        .eq('id', hire.id);
+
+      toast.success(`${hire.first_name} ${hire.last_name} moved back to queue`);
+      loadNewHires();
+      loadProcessedHires();
+    } catch (err) {
+      console.error('[Contracting Intake] Requeue error:', err);
+      toast.error('Failed to requeue hire');
+    } finally {
+      setRequeueingId(null);
+    }
+  };
+
   const copyToClipboard = async (text: string, field: string) => {
     await navigator.clipboard.writeText(text);
     setCopiedField(field);
@@ -501,7 +553,7 @@ export function ContractingIntakeTab() {
               <div className="p-2 bg-amber-500/10 rounded-lg">
                 <Users size={18} className="text-amber-400" />
               </div>
-              <span className="text-2xl font-bold text-amber-400">
+              <span className="text-3xl font-bold text-amber-400 tabular-nums">
                 {newHires.length}
               </span>
             </div>
@@ -516,7 +568,7 @@ export function ContractingIntakeTab() {
               <div className="p-2 bg-emerald-500/10 rounded-lg">
                 <CheckCircle size={18} className="text-emerald-400" />
               </div>
-              <span className="text-2xl font-bold text-emerald-400">
+              <span className="text-3xl font-bold text-emerald-400 tabular-nums">
                 {processedCount}
               </span>
             </div>
@@ -743,13 +795,24 @@ export function ContractingIntakeTab() {
           <h3 className="text-base font-bold text-foreground">
             New Hires Queue
           </h3>
-          <button
-            onClick={loadNewHires}
-            className="p-1.5 rounded-lg hover:bg-secondary transition-colors"
-            title="Refresh"
-          >
-            <RefreshCw size={14} className="text-muted-foreground" />
-          </button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowProcessed(!showProcessed)}
+              className="gap-1.5 text-xs text-muted-foreground"
+            >
+              {showProcessed ? <EyeOff size={14} /> : <Eye size={14} />}
+              {showProcessed ? 'Hide' : 'Show'} Processed
+            </Button>
+            <button
+              onClick={loadNewHires}
+              className="p-1.5 rounded-lg hover:bg-secondary transition-colors"
+              title="Refresh"
+            >
+              <RefreshCw size={14} className="text-muted-foreground" />
+            </button>
+          </div>
         </div>
 
         {/* Search */}
@@ -868,6 +931,117 @@ export function ContractingIntakeTab() {
           </div>
         )}
       </div>
+      {/* ── Processed Hires ───────────────────────────────────────── */}
+      {showProcessed && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-base font-bold text-foreground">
+              Recently Processed
+              <span className="text-xs font-normal text-muted-foreground ml-2">
+                (last 50)
+              </span>
+            </h3>
+          </div>
+
+          {processedLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <Card key={i} className="border-border">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-4">
+                      <Skeleton className="w-10 h-10 rounded-full" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-36" />
+                        <div className="flex gap-3">
+                          <Skeleton className="h-3 w-40" />
+                          <Skeleton className="h-3 w-28" />
+                        </div>
+                      </div>
+                      <Skeleton className="h-7 w-20 rounded-lg" />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : processedHires.length === 0 ? (
+            <Card className="border-border">
+              <CardContent className="p-6 text-center">
+                <p className="text-sm text-muted-foreground">No processed hires found.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-2">
+              {processedHires.map((hire) => (
+                <Card
+                  key={hire.id}
+                  className="border-border opacity-75 hover:opacity-100 transition-all"
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4 min-w-0">
+                        <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0">
+                          <span className="text-sm font-bold text-emerald-400">
+                            {(hire.first_name[0] ?? '').toUpperCase()}
+                            {(hire.last_name[0] ?? '').toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-foreground truncate">
+                            {hire.first_name} {hire.last_name}
+                            <span className="ml-2 text-xs font-normal text-emerald-400">
+                              ✓ Processed
+                            </span>
+                          </p>
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+                            <span className="flex items-center gap-1 truncate">
+                              <Mail size={10} /> {hire.email}
+                            </span>
+                            {hire.phone && (
+                              <span className="flex items-center gap-1">
+                                <Phone size={10} />{' '}
+                                {formatPhoneDisplay(hire.phone)}
+                              </span>
+                            )}
+                            {hire.agency && (
+                              <span className="flex items-center gap-1">
+                                <Building2 size={10} /> {hire.agency}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0 ml-4">
+                        <span className="text-xs text-muted-foreground">
+                          {timeAgo(hire.created_at)}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleRequeue(hire)}
+                          disabled={requeueingId === hire.id}
+                          className="gap-1.5"
+                        >
+                          {requeueingId === hire.id ? (
+                            <>
+                              <RefreshCw size={12} className="animate-spin" />
+                              Moving...
+                            </>
+                          ) : (
+                            <>
+                              <Undo2 size={12} /> Requeue
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Confirmation Dialog ──────────────────────────────────────── */}
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
