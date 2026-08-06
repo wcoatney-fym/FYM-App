@@ -189,8 +189,8 @@ export const RosterTab: React.FC = () => {
       if (crmNumber) row['All Templates | Agent CRM #'] = crmNumber;
       if (calendarEmbed) row['Calendar Embed Code'] = calendarEmbed;
       if (urlPrefix) {
-        row['Digital Business Card Home Page'] = `${urlPrefix}.my-agent-appt.com/r${seat}-click-to-schedule`;
-        row['Appt Booked Confirmation Page'] = `${urlPrefix}.my-agent-appt.com/r${seat}-youre-confirmed`;
+        row['Digital Business Card Home Page'] = `https://${urlPrefix}.my-agent-appt.com/r${seat}-click-to-schedule`;
+        row['Appt Booked Confirmation Page'] = `https://${urlPrefix}.my-agent-appt.com/r${seat}-youre-confirmed`;
       }
       return row;
     };
@@ -214,8 +214,8 @@ export const RosterTab: React.FC = () => {
         if (crmNumber) updatedData['All Templates | Agent CRM #'] = crmNumber;
         if (calendarEmbed) updatedData['Calendar Embed Code'] = calendarEmbed;
         if (urlPrefix && seat) {
-          updatedData['Digital Business Card Home Page'] = `${urlPrefix}.my-agent-appt.com/r${seat}-click-to-schedule`;
-          updatedData['Appt Booked Confirmation Page'] = `${urlPrefix}.my-agent-appt.com/r${seat}-youre-confirmed`;
+          updatedData['Digital Business Card Home Page'] = `https://${urlPrefix}.my-agent-appt.com/r${seat}-click-to-schedule`;
+          updatedData['Appt Booked Confirmation Page'] = `https://${urlPrefix}.my-agent-appt.com/r${seat}-youre-confirmed`;
         }
         await supabase
           .from('crm_roster')

@@ -48,8 +48,8 @@ export const buildDynamicFields = (
     dynamic.system_crm_number = inputs.agencyPhone;
   if (urlPrefix && PRODUCT_SLUGS[productNumber]) {
     const [slug1, slug2] = PRODUCT_SLUGS[productNumber];
-    dynamic.funnel_link_step_1 = `${urlPrefix}.my-agent-appt.com/${slug1}`;
-    dynamic.funnel_link_step_2 = `${urlPrefix}.my-agent-appt.com/${slug2}`;
+    dynamic.funnel_link_step_1 = `https://${urlPrefix}.my-agent-appt.com/${slug1}`;
+    dynamic.funnel_link_step_2 = `https://${urlPrefix}.my-agent-appt.com/${slug2}`;
   }
   return dynamic;
 };

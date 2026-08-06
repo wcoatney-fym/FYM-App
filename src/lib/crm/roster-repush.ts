@@ -45,9 +45,9 @@ export function deriveHiddenFields(
   fields[CALENDAR_EMBED_KEY] = calendarEmbed;
   if (urlPrefix && seat) {
     fields[DBC_HOME_PAGE_KEY] =
-      `${urlPrefix}.my-agent-appt.com/r${seat}-click-to-schedule`;
+      `https://${urlPrefix}.my-agent-appt.com/r${seat}-click-to-schedule`;
     fields[APPT_CONFIRMATION_KEY] =
-      `${urlPrefix}.my-agent-appt.com/r${seat}-youre-confirmed`;
+      `https://${urlPrefix}.my-agent-appt.com/r${seat}-youre-confirmed`;
   } else {
     fields[DBC_HOME_PAGE_KEY] = '';
     fields[APPT_CONFIRMATION_KEY] = '';
