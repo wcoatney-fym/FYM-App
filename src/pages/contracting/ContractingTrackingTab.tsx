@@ -3,7 +3,8 @@
  *
  * Agent status table from portal DB `agents`.
  * Search, filter by status/form-type/agency, sortable columns.
- * Detail modal with submission data + uploaded files.
+ * Detail modal (shadcn Dialog) with submission data + uploaded files.
+ * SSN masked by default — last 4 only, toggle to reveal.
  *
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -14,17 +15,37 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  X,
   Download,
   Eye,
+  EyeOff,
   FileDown,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import { portalSupabase } from '@/lib/portal-supabase';
 import { formatPhoneDisplay, formatDate, STATUS_COLORS } from '@/lib/contracting/helpers';
 import type { PortalAgent, PortalIntakeRecord, PortalUploadedFile } from '@/lib/contracting/types';
+
+// ─── SSN masking helper ──────────────────────────────────────────────────────
+
+function formatSSN(raw: string, masked: boolean): string {
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length < 4) return masked ? '•••-••-' + digits : raw;
+  const last4 = digits.slice(-4);
+  if (masked) return `•••-••-${last4}`;
+  if (digits.length >= 9) {
+    return `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5, 9)}`;
+  }
+  return raw;
+}
 
 // ─── Sort helpers ────────────────────────────────────────────────────────────
 
@@ -245,6 +266,9 @@ export function ContractingTrackingTab() {
     }
   };
 
+  // SSN visibility toggle (per modal open)
+  const [ssnVisible, setSsnVisible] = useState(false);
+
   // ── Detail modal ─────────────────────────────────────────────────────────
 
   const openDetailModal = async (agent: PortalAgent) => {
@@ -253,6 +277,7 @@ export function ContractingTrackingTab() {
     setSubmission(null);
     setFiles([]);
     setModalLoading(true);
+    setSsnVisible(false); // Always start masked
 
     try {
       const [subRes, fileRes] = await Promise.all([
@@ -281,6 +306,7 @@ export function ContractingTrackingTab() {
     setSelectedAgent(null);
     setSubmission(null);
     setFiles([]);
+    setSsnVisible(false);
   };
 
   const downloadFile = (file: PortalUploadedFile) => {
@@ -570,181 +596,183 @@ export function ContractingTrackingTab() {
         </div>
       )}
 
-      {/* ── Detail Modal ──────────────────────────────────────────────── */}
-      {selectedAgent && (
-        <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          onClick={(e) => { if (e.target === e.currentTarget) closeDetailModal(); }}
-        >
-          <div className="bg-card rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            {/* Header */}
-            <div className="sticky top-0 bg-card border-b border-border px-6 py-4 flex justify-between items-center rounded-t-xl z-10">
-              <h2 className="text-lg font-bold text-foreground">Agent Details</h2>
-              <button
-                onClick={closeDetailModal}
-                className="p-1.5 hover:bg-secondary rounded-lg transition-colors"
-              >
-                <X size={18} className="text-muted-foreground" />
-              </button>
-            </div>
+      {/* ── Detail Modal (shadcn Dialog) ────────────────────────────── */}
+      <Dialog
+        open={!!selectedAgent}
+        onOpenChange={(open) => { if (!open) closeDetailModal(); }}
+      >
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Agent Details</DialogTitle>
+            <DialogDescription>
+              {selectedAgent
+                ? `${selectedAgent.first_name} ${selectedAgent.last_name} — ${selectedAgent.agency}`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
 
-            {modalLoading ? (
-              <div className="p-6 space-y-4">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-24 rounded-lg bg-secondary/30 animate-pulse" />
-                ))}
+          {modalLoading ? (
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-24 rounded-lg bg-secondary/30 animate-pulse" />
+              ))}
+            </div>
+          ) : selectedAgent ? (
+            <div className="space-y-5">
+              {/* Agent Summary */}
+              <div className="bg-background rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-foreground mb-3">Agent Summary</h3>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Name</span>
+                    <p className="font-medium text-foreground">{selectedAgent.first_name} {selectedAgent.last_name}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Phone</span>
+                    <p className="font-medium text-foreground">{formatPhoneDisplay(selectedAgent.phone)}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Email</span>
+                    <p className="font-medium text-foreground">{selectedAgent.email}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Form Type</span>
+                    <p className="font-medium text-foreground">{FORM_TYPE_LABELS[selectedAgent.form_type] ?? selectedAgent.form_type}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Agency</span>
+                    <p className="font-medium text-foreground">{selectedAgent.agency}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Security Code</span>
+                    <p className="font-medium font-mono text-foreground">{selectedAgent.security_code}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Status</span>
+                    <p>
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLORS[selectedAgent.status] ?? 'bg-secondary/40 text-muted-foreground'}`}>
+                        {selectedAgent.status}
+                      </span>
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Sent</span>
+                    <p className="font-medium text-foreground">{formatDate(selectedAgent.date_sent)}</p>
+                  </div>
+                </div>
               </div>
-            ) : (
-              <div className="p-6 space-y-5">
-                {/* Agent Summary */}
-                <div className="bg-background rounded-lg p-4">
-                  <h3 className="text-sm font-semibold text-foreground mb-3">Agent Summary</h3>
+
+              {/* Submission Data */}
+              <div className="bg-background rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-foreground mb-3">Form Submission Data</h3>
+                {submission ? (
                   <div className="grid grid-cols-2 gap-3 text-sm">
+                    {submission.agent_type && (
+                      <div>
+                        <span className="text-muted-foreground">Agent Type</span>
+                        <p className="font-medium text-foreground">{submission.agent_type}</p>
+                      </div>
+                    )}
                     <div>
-                      <span className="text-muted-foreground">Name</span>
-                      <p className="font-medium text-foreground">{selectedAgent.first_name} {selectedAgent.last_name}</p>
+                      <span className="text-muted-foreground">Date of Birth</span>
+                      <p className="font-medium text-foreground">{submission.date_of_birth}</p>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">Phone</span>
-                      <p className="font-medium text-foreground">{formatPhoneDisplay(selectedAgent.phone)}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Email</span>
-                      <p className="font-medium text-foreground">{selectedAgent.email}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Form Type</span>
-                      <p className="font-medium text-foreground">{FORM_TYPE_LABELS[selectedAgent.form_type] ?? selectedAgent.form_type}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Agency</span>
-                      <p className="font-medium text-foreground">{selectedAgent.agency}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Security Code</span>
-                      <p className="font-medium font-mono text-foreground">{selectedAgent.security_code}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Status</span>
-                      <p>
-                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${STATUS_COLORS[selectedAgent.status] ?? 'bg-secondary/40 text-muted-foreground'}`}>
-                          {selectedAgent.status}
-                        </span>
+                      <span className="text-muted-foreground">SSN</span>
+                      <p className="font-medium font-mono text-foreground inline-flex items-center gap-1.5">
+                        {formatSSN(submission.ssn, !ssnVisible)}
+                        <button
+                          type="button"
+                          onClick={() => setSsnVisible((v) => !v)}
+                          className="p-0.5 rounded hover:bg-secondary/60 transition-colors"
+                          title={ssnVisible ? 'Hide SSN' : 'Show SSN'}
+                        >
+                          {ssnVisible ? <EyeOff size={14} className="text-muted-foreground" /> : <Eye size={14} className="text-muted-foreground" />}
+                        </button>
                       </p>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">Sent</span>
-                      <p className="font-medium text-foreground">{formatDate(selectedAgent.date_sent)}</p>
+                      <span className="text-muted-foreground">NPN</span>
+                      <p className="font-medium text-foreground">{submission.npn}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground">Address</span>
+                      <p className="font-medium text-foreground">
+                        {submission.address}, {submission.city}, {submission.state} {submission.postal_code}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Resident License</span>
+                      <p className="font-medium text-foreground">{submission.resident_license_number}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Resident State</span>
+                      <p className="font-medium text-foreground">{submission.resident_state}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Release Needed</span>
+                      <p className="font-medium text-foreground">{submission.release_needed}</p>
+                    </div>
+                    {submission.ctm_acknowledgment && (
+                      <div>
+                        <span className="text-muted-foreground">CTM Acknowledgment</span>
+                        <p className="font-medium text-foreground">{submission.ctm_acknowledgment}</p>
+                      </div>
+                    )}
+                    {submission.gender && (
+                      <div>
+                        <span className="text-muted-foreground">Gender</span>
+                        <p className="font-medium text-foreground">{submission.gender}</p>
+                      </div>
+                    )}
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground">State Licenses</span>
+                      <p className="font-medium text-foreground">
+                        {Array.isArray(submission.state_licenses) && submission.state_licenses.length > 0
+                          ? submission.state_licenses.join(', ')
+                          : 'None'}
+                      </p>
                     </div>
                   </div>
-                </div>
-
-                {/* Submission Data */}
-                <div className="bg-background rounded-lg p-4">
-                  <h3 className="text-sm font-semibold text-foreground mb-3">Form Submission Data</h3>
-                  {submission ? (
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      {submission.agent_type && (
-                        <div>
-                          <span className="text-muted-foreground">Agent Type</span>
-                          <p className="font-medium text-foreground">{submission.agent_type}</p>
-                        </div>
-                      )}
-                      <div>
-                        <span className="text-muted-foreground">Date of Birth</span>
-                        <p className="font-medium text-foreground">{submission.date_of_birth}</p>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">SSN</span>
-                        <p className="font-medium font-mono text-foreground">
-                          {submission.ssn.length >= 9
-                            ? `${submission.ssn.slice(0, 3)}-${submission.ssn.slice(3, 5)}-${submission.ssn.slice(5, 9)}`
-                            : submission.ssn}
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">NPN</span>
-                        <p className="font-medium text-foreground">{submission.npn}</p>
-                      </div>
-                      <div className="col-span-2">
-                        <span className="text-muted-foreground">Address</span>
-                        <p className="font-medium text-foreground">
-                          {submission.address}, {submission.city}, {submission.state} {submission.postal_code}
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Resident License</span>
-                        <p className="font-medium text-foreground">{submission.resident_license_number}</p>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Resident State</span>
-                        <p className="font-medium text-foreground">{submission.resident_state}</p>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Release Needed</span>
-                        <p className="font-medium text-foreground">{submission.release_needed}</p>
-                      </div>
-                      {submission.ctm_acknowledgment && (
-                        <div>
-                          <span className="text-muted-foreground">CTM Acknowledgment</span>
-                          <p className="font-medium text-foreground">{submission.ctm_acknowledgment}</p>
-                        </div>
-                      )}
-                      {submission.gender && (
-                        <div>
-                          <span className="text-muted-foreground">Gender</span>
-                          <p className="font-medium text-foreground">{submission.gender}</p>
-                        </div>
-                      )}
-                      <div className="col-span-2">
-                        <span className="text-muted-foreground">State Licenses</span>
-                        <p className="font-medium text-foreground">
-                          {Array.isArray(submission.state_licenses) && submission.state_licenses.length > 0
-                            ? submission.state_licenses.join(', ')
-                            : 'None'}
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      {selectedAgent.status === 'pending' && 'Form not yet submitted'}
-                      {selectedAgent.status === 'in-progress' && 'Form in progress — not yet submitted'}
-                      {selectedAgent.status === 'expired' && 'Form link expired — no submission received'}
-                      {selectedAgent.status === 'terminated' && 'Agent terminated'}
-                      {!['pending', 'in-progress', 'expired', 'terminated'].includes(selectedAgent.status) && 'No submission data'}
-                    </p>
-                  )}
-                </div>
-
-                {/* Uploaded Files */}
-                <div className="bg-background rounded-lg p-4">
-                  <h3 className="text-sm font-semibold text-foreground mb-3">Uploaded Files</h3>
-                  {files.length > 0 ? (
-                    <div className="space-y-2">
-                      {files.map((file) => (
-                        <div
-                          key={file.id}
-                          className="flex items-center justify-between p-2.5 bg-card rounded-lg border border-border"
-                        >
-                          <span className="text-sm text-foreground/80 truncate">{file.file_name}</span>
-                          <button
-                            onClick={() => downloadFile(file)}
-                            className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-[#162d4a] transition-colors shrink-0 ml-3"
-                          >
-                            <Download size={12} /> Download
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground text-center py-4">No files uploaded</p>
-                  )}
-                </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    {selectedAgent.status === 'pending' && 'Form not yet submitted'}
+                    {selectedAgent.status === 'in-progress' && 'Form in progress — not yet submitted'}
+                    {selectedAgent.status === 'expired' && 'Form link expired — no submission received'}
+                    {selectedAgent.status === 'terminated' && 'Agent terminated'}
+                    {!['pending', 'in-progress', 'expired', 'terminated'].includes(selectedAgent.status) && 'No submission data'}
+                  </p>
+                )}
               </div>
-            )}
-          </div>
-        </div>
-      )}
+
+              {/* Uploaded Files */}
+              <div className="bg-background rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-foreground mb-3">Uploaded Files</h3>
+                {files.length > 0 ? (
+                  <div className="space-y-2">
+                    {files.map((file) => (
+                      <div
+                        key={file.id}
+                        className="flex items-center justify-between p-2.5 bg-card rounded-lg border border-border"
+                      >
+                        <span className="text-sm text-foreground/80 truncate">{file.file_name}</span>
+                        <button
+                          onClick={() => downloadFile(file)}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:text-primary/80 transition-colors shrink-0 ml-3"
+                        >
+                          <Download size={12} /> Download
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">No files uploaded</p>
+                )}
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
