@@ -386,7 +386,8 @@ export type ContractingTab =
   | 'training'
   | 'database'
   | 'hierarchy'
-  | 'roster-import';
+  | 'roster-import'
+  | 'carrier-upload';
 
 // ─── Agency Intake Submission Types ──────────────────────────────────────────
 
