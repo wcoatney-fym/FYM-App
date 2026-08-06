@@ -20,6 +20,7 @@ import {
 
 } from 'lucide-react';
 import { portalSupabase } from '@/lib/portal-supabase';
+import { supabase as appSupabase } from '@/lib/supabase';
 import {
   processCarrierUpload,
   SUPPORTED_CARRIERS,
@@ -71,6 +72,8 @@ export function CarrierUploadTab() {
           buffer,
           carrier,
           file.name,
+          undefined, // uploadedBy
+          appSupabase || undefined, // FYM App client for roster/prod agent directory
         );
 
         setReport(result);
