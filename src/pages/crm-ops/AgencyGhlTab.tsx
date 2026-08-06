@@ -248,7 +248,7 @@ export const AgencyGhlTab: React.FC<AgencyGhlTabProps> = ({ agencyId, config, on
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
                 placeholder="Enter GHL API key"
-                className="w-full px-4 py-2.5 pr-10 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm font-mono"
+                className="w-full px-4 py-2.5 pr-10 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm font-mono bg-card"
               />
               <button
                 type="button"
@@ -270,7 +270,7 @@ export const AgencyGhlTab: React.FC<AgencyGhlTabProps> = ({ agencyId, config, on
               value={locationId}
               onChange={(e) => setLocationId(e.target.value)}
               placeholder="Enter GHL Location ID"
-              className="w-full px-4 py-2.5 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm font-mono"
+              className="w-full px-4 py-2.5 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm font-mono bg-card"
             />
           </div>
 

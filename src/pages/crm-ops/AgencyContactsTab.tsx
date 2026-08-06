@@ -247,7 +247,7 @@ export const AgencyContactsTab: React.FC<AgencyContactsTabProps> = ({ agencyId, 
             placeholder="Search name, email, phone, carrier..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-            className="w-full pl-10 pr-4 py-2.5 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm"
+            className="w-full pl-10 pr-4 py-2.5 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm bg-card"
           />
         </div>
         <div className="flex items-center gap-2">

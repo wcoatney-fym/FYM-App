@@ -75,7 +75,7 @@ export const AgencyDealsTab: React.FC<AgencyDealsTabProps> = ({ agencyId, deals,
             placeholder="Search deals..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm"
+            className="w-full pl-10 pr-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm bg-card"
           />
         </div>
         <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-1">
@@ -218,7 +218,7 @@ const AddDealModal: React.FC<{
     setSaving(false);
   };
 
-  const inputClass = 'w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm';
+  const inputClass = 'w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm bg-card text-foreground';
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>

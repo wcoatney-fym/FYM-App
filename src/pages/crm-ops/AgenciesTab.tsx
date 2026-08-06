@@ -269,7 +269,7 @@ export const AgenciesTab: React.FC = () => {
             placeholder="Search agencies..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 border border-border rounded-xl focus:ring-2 focus:ring-ring focus:border-primary text-sm shadow-none"
+            className="w-full pl-10 pr-4 py-2.5 border border-border rounded-xl focus:ring-2 focus:ring-ring focus:border-primary text-sm shadow-none bg-card"
           />
         </div>
         <button
@@ -457,7 +457,7 @@ export const AgenciesTab: React.FC = () => {
                     type="text"
                     value={csrForm.firstName}
                     onChange={(e) => setCsrForm((f) => ({ ...f, firstName: e.target.value }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm"
+                    className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm bg-card"
                     placeholder="First name"
                   />
                 </div>
@@ -467,7 +467,7 @@ export const AgenciesTab: React.FC = () => {
                     type="text"
                     value={csrForm.lastName}
                     onChange={(e) => setCsrForm((f) => ({ ...f, lastName: e.target.value }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm"
+                    className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm bg-card"
                     placeholder="Last name"
                   />
                 </div>
@@ -480,7 +480,7 @@ export const AgenciesTab: React.FC = () => {
                     type="tel"
                     value={csrForm.phone}
                     onChange={(e) => setCsrForm((f) => ({ ...f, phone: e.target.value }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm"
+                    className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm bg-card"
                     placeholder="(555) 123-4567"
                   />
                 </div>
@@ -490,7 +490,7 @@ export const AgenciesTab: React.FC = () => {
                     type="email"
                     value={csrForm.email}
                     onChange={(e) => setCsrForm((f) => ({ ...f, email: e.target.value }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm"
+                    className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm bg-card"
                     placeholder="csr@example.com"
                   />
                 </div>
@@ -504,7 +504,7 @@ export const AgenciesTab: React.FC = () => {
                   type="text"
                   value={csrForm.npn}
                   onChange={(e) => setCsrForm((f) => ({ ...f, npn: e.target.value }))}
-                  className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm"
+                  className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm bg-card"
                   placeholder="National Producer Number"
                 />
               </div>
@@ -554,7 +554,7 @@ export const AgenciesTab: React.FC = () => {
                 value={crmNumberValue}
                 onChange={(e) => setCrmNumberValue(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && crmNumberValue.trim()) saveCrmNumber(); }}
-                className="w-full px-4 py-2.5 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm"
+                className="w-full px-4 py-2.5 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm bg-card"
                 placeholder="e.g. 720-594-2854"
                 autoFocus
               />

@@ -512,7 +512,7 @@ const CancellationApprovalsSection: React.FC = () => {
                   value={rejectReason}
                   onChange={(e) => setRejectReason(e.target.value)}
                   rows={3}
-                  className="w-full px-4 py-2.5 border border-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-ring text-sm resize-none"
+                  className="w-full px-4 py-2.5 border border-border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-ring text-sm resize-none bg-card"
                   placeholder="Explain why the cancellation upload is being rejected..."
                 />
               </div>

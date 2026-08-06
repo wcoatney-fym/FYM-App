@@ -609,7 +609,7 @@ export const PipelineTab: React.FC = () => {
                 onChange={(e) => setNoteText(e.target.value)}
                 rows={5}
                 placeholder="Add notes about this agent's onboarding..."
-                className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm resize-none"
+                className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm resize-none bg-card"
               />
             </div>
             <div className="px-6 py-4 bg-muted rounded-b-xl flex justify-end gap-3">
