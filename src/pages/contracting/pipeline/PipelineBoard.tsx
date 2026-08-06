@@ -23,7 +23,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
-import { portalSupabase } from '@/lib/portal-supabase';
+import { portalSupabase, portalUrl, portalKey } from '@/lib/portal-supabase';
 import type {
   PortalPipelineRecord,
   AgentPipelineStage,
@@ -33,6 +33,7 @@ import { PipelineSummaryBar } from './PipelineSummaryBar';
 import { PipelineDetailModal } from './PipelineDetailModal';
 import { StageStepsEditor } from './StageStepsEditor';
 import { ProgressRing } from './ProgressRing';
+import { timeAgo } from '@/lib/contracting/helpers';
 import { computeProgress, stageHealth } from './pipelineProgress';
 
 // ─── Stage definitions ───────────────────────────────────────────────────────
@@ -58,21 +59,7 @@ const HEALTH_BORDER: Record<string, string> = {
   stalled: 'border-red-500/30',
 };
 
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d`;
-  return `${Math.floor(days / 30)}mo`;
-}
-
-// ─── Edge function calls (portal Supabase) ───────────────────────────────────
-
-const PORTAL_URL = import.meta.env.VITE_PORTAL_SUPABASE_URL || '';
-const PORTAL_KEY = import.meta.env.VITE_PORTAL_SUPABASE_KEY || '';
+// ─── Edge function calls (portal Supabase) ─────────────────────────────────
 
 async function pushStageChange(
   recordId: string,
@@ -84,10 +71,10 @@ async function pushStageChange(
   error?: string;
   ghl_pushed?: boolean;
 }> {
-  const res = await fetch(`${PORTAL_URL}/functions/v1/push-pipeline-stage`, {
+  const res = await fetch(`${portalUrl}/functions/v1/push-pipeline-stage`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${PORTAL_KEY}`,
+      Authorization: `Bearer ${portalKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -182,10 +169,10 @@ export function PipelineBoard() {
   const handleSyncFromGhl = async () => {
     setSyncing(true);
     try {
-      const res = await fetch(`${PORTAL_URL}/functions/v1/sync-pipeline-from-ghl`, {
+      const res = await fetch(`${portalUrl}/functions/v1/sync-pipeline-from-ghl`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${PORTAL_KEY}`,
+          Authorization: `Bearer ${portalKey}`,
           'Content-Type': 'application/json',
         },
       });

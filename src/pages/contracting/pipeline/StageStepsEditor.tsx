@@ -3,7 +3,14 @@
  * Ported from CRM Portal.
  */
 import { useState, useEffect } from 'react';
-import { X, ListChecks, Plus, Trash2, Loader2, GripVertical } from 'lucide-react';
+import { ListChecks, Plus, Trash2, Loader2, GripVertical } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import { portalSupabase } from '@/lib/portal-supabase';
 import type { AgentPipelineStage, PortalPipelineStageStep } from '@/lib/contracting/types';
 import { STAGES } from './PipelineBoard';
@@ -80,30 +87,23 @@ export function StageStepsEditor({ onClose }: StageStepsEditorProps) {
     STAGES.find((s) => s.key === activeStage)?.label || activeStage;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-card rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-card z-10 px-6 py-4 border-b border-border flex items-center justify-between rounded-t-2xl">
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="bg-card rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border-border p-0">
+        <DialogHeader className="sticky top-0 bg-card z-10 px-6 py-4 border-b border-border rounded-t-2xl">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-cyan-500/10 flex items-center justify-center">
               <ListChecks className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-foreground">
+              <DialogTitle className="text-lg font-bold text-foreground">
                 Stage Step Checklists
-              </h2>
-              <p className="text-xs text-muted-foreground">
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
                 Define the steps agents complete in each stage
-              </p>
+              </DialogDescription>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-secondary rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5 text-muted-foreground" />
-          </button>
-        </div>
+        </DialogHeader>
 
         <div className="p-6 space-y-4">
           <div>
@@ -197,7 +197,7 @@ export function StageStepsEditor({ onClose }: StageStepsEditorProps) {
             </button>
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

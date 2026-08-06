@@ -4,7 +4,6 @@
  */
 import { useState } from 'react';
 import {
-  X,
   User,
   Mail,
   Phone,
@@ -20,6 +19,13 @@ import {
   ListChecks,
   Check,
 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
 import { portalSupabase } from '@/lib/portal-supabase';
 import type {
   PortalPipelineRecord,
@@ -120,41 +126,36 @@ export function PipelineDetailModal({
   const stageLabel = STAGES.find((s) => s.key === record.stage)?.label || record.stage;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-card rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="bg-card rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto border-border p-0">
         {/* Header */}
-        <div className="sticky top-0 bg-card z-10 px-6 py-4 border-b border-border flex items-center justify-between rounded-t-2xl">
+        <DialogHeader className="sticky top-0 bg-card z-10 px-6 py-4 border-b border-border rounded-t-2xl">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-cyan-500/10 flex items-center justify-center">
               <User className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-foreground">
+              <DialogTitle className="text-lg font-bold text-foreground">
                 {record.agent_name || 'Unnamed Agent'}
-              </h2>
-              <span
-                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${
-                  record.stage === 'terminated'
-                    ? 'bg-red-500/10 text-red-400'
-                    : record.stage === 'actively_selling'
-                      ? 'bg-amber-500/10 text-amber-400'
-                      : record.stage.includes('ready')
-                        ? 'bg-green-500/10 text-emerald-400'
-                        : 'bg-blue-500/10 text-primary'
-                }`}
-              >
-                {stageLabel}
-              </span>
+              </DialogTitle>
+              <DialogDescription asChild>
+                <span
+                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${
+                    record.stage === 'terminated'
+                      ? 'bg-red-500/10 text-red-400'
+                      : record.stage === 'actively_selling'
+                        ? 'bg-amber-500/10 text-amber-400'
+                        : record.stage.includes('ready')
+                          ? 'bg-green-500/10 text-emerald-400'
+                          : 'bg-blue-500/10 text-primary'
+                  }`}
+                >
+                  {stageLabel}
+                </span>
+              </DialogDescription>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-secondary rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5 text-muted-foreground" />
-          </button>
-        </div>
+        </DialogHeader>
 
         <div className="p-6 space-y-6">
           {/* Move Stage */}
@@ -411,7 +412,7 @@ export function PipelineDetailModal({
             </button>
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
