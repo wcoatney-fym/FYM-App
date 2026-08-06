@@ -219,19 +219,19 @@ export function AgentDatabaseTab() {
             {totalProd.toLocaleString()}
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            From agencies without roster uploads
+            FYM agencies without roster uploads
           </p>
         </div>
         <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-4">
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
             <Users className="w-4 h-4 text-cyan-400" />
-            Total Directory
+            FYM Directory
           </div>
           <div className="text-2xl font-bold text-foreground">
             {(totalRoster + totalProd).toLocaleString()}
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            Unified two-tier resolution
+            Rostered + FYM production agents
           </p>
         </div>
       </div>

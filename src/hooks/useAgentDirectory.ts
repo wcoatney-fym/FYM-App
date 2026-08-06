@@ -199,6 +199,14 @@ export function useAgentDirectory(): UseAgentDirectoryReturn {
         setRosterAgents(rosterResults);
       }
 
+      // ── Build FYM agency writing number set for Tier 2 scoping ────
+      // The Database subtab is scoped to FYM agents only. Agents from
+      // non-FYM agencies belong on the Agents page, not here.
+      const fymAgencyWns = new Set<string>();
+      for (const a of agencyMap.values()) {
+        if (a.writing_number?.trim()) fymAgencyWns.add(a.writing_number.trim());
+      }
+
       // ── Tier 2: Load prod-DB agents (all pages) ───────────────────
       const prodResults: UnifiedAgent[] = [];
       let page = 1;
@@ -224,6 +232,9 @@ export function useAgentDirectory(): UseAgentDirectoryReturn {
             }
             continue;
           }
+
+          // Skip agents from non-FYM agencies
+          if (!a.agency_wn || !fymAgencyWns.has(a.agency_wn)) continue;
 
           // Resolve agency name — prefer edge fn's agency_name, fall back to local agencies table
           const agencyEntry = Array.from(agencyMap.values()).find(
