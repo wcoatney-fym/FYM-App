@@ -10,7 +10,7 @@
  * Sub-components live in ./hierarchy/ — this file contains only the
  * tree-building helpers and the top-level orchestration component.
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   GitBranch,
   Plus,
@@ -18,7 +18,13 @@ import {
   Link as LinkIcon,
   Check,
   Database,
+  Building2,
+  Monitor,
+  AlertTriangle,
+  Inbox,
+  X,
 } from 'lucide-react';
+import { HudFrame } from '@/components/ui/hud-frame';
 import { portalSupabase } from '@/lib/portal-supabase';
 import { createActivationRecord, sendOnboardingEmail } from '@/lib/contracting/onboarding-service';
 import { triggerAgencySync } from '@/lib/sync-agencies';
@@ -162,6 +168,20 @@ export function ContractingHierarchyTab() {
   }, [loadData]);
 
   const tree = React.useMemo(() => buildRecursiveTree(agencies, agentCounts), [agencies, agentCounts]);
+
+  // KPI summary stats
+  const kpiStats = useMemo(() => {
+    const total = agencies.filter(a => a.agency_type !== 'main').length;
+    const crmEnabled = agencies.filter(a => a.crm_enabled).length;
+    const incomplete = agencies.filter(a => {
+      const isFym = a.name.toLowerCase() === 'fym';
+      const isRoot = a.agency_type === 'main';
+      if (isFym || isRoot) return false;
+      return !a.agency_npn?.trim() || !a.agency_ein?.trim() || !a.principal_agent?.trim() ||
+        !a.principal_agent_npn?.trim() || !a.contracting_email?.trim();
+    }).length;
+    return { total, crmEnabled, incomplete, pendingIntakes: pendingIntakes.length };
+  }, [agencies, pendingIntakes]);
 
   const isNodeVisible = (node: AgencyNode, visibleIds: Set<string>): boolean => {
     if (visibleIds.has(node.id)) return true;
@@ -412,8 +432,29 @@ export function ContractingHierarchyTab() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
+      <div className="max-w-7xl mx-auto">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-secondary/20 animate-pulse" />
+            <div>
+              <div className="h-6 w-48 bg-secondary/20 rounded animate-pulse" />
+              <div className="h-4 w-64 bg-secondary/20 rounded animate-pulse mt-1" />
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+          {[0,1,2,3].map(i => (
+            <div key={i} className="bg-card border border-border rounded-lg p-4">
+              <div className="h-3 w-16 bg-secondary/20 rounded animate-pulse mb-2" />
+              <div className="h-8 w-12 bg-secondary/20 rounded animate-pulse" />
+            </div>
+          ))}
+        </div>
+        <div className="space-y-2">
+          {[0,1,2,3,4,5].map(i => (
+            <div key={i} className="h-14 bg-card border border-border rounded-lg animate-pulse" style={{ opacity: 1 - i * 0.15 }} />
+          ))}
+        </div>
       </div>
     );
   }
@@ -474,6 +515,46 @@ export function ContractingHierarchyTab() {
         />
       )}
 
+      {/* KPI Summary Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <HudFrame accentColor="hsl(142 71% 45% / 0.5)">
+          <div className="bg-card border border-border rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Agencies</span>
+            </div>
+            <p className="text-3xl font-bold text-foreground tabular-nums">{kpiStats.total}</p>
+          </div>
+        </HudFrame>
+        <HudFrame accentColor="hsl(142 71% 45% / 0.5)">
+          <div className="bg-card border border-border rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <Monitor className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">CRM Enabled</span>
+            </div>
+            <p className="text-3xl font-bold text-emerald-400 tabular-nums">{kpiStats.crmEnabled}</p>
+          </div>
+        </HudFrame>
+        <HudFrame accentColor="hsl(25 95% 53% / 0.5)">
+          <div className="bg-card border border-border rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <AlertTriangle className="w-3.5 h-3.5 text-orange-400" />
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Incomplete</span>
+            </div>
+            <p className="text-3xl font-bold text-orange-400 tabular-nums">{kpiStats.incomplete}</p>
+          </div>
+        </HudFrame>
+        <HudFrame accentColor="hsl(45 93% 47% / 0.5)">
+          <div className="bg-card border border-border rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <Inbox className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Pending Intake</span>
+            </div>
+            <p className="text-3xl font-bold text-amber-400 tabular-nums">{kpiStats.pendingIntakes}</p>
+          </div>
+        </HudFrame>
+      </div>
+
       <div className="flex gap-3 mb-6">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -482,8 +563,16 @@ export function ContractingHierarchyTab() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by agency name..."
-            className="w-full pl-10 pr-4 py-2.5 border border-border rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-transparent bg-card text-foreground placeholder:text-muted-foreground"
+            className="w-full pl-10 pr-10 py-2.5 border border-border rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-transparent bg-card text-foreground placeholder:text-muted-foreground"
           />
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-secondary/40 text-muted-foreground transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -492,8 +581,16 @@ export function ContractingHierarchyTab() {
             value={principalSearch}
             onChange={(e) => setPrincipalSearch(e.target.value)}
             placeholder="Search by principal agent..."
-            className="w-full pl-10 pr-4 py-2.5 border border-border rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-transparent bg-card text-foreground placeholder:text-muted-foreground"
+            className="w-full pl-10 pr-10 py-2.5 border border-border rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-transparent bg-card text-foreground placeholder:text-muted-foreground"
           />
+          {principalSearch && (
+            <button
+              onClick={() => setPrincipalSearch('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-secondary/40 text-muted-foreground transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
 
