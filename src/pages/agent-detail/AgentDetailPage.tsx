@@ -21,14 +21,17 @@ import { supabase } from '@/lib/supabase';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import {
   ArrowLeft, DollarSign, FileText, ShieldCheck,
-  TrendingUp, AlertTriangle, Users,
+  TrendingUp, AlertTriangle, Users, ClipboardList,
 } from 'lucide-react';
 import { OverviewTab } from './tabs/OverviewTab';
 import { VolumeTab } from './tabs/VolumeTab';
 import { QualityTab } from './tabs/QualityTab';
 import { PoliciesTab } from './tabs/PoliciesTab';
+import { ContractingTab } from './tabs/ContractingTab';
 import type { AgentStats, PolicyRow, TrendPoint } from './types';
 import { fmt$, fmtNum, retentionColor, retentionBg } from './helpers';
+import { portalSupabase } from '@/lib/portal-supabase';
+import type { PortalPipelineRecord } from '@/lib/contracting/types';
 import { PeriodPills } from '@/components/filters/PeriodPills';
 import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange, getGranularity, bucketKey, fmtBucketLabel } from '@/lib/dateUtils';
 
@@ -88,6 +91,10 @@ export function AgentDetailPage() {
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
   const [activeTab, setActiveTab] = useState(defaultTab);
+  const [isFymDirect, setIsFymDirect] = useState(false);
+  const [pipelineRecord, setPipelineRecord] = useState<PortalPipelineRecord | null>(null);
+  const [portalAgentId, setPortalAgentId] = useState<string | null>(null);
+  const [contractingLoading, setContractingLoading] = useState(true);
 
   // Back navigation (§11.6)
   const backPath = useMemo(() => {
@@ -103,6 +110,52 @@ export function AgentDetailPage() {
     if (from) return resolveBackLabel(from);
     return stats?.agency_name || 'Production';
   }, [location.state, stats?.agency_name]);
+
+  // ── Check FYM Direct + load pipeline record ─────────────────────────────
+  useEffect(() => {
+    if (!agentId || !portalSupabase || !supabase) {
+      setContractingLoading(false);
+      return;
+    }
+    async function loadContractingData() {
+      setContractingLoading(true);
+      try {
+        // Get agent's agency_id from profile
+        const { data: prof } = await supabase!.from('profiles').select('agency_id').eq('id', agentId!).maybeSingle();
+        if (prof?.agency_id) {
+          // Check if agency is fym_direct in portal crm_agencies
+          const { data: agency } = await portalSupabase!.from('crm_agencies').select('variant').eq('id', prof.agency_id).maybeSingle();
+          if (agency?.variant === 'fym_direct') {
+            setIsFymDirect(true);
+            // Find pipeline record by agent_id or by matching profile ID
+            const { data: pipeline } = await portalSupabase!.from('agent_pipeline').select('*').eq('agent_id', agentId!).maybeSingle();
+            if (pipeline) {
+              setPipelineRecord(pipeline as PortalPipelineRecord);
+              setPortalAgentId(pipeline.agent_id);
+            } else {
+              // Fallback: try matching by email via portal agents table
+              const { data: user } = await supabase!.auth.admin.getUserById(agentId!);
+              if (user?.user?.email) {
+                const { data: portalAgent } = await portalSupabase!.from('agents').select('id').eq('email', user.user.email).maybeSingle();
+                if (portalAgent) {
+                  const { data: pRec } = await portalSupabase!.from('agent_pipeline').select('*').eq('agent_id', portalAgent.id).maybeSingle();
+                  if (pRec) {
+                    setPipelineRecord(pRec as PortalPipelineRecord);
+                    setPortalAgentId(portalAgent.id);
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Contracting data load error:', err);
+      } finally {
+        setContractingLoading(false);
+      }
+    }
+    loadContractingData();
+  }, [agentId]);
 
   // ── Data loading ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -403,6 +456,11 @@ export function AgentDetailPage() {
           <TabsTrigger value="policies" className="text-xs gap-1.5">
             <FileText size={14} /> Policies
           </TabsTrigger>
+          {isFymDirect && (
+            <TabsTrigger value="contracting" className="text-xs gap-1.5">
+              <ClipboardList size={14} /> Contracting
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="overview">
@@ -437,6 +495,16 @@ export function AgentDetailPage() {
             writingNumber={stats.writing_number}
           />
         </TabsContent>
+
+        {isFymDirect && (
+          <TabsContent value="contracting">
+            <ContractingTab
+              pipelineRecord={pipelineRecord}
+              portalAgentId={portalAgentId}
+              loading={contractingLoading}
+            />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
