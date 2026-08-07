@@ -3,7 +3,7 @@ import type { EngineRunResult } from '@/lib/command-center/engine-run';
 export type EngineRunSummary = Pick<EngineRunResult, 'totalUpserted' | 'ranAt' | 'reconciliation' | 'activation'>;
 import { Task, TaskStatus } from '@/lib/command-center/types';
 import { mockTasks } from '@/lib/command-center/mock-data';
-import { fetchTasks, persistTaskStatus, createTask, persistTaskUpdate } from '@/lib/command-center/task-hq';
+import { fetchTasks, persistTaskStatus, createTask, persistTaskUpdate, deleteTaskFromDb } from '@/lib/command-center/task-hq';
 import { runIdleRebalance } from '@/lib/command-center/rebalance-run';
 import { runAllEngines } from '@/lib/command-center/engine-run';
 
@@ -65,6 +65,8 @@ export const useTasksStore = create<TasksState>((set, get) => ({
       void runIdleRebalance(prev.assigneeId);
     }
   },
-  deleteTask: (id) =>
-    set((state) => ({ tasks: state.tasks.filter((t) => t.id !== id) })),
+  deleteTask: (id) => {
+    set((state) => ({ tasks: state.tasks.filter((t) => t.id !== id) }));
+    void deleteTaskFromDb(id);
+  },
 }));

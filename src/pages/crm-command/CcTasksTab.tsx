@@ -6,7 +6,7 @@
  * 2. @dnd-kit for drag preview, keyboard a11y, touch support, drop zone highlighting
  * 3. Sonner toasts on task create, move, update, delete
  */
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   DndContext,
@@ -23,6 +23,7 @@ import {
 } from '@dnd-kit/core';
 import {
   KanbanSquare, List, Plus, Filter, Calendar, Bot, X,
+  ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTasksStore, useTeamStore } from '@/stores/cc-stores';
@@ -88,6 +89,8 @@ export function CcTasksTab() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+  const [listPage, setListPage] = useState(0);
+  const LIST_PAGE_SIZE = 25;
   const updateTask = useTasksStore((s) => s.updateTask);
   const deleteTask = useTasksStore((s) => s.deleteTask);
   const runEngines = useTasksStore((s) => s.runEngines);
@@ -98,6 +101,18 @@ export function CcTasksTab() {
     if (filterPriority && t.priority !== filterPriority) return false;
     return true;
   }), [tasks, filterAssignee, filterCategory, filterPriority]);
+
+  // Reset list pagination when filters change
+  useEffect(() => { setListPage(0); }, [filterAssignee, filterCategory, filterPriority]);
+
+  // Paginated slice for list view
+  const totalListPages = Math.max(1, Math.ceil(filteredTasks.length / LIST_PAGE_SIZE));
+  const pagedTasks = useMemo(
+    () => filteredTasks.slice(listPage * LIST_PAGE_SIZE, (listPage + 1) * LIST_PAGE_SIZE),
+    [filteredTasks, listPage],
+  );
+  const handlePrevPage = useCallback(() => setListPage((p) => Math.max(0, p - 1)), []);
+  const handleNextPage = useCallback(() => setListPage((p) => Math.min(totalListPages - 1, p + 1)), [totalListPages]);
 
   // ─── @dnd-kit sensors (pointer + touch + keyboard) ──────────────────
   const pointerSensor = useSensor(PointerSensor, { activationConstraint: { distance: 8 } });
@@ -222,7 +237,7 @@ export function CcTasksTab() {
           </DragOverlay>
         </DndContext>
       ) : (
-        /* List view */
+        /* List view with pagination */
         <div className="glass rounded-xl overflow-hidden">
           <table className="w-full text-xs">
             <thead>
@@ -236,7 +251,7 @@ export function CcTasksTab() {
               </tr>
             </thead>
             <tbody>
-              {filteredTasks.map((task) => (
+              {pagedTasks.map((task) => (
                 <tr key={task.id} onClick={() => setSelectedTask(task)} className="border-b border-border/30 hover:bg-secondary/20 transition-colors cursor-pointer">
                   <td className="py-3 px-4"><div className="flex items-center gap-2">{task.aiGenerated && <Bot className="w-3 h-3 text-primary" />}<span className="font-medium">{task.title}</span></div></td>
                   <td className="py-3 px-4 text-muted-foreground">{getMemberName(task.assigneeId)}</td>
@@ -249,6 +264,23 @@ export function CcTasksTab() {
             </tbody>
           </table>
           {filteredTasks.length === 0 && <p className="text-center py-12 text-sm text-muted-foreground">No tasks to display</p>}
+          {/* Pagination controls */}
+          {filteredTasks.length > LIST_PAGE_SIZE && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-border/30">
+              <span className="text-xs text-muted-foreground">
+                {listPage * LIST_PAGE_SIZE + 1}–{Math.min((listPage + 1) * LIST_PAGE_SIZE, filteredTasks.length)} of {filteredTasks.length}
+              </span>
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="icon" onClick={handlePrevPage} disabled={listPage === 0} className="h-7 w-7">
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </Button>
+                <span className="text-xs text-muted-foreground px-2">{listPage + 1} / {totalListPages}</span>
+                <Button variant="ghost" size="icon" onClick={handleNextPage} disabled={listPage >= totalListPages - 1} className="h-7 w-7">
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -442,6 +474,13 @@ function CreateTaskModal({
   onClose: () => void;
   onCreate: (task: Task) => void;
 }) {
+  // Default due date = 7 days from now
+  const defaultDue = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d.toISOString().split('T')[0];
+  }, []);
+
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -449,7 +488,7 @@ function CreateTaskModal({
     priority: 'P2' as Priority,
     category: 'Lead Gen' as TaskCategory,
     difficulty: 5,
-    dueDate: '',
+    dueDate: defaultDue,
     skillCategory: 'retention' as SkillCategoryKey,
   });
   const [autoNote, setAutoNote] = useState('');
