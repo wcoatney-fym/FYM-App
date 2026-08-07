@@ -8,12 +8,13 @@
  */
 // @ts-nocheck
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Building2, ChevronRight, FlaskConical, GitBranch, X, UserCheck, Phone, ExternalLink } from 'lucide-react';
+import { Plus, Search, Building2, ChevronRight, FlaskConical, GitBranch, X, UserCheck, Phone, ExternalLink, Zap, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/crm/portal-client';
 import { formatPhoneDisplay } from '@/lib/crm/helpers';
 import type { CrmAgency } from '@/lib/crm/types';
 import { AddAgencyModal } from '@/pages/crm-ops/AddAgencyModal';
 import { AgencyProfileView } from './AgencyProfileView';
+import { useGhlLiveFeed } from '@/lib/use-ghl-live-feed';
 
 const STATUS_LABELS: Record<string, string> = {
   pending_csr_assignment: 'Pending CSR Assignment',
@@ -44,6 +45,7 @@ export const AgenciesTab: React.FC = () => {
   const [crmNumberValue, setCrmNumberValue] = useState('');
   const [crmSaving, setCrmSaving] = useState(false);
   const [selectedAgency, setSelectedAgency] = useState<CrmAgency | null>(null);
+  const { isEnabledByName, toggle: toggleGhl, togglingId, statuses: ghlStatuses } = useGhlLiveFeed();
 
   const getParentName = (agency: CrmAgency): string | null => {
     if (agency.agency_type !== 'sub' || !agency.parent_agency_id) return null;
@@ -301,6 +303,7 @@ export const AgenciesTab: React.FC = () => {
                   <th className="px-4 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Onboarding Status</th>
                   <th className="px-4 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Date Added</th>
                   <th className="px-4 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Seats</th>
+                  <th className="px-4 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">GHL Feed</th>
                   <th className="px-4 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Active</th>
                   <th className="px-4 py-3"></th>
                 </tr>
@@ -397,6 +400,39 @@ export const AgenciesTab: React.FC = () => {
                           <span className="text-sm font-medium text-foreground">{filledSeats[agency.name] || 0}</span>
                           <span className="text-xs text-muted-foreground">/ 200</span>
                         </div>
+                      </td>
+                      <td className="px-4 py-3.5 whitespace-nowrap">
+                        {(() => {
+                          const ghlAgency = ghlStatuses.find(s => s.name.toLowerCase() === agency.name.toLowerCase());
+                          const ghlEnabled = ghlAgency?.ghl_api_enabled ?? false;
+                          const isToggling = togglingId === ghlAgency?.id;
+                          if (!ghlAgency) return <span className="text-xs text-muted-foreground">—</span>;
+                          return (
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                const next = !ghlEnabled;
+                                if (next && !confirm(`Turn on GHL Live Feed for ${agency.name}?\n\nLive policy data and status changes (approved, terminated, at-risk) will push to this agency's GHL account.`)) return;
+                                if (!next && !confirm(`Turn off GHL Live Feed for ${agency.name}?\n\nPolicy lifecycle events will stop pushing to GHL for this agency.`)) return;
+                                await toggleGhl(ghlAgency.id, next);
+                              }}
+                              disabled={isToggling}
+                              className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg transition-colors disabled:opacity-50 ${
+                                ghlEnabled
+                                  ? 'text-green-400 bg-green-400/10 hover:bg-green-400/20 border border-green-500/20'
+                                  : 'text-muted-foreground bg-secondary hover:bg-secondary/80 border border-border'
+                              }`}
+                              title={ghlEnabled ? 'GHL Live Feed ON — click to disable' : 'GHL Live Feed OFF — click to enable'}
+                            >
+                              {isToggling ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Zap className={`w-3 h-3 ${ghlEnabled ? 'fill-green-400' : ''}`} />
+                              )}
+                              {ghlEnabled ? 'Live' : 'Off'}
+                            </button>
+                          );
+                        })()}
                       </td>
                       <td className="px-4 py-3.5 whitespace-nowrap">
                         <button
