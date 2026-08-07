@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronDown, ChevronRight, Building2, Users, Monitor, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Building2, Users, Monitor, Trash2, Zap } from 'lucide-react';
 import type { PortalCrmAgency } from '@/lib/contracting/types';
 
 export type AgencyNode = PortalCrmAgency & {
@@ -14,7 +14,9 @@ export const TreeNode: React.FC<{
   onToggle: (id: string) => void;
   onSelect: (agency: PortalCrmAgency) => void;
   onDelete: (node: AgencyNode) => void;
-}> = ({ node, depth, expandedNodes, onToggle, onSelect, onDelete }) => {
+  ghlEnabledNames?: Set<string>;
+}> = ({ node, depth, expandedNodes, onToggle, onSelect, onDelete, ghlEnabledNames }) => {
+  const isGhlLive = ghlEnabledNames?.has(node.name.toLowerCase()) ?? false;
   const hasChildren = node.children.length > 0;
   const isExpanded = expandedNodes.has(node.id);
   const isRoot = node.agency_type === 'main';
@@ -78,6 +80,12 @@ export const TreeNode: React.FC<{
               {node.is_test && (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 uppercase tracking-wider">
                   Test
+                </span>
+              )}
+              {isGhlLive && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-500/10 text-green-400 uppercase tracking-wider">
+                  <Zap className="w-2.5 h-2.5 fill-green-400" />
+                  GHL Live
                 </span>
               )}
               {isContractingIncomplete && (
@@ -149,6 +157,7 @@ export const TreeNode: React.FC<{
               onToggle={onToggle}
               onSelect={onSelect}
               onDelete={onDelete}
+              ghlEnabledNames={ghlEnabledNames}
             />
           ))}
         </div>

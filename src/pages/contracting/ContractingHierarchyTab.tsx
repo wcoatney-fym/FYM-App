@@ -45,6 +45,7 @@ import {
   AgencyDetailPanel,
 } from './hierarchy';
 import type { AgencyNode } from './hierarchy';
+import { useGhlLiveFeed } from '@/lib/use-ghl-live-feed';
 
 // ─── Tree building helpers ────────────────────────────────────────────────
 
@@ -119,6 +120,16 @@ export function ContractingHierarchyTab() {
   const [pendingApprovalParentId, setPendingApprovalParentId] = useState<string>('');
   const [intakeLinkCopied, setIntakeLinkCopied] = useState(false);
   const [allCollapsed, setAllCollapsed] = useState(false);
+  const { statuses: ghlStatuses } = useGhlLiveFeed();
+
+  // Build a Set of lowercase agency names that have GHL live feed enabled
+  const ghlEnabledNames = useMemo(() => {
+    const names = new Set<string>();
+    for (const s of ghlStatuses) {
+      if (s.ghl_api_enabled) names.add(s.name.toLowerCase());
+    }
+    return names;
+  }, [ghlStatuses]);
 
   const handleCopyIntakeLink = async () => {
     const url = `${window.location.origin}/agency-intake`;
@@ -686,6 +697,7 @@ export function ContractingHierarchyTab() {
             onToggle={toggleExpand}
             onSelect={setSelectedAgency}
             onDelete={setDeleteTarget}
+            ghlEnabledNames={ghlEnabledNames}
           />
         ))}
         {displayTree.length === 0 && (
