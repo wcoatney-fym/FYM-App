@@ -30,8 +30,10 @@ import {
   ChevronUp,
   Eye,
   MousePointerClick,
+  Search,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import { HudFrame } from '@/components/ui/hud-frame';
 import { portalSupabase } from '@/lib/portal-supabase';
 import { timeAgo } from '@/lib/contracting/helpers';
 import type {
@@ -93,6 +95,7 @@ export function ContractingTrainingTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [contentFilter, setContentFilter] = useState<string>('all');
+  const [search, setSearch] = useState('');
   const [showAllSessions, setShowAllSessions] = useState(false);
   const [expandedContent, setExpandedContent] = useState<string | null>(null);
 
@@ -193,9 +196,21 @@ export function ContractingTrainingTab() {
   }, [content, events]);
 
   const filteredContent = useMemo(() => {
-    if (contentFilter === 'all') return contentWithStats;
-    return contentWithStats.filter((c) => c.category === contentFilter);
-  }, [contentWithStats, contentFilter]);
+    let items = contentWithStats;
+    if (contentFilter !== 'all') {
+      items = items.filter((c) => c.category === contentFilter);
+    }
+    if (search) {
+      const q = search.toLowerCase();
+      items = items.filter(
+        (c) =>
+          c.title.toLowerCase().includes(q) ||
+          (c.description ?? '').toLowerCase().includes(q) ||
+          (c.carrier ?? '').toLowerCase().includes(q)
+      );
+    }
+    return items;
+  }, [contentWithStats, contentFilter, search]);
 
   const categories = useMemo(() => {
     const cats = new Set(
@@ -283,34 +298,42 @@ export function ContractingTrainingTab() {
     <div className="space-y-6">
       {/* ── KPI Cards ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <KpiCard
-          icon={BookOpen}
-          label="Content Items"
-          value={stats.activeContent}
-          sublabel={`${stats.withQuizzes} with quizzes`}
-          color="blue"
-        />
-        <KpiCard
-          icon={Users}
-          label="Agents Engaged"
-          value={stats.uniqueAgents}
-          sublabel={`${stats.totalEvents} total events`}
-          color="green"
-        />
-        <KpiCard
-          icon={Eye}
-          label="Content Views"
-          value={stats.videoViews}
-          sublabel={`${stats.liveClicks} live clicks`}
-          color="purple"
-        />
-        <KpiCard
-          icon={Award}
-          label="Quiz Attempts"
-          value={stats.quizAttempts}
-          sublabel={hubLogins.length > 0 ? `${hubLogins.length} hub logins` : 'No hub logins yet'}
-          color="amber"
-        />
+        <HudFrame accentColor="hsl(199 89% 48% / 0.5)">
+          <KpiCard
+            icon={BookOpen}
+            label="Content Items"
+            value={stats.activeContent}
+            sublabel={`${stats.withQuizzes} with quizzes`}
+            color="blue"
+          />
+        </HudFrame>
+        <HudFrame accentColor="hsl(142 71% 45% / 0.5)">
+          <KpiCard
+            icon={Users}
+            label="Agents Engaged"
+            value={stats.uniqueAgents}
+            sublabel={`${stats.totalEvents} total events`}
+            color="green"
+          />
+        </HudFrame>
+        <HudFrame accentColor="hsl(271 91% 65% / 0.5)">
+          <KpiCard
+            icon={Eye}
+            label="Content Views"
+            value={stats.videoViews}
+            sublabel={`${stats.liveClicks} live clicks`}
+            color="purple"
+          />
+        </HudFrame>
+        <HudFrame accentColor="hsl(38 92% 50% / 0.5)">
+          <KpiCard
+            icon={Award}
+            label="Quiz Attempts"
+            value={stats.quizAttempts}
+            sublabel={hubLogins.length > 0 ? `${hubLogins.length} hub logins` : 'No hub logins yet'}
+            color="amber"
+          />
+        </HudFrame>
       </div>
 
       {/* ── Two-column layout ─────────────────────────────────────────── */}
@@ -322,6 +345,17 @@ export function ContractingTrainingTab() {
               <GraduationCap className="w-4 h-4" /> Content Library
             </h3>
             <div className="flex items-center gap-2">
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Search content…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="text-xs border border-border rounded-lg pl-7 pr-2 py-1.5 bg-card text-foreground/80 focus:ring-2 focus:ring-blue-400 w-40"
+                />
+              </div>
               {/* Category filter */}
               <select
                 value={contentFilter}
@@ -348,7 +382,7 @@ export function ContractingTrainingTab() {
             <Card className="border-border">
               <CardContent className="p-6 text-center text-sm text-muted-foreground">
                 No content found
-                {contentFilter !== 'all' ? ` in "${contentFilter}"` : ''}.
+                {contentFilter !== 'all' || search ? ' matching your filters' : ''}.
               </CardContent>
             </Card>
           ) : (
@@ -367,8 +401,8 @@ export function ContractingTrainingTab() {
           )}
         </div>
 
-        {/* Right: Sidebar (1 col) */}
-        <div className="space-y-6">
+        {/* Right: Sidebar (1 col) — scroll boundary */}
+        <div className="space-y-6 lg:sticky lg:top-4 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto lg:pr-1">
           {/* Upcoming Live Sessions */}
           <div className="space-y-3">
             <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
