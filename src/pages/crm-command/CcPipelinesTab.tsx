@@ -1,7 +1,8 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
-  TrendingUp, XCircle, DollarSign, Shield, TrendingDown, Minus, Loader2
+  TrendingUp, XCircle, DollarSign, Shield, TrendingDown, Minus, Loader2,
+  ArrowUpDown, ArrowUp, ArrowDown, AlertTriangle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { fetchBookOfBusiness } from '@/lib/prod-api';
@@ -11,6 +12,86 @@ import { supabase } from '@/lib/supabase';
 import { fmt$, fmtDate } from '@/lib/formatUtils';
 
 type PipelineTab = 'placements' | 'cancellations' | 'retention' | 'revenue';
+type SortDir = 'asc' | 'desc';
+
+// ── Generic sort helpers ────────────────────────────────────────────────
+
+function cmp(a: string | number | null, b: string | number | null): number {
+  if (a === null && b === null) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  if (typeof a === 'string' && typeof b === 'string') return a.localeCompare(b);
+  return (a as number) - (b as number);
+}
+
+function sortRows<T>(rows: T[], accessor: ((r: T) => string | number | null) | null, dir: SortDir): T[] {
+  if (!accessor) return rows;
+  return [...rows].sort((a, b) => {
+    const c = cmp(accessor(a), accessor(b));
+    return dir === 'asc' ? c : -c;
+  });
+}
+
+// ── Sort icon + header (reused from CcAgencyHealthTab pattern) ──────────
+
+function SortIcon<K extends string>({ columnKey, activeKey, dir }: { columnKey: K; activeKey: K | null; dir: SortDir }) {
+  if (activeKey !== columnKey) return <ArrowUpDown className="w-3 h-3 opacity-30" />;
+  return dir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />;
+}
+
+function SortableHeader<K extends string>({ label, sortKey: key, active, dir, onSort, align }: {
+  label: string; sortKey: K; active: K | null; dir: SortDir;
+  onSort: (k: K) => void; align?: 'right';
+}) {
+  return (
+    <th
+      className={cn(
+        'px-4 py-3 font-medium text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors',
+        align === 'right' && 'text-right',
+      )}
+      onClick={() => onSort(key)}
+    >
+      <span className={cn('inline-flex items-center gap-1', align === 'right' && 'justify-end')}>
+        {label}
+        <SortIcon columnKey={key} activeKey={active} dir={dir} />
+      </span>
+    </th>
+  );
+}
+
+function useSort<K extends string>(defaultDir: SortDir = 'desc') {
+  const [sortKey, setSortKey] = useState<K | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>(defaultDir);
+  const toggleSort = useCallback((key: K) => {
+    setSortKey(prev => {
+      if (prev === key) {
+        setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+        return key;
+      }
+      setSortDir(key === ('agency' as K) || key === ('month' as K) ? 'asc' : 'desc');
+      return key;
+    });
+  }, []);
+  return { sortKey, sortDir, toggleSort };
+}
+
+// ── Truncation warning ──────────────────────────────────────────────────
+
+const PAGE_SIZE = 200;
+
+function TruncationWarning({ count }: { count: number }) {
+  if (count < PAGE_SIZE) return null;
+  return (
+    <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-400/10 text-amber-400 text-xs">
+      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+      <span>
+        Showing the first {PAGE_SIZE} results. There may be additional records not displayed.
+      </span>
+    </div>
+  );
+}
+
+// ── Row type interfaces ─────────────────────────────────────────────────
 
 interface PlacementRow {
   policy_number: string;
@@ -66,6 +147,8 @@ function useAgencyNames(): Map<string, string> {
   return names;
 }
 
+// ── Main component ──────────────────────────────────────────────────────
+
 export function CcPipelinesTab() {
   const [activeTab, setActiveTab] = React.useState<PipelineTab>('placements');
   const orgData = useOrgData();
@@ -74,7 +157,7 @@ export function CcPipelinesTab() {
   // Placements — cached book-of-business fetch
   const { data: bobRecent } = useCachedFetch(
     'cc-placements',
-    () => fetchBookOfBusiness({ sort: 'submit_date', order: 'desc', page_size: 200 }),
+    () => fetchBookOfBusiness({ sort: 'submit_date', order: 'desc', page_size: PAGE_SIZE }),
   );
   const placements = useMemo((): PlacementRow[] | null => {
     if (!bobRecent) return null;
@@ -95,7 +178,7 @@ export function CcPipelinesTab() {
   // Cancellations — cached book-of-business fetch
   const { data: bobTerminated } = useCachedFetch(
     'cc-cancellations',
-    () => fetchBookOfBusiness({ status: 'terminated', sort: 'paid_to_date', order: 'desc', page_size: 200 }),
+    () => fetchBookOfBusiness({ status: 'terminated', sort: 'paid_to_date', order: 'desc', page_size: PAGE_SIZE }),
   );
   const cancellations = useMemo((): CancellationRow[] | null => {
     if (!bobTerminated) return null;
@@ -190,14 +273,16 @@ export function CcPipelinesTab() {
         ))}
       </div>
       <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
-        {activeTab === 'placements' && <PlacementsView data={placements} />}
-        {activeTab === 'cancellations' && <CancellationsView data={cancellations} />}
+        {activeTab === 'placements' && <PlacementsView data={placements} truncated={bobRecent ? bobRecent.data.length >= PAGE_SIZE : false} />}
+        {activeTab === 'cancellations' && <CancellationsView data={cancellations} truncated={bobTerminated ? bobTerminated.data.length >= PAGE_SIZE : false} />}
         {activeTab === 'retention' && <RetentionAgenciesView data={retentionAgencies} />}
         {activeTab === 'revenue' && <RevenueView data={revenue} />}
       </motion.div>
     </div>
   );
 }
+
+// ── Shared UI components ────────────────────────────────────────────────
 
 function Loading() {
   return (
@@ -226,15 +311,39 @@ function StatCard({ label, value, trend }: { label: string; value: string; trend
   );
 }
 
-function PlacementsView({ data }: { data: PlacementRow[] | null }) {
-  if (data === null) return <Loading />;
-  if (data.length === 0) return <EmptyState message="No placements in the last 30 days." />;
-  const totalPremium = data.reduce((s, d) => s + (Number(d.annual_premium) || 0), 0);
-  const activeCount = data.filter((d) => d.status === 'active').length;
+// ── Placements view ─────────────────────────────────────────────────────
+
+type PlacementSortKey = 'policy_number' | 'agent' | 'agency' | 'product' | 'premium' | 'effective' | 'status';
+
+const PLACEMENT_ACCESSORS: Record<PlacementSortKey, (r: PlacementRow) => string | number | null> = {
+  policy_number: r => r.policy_number,
+  agent: r => r.agent_name.toLowerCase(),
+  agency: r => r.agency_name.toLowerCase(),
+  product: r => r.product_type.toLowerCase(),
+  premium: r => r.annual_premium,
+  effective: r => r.policy_effective_date,
+  status: r => r.status,
+};
+
+function PlacementsView({ data, truncated }: { data: PlacementRow[] | null; truncated: boolean }) {
+  const { sortKey, sortDir, toggleSort } = useSort<PlacementSortKey>();
+
+  const sorted = useMemo(() => {
+    if (!data) return null;
+    return sortRows(data, sortKey ? PLACEMENT_ACCESSORS[sortKey] : null, sortDir);
+  }, [data, sortKey, sortDir]);
+
+  if (sorted === null) return <Loading />;
+  if (sorted.length === 0) return <EmptyState message="No placements in the last 30 days." />;
+
+  const totalPremium = sorted.reduce((s, d) => s + (Number(d.annual_premium) || 0), 0);
+  const activeCount = sorted.filter((d) => d.status === 'active').length;
+
   return (
     <div className="space-y-4">
+      {truncated && <TruncationWarning count={PAGE_SIZE} />}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard label="Placed (30d)" value={data.length.toString()} trend="up" />
+        <StatCard label="Placed (30d)" value={sorted.length.toString()} trend="up" />
         <StatCard label="Active" value={activeCount.toString()} trend="up" />
         <StatCard label="Total Annual Premium" value={fmt$(totalPremium)} trend="up" />
       </div>
@@ -242,17 +351,17 @@ function PlacementsView({ data }: { data: PlacementRow[] | null }) {
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-border/50 bg-secondary/30">
-              <th className="text-left py-3 px-4 font-medium text-muted-foreground">Policy #</th>
-              <th className="text-left py-3 px-4 font-medium text-muted-foreground">Agent</th>
-              <th className="text-left py-3 px-4 font-medium text-muted-foreground">Agency</th>
-              <th className="text-left py-3 px-4 font-medium text-muted-foreground">Product</th>
-              <th className="text-right py-3 px-4 font-medium text-muted-foreground">Annual Premium</th>
-              <th className="text-left py-3 px-4 font-medium text-muted-foreground">Effective</th>
-              <th className="text-left py-3 px-4 font-medium text-muted-foreground">Status</th>
+              <SortableHeader label="Policy #" sortKey="policy_number" active={sortKey} dir={sortDir} onSort={toggleSort} />
+              <SortableHeader label="Agent" sortKey="agent" active={sortKey} dir={sortDir} onSort={toggleSort} />
+              <SortableHeader label="Agency" sortKey="agency" active={sortKey} dir={sortDir} onSort={toggleSort} />
+              <SortableHeader label="Product" sortKey="product" active={sortKey} dir={sortDir} onSort={toggleSort} />
+              <SortableHeader label="Annual Premium" sortKey="premium" active={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
+              <SortableHeader label="Effective" sortKey="effective" active={sortKey} dir={sortDir} onSort={toggleSort} />
+              <SortableHeader label="Status" sortKey="status" active={sortKey} dir={sortDir} onSort={toggleSort} />
             </tr>
           </thead>
           <tbody>
-            {data.map((row) => (
+            {sorted.map((row) => (
               <tr key={row.policy_number} className="border-b border-border/30 hover:bg-secondary/20">
                 <td className="py-3 px-4 font-medium">{row.policy_number}</td>
                 <td className="py-3 px-4 text-muted-foreground">{row.agent_name}</td>
@@ -279,29 +388,51 @@ function PlacementsView({ data }: { data: PlacementRow[] | null }) {
   );
 }
 
-function CancellationsView({ data }: { data: CancellationRow[] | null }) {
-  if (data === null) return <Loading />;
-  if (data.length === 0) return <EmptyState message="No cancellations found." />;
-  const premiumAtRisk = data.reduce((s, d) => s + (Number(d.annual_premium) || 0), 0);
+// ── Cancellations view ──────────────────────────────────────────────────
+
+type CancellationSortKey = 'policy_number' | 'agent' | 'agency' | 'premium' | 'paid_to';
+
+const CANCELLATION_ACCESSORS: Record<CancellationSortKey, (r: CancellationRow) => string | number | null> = {
+  policy_number: r => r.policy_number,
+  agent: r => r.agent_name.toLowerCase(),
+  agency: r => r.agency_name.toLowerCase(),
+  premium: r => r.annual_premium,
+  paid_to: r => r.paid_to_date,
+};
+
+function CancellationsView({ data, truncated }: { data: CancellationRow[] | null; truncated: boolean }) {
+  const { sortKey, sortDir, toggleSort } = useSort<CancellationSortKey>();
+
+  const sorted = useMemo(() => {
+    if (!data) return null;
+    return sortRows(data, sortKey ? CANCELLATION_ACCESSORS[sortKey] : null, sortDir);
+  }, [data, sortKey, sortDir]);
+
+  if (sorted === null) return <Loading />;
+  if (sorted.length === 0) return <EmptyState message="No cancellations found." />;
+
+  const premiumAtRisk = sorted.reduce((s, d) => s + (Number(d.annual_premium) || 0), 0);
+
   return (
     <div className="space-y-4">
+      {truncated && <TruncationWarning count={PAGE_SIZE} />}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <StatCard label="Total Cancellations" value={data.length.toString()} trend="down" />
+        <StatCard label="Total Cancellations" value={sorted.length.toString()} trend="down" />
         <StatCard label="Premium Lost" value={fmt$(premiumAtRisk)} trend="down" />
       </div>
       <div className="glass rounded-xl overflow-hidden">
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-border/50 bg-secondary/30">
-              <th className="text-left py-3 px-4 font-medium text-muted-foreground">Policy #</th>
-              <th className="text-left py-3 px-4 font-medium text-muted-foreground">Agent</th>
-              <th className="text-left py-3 px-4 font-medium text-muted-foreground">Agency</th>
-              <th className="text-right py-3 px-4 font-medium text-muted-foreground">Annual Premium</th>
-              <th className="text-left py-3 px-4 font-medium text-muted-foreground">Paid To Date</th>
+              <SortableHeader label="Policy #" sortKey="policy_number" active={sortKey} dir={sortDir} onSort={toggleSort} />
+              <SortableHeader label="Agent" sortKey="agent" active={sortKey} dir={sortDir} onSort={toggleSort} />
+              <SortableHeader label="Agency" sortKey="agency" active={sortKey} dir={sortDir} onSort={toggleSort} />
+              <SortableHeader label="Annual Premium" sortKey="premium" active={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
+              <SortableHeader label="Paid To Date" sortKey="paid_to" active={sortKey} dir={sortDir} onSort={toggleSort} />
             </tr>
           </thead>
           <tbody>
-            {data.map((row) => (
+            {sorted.map((row) => (
               <tr key={row.policy_number} className="border-b border-border/30 hover:bg-secondary/20">
                 <td className="py-3 px-4 font-medium">{row.policy_number}</td>
                 <td className="py-3 px-4 text-muted-foreground">{row.agent_name}</td>
@@ -317,27 +448,46 @@ function CancellationsView({ data }: { data: CancellationRow[] | null }) {
   );
 }
 
+// ── Retention agencies view ─────────────────────────────────────────────
+
+type RetentionSortKey = 'agency' | 'active' | 'at_risk' | 'retention';
+
+const RETENTION_ACCESSORS: Record<RetentionSortKey, (r: RetentionAgencyRow) => string | number | null> = {
+  agency: r => r.agency_name.toLowerCase(),
+  active: r => r.active_policies,
+  at_risk: r => r.at_risk_count,
+  retention: r => r.retention_pct,
+};
+
 function RetentionAgenciesView({ data }: { data: RetentionAgencyRow[] | null }) {
-  if (data === null) return <Loading />;
-  if (data.length === 0) return <EmptyState message="All agencies at or above 90% retention." />;
+  const { sortKey, sortDir, toggleSort } = useSort<RetentionSortKey>();
+
+  const sorted = useMemo(() => {
+    if (!data) return null;
+    return sortRows(data, sortKey ? RETENTION_ACCESSORS[sortKey] : null, sortDir);
+  }, [data, sortKey, sortDir]);
+
+  if (sorted === null) return <Loading />;
+  if (sorted.length === 0) return <EmptyState message="All agencies at or above 90% retention." />;
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <StatCard label="Agencies Below 90%" value={data.length.toString()} trend="down" />
-        <StatCard label="Total At-Risk Policies" value={data.reduce((s, d) => s + (Number(d.at_risk_count) || 0), 0).toString()} trend="down" />
+        <StatCard label="Agencies Below 90%" value={sorted.length.toString()} trend="down" />
+        <StatCard label="Total At-Risk Policies" value={sorted.reduce((s, d) => s + (Number(d.at_risk_count) || 0), 0).toString()} trend="down" />
       </div>
       <div className="glass rounded-xl overflow-hidden">
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-border/50 bg-secondary/30">
-              <th className="text-left py-3 px-4 font-medium text-muted-foreground">Agency</th>
-              <th className="text-right py-3 px-4 font-medium text-muted-foreground">Active Policies</th>
-              <th className="text-right py-3 px-4 font-medium text-muted-foreground">At Risk</th>
-              <th className="text-right py-3 px-4 font-medium text-muted-foreground">Retention %</th>
+              <SortableHeader label="Agency" sortKey="agency" active={sortKey} dir={sortDir} onSort={toggleSort} />
+              <SortableHeader label="Active Policies" sortKey="active" active={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
+              <SortableHeader label="At Risk" sortKey="at_risk" active={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
+              <SortableHeader label="Retention %" sortKey="retention" active={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
             </tr>
           </thead>
           <tbody>
-            {data.map((row) => (
+            {sorted.map((row) => (
               <tr key={row.agency_id} className="border-b border-border/30 hover:bg-secondary/20">
                 <td className="py-3 px-4 font-medium">{row.agency_name}</td>
                 <td className="py-3 px-4 text-right text-muted-foreground">{row.active_policies}</td>
@@ -356,11 +506,30 @@ function RetentionAgenciesView({ data }: { data: RetentionAgencyRow[] | null }) 
   );
 }
 
+// ── Revenue view ────────────────────────────────────────────────────────
+
+type RevenueSortKey = 'month' | 'policies' | 'premium';
+
+const REVENUE_ACCESSORS: Record<RevenueSortKey, (r: RevenueMonthRow) => string | number | null> = {
+  month: r => r.month,
+  policies: r => r.policies,
+  premium: r => r.annual_premium,
+};
+
 function RevenueView({ data }: { data: RevenueMonthRow[] | null }) {
-  if (data === null) return <Loading />;
-  if (data.length === 0) return <EmptyState message="No production data available." />;
-  const totalPremium = data.reduce((s, d) => s + d.annual_premium, 0);
-  const totalPolicies = data.reduce((s, d) => s + d.policies, 0);
+  const { sortKey, sortDir, toggleSort } = useSort<RevenueSortKey>();
+
+  const sorted = useMemo(() => {
+    if (!data) return null;
+    return sortRows(data, sortKey ? REVENUE_ACCESSORS[sortKey] : null, sortDir);
+  }, [data, sortKey, sortDir]);
+
+  if (sorted === null) return <Loading />;
+  if (sorted.length === 0) return <EmptyState message="No production data available." />;
+
+  const totalPremium = sorted.reduce((s, d) => s + d.annual_premium, 0);
+  const totalPolicies = sorted.reduce((s, d) => s + d.policies, 0);
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -371,13 +540,13 @@ function RevenueView({ data }: { data: RevenueMonthRow[] | null }) {
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-border/50 bg-secondary/30">
-              <th className="text-left py-3 px-4 font-medium text-muted-foreground">Month</th>
-              <th className="text-right py-3 px-4 font-medium text-muted-foreground">Policies</th>
-              <th className="text-right py-3 px-4 font-medium text-muted-foreground">Annual Premium</th>
+              <SortableHeader label="Month" sortKey="month" active={sortKey} dir={sortDir} onSort={toggleSort} />
+              <SortableHeader label="Policies" sortKey="policies" active={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
+              <SortableHeader label="Annual Premium" sortKey="premium" active={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
             </tr>
           </thead>
           <tbody>
-            {data.map((row) => (
+            {sorted.map((row) => (
               <tr key={row.month} className="border-b border-border/30 hover:bg-secondary/20">
                 <td className="py-3 px-4 font-medium">{row.month}</td>
                 <td className="py-3 px-4 text-right">{row.policies.toLocaleString()}</td>
