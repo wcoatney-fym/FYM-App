@@ -105,6 +105,10 @@ export function AgentDatabaseTab() {
   const [page, setPage] = useState(0);
   const [detailAgent, setDetailAgent] = useState<FymAgent | null>(null);
   const [sort, setSort] = useState<SortState>({ key: 'active_ap', dir: 'desc' });
+  const [backfillState, setBackfillState] = useState<{
+    running: boolean;
+    result: { created: number; skipped: number; failed: number; errors: string[] } | null;
+  }>({ running: false, result: null });
 
   // Sort the filtered agents
   const sortedAgents = useMemo(
@@ -261,6 +265,132 @@ export function AgentDatabaseTab() {
             <RefreshCw className="w-4 h-4" />
           </button>
           <button
+            onClick={async () => {
+              if (backfillState.running) return;
+              if (!portalSupabase) return;
+              setBackfillState({ running: true, result: null });
+
+              try {
+                // Get all agents with UNL writing numbers
+                const agentsWithWn = filteredAgents.filter(a => a.writing_number);
+
+                // Resolve portal agent IDs in batch
+                const portalMap = new Map<string, string>(); // wn -> portal agent id
+
+                // Batch 1: Check intake-prefixed IDs
+                for (const a of agentsWithWn) {
+                  if (a.source === 'intake' && a.id.startsWith('intake-')) {
+                    portalMap.set(a.writing_number!, a.id.replace('intake-', ''));
+                  }
+                }
+
+                // Batch 2: Lookup by email for non-intake agents
+                const emailAgents = agentsWithWn.filter(a => a.email && !portalMap.has(a.writing_number!));
+                for (const a of emailAgents) {
+                  const { data } = await portalSupabase
+                    .from('agents')
+                    .select('id')
+                    .eq('email', a.email!)
+                    .limit(1)
+                    .maybeSingle();
+                  if (data) portalMap.set(a.writing_number!, data.id);
+                }
+
+                // Batch 3: Lookup by name for remaining
+                const nameAgents = agentsWithWn.filter(a => a.first_name && a.last_name && !portalMap.has(a.writing_number!));
+                for (const a of nameAgents) {
+                  const { data } = await portalSupabase
+                    .from('agents')
+                    .select('id')
+                    .ilike('first_name', a.first_name!)
+                    .ilike('last_name', a.last_name!)
+                    .limit(1)
+                    .maybeSingle();
+                  if (data) portalMap.set(a.writing_number!, data.id);
+                }
+
+                // Get all existing LOB assignments for resolved agents
+                const portalIds = [...new Set(portalMap.values())];
+                const existingLobs = new Set<string>();
+                const BATCH = 50;
+                for (let i = 0; i < portalIds.length; i += BATCH) {
+                  const batch = portalIds.slice(i, i + BATCH);
+                  const { data } = await portalSupabase
+                    .from('agent_lob_assignments')
+                    .select('agent_id, carrier')
+                    .in('agent_id', batch)
+                    .eq('carrier', 'UNL');
+                  for (const row of (data || [])) {
+                    existingLobs.add(row.agent_id);
+                  }
+                }
+
+                // Build insert batch: agents with UNL WN + portal ID + no existing UNL LOB
+                const toInsert: { agent_id: string; line_of_business: string; carrier: string; writing_number: string }[] = [];
+                let skipped = 0;
+                let noPortalId = 0;
+
+                for (const a of agentsWithWn) {
+                  const portalId = portalMap.get(a.writing_number!);
+                  if (!portalId) { noPortalId++; continue; }
+                  if (existingLobs.has(portalId)) { skipped++; continue; }
+                  toInsert.push({
+                    agent_id: portalId,
+                    line_of_business: 'HIP',
+                    carrier: 'UNL',
+                    writing_number: a.writing_number!,
+                  });
+                }
+
+                // Insert in batches
+                let created = 0;
+                let failed = 0;
+                const errors: string[] = [];
+                for (let i = 0; i < toInsert.length; i += BATCH) {
+                  const batch = toInsert.slice(i, i + BATCH);
+                  const { error } = await portalSupabase
+                    .from('agent_lob_assignments')
+                    .insert(batch);
+                  if (error) {
+                    failed += batch.length;
+                    errors.push(error.message);
+                  } else {
+                    created += batch.length;
+                  }
+                }
+
+                setBackfillState({
+                  running: false,
+                  result: {
+                    created,
+                    skipped: skipped + noPortalId,
+                    failed,
+                    errors,
+                  },
+                });
+              } catch (err) {
+                setBackfillState({
+                  running: false,
+                  result: {
+                    created: 0,
+                    skipped: 0,
+                    failed: 1,
+                    errors: [(err as Error).message],
+                  },
+                });
+              }
+            }}
+            disabled={backfillState.running || filteredAgents.length === 0}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-500/20 text-emerald-400 rounded-lg font-medium hover:bg-emerald-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-sm"
+          >
+            {backfillState.running ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Briefcase className="w-4 h-4" />
+            )}
+            {backfillState.running ? 'Backfilling…' : 'Backfill UNL WNs'}
+          </button>
+          <button
             onClick={handleExportCsv}
             disabled={filteredAgents.length === 0}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-cyan-500/20 text-cyan-400 rounded-lg font-medium hover:bg-cyan-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-sm"
@@ -270,6 +400,39 @@ export function AgentDatabaseTab() {
           </button>
         </div>
       </div>
+
+      {/* Backfill result banner */}
+      {backfillState.result && (
+        <div className={`flex items-start gap-3 px-4 py-3 rounded-lg border ${
+          backfillState.result.failed > 0
+            ? 'bg-amber-500/10 border-amber-500/20'
+            : 'bg-emerald-500/10 border-emerald-500/20'
+        }`}>
+          {backfillState.result.failed > 0 ? (
+            <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+          ) : (
+            <CheckCircle className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+          )}
+          <div className="text-sm">
+            <p className="font-medium text-foreground">
+              Backfill complete: {backfillState.result.created} UNL assignments created
+              {backfillState.result.skipped > 0 && `, ${backfillState.result.skipped} skipped (already exists or no portal ID)`}
+              {backfillState.result.failed > 0 && `, ${backfillState.result.failed} failed`}
+            </p>
+            {backfillState.result.errors.length > 0 && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {backfillState.result.errors.join('; ')}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={() => setBackfillState({ running: false, result: null })}
+            className="ml-auto p-1 text-muted-foreground hover:text-foreground"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Source summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
