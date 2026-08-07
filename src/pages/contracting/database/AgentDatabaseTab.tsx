@@ -34,6 +34,11 @@ import {
   Briefcase,
   CheckCircle,
   Clock,
+  Plus,
+  Save,
+  Trash2,
+  Edit3,
+  AlertCircle,
 } from 'lucide-react';
 import { useFymAgentDirectory, type FymAgent } from '@/hooks/useFymAgentDirectory';
 import { portalSupabase } from '@/lib/portal-supabase';
@@ -100,6 +105,10 @@ export function AgentDatabaseTab() {
   const [page, setPage] = useState(0);
   const [detailAgent, setDetailAgent] = useState<FymAgent | null>(null);
   const [sort, setSort] = useState<SortState>({ key: 'active_ap', dir: 'desc' });
+  const [backfillState, setBackfillState] = useState<{
+    running: boolean;
+    result: { created: number; skipped: number; failed: number; errors: string[] } | null;
+  }>({ running: false, result: null });
 
   // Sort the filtered agents
   const sortedAgents = useMemo(
@@ -256,6 +265,132 @@ export function AgentDatabaseTab() {
             <RefreshCw className="w-4 h-4" />
           </button>
           <button
+            onClick={async () => {
+              if (backfillState.running) return;
+              if (!portalSupabase) return;
+              setBackfillState({ running: true, result: null });
+
+              try {
+                // Get all agents with UNL writing numbers
+                const agentsWithWn = filteredAgents.filter(a => a.writing_number);
+
+                // Resolve portal agent IDs in batch
+                const portalMap = new Map<string, string>(); // wn -> portal agent id
+
+                // Batch 1: Check intake-prefixed IDs
+                for (const a of agentsWithWn) {
+                  if (a.source === 'intake' && a.id.startsWith('intake-')) {
+                    portalMap.set(a.writing_number!, a.id.replace('intake-', ''));
+                  }
+                }
+
+                // Batch 2: Lookup by email for non-intake agents
+                const emailAgents = agentsWithWn.filter(a => a.email && !portalMap.has(a.writing_number!));
+                for (const a of emailAgents) {
+                  const { data } = await portalSupabase
+                    .from('agents')
+                    .select('id')
+                    .eq('email', a.email!)
+                    .limit(1)
+                    .maybeSingle();
+                  if (data) portalMap.set(a.writing_number!, data.id);
+                }
+
+                // Batch 3: Lookup by name for remaining
+                const nameAgents = agentsWithWn.filter(a => a.first_name && a.last_name && !portalMap.has(a.writing_number!));
+                for (const a of nameAgents) {
+                  const { data } = await portalSupabase
+                    .from('agents')
+                    .select('id')
+                    .ilike('first_name', a.first_name!)
+                    .ilike('last_name', a.last_name!)
+                    .limit(1)
+                    .maybeSingle();
+                  if (data) portalMap.set(a.writing_number!, data.id);
+                }
+
+                // Get all existing LOB assignments for resolved agents
+                const portalIds = [...new Set(portalMap.values())];
+                const existingLobs = new Set<string>();
+                const BATCH = 50;
+                for (let i = 0; i < portalIds.length; i += BATCH) {
+                  const batch = portalIds.slice(i, i + BATCH);
+                  const { data } = await portalSupabase
+                    .from('agent_lob_assignments')
+                    .select('agent_id, carrier')
+                    .in('agent_id', batch)
+                    .eq('carrier', 'UNL');
+                  for (const row of (data || [])) {
+                    existingLobs.add(row.agent_id);
+                  }
+                }
+
+                // Build insert batch: agents with UNL WN + portal ID + no existing UNL LOB
+                const toInsert: { agent_id: string; line_of_business: string; carrier: string; writing_number: string }[] = [];
+                let skipped = 0;
+                let noPortalId = 0;
+
+                for (const a of agentsWithWn) {
+                  const portalId = portalMap.get(a.writing_number!);
+                  if (!portalId) { noPortalId++; continue; }
+                  if (existingLobs.has(portalId)) { skipped++; continue; }
+                  toInsert.push({
+                    agent_id: portalId,
+                    line_of_business: 'HIP',
+                    carrier: 'UNL',
+                    writing_number: a.writing_number!,
+                  });
+                }
+
+                // Insert in batches
+                let created = 0;
+                let failed = 0;
+                const errors: string[] = [];
+                for (let i = 0; i < toInsert.length; i += BATCH) {
+                  const batch = toInsert.slice(i, i + BATCH);
+                  const { error } = await portalSupabase
+                    .from('agent_lob_assignments')
+                    .insert(batch);
+                  if (error) {
+                    failed += batch.length;
+                    errors.push(error.message);
+                  } else {
+                    created += batch.length;
+                  }
+                }
+
+                setBackfillState({
+                  running: false,
+                  result: {
+                    created,
+                    skipped: skipped + noPortalId,
+                    failed,
+                    errors,
+                  },
+                });
+              } catch (err) {
+                setBackfillState({
+                  running: false,
+                  result: {
+                    created: 0,
+                    skipped: 0,
+                    failed: 1,
+                    errors: [(err as Error).message],
+                  },
+                });
+              }
+            }}
+            disabled={backfillState.running || filteredAgents.length === 0}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-500/20 text-emerald-400 rounded-lg font-medium hover:bg-emerald-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-sm"
+          >
+            {backfillState.running ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Briefcase className="w-4 h-4" />
+            )}
+            {backfillState.running ? 'Backfilling…' : 'Backfill UNL WNs'}
+          </button>
+          <button
             onClick={handleExportCsv}
             disabled={filteredAgents.length === 0}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-cyan-500/20 text-cyan-400 rounded-lg font-medium hover:bg-cyan-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-sm"
@@ -265,6 +400,39 @@ export function AgentDatabaseTab() {
           </button>
         </div>
       </div>
+
+      {/* Backfill result banner */}
+      {backfillState.result && (
+        <div className={`flex items-start gap-3 px-4 py-3 rounded-lg border ${
+          backfillState.result.failed > 0
+            ? 'bg-amber-500/10 border-amber-500/20'
+            : 'bg-emerald-500/10 border-emerald-500/20'
+        }`}>
+          {backfillState.result.failed > 0 ? (
+            <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+          ) : (
+            <CheckCircle className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+          )}
+          <div className="text-sm">
+            <p className="font-medium text-foreground">
+              Backfill complete: {backfillState.result.created} UNL assignments created
+              {backfillState.result.skipped > 0 && `, ${backfillState.result.skipped} skipped (already exists or no portal ID)`}
+              {backfillState.result.failed > 0 && `, ${backfillState.result.failed} failed`}
+            </p>
+            {backfillState.result.errors.length > 0 && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {backfillState.result.errors.join('; ')}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={() => setBackfillState({ running: false, result: null })}
+            className="ml-auto p-1 text-muted-foreground hover:text-foreground"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Source summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -736,6 +904,315 @@ function usePortalEnrichment(agent: FymAgent): PortalEnrichment {
   return state;
 }
 
+// ── Carrier WN Inline Editor ──────────────────────────────────────────
+
+const AVAILABLE_CARRIERS = ['UNL', 'GTL', 'AHL', 'Heartland', 'Manhattan'] as const;
+
+interface WnDraft {
+  carrier: string;
+  writing_number: string;
+  isNew: boolean;
+}
+
+function CarrierWnEditor({
+  agent,
+  portalAgentId,
+  portalLoading,
+  initialAssignments,
+}: {
+  agent: FymAgent;
+  portalAgentId: string | null;
+  portalLoading: boolean;
+  initialAssignments: { carrier: string; writing_number: string; verified: boolean }[];
+}) {
+  const [editing, setEditing] = useState(false);
+  const [drafts, setDrafts] = useState<WnDraft[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [assignments, setAssignments] = useState(initialAssignments);
+
+  // Sync when portal data loads
+  useEffect(() => {
+    setAssignments(initialAssignments);
+  }, [initialAssignments]);
+
+  // Build roster carrier WNs list
+  const rosterWns: { carrier: string; writing_number: string }[] = [];
+  if (agent.gtl_writing_number) rosterWns.push({ carrier: 'GTL', writing_number: agent.gtl_writing_number });
+  if (agent.ahl_writing_number) rosterWns.push({ carrier: 'AHL', writing_number: agent.ahl_writing_number });
+  if (agent.heartland_writing_number) rosterWns.push({ carrier: 'Heartland', writing_number: agent.heartland_writing_number });
+  if (agent.manhattan_writing_number) rosterWns.push({ carrier: 'Manhattan', writing_number: agent.manhattan_writing_number });
+
+  // All current WNs (roster + portal LOB)
+  const startEditing = () => {
+    // Seed drafts from existing assignments
+    const d: WnDraft[] = assignments.map(a => ({
+      carrier: a.carrier,
+      writing_number: a.writing_number,
+      isNew: false,
+    }));
+    // Add roster WNs not already in portal assignments
+    for (const r of rosterWns) {
+      if (!d.find(x => x.carrier === r.carrier)) {
+        d.push({ carrier: r.carrier, writing_number: r.writing_number, isNew: true });
+      }
+    }
+    setDrafts(d);
+    setEditing(true);
+    setSaveError(null);
+    setSaveSuccess(false);
+  };
+
+  const addCarrier = () => {
+    const usedCarriers = new Set(drafts.map(d => d.carrier));
+    const next = AVAILABLE_CARRIERS.find(c => !usedCarriers.has(c));
+    if (next) {
+      setDrafts(prev => [...prev, { carrier: next, writing_number: '', isNew: true }]);
+    }
+  };
+
+  const removeDraft = (idx: number) => {
+    setDrafts(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const updateDraft = (idx: number, field: 'carrier' | 'writing_number', value: string) => {
+    setDrafts(prev => prev.map((d, i) => i === idx ? { ...d, [field]: value } : d));
+  };
+
+  const handleSave = async () => {
+    if (!portalSupabase) {
+      setSaveError('Portal connection not available');
+      return;
+    }
+
+    // Validate
+    const validDrafts = drafts.filter(d => d.writing_number.trim());
+    if (validDrafts.length === 0 && drafts.length > 0) {
+      setSaveError('Enter at least one writing number or remove all rows');
+      return;
+    }
+    const dupeCarriers = validDrafts.map(d => d.carrier).filter((c, i, arr) => arr.indexOf(c) !== i);
+    if (dupeCarriers.length > 0) {
+      setSaveError(`Duplicate carrier: ${dupeCarriers[0]}`);
+      return;
+    }
+
+    setSaving(true);
+    setSaveError(null);
+
+    try {
+      let targetAgentId = portalAgentId;
+
+      // If no portal agent ID, try to find/create one
+      if (!targetAgentId) {
+        // Try email match
+        if (agent.email) {
+          const { data } = await portalSupabase
+            .from('agents')
+            .select('id')
+            .eq('email', agent.email)
+            .limit(1)
+            .maybeSingle();
+          if (data) targetAgentId = data.id;
+        }
+        // Try name match
+        if (!targetAgentId && agent.first_name && agent.last_name) {
+          const { data } = await portalSupabase
+            .from('agents')
+            .select('id')
+            .ilike('first_name', agent.first_name)
+            .ilike('last_name', agent.last_name)
+            .limit(1)
+            .maybeSingle();
+          if (data) targetAgentId = data.id;
+        }
+      }
+
+      if (!targetAgentId) {
+        setSaveError('Cannot resolve portal agent — agent must exist in the portal (intake or roster) first');
+        setSaving(false);
+        return;
+      }
+
+      // Delete existing LOB assignments
+      await portalSupabase
+        .from('agent_lob_assignments')
+        .delete()
+        .eq('agent_id', targetAgentId);
+
+      // Insert new ones
+      if (validDrafts.length > 0) {
+        const rows = validDrafts.map(d => ({
+          agent_id: targetAgentId,
+          line_of_business: 'HIP',
+          carrier: d.carrier,
+          writing_number: d.writing_number.trim(),
+        }));
+        const { error } = await portalSupabase
+          .from('agent_lob_assignments')
+          .insert(rows);
+        if (error) throw error;
+      }
+
+      // Update local state
+      setAssignments(validDrafts.map(d => ({
+        carrier: d.carrier,
+        writing_number: d.writing_number.trim(),
+        verified: false,
+      })));
+      setEditing(false);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err) {
+      console.error('Save carrier WN error:', err);
+      setSaveError('Failed to save — please try again');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const hasAnyWns = rosterWns.length > 0 || assignments.length > 0;
+  const usedCarriers = new Set(drafts.map(d => d.carrier));
+  const canAddMore = AVAILABLE_CARRIERS.some(c => !usedCarriers.has(c));
+
+  return (
+    <DetailSection
+      title="Carrier Writing Numbers"
+      icon={<Briefcase className="w-4 h-4 text-cyan-400" />}
+    >
+      {portalLoading ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          Loading carrier assignments…
+        </div>
+      ) : editing ? (
+        /* ── Edit Mode ── */
+        <div className="space-y-3">
+          {drafts.map((draft, idx) => (
+            <div key={idx} className="flex items-center gap-2">
+              <select
+                value={draft.carrier}
+                onChange={(e) => updateDraft(idx, 'carrier', e.target.value)}
+                className="px-2 py-1.5 bg-card border border-border rounded-md text-sm min-w-[110px] focus:ring-2 focus:ring-cyan-500/50"
+              >
+                {AVAILABLE_CARRIERS.map(c => (
+                  <option key={c} value={c} disabled={usedCarriers.has(c) && draft.carrier !== c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="text"
+                value={draft.writing_number}
+                onChange={(e) => updateDraft(idx, 'writing_number', e.target.value)}
+                placeholder="Writing number"
+                className="flex-1 px-3 py-1.5 bg-card border border-border rounded-md text-sm font-mono focus:ring-2 focus:ring-cyan-500/50"
+              />
+              <button
+                onClick={() => removeDraft(idx)}
+                className="p-1.5 text-muted-foreground hover:text-red-400 transition-colors"
+                title="Remove"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+
+          <div className="flex items-center gap-2">
+            {canAddMore && (
+              <button
+                onClick={addCarrier}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-cyan-400 bg-cyan-500/10 rounded-md hover:bg-cyan-500/20 transition-colors"
+              >
+                <Plus className="w-3 h-3" />
+                Add Carrier
+              </button>
+            )}
+          </div>
+
+          {saveError && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-red-500/10 border border-red-500/20 rounded-lg">
+              <AlertCircle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
+              <span className="text-xs text-red-400">{saveError}</span>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-foreground bg-cyan-500/20 rounded-md hover:bg-cyan-500/30 transition-colors disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              onClick={() => { setEditing(false); setSaveError(null); }}
+              disabled={saving}
+              className="px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* ── Read Mode ── */
+        <div>
+          {/* Roster carrier WNs */}
+          {rosterWns.length > 0 && (
+            <div className="space-y-2 mb-3">
+              {rosterWns.map((r) => (
+                <div key={r.carrier} className="flex items-center justify-between px-3 py-2 bg-secondary/50 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-foreground">{r.carrier}</span>
+                    <span className="text-[10px] text-muted-foreground">(roster)</span>
+                  </div>
+                  <span className="font-mono text-sm text-foreground/80">{r.writing_number}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Portal LOB assignments */}
+          {assignments.length > 0 && (
+            <div className="space-y-2 mb-3">
+              {assignments.filter(a => !rosterWns.find(r => r.carrier === a.carrier)).map((lob) => (
+                <div key={lob.carrier} className="flex items-center justify-between px-3 py-2 bg-secondary/50 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-foreground">{lob.carrier}</span>
+                    {lob.verified && <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />}
+                  </div>
+                  <span className="font-mono text-sm text-foreground/80">{lob.writing_number}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!hasAnyWns && (
+            <p className="text-sm text-muted-foreground italic mb-3">No carrier assignments on file</p>
+          )}
+
+          {saveSuccess && (
+            <div className="flex items-center gap-2 px-3 py-2 mb-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+              <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="text-xs text-emerald-400 font-medium">Carrier assignments saved</span>
+            </div>
+          )}
+
+          <button
+            onClick={startEditing}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-cyan-400 bg-cyan-500/10 rounded-md hover:bg-cyan-500/20 transition-colors"
+          >
+            {hasAnyWns ? <Edit3 className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+            {hasAnyWns ? 'Edit Writing Numbers' : 'Add Writing Numbers'}
+          </button>
+        </div>
+      )}
+    </DetailSection>
+  );
+}
+
 const STAGE_LABELS: Record<string, string> = {
   hip_broker: 'HIP Broker',
   hip_career: 'HIP Career',
@@ -810,58 +1287,13 @@ function AgentDirectoryDetailModal({
             </div>
           </DetailSection>
 
-          {/* Carrier Writing Numbers — from roster fields + portal LOB assignments */}
-          <DetailSection
-            title="Carrier Writing Numbers"
-            icon={<Briefcase className="w-4 h-4 text-cyan-400" />}
-          >
-            {/* Roster carrier WNs */}
-            {(agent.gtl_writing_number || agent.ahl_writing_number ||
-              agent.heartland_writing_number || agent.manhattan_writing_number) && (
-              <div className="grid grid-cols-2 gap-3 mb-3">
-                {agent.gtl_writing_number && (
-                  <DetailField label="GTL" value={agent.gtl_writing_number} mono />
-                )}
-                {agent.ahl_writing_number && (
-                  <DetailField label="AHL" value={agent.ahl_writing_number} mono />
-                )}
-                {agent.heartland_writing_number && (
-                  <DetailField label="Heartland" value={agent.heartland_writing_number} mono />
-                )}
-                {agent.manhattan_writing_number && (
-                  <DetailField label="Manhattan" value={agent.manhattan_writing_number} mono />
-                )}
-              </div>
-            )}
-
-            {/* Portal LOB assignments */}
-            {portal.loading ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="w-3 h-3 animate-spin" />
-                Loading carrier assignments…
-              </div>
-            ) : portal.lobAssignments.length > 0 ? (
-              <div className="space-y-2">
-                {portal.lobAssignments.map((lob) => (
-                  <div
-                    key={lob.carrier}
-                    className="flex items-center justify-between px-3 py-2 bg-secondary/50 rounded-lg"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-foreground">{lob.carrier}</span>
-                      {lob.verified && (
-                        <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
-                      )}
-                    </div>
-                    <span className="font-mono text-sm text-foreground/80">{lob.writing_number}</span>
-                  </div>
-                ))}
-              </div>
-            ) : !agent.gtl_writing_number && !agent.ahl_writing_number &&
-                !agent.heartland_writing_number && !agent.manhattan_writing_number ? (
-              <p className="text-sm text-muted-foreground italic">No carrier assignments on file</p>
-            ) : null}
-          </DetailSection>
+          {/* Carrier Writing Numbers — inline editor */}
+          <CarrierWnEditor
+            agent={agent}
+            portalAgentId={portal.portalAgentId}
+            portalLoading={portal.loading}
+            initialAssignments={portal.lobAssignments}
+          />
 
           {/* Intake Form Fields */}
           {portal.loading ? (
