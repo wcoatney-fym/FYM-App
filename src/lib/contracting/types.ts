@@ -232,6 +232,7 @@ export type PortalCrmAgency = {
   setup_subaccount: boolean;
   setup_snapshot: boolean;
   setup_ghl_api: boolean;
+  ghl_api_enabled: boolean;
   setup_zapier: boolean;
   zaps_paused: boolean;
   price_per_contact: number;
