@@ -226,24 +226,53 @@ export function ContractingTrainingTab() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-16">
-        <RefreshCw className="w-5 h-5 animate-spin text-muted-foreground mr-2" />
-        <span className="text-sm text-muted-foreground">Loading training data…</span>
+      <div className="space-y-6">
+        {/* KPI skeletons */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="h-24 rounded-xl bg-secondary/30 animate-pulse"
+            />
+          ))}
+        </div>
+        {/* Content + sidebar skeletons */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-2">
+            {[1, 2, 3, 4].map((i) => (
+              <div
+                key={i}
+                className="h-16 rounded-xl bg-secondary/30 animate-pulse"
+              />
+            ))}
+          </div>
+          <div className="space-y-2">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="h-20 rounded-xl bg-secondary/20 animate-pulse"
+              />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <Card className="border-red-500/20 bg-red-500/10">
-        <CardContent className="p-6 text-center space-y-2">
-          <AlertCircle className="w-6 h-6 text-red-500 mx-auto" />
-          <p className="text-sm text-red-400">{error}</p>
+      <Card className="border-red-500/20">
+        <CardContent className="p-8 text-center space-y-3">
+          <AlertCircle className="w-7 h-7 text-red-500 mx-auto" />
+          <h3 className="text-lg font-semibold text-foreground">
+            Connection Error
+          </h3>
+          <p className="text-sm text-muted-foreground">{error}</p>
           <button
             onClick={loadData}
-            className="text-sm text-red-400 hover:text-red-300 underline"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-primary text-white text-sm font-medium hover:bg-primary/80 transition-colors"
           >
-            Try again
+            <RefreshCw className="w-3.5 h-3.5" /> Retry
           </button>
         </CardContent>
       </Card>
@@ -452,10 +481,10 @@ function KpiCard({
   color: 'blue' | 'green' | 'purple' | 'amber';
 }) {
   const colorMap = {
-    blue: { bg: 'bg-cyan-500/10', icon: 'text-cyan-400', ring: 'ring-blue-100' },
-    green: { bg: 'bg-emerald-500/10', icon: 'text-emerald-400', ring: 'ring-emerald-100' },
-    purple: { bg: 'bg-purple-500/10', icon: 'text-purple-400', ring: 'ring-purple-100' },
-    amber: { bg: 'bg-amber-500/10', icon: 'text-amber-400', ring: 'ring-amber-100' },
+    blue: { bg: 'bg-cyan-500/10', icon: 'text-cyan-400', ring: 'ring-blue-500/20' },
+    green: { bg: 'bg-emerald-500/10', icon: 'text-emerald-400', ring: 'ring-emerald-500/20' },
+    purple: { bg: 'bg-purple-500/10', icon: 'text-purple-400', ring: 'ring-purple-500/20' },
+    amber: { bg: 'bg-amber-500/10', icon: 'text-amber-400', ring: 'ring-amber-500/20' },
   };
   const c = colorMap[color];
 
@@ -467,7 +496,7 @@ function KpiCard({
             <Icon className={`w-4 h-4 ${c.icon}`} />
           </div>
           <div className="min-w-0">
-            <p className="text-2xl font-bold text-foreground">{value}</p>
+            <p className="text-3xl font-bold text-foreground">{value}</p>
             <p className="text-xs text-muted-foreground font-medium">{label}</p>
           </div>
         </div>
