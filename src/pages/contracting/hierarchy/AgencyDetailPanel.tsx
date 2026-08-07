@@ -72,7 +72,7 @@ export const AgencyDetailPanel: React.FC<{
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex justify-end">
       <div className="w-full max-w-3xl bg-card border-l border-border shadow-2xl flex flex-col">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-secondary/20">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-secondary/20 sticky top-0 z-10 backdrop-blur-sm">
           <div>
             <h2 className="text-lg font-bold text-foreground">{agency.name}</h2>
             <div className="flex items-center gap-2 mt-0.5">
@@ -955,6 +955,25 @@ type RosterRow = {
   row_data: Record<string, string>;
 };
 
+const ShimmerRows: React.FC<{ count?: number }> = ({ count = 5 }) => (
+  <div className="space-y-2">
+    {Array.from({ length: count }).map((_, i) => (
+      <div
+        key={i}
+        className="flex items-center gap-3 px-3 py-2 rounded-lg"
+        style={{ opacity: 1 - i * 0.15 }}
+      >
+        <div className="w-8 h-8 rounded-full bg-secondary/30 animate-pulse" />
+        <div className="flex-1 space-y-1.5">
+          <div className="h-4 w-32 bg-secondary/20 rounded animate-pulse" />
+          <div className="h-3 w-48 bg-secondary/20 rounded animate-pulse" />
+        </div>
+        <div className="h-3 w-16 bg-secondary/20 rounded animate-pulse" />
+      </div>
+    ))}
+  </div>
+);
+
 const HierarchyRosterSubTab: React.FC<{ agency: PortalCrmAgency }> = ({ agency }) => {
   const [rows, setRows] = useState<RosterRow[]>([]);
   const [uploadId, setUploadId] = useState<string | null>(null);
@@ -1161,8 +1180,18 @@ const HierarchyRosterSubTab: React.FC<{ agency: PortalCrmAgency }> = ({ agency }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      <div className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="h-6 w-32 bg-secondary/20 rounded animate-pulse" />
+            <div className="h-4 w-40 bg-secondary/20 rounded animate-pulse mt-1" />
+          </div>
+          <div className="flex gap-2">
+            <div className="h-9 w-24 bg-secondary/20 rounded-lg animate-pulse" />
+            <div className="h-9 w-28 bg-secondary/20 rounded-lg animate-pulse" />
+          </div>
+        </div>
+        <ShimmerRows count={6} />
       </div>
     );
   }
@@ -1228,8 +1257,16 @@ const HierarchyRosterSubTab: React.FC<{ agency: PortalCrmAgency }> = ({ agency }
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search agents..."
-              className="w-full pl-9 pr-4 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary/40 focus:border-transparent bg-secondary/20 text-foreground"
+              className="w-full pl-9 pr-9 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-primary/40 focus:border-transparent bg-secondary/20 text-foreground"
             />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-secondary/40 text-muted-foreground transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           <div className="space-y-1 max-h-[400px] overflow-y-auto">
@@ -1575,8 +1612,24 @@ const CrmToggleSubTab: React.FC<{
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      <div className="p-6">
+        <div className="bg-card border border-border rounded-lg p-6">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-lg bg-secondary/20 animate-pulse" />
+            <div className="flex-1 space-y-2">
+              <div className="h-5 w-48 bg-secondary/20 rounded animate-pulse" />
+              <div className="h-4 w-72 bg-secondary/20 rounded animate-pulse" />
+            </div>
+          </div>
+          <div className="mt-6 space-y-3">
+            {[0,1,2].map(i => (
+              <div key={i} className="flex items-center gap-2.5" style={{ opacity: 1 - i * 0.2 }}>
+                <div className="w-4 h-4 rounded-full bg-secondary/20 animate-pulse" />
+                <div className="h-4 w-40 bg-secondary/20 rounded animate-pulse" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
