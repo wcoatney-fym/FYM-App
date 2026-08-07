@@ -31,9 +31,13 @@ import {
   Eye,
   MousePointerClick,
   Search,
+  FileDown,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { HudFrame } from '@/components/ui/hud-frame';
+import { StaggerContainer, StaggerItem } from '@/components/ui/animated';
 import { portalSupabase } from '@/lib/portal-supabase';
 import { timeAgo } from '@/lib/contracting/helpers';
 import type {
@@ -98,6 +102,9 @@ export function ContractingTrainingTab() {
   const [search, setSearch] = useState('');
   const [showAllSessions, setShowAllSessions] = useState(false);
   const [expandedContent, setExpandedContent] = useState<string | null>(null);
+  const [contentPage, setContentPage] = useState(1);
+  const [exporting, setExporting] = useState(false);
+  const CONTENT_PAGE_SIZE = 20;
 
   // ─── Data fetch ──────────────────────────────────────────────────────────
 
@@ -212,6 +219,17 @@ export function ContractingTrainingTab() {
     return items;
   }, [contentWithStats, contentFilter, search]);
 
+  const totalContentPages = Math.max(1, Math.ceil(filteredContent.length / CONTENT_PAGE_SIZE));
+  const paginatedContent = useMemo(() => {
+    const start = (contentPage - 1) * CONTENT_PAGE_SIZE;
+    return filteredContent.slice(start, start + CONTENT_PAGE_SIZE);
+  }, [filteredContent, contentPage]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setContentPage(1);
+  }, [contentFilter, search]);
+
   const categories = useMemo(() => {
     const cats = new Set(
       content.map((c) => c.category).filter((c): c is string => c !== null && c !== '')
@@ -236,6 +254,53 @@ export function ContractingTrainingTab() {
   }, [sessions]);
 
   const recentEvents = useMemo(() => events.slice(0, 10), [events]);
+
+  // ─── CSV export ────────────────────────────────────────────────────────
+
+  const exportEventsCsv = useCallback(() => {
+    if (events.length === 0) return;
+    setExporting(true);
+    try {
+      const rows = events.map((e) => ({
+        'Event Type': e.event_type,
+        'Content Title': e.content_title ?? '',
+        'Agent ID': e.agent_id ?? '',
+        'Quiz Score': e.quiz_score != null ? String(e.quiz_score) : '',
+        'Quiz Max': e.quiz_max_score != null ? String(e.quiz_max_score) : '',
+        Date: e.created_at
+          ? new Date(e.created_at).toLocaleDateString('en-US', { timeZone: 'America/Chicago' })
+          : '',
+      }));
+      const headers = Object.keys(rows[0]);
+      const csvContent = [
+        headers.join(','),
+        ...rows.map((row) =>
+          headers
+            .map((h) => {
+              const val = String((row as Record<string, string>)[h] ?? '');
+              return val.includes(',') || val.includes('"') || val.includes('\n')
+                ? `"${val.replace(/"/g, '""')}"`
+                : val;
+            })
+            .join(',')
+        ),
+      ].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const today = new Date().toISOString().split('T')[0];
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `training-events-${today}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('[Training] CSV export error:', err);
+    } finally {
+      setExporting(false);
+    }
+  }, [events]);
 
   // ─── Render ────────────────────────────────────────────────────────────
 
@@ -297,44 +362,52 @@ export function ContractingTrainingTab() {
   return (
     <div className="space-y-6">
       {/* ── KPI Cards ─────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <HudFrame accentColor="hsl(199 89% 48% / 0.5)">
-          <KpiCard
-            icon={BookOpen}
-            label="Content Items"
-            value={stats.activeContent}
-            sublabel={`${stats.withQuizzes} with quizzes`}
-            color="blue"
-          />
-        </HudFrame>
-        <HudFrame accentColor="hsl(142 71% 45% / 0.5)">
-          <KpiCard
-            icon={Users}
-            label="Agents Engaged"
-            value={stats.uniqueAgents}
-            sublabel={`${stats.totalEvents} total events`}
-            color="green"
-          />
-        </HudFrame>
-        <HudFrame accentColor="hsl(271 91% 65% / 0.5)">
-          <KpiCard
-            icon={Eye}
-            label="Content Views"
-            value={stats.videoViews}
-            sublabel={`${stats.liveClicks} live clicks`}
-            color="purple"
-          />
-        </HudFrame>
-        <HudFrame accentColor="hsl(38 92% 50% / 0.5)">
-          <KpiCard
-            icon={Award}
-            label="Quiz Attempts"
-            value={stats.quizAttempts}
-            sublabel={hubLogins.length > 0 ? `${hubLogins.length} hub logins` : 'No hub logins yet'}
-            color="amber"
-          />
-        </HudFrame>
-      </div>
+      <StaggerContainer className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StaggerItem>
+          <HudFrame accentColor="hsl(199 89% 48% / 0.5)">
+            <KpiCard
+              icon={BookOpen}
+              label="Content Items"
+              value={stats.activeContent}
+              sublabel={`${stats.withQuizzes} with quizzes`}
+              color="blue"
+            />
+          </HudFrame>
+        </StaggerItem>
+        <StaggerItem>
+          <HudFrame accentColor="hsl(142 71% 45% / 0.5)">
+            <KpiCard
+              icon={Users}
+              label="Agents Engaged"
+              value={stats.uniqueAgents}
+              sublabel={`${stats.totalEvents} total events`}
+              color="green"
+            />
+          </HudFrame>
+        </StaggerItem>
+        <StaggerItem>
+          <HudFrame accentColor="hsl(271 91% 65% / 0.5)">
+            <KpiCard
+              icon={Eye}
+              label="Content Views"
+              value={stats.videoViews}
+              sublabel={`${stats.liveClicks} live clicks`}
+              color="purple"
+            />
+          </HudFrame>
+        </StaggerItem>
+        <StaggerItem>
+          <HudFrame accentColor="hsl(38 92% 50% / 0.5)">
+            <KpiCard
+              icon={Award}
+              label="Quiz Attempts"
+              value={stats.quizAttempts}
+              sublabel={hubLogins.length > 0 ? `${hubLogins.length} hub logins` : 'No hub logins yet'}
+              color="amber"
+            />
+          </HudFrame>
+        </StaggerItem>
+      </StaggerContainer>
 
       {/* ── Two-column layout ─────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -369,6 +442,15 @@ export function ContractingTrainingTab() {
                 ))}
               </select>
               <button
+                onClick={exportEventsCsv}
+                disabled={exporting || events.length === 0}
+                className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border border-border text-xs font-medium text-foreground/80 hover:bg-background disabled:opacity-50 transition-colors"
+                title="Export training events"
+              >
+                <FileDown className="w-3.5 h-3.5" />
+                {exporting ? 'Exporting…' : 'CSV'}
+              </button>
+              <button
                 onClick={loadData}
                 className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-muted-foreground transition-colors"
                 title="Refresh"
@@ -386,18 +468,47 @@ export function ContractingTrainingTab() {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-2">
-              {filteredContent.map((item) => (
-                <ContentRow
-                  key={item.id}
-                  item={item}
-                  expanded={expandedContent === item.id}
-                  onToggle={() =>
-                    setExpandedContent(expandedContent === item.id ? null : item.id)
-                  }
-                />
-              ))}
-            </div>
+            <>
+              <StaggerContainer className="space-y-2">
+                {paginatedContent.map((item) => (
+                  <StaggerItem key={item.id}>
+                    <ContentRow
+                      item={item}
+                      expanded={expandedContent === item.id}
+                      onToggle={() =>
+                        setExpandedContent(expandedContent === item.id ? null : item.id)
+                      }
+                    />
+                  </StaggerItem>
+                ))}
+              </StaggerContainer>
+
+              {/* Pagination */}
+              {totalContentPages > 1 && (
+                <div className="flex items-center justify-between pt-2">
+                  <p className="text-xs text-muted-foreground">
+                    {filteredContent.length} item{filteredContent.length !== 1 ? 's' : ''}
+                    {' · '}page {contentPage} of {totalContentPages}
+                  </p>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setContentPage((p) => Math.max(1, p - 1))}
+                      disabled={contentPage <= 1}
+                      className="p-1 rounded hover:bg-secondary disabled:opacity-30 transition-colors"
+                    >
+                      <ChevronLeft className="w-4 h-4 text-muted-foreground" />
+                    </button>
+                    <button
+                      onClick={() => setContentPage((p) => Math.min(totalContentPages, p + 1))}
+                      disabled={contentPage >= totalContentPages}
+                      className="p-1 rounded hover:bg-secondary disabled:opacity-30 transition-colors"
+                    >
+                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
 
