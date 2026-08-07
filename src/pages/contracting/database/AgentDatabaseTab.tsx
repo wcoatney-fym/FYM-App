@@ -9,7 +9,7 @@
  * Sub-agency agents (Guardian, Wisechoice, etc.) do NOT appear here.
  * Those belong on the Agents page.
  */
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Search,
   FileDown,
@@ -945,11 +945,6 @@ function CarrierWnEditor({
   if (agent.manhattan_writing_number) rosterWns.push({ carrier: 'Manhattan', writing_number: agent.manhattan_writing_number });
 
   // All current WNs (roster + portal LOB)
-  const allCurrentCarriers = new Set([
-    ...rosterWns.map(r => r.carrier),
-    ...assignments.map(a => a.carrier),
-  ]);
-
   const startEditing = () => {
     // Seed drafts from existing assignments
     const d: WnDraft[] = assignments.map(a => ({
