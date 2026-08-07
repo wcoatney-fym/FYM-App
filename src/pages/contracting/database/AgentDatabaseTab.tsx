@@ -9,7 +9,7 @@
  * Sub-agency agents (Guardian, Wisechoice, etc.) do NOT appear here.
  * Those belong on the Agents page.
  */
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Search,
   FileDown,
@@ -28,8 +28,16 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  X,
+  Award,
+  BookOpen,
+  Briefcase,
+  CheckCircle,
+  Clock,
 } from 'lucide-react';
 import { useFymAgentDirectory, type FymAgent } from '@/hooks/useFymAgentDirectory';
+import { portalSupabase } from '@/lib/portal-supabase';
+import { HudFrame } from '@/components/ui/hud-frame';
 import { fmt$ } from '@/lib/formatUtils';
 
 // ── Sorting ────────────────────────────────────────────────────────
@@ -254,54 +262,62 @@ export function AgentDatabaseTab() {
 
       {/* Source summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-4">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            Rostered
+        <HudFrame accentColor="hsl(145 63% 42% / 0.5)">
+          <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              Rostered
+            </div>
+            <div className="text-3xl font-bold text-foreground tabular-nums">
+              {totalRoster.toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              FYM agency roster
+            </p>
           </div>
-          <div className="text-2xl font-bold text-foreground">
-            {totalRoster.toLocaleString()}
+        </HudFrame>
+        <HudFrame accentColor="hsl(270 60% 55% / 0.5)">
+          <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+              <ClipboardCheck className="w-4 h-4 text-purple-400" />
+              Intake Forms
+            </div>
+            <div className="text-3xl font-bold text-foreground tabular-nums">
+              {totalIntake.toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Completed contracting intake
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            FYM agency roster
-          </p>
-        </div>
-        <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-4">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-            <ClipboardCheck className="w-4 h-4 text-purple-400" />
-            Intake Forms
+        </HudFrame>
+        <HudFrame accentColor="hsl(217 91% 60% / 0.5)">
+          <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+              <Globe className="w-4 h-4 text-blue-400" />
+              Production File
+            </div>
+            <div className="text-3xl font-bold text-foreground tabular-nums">
+              {totalProd.toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              FYM direct in prod DB
+            </p>
           </div>
-          <div className="text-2xl font-bold text-foreground">
-            {totalIntake.toLocaleString()}
+        </HudFrame>
+        <HudFrame accentColor="hsl(199 89% 48% / 0.5)">
+          <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+              <Users className="w-4 h-4 text-cyan-400" />
+              FYM Directory
+            </div>
+            <div className="text-3xl font-bold text-foreground tabular-nums">
+              {filteredAgents.length.toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Deduplicated across sources
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Completed contracting intake
-          </p>
-        </div>
-        <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-4">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-            <Globe className="w-4 h-4 text-blue-400" />
-            Production File
-          </div>
-          <div className="text-2xl font-bold text-foreground">
-            {totalProd.toLocaleString()}
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            FYM direct in prod DB
-          </p>
-        </div>
-        <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-4">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-            <Users className="w-4 h-4 text-cyan-400" />
-            FYM Directory
-          </div>
-          <div className="text-2xl font-bold text-foreground">
-            {filteredAgents.length.toLocaleString()}
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Deduplicated across sources
-          </p>
-        </div>
+        </HudFrame>
       </div>
 
       {/* Filters */}
@@ -574,7 +590,155 @@ function SourceBadge({ source }: { source: 'roster' | 'intake' | 'prod' }) {
   }
 }
 
-// ── Detail Modal ──────────────────────────────────────────────────────
+// ── Detail Modal (enriched with portal data) ─────────────────────────
+
+interface PortalEnrichment {
+  loading: boolean;
+  portalAgentId: string | null;
+  lobAssignments: { carrier: string; writing_number: string; verified: boolean }[];
+  intakeForm: {
+    npn: string | null;
+    date_of_birth: string | null;
+    address: string | null;
+    city: string | null;
+    state: string | null;
+    postal_code: string | null;
+    resident_license_number: string | null;
+    resident_state: string | null;
+    agent_type: string | null;
+    release_needed: string | null;
+    state_licenses: string[];
+    submitted_at: string | null;
+  } | null;
+  trainingEvents: {
+    event_type: string;
+    content_title: string | null;
+    quiz_score: number | null;
+    quiz_max_score: number | null;
+    created_at: string;
+  }[];
+  pipelineStage: string | null;
+}
+
+function resolvePortalAgentId(agent: FymAgent): string | null {
+  if (agent.source === 'intake' && agent.id.startsWith('intake-')) {
+    return agent.id.replace('intake-', '');
+  }
+  return null;
+}
+
+function usePortalEnrichment(agent: FymAgent): PortalEnrichment {
+  const [state, setState] = useState<PortalEnrichment>({
+    loading: true,
+    portalAgentId: null,
+    lobAssignments: [],
+    intakeForm: null,
+    trainingEvents: [],
+    pipelineStage: null,
+  });
+
+  useEffect(() => {
+    if (!portalSupabase) {
+      setState((s) => ({ ...s, loading: false }));
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        // Step 1: Resolve portal agent ID
+        let portalId = resolvePortalAgentId(agent);
+
+        // For roster/prod agents, try matching by email or name
+        if (!portalId && agent.email) {
+          const { data } = await portalSupabase
+            .from('agents')
+            .select('id')
+            .eq('email', agent.email)
+            .limit(1)
+            .maybeSingle();
+          if (data) portalId = data.id;
+        }
+
+        if (!portalId && agent.first_name && agent.last_name) {
+          const { data } = await portalSupabase
+            .from('agents')
+            .select('id')
+            .ilike('first_name', agent.first_name)
+            .ilike('last_name', agent.last_name)
+            .limit(1)
+            .maybeSingle();
+          if (data) portalId = data.id;
+        }
+
+        if (cancelled) return;
+
+        if (!portalId) {
+          setState((s) => ({ ...s, loading: false, portalAgentId: null }));
+          return;
+        }
+
+        // Step 2: Fetch all portal data in parallel
+        const [lobRes, intakeRes, trainingRes, pipelineRes] = await Promise.all([
+          portalSupabase
+            .from('agent_lob_assignments')
+            .select('carrier, writing_number, verified')
+            .eq('agent_id', portalId),
+          portalSupabase
+            .from('agent_intake')
+            .select('npn, date_of_birth, address, city, state, postal_code, resident_license_number, resident_state, agent_type, release_needed, state_licenses, submitted_at')
+            .eq('agent_id', portalId)
+            .maybeSingle(),
+          portalSupabase
+            .from('agent_training_events')
+            .select('event_type, content_title, quiz_score, quiz_max_score, created_at')
+            .eq('agent_id', portalId)
+            .order('created_at', { ascending: false })
+            .limit(20),
+          portalSupabase
+            .from('agent_pipeline')
+            .select('stage')
+            .eq('agent_id', portalId)
+            .maybeSingle(),
+        ]);
+
+        if (cancelled) return;
+
+        setState({
+          loading: false,
+          portalAgentId: portalId,
+          lobAssignments: (lobRes.data || []) as { carrier: string; writing_number: string; verified: boolean }[],
+          intakeForm: intakeRes.data as PortalEnrichment['intakeForm'],
+          trainingEvents: (trainingRes.data || []) as PortalEnrichment['trainingEvents'],
+          pipelineStage: pipelineRes.data?.stage || null,
+        });
+      } catch (err) {
+        console.error('Portal enrichment error:', err);
+        if (!cancelled) setState((s) => ({ ...s, loading: false }));
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [agent]);
+
+  return state;
+}
+
+const STAGE_LABELS: Record<string, string> = {
+  hip_broker: 'HIP Broker',
+  hip_career: 'HIP Career',
+  iaa: 'IAA',
+  signed_iaa: 'Signed IAA',
+  bill_com: 'Bill.com',
+  in_contracting: 'In Contracting',
+  rts: 'RTS',
+  crm: 'CRM Onboarding',
+  hip_broker_ready: 'HIP Broker READY',
+  hip_career_ready: 'HIP Career READY',
+  actively_selling: 'Actively Selling',
+  terminated: 'Terminated',
+};
 
 function AgentDirectoryDetailModal({
   agent,
@@ -583,16 +747,18 @@ function AgentDirectoryDetailModal({
   agent: FymAgent;
   onClose: () => void;
 }) {
+  const portal = usePortalEnrichment(agent);
+
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-card border border-border rounded-xl shadow-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto">
+      <div className="bg-card border border-border rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+        <div className="sticky top-0 z-10 bg-card px-6 py-4 border-b border-border flex items-center justify-between rounded-t-xl">
           <div>
             <h2 className="text-lg font-bold text-foreground">
               {agent.full_name}
             </h2>
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
               <SourceBadge source={agent.source} />
               {agent.is_manager && (
                 <span className="px-2 py-0.5 text-xs font-medium bg-amber-500/20 text-amber-400 rounded-full">
@@ -604,118 +770,205 @@ function AgentDirectoryDetailModal({
                   CRM Onboarded
                 </span>
               )}
+              {portal.pipelineStage && (
+                <span className="px-2 py-0.5 text-xs font-medium bg-indigo-500/20 text-indigo-400 rounded-full">
+                  {STAGE_LABELS[portal.pipelineStage] || portal.pipelineStage}
+                </span>
+              )}
             </div>
           </div>
           <button
             onClick={onClose}
             className="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-colors"
           >
-            ✕
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Body */}
         <div className="px-6 py-5 space-y-5">
           {/* Identity */}
-          <div>
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
-              Identity
-            </h3>
+          <DetailSection title="Identity">
             <div className="grid grid-cols-2 gap-3">
               <DetailField label="First Name" value={agent.first_name} />
               <DetailField label="Last Name" value={agent.last_name} />
-              <DetailField
-                label="UNL Writing #"
-                value={agent.writing_number}
-                mono
-              />
-              <DetailField label="NPN" value={agent.npn} mono />
+              <DetailField label="UNL Writing #" value={agent.writing_number} mono />
+              <DetailField label="NPN" value={agent.npn || portal.intakeForm?.npn || null} mono />
               <DetailField label="Email" value={agent.email} />
               <DetailField label="Phone" value={agent.phone} />
             </div>
-          </div>
+          </DetailSection>
 
-          {/* Intake info (if from intake) */}
-          {agent.source === 'intake' && (
-            <div>
-              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
-                Intake Form
-              </h3>
+          {/* Carrier Writing Numbers — from roster fields + portal LOB assignments */}
+          <DetailSection
+            title="Carrier Writing Numbers"
+            icon={<Briefcase className="w-4 h-4 text-cyan-400" />}
+          >
+            {/* Roster carrier WNs */}
+            {(agent.gtl_writing_number || agent.ahl_writing_number ||
+              agent.heartland_writing_number || agent.manhattan_writing_number) && (
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                {agent.gtl_writing_number && (
+                  <DetailField label="GTL" value={agent.gtl_writing_number} mono />
+                )}
+                {agent.ahl_writing_number && (
+                  <DetailField label="AHL" value={agent.ahl_writing_number} mono />
+                )}
+                {agent.heartland_writing_number && (
+                  <DetailField label="Heartland" value={agent.heartland_writing_number} mono />
+                )}
+                {agent.manhattan_writing_number && (
+                  <DetailField label="Manhattan" value={agent.manhattan_writing_number} mono />
+                )}
+              </div>
+            )}
+
+            {/* Portal LOB assignments */}
+            {portal.loading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Loading carrier assignments…
+              </div>
+            ) : portal.lobAssignments.length > 0 ? (
+              <div className="space-y-2">
+                {portal.lobAssignments.map((lob) => (
+                  <div
+                    key={lob.carrier}
+                    className="flex items-center justify-between px-3 py-2 bg-secondary/50 rounded-lg"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-foreground">{lob.carrier}</span>
+                      {lob.verified && (
+                        <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                      )}
+                    </div>
+                    <span className="font-mono text-sm text-foreground/80">{lob.writing_number}</span>
+                  </div>
+                ))}
+              </div>
+            ) : !agent.gtl_writing_number && !agent.ahl_writing_number &&
+                !agent.heartland_writing_number && !agent.manhattan_writing_number ? (
+              <p className="text-sm text-muted-foreground italic">No carrier assignments on file</p>
+            ) : null}
+          </DetailSection>
+
+          {/* Intake Form Fields */}
+          {portal.loading ? (
+            <DetailSection title="Intake Form" icon={<FileText className="w-4 h-4 text-purple-400" />}>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Loading intake data…
+              </div>
+            </DetailSection>
+          ) : portal.intakeForm ? (
+            <DetailSection title="Intake Form" icon={<FileText className="w-4 h-4 text-purple-400" />}>
               <div className="grid grid-cols-2 gap-3">
                 <DetailField label="Form Type" value={agent.form_type} />
                 <DetailField label="Status" value={agent.intake_status} />
-                <DetailField
-                  label="CRM Onboarded"
-                  value={agent.crm_onboarded ? 'Yes' : 'No'}
-                />
+                <DetailField label="Agent Type" value={portal.intakeForm.agent_type} />
+                <DetailField label="NPN" value={portal.intakeForm.npn} mono />
+                <DetailField label="Date of Birth" value={portal.intakeForm.date_of_birth} />
+                <DetailField label="Resident State" value={portal.intakeForm.resident_state} />
+                <DetailField label="Resident License #" value={portal.intakeForm.resident_license_number} mono />
+                <DetailField label="Release Needed" value={portal.intakeForm.release_needed} />
+                {portal.intakeForm.address && (
+                  <div className="col-span-2">
+                    <DetailField
+                      label="Address"
+                      value={[portal.intakeForm.address, portal.intakeForm.city, portal.intakeForm.state, portal.intakeForm.postal_code].filter(Boolean).join(', ')}
+                    />
+                  </div>
+                )}
+                {portal.intakeForm.state_licenses?.length > 0 && (
+                  <div className="col-span-2">
+                    <dt className="text-xs text-muted-foreground">State Licenses</dt>
+                    <dd className="text-sm mt-0.5 flex flex-wrap gap-1">
+                      {portal.intakeForm.state_licenses.map((st) => (
+                        <span key={st} className="px-1.5 py-0.5 text-xs bg-secondary rounded font-mono">
+                          {st}
+                        </span>
+                      ))}
+                    </dd>
+                  </div>
+                )}
+                {portal.intakeForm.submitted_at && (
+                  <DetailField
+                    label="Submitted"
+                    value={new Date(portal.intakeForm.submitted_at).toLocaleDateString('en-US', { timeZone: 'America/Chicago' })}
+                  />
+                )}
+                <DetailField label="CRM Onboarded" value={agent.crm_onboarded ? 'Yes' : 'No'} />
               </div>
-            </div>
-          )}
-
-          {/* Carrier Writing Numbers (roster only) */}
-          {agent.source === 'roster' && (
-            <div>
-              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
-                Carrier Writing Numbers
-              </h3>
+            </DetailSection>
+          ) : agent.source === 'intake' ? (
+            <DetailSection title="Intake Form" icon={<FileText className="w-4 h-4 text-purple-400" />}>
               <div className="grid grid-cols-2 gap-3">
-                <DetailField
-                  label="GTL"
-                  value={agent.gtl_writing_number}
-                  mono
-                />
-                <DetailField
-                  label="AHL"
-                  value={agent.ahl_writing_number}
-                  mono
-                />
-                <DetailField
-                  label="Heartland"
-                  value={agent.heartland_writing_number}
-                  mono
-                />
-                <DetailField
-                  label="Manhattan"
-                  value={agent.manhattan_writing_number}
-                  mono
-                />
+                <DetailField label="Form Type" value={agent.form_type} />
+                <DetailField label="Status" value={agent.intake_status} />
+                <DetailField label="CRM Onboarded" value={agent.crm_onboarded ? 'Yes' : 'No'} />
               </div>
-            </div>
-          )}
+            </DetailSection>
+          ) : null}
+
+          {/* Training Completion */}
+          {portal.loading ? (
+            <DetailSection title="Training" icon={<BookOpen className="w-4 h-4 text-emerald-400" />}>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Loading training data…
+              </div>
+            </DetailSection>
+          ) : portal.trainingEvents.length > 0 ? (
+            <DetailSection title="Training" icon={<BookOpen className="w-4 h-4 text-emerald-400" />}>
+              <div className="space-y-2">
+                {portal.trainingEvents.map((evt, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between px-3 py-2 bg-secondary/50 rounded-lg"
+                  >
+                    <div className="flex items-center gap-2">
+                      {evt.event_type === 'quiz_completed' ? (
+                        <Award className="w-4 h-4 text-amber-400" />
+                      ) : evt.event_type === 'content_completed' ? (
+                        <CheckCircle className="w-4 h-4 text-emerald-400" />
+                      ) : (
+                        <Clock className="w-4 h-4 text-muted-foreground" />
+                      )}
+                      <div>
+                        <span className="text-sm font-medium text-foreground">
+                          {evt.content_title || evt.event_type.replace(/_/g, ' ')}
+                        </span>
+                        {evt.quiz_score != null && evt.quiz_max_score != null && (
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            Score: {evt.quiz_score}/{evt.quiz_max_score}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(evt.created_at).toLocaleDateString('en-US', { timeZone: 'America/Chicago' })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </DetailSection>
+          ) : portal.portalAgentId ? (
+            <DetailSection title="Training" icon={<BookOpen className="w-4 h-4 text-emerald-400" />}>
+              <p className="text-sm text-muted-foreground italic">No training events recorded</p>
+            </DetailSection>
+          ) : null}
 
           {/* Production Metrics */}
-          <div>
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
-              Production
-            </h3>
+          <DetailSection title="Production">
             <div className="grid grid-cols-2 gap-3">
-              <DetailField
-                label="Active Policies"
-                value={String(agent.active_policies)}
-              />
-              <DetailField
-                label="At-Risk"
-                value={String(agent.at_risk_policies)}
-                highlight={agent.at_risk_policies > 0}
-              />
-              <DetailField
-                label="Terminated"
-                value={String(agent.terminated_policies)}
-              />
-              <DetailField
-                label="Total Policies"
-                value={String(agent.total_policies)}
-              />
-              <DetailField
-                label="Active AP"
-                value={fmt$(agent.active_annual_premium)}
-              />
-              <DetailField
-                label="Total AP"
-                value={fmt$(agent.total_annual_premium)}
-              />
+              <DetailField label="Active Policies" value={String(agent.active_policies)} />
+              <DetailField label="At-Risk" value={String(agent.at_risk_policies)} highlight={agent.at_risk_policies > 0} />
+              <DetailField label="Terminated" value={String(agent.terminated_policies)} />
+              <DetailField label="Total Policies" value={String(agent.total_policies)} />
+              <DetailField label="Active AP" value={fmt$(agent.active_annual_premium)} />
+              <DetailField label="Total AP" value={fmt$(agent.total_annual_premium)} />
             </div>
-          </div>
+          </DetailSection>
         </div>
 
         {/* Footer */}
@@ -728,6 +981,28 @@ function AgentDirectoryDetailModal({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Detail Section ────────────────────────────────────────────────────
+
+function DetailSection({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+        {icon}
+        {title}
+      </h3>
+      {children}
     </div>
   );
 }
