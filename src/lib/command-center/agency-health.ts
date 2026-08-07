@@ -26,6 +26,10 @@ export interface AgencyHealth {
 const RECENT_DAYS = 30;
 const HI = 'HI';
 
+/** Shared threshold: agencies at or above this HI% are flagged. Used by both
+ *  targeting logic (tylerTarget) and UI highlight (amber text). */
+export const HI_PCT_THRESHOLD = 55;
+
 function annualize(premium: number, billingMode: string | number | null): number {
   const bm = String(billingMode ?? '1');
   const mult = bm === '3' ? 4 : bm === '12' ? 1 : 12;
@@ -120,7 +124,7 @@ export function computeAgencyHealth(
     else trajectory = 'still-hi-heavy';
 
     const tylerTarget =
-      r.n >= 10 && hiRecent >= 55 && apRecent > 0 && apRecent < 700;
+      r.n >= 10 && hiRecent >= HI_PCT_THRESHOLD && apRecent > 0 && apRecent < 700;
 
     const apGap = Math.max(0, 700 - apRecent);
     const opportunityScore = tylerTarget ? Math.round(r.n * (hiRecent / 100) * (apGap / 700) * 100) : 0;
