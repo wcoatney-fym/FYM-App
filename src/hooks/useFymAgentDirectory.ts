@@ -65,6 +65,8 @@ export interface FymAgent {
   ahl_writing_number: string | null;
   heartland_writing_number: string | null;
   manhattan_writing_number: string | null;
+  // Timestamp for "recently added" badge
+  added_at: string | null;
 }
 
 interface UseFymAgentDirectoryReturn {
@@ -102,6 +104,7 @@ interface RosterRow {
   manhattan_writing_number: string | null;
   is_manager: boolean;
   status: string;
+  created_at: string | null;
 }
 
 // ── Portal agent type ────────────────────────────────────────────────
@@ -117,6 +120,7 @@ interface PortalAgent {
   agency: string;
   npn: string | null;
   crm_onboarded: boolean;
+  created_at: string | null;
 }
 
 // ── Hook ─────────────────────────────────────────────────────────────
@@ -215,7 +219,7 @@ export function useFymAgentDirectory(): UseFymAgentDirectoryReturn {
         while (true) {
           const { data } = await supabase
             .from('agency_rosters')
-            .select('id, agency_id, first_name, last_name, email, phone, agent_npn, unl_writing_number, gtl_writing_number, ahl_writing_number, heartland_writing_number, manhattan_writing_number, is_manager, status')
+            .select('id, agency_id, first_name, last_name, email, phone, agent_npn, unl_writing_number, gtl_writing_number, ahl_writing_number, heartland_writing_number, manhattan_writing_number, is_manager, status, created_at')
             .eq('agency_id', FYM_AGENCY_ID)
             .eq('status', 'active')
             .range(offset, offset + PAGE - 1);
@@ -253,6 +257,7 @@ export function useFymAgentDirectory(): UseFymAgentDirectoryReturn {
             ahl_writing_number: r.ahl_writing_number || null,
             heartland_writing_number: r.heartland_writing_number || null,
             manhattan_writing_number: r.manhattan_writing_number || null,
+            added_at: r.created_at || null,
           });
         }
       }
@@ -267,7 +272,7 @@ export function useFymAgentDirectory(): UseFymAgentDirectoryReturn {
         while (true) {
           const { data } = await portalSupabase
             .from('agents')
-            .select('id, first_name, last_name, email, phone, form_type, status, agency, npn, crm_onboarded')
+            .select('id, first_name, last_name, email, phone, form_type, status, agency, npn, crm_onboarded, created_at')
             .neq('status', 'pending')
             .range(offset, offset + PAGE - 1);
 
@@ -304,6 +309,7 @@ export function useFymAgentDirectory(): UseFymAgentDirectoryReturn {
             ahl_writing_number: null,
             heartland_writing_number: null,
             manhattan_writing_number: null,
+            added_at: a.created_at || null,
           });
         }
       }
@@ -348,6 +354,7 @@ export function useFymAgentDirectory(): UseFymAgentDirectoryReturn {
             ahl_writing_number: null,
             heartland_writing_number: null,
             manhattan_writing_number: null,
+            added_at: null,
           });
         }
 

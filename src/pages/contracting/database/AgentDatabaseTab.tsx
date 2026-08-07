@@ -51,6 +51,12 @@ interface SortState {
 }
 
 const SOURCE_ORDER: Record<string, number> = { roster: 0, intake: 1, prod: 2 };
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
+function isRecentlyAdded(agent: FymAgent): boolean {
+  if (!agent.added_at) return false;
+  return Date.now() - new Date(agent.added_at).getTime() < THIRTY_DAYS_MS;
+}
 
 function compareFymAgents(a: FymAgent, b: FymAgent, sort: SortState): number {
   const m = sort.dir === 'asc' ? 1 : -1;
@@ -331,7 +337,7 @@ export function AgentDatabaseTab() {
               placeholder="Search name, WN, NPN, email, phone…"
               value={searchTerm}
               onChange={(e) => handleSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-secondary border border-border rounded-md text-sm focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50"
+              className="w-full pl-10 pr-4 py-2 bg-card border border-border rounded-md text-sm focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50"
             />
           </div>
 
@@ -341,7 +347,7 @@ export function AgentDatabaseTab() {
             onChange={(e) =>
               handleSource(e.target.value as '' | 'roster' | 'intake' | 'prod')
             }
-            className="px-4 py-2 bg-secondary border border-border rounded-md text-sm focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50"
+            className="px-4 py-2 bg-card border border-border rounded-md text-sm focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500/50"
           >
             <option value="">All Sources</option>
             <option value="roster">Rostered Only</option>
@@ -361,7 +367,7 @@ export function AgentDatabaseTab() {
       <div className="bg-card/50 backdrop-blur border border-border rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-secondary/50">
+            <thead className="bg-secondary/50 sticky top-0 z-10">
               <tr>
                 <SortableHeader label="Agent" sortKey="name" align="left" sort={sort} onToggle={toggleSort} />
                 <SortableHeader label="Writing #" sortKey="writing_number" align="left" sort={sort} onToggle={toggleSort} />
@@ -413,6 +419,11 @@ export function AgentDatabaseTab() {
                         {agent.is_manager && (
                           <span className="px-1.5 py-0.5 text-[10px] font-medium bg-amber-500/20 text-amber-400 rounded">
                             MGR
+                          </span>
+                        )}
+                        {isRecentlyAdded(agent) && (
+                          <span className="px-1.5 py-0.5 text-[10px] font-medium bg-cyan-500/20 text-cyan-400 rounded">
+                            NEW
                           </span>
                         )}
                       </div>
