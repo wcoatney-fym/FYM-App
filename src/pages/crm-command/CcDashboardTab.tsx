@@ -12,6 +12,7 @@ import { portalSupabase } from '@/lib/portal-supabase';
 import { scopeToAgency } from '@/lib/query-helpers';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useOrgData } from '@/contexts/OrgDataCache';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const container = {
   hidden: { opacity: 0 },
@@ -36,7 +37,12 @@ interface ActivityRow {
 }
 
 const RECRUITING_STAGES = ['hip_broker', 'hip_career', 'iaa', 'signed_iaa'];
-const ACTIVE_LEAD_EXCLUDED_STAGES = ['terminated', 'rts', 'actively_selling'];
+/** Inclusion list — new stages won't silently inflate the active lead count. */
+const ACTIVE_LEAD_STAGES = [
+  'hip_broker', 'hip_career', 'iaa', 'signed_iaa',
+  'bill_com', 'in_contracting', 'rts', 'crm',
+  'hip_broker_ready', 'hip_career_ready',
+];
 
 export function CcDashboardTab() {
   const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
@@ -103,7 +109,7 @@ export function CcDashboardTab() {
             portalSupabase
               .from('agent_pipeline')
               .select('id', { count: 'exact', head: true })
-              .not('stage', 'in', `(${ACTIVE_LEAD_EXCLUDED_STAGES.join(',')})`),
+              .in('stage', ACTIVE_LEAD_STAGES),
             isOrgWide,
             effectiveAgencyId
           ),
@@ -183,23 +189,21 @@ export function CcDashboardTab() {
     : retentionNum >= 85 ? 'bg-amber-400/10'
     : 'bg-red-400/10';
 
-  const persistencyPct = liveStats.configured ? (liveStats.loading ? '…' : liveStats.persistencyPct) : '—';
-
-  const kpis = [
-    { label: 'Active Leads', value: activeLeads === null ? '…' : activeLeads.toLocaleString(), icon: Target, color: 'text-sky-400', bg: 'bg-sky-400/10', live: true },
-    { label: 'Placements MTD', value: placementsMTD === null ? '…' : placementsMTD.toLocaleString(), icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-400/10', live: true },
-    { label: 'Revenue MTD', value: revenueMTD === null ? '…' : (revenueMTD > 0 ? `$${(revenueMTD / 1000).toFixed(1)}K` : '$0'), icon: DollarSign, color: 'text-emerald-400', bg: 'bg-emerald-400/10', live: true },
+  const kpis: { label: string; value: string | null; icon: typeof Target; color: string; bg: string; live: boolean }[] = [
+    { label: 'Active Leads', value: activeLeads === null ? null : activeLeads.toLocaleString(), icon: Target, color: 'text-sky-400', bg: 'bg-sky-400/10', live: true },
+    { label: 'Placements MTD', value: placementsMTD === null ? null : placementsMTD.toLocaleString(), icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-400/10', live: true },
+    { label: 'Revenue MTD', value: revenueMTD === null ? null : (revenueMTD > 0 ? `$${(revenueMTD / 1000).toFixed(1)}K` : '$0'), icon: DollarSign, color: 'text-emerald-400', bg: 'bg-emerald-400/10', live: true },
     { label: 'At-Risk Rate', value: `${atRiskRate}%`, icon: AlertTriangle, color: 'text-amber-400', bg: 'bg-amber-400/10', live: true },
-    { label: 'Persistency', value: persistencyPct, icon: Shield, color: 'text-sky-400', bg: 'bg-sky-400/10', live: liveStats.configured },
+    { label: 'Persistency', value: liveStats.configured ? (liveStats.loading ? null : liveStats.persistencyPct) : '—', icon: Shield, color: 'text-sky-400', bg: 'bg-sky-400/10', live: liveStats.configured },
     {
       label: '90-Day Retention',
-      value: liveStats.configured ? (liveStats.loading ? '…' : liveStats.retentionPct) : '—',
+      value: liveStats.configured ? (liveStats.loading ? null : liveStats.retentionPct) : '—',
       icon: Users,
       color: retentionColor,
       bg: retentionBg,
       live: liveStats.configured,
     },
-    { label: 'Recruiting Pipeline', value: recruitingCount === null ? '…' : recruitingCount.toLocaleString(), icon: UserPlus, color: 'text-sky-400', bg: 'bg-sky-400/10', live: true },
+    { label: 'Recruiting Pipeline', value: recruitingCount === null ? null : recruitingCount.toLocaleString(), icon: UserPlus, color: 'text-sky-400', bg: 'bg-sky-400/10', live: true },
     { label: 'Tasks Overdue', value: overdueTasks.length.toString(), icon: Clock, color: overdueTasks.length > 0 ? 'text-red-400' : 'text-emerald-400', bg: overdueTasks.length > 0 ? 'bg-red-400/10' : 'bg-emerald-400/10', live: true },
   ];
 
@@ -230,7 +234,10 @@ export function CcDashboardTab() {
                 <kpi.icon className={`w-4 h-4 ${kpi.color}`} />
               </div>
             </div>
-            <p className="text-2xl font-bold mt-2">{kpi.value}</p>
+            {kpi.value === null
+              ? <Skeleton className="h-8 w-16 mt-2" />
+              : <p className="text-2xl font-bold mt-2">{kpi.value}</p>
+            }
             {kpi.live && <p className="text-[10px] text-primary/60 mt-1">● live</p>}
           </motion.div>
         ))}
