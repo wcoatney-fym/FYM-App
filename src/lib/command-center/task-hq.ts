@@ -202,6 +202,16 @@ export async function persistMemberUpdate(id: string, updates: { role?: string; 
   }
 }
 
+export async function deleteTaskFromDb(id: string): Promise<void> {
+  if (!portalConfigured) return;
+  try {
+    await ensurePortalAuth();
+    await portalSupabase.from('cc_tasks').delete().eq('id', id);
+  } catch {
+    /* best-effort; optimistic UI already removed the task */
+  }
+}
+
 export async function persistTaskStatus(id: string, status: TaskStatus): Promise<void> {
   if (!portalConfigured) return;
   try {
