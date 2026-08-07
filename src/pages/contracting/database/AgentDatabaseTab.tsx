@@ -9,7 +9,7 @@
  * Sub-agency agents (Guardian, Wisechoice, etc.) do NOT appear here.
  * Those belong on the Agents page.
  */
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Search,
   FileDown,
@@ -25,9 +25,46 @@ import {
   FileText,
   ClipboardCheck,
   Database,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import { useFymAgentDirectory, type FymAgent } from '@/hooks/useFymAgentDirectory';
 import { fmt$ } from '@/lib/formatUtils';
+
+// ── Sorting ────────────────────────────────────────────────────────
+
+type SortKey = 'name' | 'writing_number' | 'source' | 'active' | 'at_risk' | 'total' | 'active_ap';
+type SortDir = 'asc' | 'desc';
+
+interface SortState {
+  key: SortKey;
+  dir: SortDir;
+}
+
+const SOURCE_ORDER: Record<string, number> = { roster: 0, intake: 1, prod: 2 };
+
+function compareFymAgents(a: FymAgent, b: FymAgent, sort: SortState): number {
+  const m = sort.dir === 'asc' ? 1 : -1;
+  switch (sort.key) {
+    case 'name':
+      return m * a.full_name.localeCompare(b.full_name);
+    case 'writing_number':
+      return m * (a.writing_number || '').localeCompare(b.writing_number || '');
+    case 'source':
+      return m * ((SOURCE_ORDER[a.source] ?? 9) - (SOURCE_ORDER[b.source] ?? 9));
+    case 'active':
+      return m * (a.active_policies - b.active_policies);
+    case 'at_risk':
+      return m * (a.at_risk_policies - b.at_risk_policies);
+    case 'total':
+      return m * (a.total_policies - b.total_policies);
+    case 'active_ap':
+      return m * (a.active_annual_premium - b.active_annual_premium);
+    default:
+      return 0;
+  }
+}
 
 const PAGE_SIZE = 50;
 
@@ -48,6 +85,22 @@ export function AgentDatabaseTab() {
 
   const [page, setPage] = useState(0);
   const [detailAgent, setDetailAgent] = useState<FymAgent | null>(null);
+  const [sort, setSort] = useState<SortState>({ key: 'active_ap', dir: 'desc' });
+
+  // Sort the filtered agents
+  const sortedAgents = useMemo(
+    () => [...filteredAgents].sort((a, b) => compareFymAgents(a, b, sort)),
+    [filteredAgents, sort]
+  );
+
+  const toggleSort = (key: SortKey) => {
+    setSort((prev) =>
+      prev.key === key
+        ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+        : { key, dir: key === 'name' || key === 'writing_number' || key === 'source' ? 'asc' : 'desc' }
+    );
+    setPage(0);
+  };
 
   // Reset page when filters change
   const handleSearch = (v: string) => {
@@ -59,9 +112,9 @@ export function AgentDatabaseTab() {
     setPage(0);
   };
 
-  // Pagination
-  const totalPages = Math.ceil(filteredAgents.length / PAGE_SIZE);
-  const pageAgents = filteredAgents.slice(
+  // Pagination (uses sorted list)
+  const totalPages = Math.ceil(sortedAgents.length / PAGE_SIZE);
+  const pageAgents = sortedAgents.slice(
     page * PAGE_SIZE,
     (page + 1) * PAGE_SIZE
   );
@@ -283,7 +336,7 @@ export function AgentDatabaseTab() {
           {/* Count display */}
           <div className="flex items-center justify-end text-sm text-muted-foreground">
             Showing {pageAgents.length} of{' '}
-            {filteredAgents.length.toLocaleString()}
+            {sortedAgents.length.toLocaleString()}
           </div>
         </div>
       </div>
@@ -294,30 +347,16 @@ export function AgentDatabaseTab() {
           <table className="w-full">
             <thead className="bg-secondary/50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Agent
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Writing #
-                </th>
+                <SortableHeader label="Agent" sortKey="name" align="left" sort={sort} onToggle={toggleSort} />
+                <SortableHeader label="Writing #" sortKey="writing_number" align="left" sort={sort} onToggle={toggleSort} />
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   NPN
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Source
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Active
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  At-Risk
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Total
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Active AP
-                </th>
+                <SortableHeader label="Source" sortKey="source" align="left" sort={sort} onToggle={toggleSort} />
+                <SortableHeader label="Active" sortKey="active" align="right" sort={sort} onToggle={toggleSort} />
+                <SortableHeader label="At-Risk" sortKey="at_risk" align="right" sort={sort} onToggle={toggleSort} />
+                <SortableHeader label="Total" sortKey="total" align="right" sort={sort} onToggle={toggleSort} />
+                <SortableHeader label="Active AP" sortKey="active_ap" align="right" sort={sort} onToggle={toggleSort} />
                 <th className="px-4 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Actions
                 </th>
@@ -330,7 +369,7 @@ export function AgentDatabaseTab() {
                     colSpan={9}
                     className="px-4 py-12 text-center text-muted-foreground"
                   >
-                    {filteredAgents.length === 0 &&
+                    {sortedAgents.length === 0 &&
                     (searchTerm || sourceFilter)
                       ? 'No agents match the current filters'
                       : 'No agents found'}
@@ -340,7 +379,11 @@ export function AgentDatabaseTab() {
                 pageAgents.map((agent) => (
                   <tr
                     key={agent.id}
-                    className="hover:bg-secondary/30 transition-colors"
+                    className={`hover:bg-secondary/30 transition-colors ${
+                      agent.at_risk_policies > 0
+                        ? 'border-l-2 border-l-amber-500/70 bg-amber-500/[0.04]'
+                        : ''
+                    }`}
                   >
                     {/* Agent name */}
                     <td className="px-4 py-3 whitespace-nowrap">
@@ -461,6 +504,45 @@ export function AgentDatabaseTab() {
         />
       )}
     </div>
+  );
+}
+
+// ── Sortable Header ──────────────────────────────────────────────────
+
+function SortableHeader({
+  label,
+  sortKey,
+  align,
+  sort,
+  onToggle,
+}: {
+  label: string;
+  sortKey: SortKey;
+  align: 'left' | 'right';
+  sort: SortState;
+  onToggle: (key: SortKey) => void;
+}) {
+  const active = sort.key === sortKey;
+  const Icon = active
+    ? sort.dir === 'asc'
+      ? ArrowUp
+      : ArrowDown
+    : ArrowUpDown;
+
+  return (
+    <th
+      className={`px-4 py-3 text-${align} text-xs font-medium uppercase tracking-wider select-none cursor-pointer group transition-colors hover:bg-secondary/30 ${
+        active ? 'text-cyan-400' : 'text-muted-foreground'
+      }`}
+      onClick={() => onToggle(sortKey)}
+    >
+      <span className={`inline-flex items-center gap-1 ${align === 'right' ? 'justify-end' : ''}`}>
+        {label}
+        <Icon className={`w-3 h-3 transition-opacity ${
+          active ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'
+        }`} />
+      </span>
+    </th>
   );
 }
 
