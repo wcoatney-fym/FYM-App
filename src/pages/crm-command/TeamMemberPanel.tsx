@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { X, Bot, Clock, AlertCircle, BarChart2 } from 'lucide-react';
+import { X, Bot, Clock, AlertCircle, BarChart2, RefreshCw } from 'lucide-react';
+import { useTeamStore } from '@/stores/cc-stores';
 import { cn } from '@/lib/utils';
 import type { Task, TeamMember, SkillCategoryKey } from '@/lib/command-center/types';
 
@@ -33,6 +34,14 @@ interface Props {
 export function TeamMemberPanel({ member, allTasks, onClose, onUpdate }: Props) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ role: member.role, capacity: member.workload ?? 10 });
+  const [recalculating, setRecalculating] = useState(false);
+  const recalculate = useTeamStore((s) => s.recalculate);
+
+  const handleRecalculate = async () => {
+    setRecalculating(true);
+    await recalculate(member.id, allTasks);
+    setRecalculating(false);
+  };
 
   const memberTasks = allTasks.filter((t) => t.assigneeId === member.id);
   const openTasks = memberTasks.filter((t) => t.status !== 'done');
@@ -96,7 +105,13 @@ export function TeamMemberPanel({ member, allTasks, onClose, onUpdate }: Props) 
                 );
               })}
             </div>
-            <p className="text-[10px] text-muted-foreground mt-2">Confidence firms up as tasks complete. Low = seed estimate.</p>
+            <div className="flex items-center justify-between mt-2">
+              <p className="text-[10px] text-muted-foreground">Confidence firms up as tasks complete. Low = seed estimate.</p>
+              <button onClick={handleRecalculate} disabled={recalculating} className="flex items-center gap-1 text-[10px] text-primary hover:text-primary/80 transition-colors disabled:opacity-50" title="Recalculate from task history">
+                <RefreshCw className={`w-3 h-3 ${recalculating ? 'animate-spin' : ''}`} />
+                {recalculating ? 'Recalculating…' : 'Recalculate'}
+              </button>
+            </div>
           </div>
           {openTasks.length > 0 && (
             <div>
