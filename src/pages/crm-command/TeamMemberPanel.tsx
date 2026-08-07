@@ -52,7 +52,7 @@ export function TeamMemberPanel({ member, allTasks, onClose, onUpdate }: Props) 
       <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 28, stiffness: 260 }} className="fixed right-0 top-0 z-50 h-full w-full max-w-md bg-background border-l border-border/60 shadow-2xl flex flex-col">
         <div className="flex items-center justify-between gap-3 p-5 border-b border-border/40">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center flex-shrink-0"><span className="text-sm font-bold text-background">{member.avatar}</span></div>
+            <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center flex-shrink-0"><span className="text-sm font-bold text-background">{member.avatar || member.name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)}</span></div>
             <div><h2 className="text-sm font-semibold">{member.name}</h2><p className="text-xs text-muted-foreground">{member.role}</p></div>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors"><X className="w-4 h-4" /></button>
@@ -83,7 +83,7 @@ export function TeamMemberPanel({ member, allTasks, onClose, onUpdate }: Props) 
             <div className="space-y-2.5">
               {SKILL_KEYS.map((skill) => {
                 const score = member.proficiency?.[skill];
-                const level = score ? score.level : (member.skills[skill] ?? 0) * 10;
+                const level = score ? score.level : ((member.skills?.[skill] ?? 0) * 10);
                 const confidence = score?.confidence ?? 'low';
                 const stale = score?.stale ?? false;
                 return (
