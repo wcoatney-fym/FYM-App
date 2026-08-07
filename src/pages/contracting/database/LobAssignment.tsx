@@ -14,7 +14,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
-import { portalSupabase } from '@/lib/portal-supabase';
+import { portalSupabase, portalUrl, portalKey } from '@/lib/portal-supabase';
 import { fireHipWritingWebhook } from '@/lib/contracting/webhooks';
 import { HIP_CARRIERS } from '@/lib/contracting/types';
 
@@ -177,6 +177,65 @@ export function LobAssignment({
                   : '',
               });
             }
+          }
+        }
+      }
+
+      // Phase B: If agent has active_agent_request tag, auto-move back to
+      // actively_selling now that the contracting team has entered the WN.
+      if (hipEnabled) {
+        const { data: pipeline } = await portalSupabase
+          .from('agent_pipeline')
+          .select('id, stage, tags')
+          .eq('agent_id', agentId)
+          .maybeSingle();
+
+        if (
+          pipeline &&
+          pipeline.stage === 'in_contracting' &&
+          (pipeline.tags || []).includes('active_agent_request')
+        ) {
+          const cleanTags = (pipeline.tags as string[]).filter(
+            (t: string) => t !== 'active_agent_request'
+          );
+          await portalSupabase
+            .from('agent_pipeline')
+            .update({
+              stage: 'actively_selling',
+              stage_entered_at: new Date().toISOString(),
+              tags: cleanTags,
+              wn_pending_review: false,
+              wn_pending_count: 0,
+              last_updated_by: 'FYM App',
+              updated_by_source: 'contracting_portal',
+            })
+            .eq('id', pipeline.id);
+
+          // Also mark any pending WN submissions as verified
+          await portalSupabase
+            .from('agent_writing_number_submissions')
+            .update({
+              status: 'verified',
+              reviewed_by: 'FYM App',
+              reviewed_at: new Date().toISOString(),
+            })
+            .eq('agent_id', agentId)
+            .eq('status', 'pending');
+
+          // Push stage change to GHL (best-effort)
+          if (portalUrl && portalKey) {
+            fetch(`${portalUrl}/functions/v1/push-pipeline-stage`, {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${portalKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                record_id: pipeline.id,
+                new_stage: 'actively_selling',
+                updated_by: 'FYM App',
+              }),
+            }).catch(() => {});
           }
         }
       }
