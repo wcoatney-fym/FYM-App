@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   TrendingUp, XCircle, DollarSign, Shield, TrendingDown, Minus, Loader2,
-  ArrowUpDown, ArrowUp, ArrowDown, AlertTriangle, Calendar
+  ArrowUpDown, ArrowUp, ArrowDown, AlertTriangle, Calendar, Download
 } from 'lucide-react';
 import {
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis,
@@ -81,6 +81,40 @@ function useSort<K extends string>(defaultDir: SortDir = 'desc') {
 }
 
 // ── Truncation warning ──────────────────────────────────────────────────
+
+// ── CSV export helper (same pattern as CcAgencyHealthTab) ────────────────
+
+function escCsv(v: string | number | null | undefined): string {
+  const s = String(v ?? '');
+  return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function downloadCsv(filename: string, headers: string[], rows: (string | number | null | undefined)[][]) {
+  const csv = [headers.map(escCsv), ...rows.map(r => r.map(escCsv))].map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${filename}_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function ExportButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-all"
+      title="Export to CSV"
+    >
+      <Download className="w-3.5 h-3.5" /> CSV
+    </button>
+  );
+}
+
+// ── Truncation + pagination ─────────────────────────────────────────────
 
 const PAGE_SIZE = 200;
 
@@ -343,12 +377,19 @@ function PlacementsView({ data, truncated }: { data: PlacementRow[] | null; trun
   if (sorted === null) return <Loading />;
   if (sorted.length === 0) return <EmptyState message="No placements in the last 30 days." />;
 
+  const exportPlacements = useCallback(() => {
+    if (!sorted) return;
+    downloadCsv('placements', ['Policy #', 'Agent', 'Agency', 'Product', 'Annual Premium', 'Effective Date', 'Status'],
+      sorted.map(r => [r.policy_number, r.agent_name, r.agency_name, r.product_type, r.annual_premium, r.policy_effective_date, r.status]));
+  }, [sorted]);
+
   const totalPremium = sorted.reduce((s, d) => s + (Number(d.annual_premium) || 0), 0);
   const activeCount = sorted.filter((d) => d.status === 'active').length;
 
   return (
     <div className="space-y-4">
       {truncated && <TruncationWarning count={PAGE_SIZE} />}
+      <div className="flex justify-end"><ExportButton onClick={exportPlacements} /></div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard label="Placed (30d)" value={sorted.length.toString()} trend="up" />
         <StatCard label="Active" value={activeCount.toString()} trend="up" />
@@ -418,11 +459,18 @@ function CancellationsView({ data, truncated }: { data: CancellationRow[] | null
   if (sorted === null) return <Loading />;
   if (sorted.length === 0) return <EmptyState message="No cancellations found." />;
 
+  const exportCancellations = useCallback(() => {
+    if (!sorted) return;
+    downloadCsv('cancellations', ['Policy #', 'Agent', 'Agency', 'Annual Premium', 'Paid To Date'],
+      sorted.map(r => [r.policy_number, r.agent_name, r.agency_name, r.annual_premium, r.paid_to_date]));
+  }, [sorted]);
+
   const premiumAtRisk = sorted.reduce((s, d) => s + (Number(d.annual_premium) || 0), 0);
 
   return (
     <div className="space-y-4">
       {truncated && <TruncationWarning count={PAGE_SIZE} />}
+      <div className="flex justify-end"><ExportButton onClick={exportCancellations} /></div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <StatCard label="Total Cancellations" value={sorted.length.toString()} trend="down" />
         <StatCard label="Premium Lost" value={fmt$(premiumAtRisk)} trend="down" />
@@ -474,11 +522,18 @@ function RetentionAgenciesView({ data }: { data: RetentionAgencyRow[] | null }) 
     return sortRows(data, sortKey ? RETENTION_ACCESSORS[sortKey] : null, sortDir);
   }, [data, sortKey, sortDir]);
 
+  const exportRetention = useCallback(() => {
+    if (!sorted) return;
+    downloadCsv('retention_agencies', ['Agency', 'Active Policies', 'At Risk', 'Retention %'],
+      sorted.map(r => [r.agency_name, r.active_policies, r.at_risk_count, r.retention_pct !== null ? `${r.retention_pct.toFixed(1)}%` : '']));
+  }, [sorted]);
+
   if (sorted === null) return <Loading />;
   if (sorted.length === 0) return <EmptyState message="All agencies at or above 90% retention." />;
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end"><ExportButton onClick={exportRetention} /></div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <StatCard label="Agencies Below 90%" value={sorted.length.toString()} trend="down" />
         <StatCard label="Total At-Risk Policies" value={sorted.reduce((s, d) => s + (Number(d.at_risk_count) || 0), 0).toString()} trend="down" />
@@ -561,7 +616,8 @@ function RevenueView({ data, preset, onPresetChange }: {
 
   return (
     <div className="space-y-4">
-      {/* Date range selector */}
+      {/* Date range selector + export */}
+      <div className="flex items-center justify-between">
       <div className="flex items-center gap-2">
         <Calendar className="w-4 h-4 text-muted-foreground" />
         <div className="flex gap-1">
@@ -583,6 +639,12 @@ function RevenueView({ data, preset, onPresetChange }: {
             );
           })}
         </div>
+      </div>
+      <ExportButton onClick={() => {
+        if (!sorted) return;
+        downloadCsv('revenue', ['Month', 'Policies', 'Annual Premium'],
+          sorted.map(r => [r.month, r.policies, r.annual_premium]));
+      }} />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
