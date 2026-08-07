@@ -10,6 +10,8 @@
 --
 -- This is a server-side safety net that catches WN additions from paths not
 -- covered by the client-side Phase B logic (LobAssignment, WritingNumberReviewPanel).
+--
+-- NOTE: agent_pipeline.tags is JSONB (not text[]), so this uses jsonb operators.
 
 -- ── Trigger function ───────────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION fn_auto_advance_on_wn_add()
@@ -28,15 +30,8 @@ BEGIN
   -- Only act if agent is in_contracting with active_agent_request tag
   IF v_pipeline.id IS NOT NULL
      AND v_pipeline.stage = 'in_contracting'
-     AND v_pipeline.tags @> ARRAY['active_agent_request']
+     AND v_pipeline.tags @> '["active_agent_request"]'::jsonb
   THEN
-    -- Check if there are still pending WN submissions
-    SELECT COUNT(*)
-      INTO v_remaining_pending
-      FROM agent_writing_number_submissions
-     WHERE agent_id = NEW.agent_id
-       AND status = 'pending';
-
     -- Auto-verify any remaining pending submissions for this carrier
     UPDATE agent_writing_number_submissions
        SET status = 'verified',
@@ -46,7 +41,7 @@ BEGIN
        AND carrier = NEW.carrier
        AND status = 'pending';
 
-    -- Recount after auto-verifying
+    -- Count remaining pending submissions across all carriers
     SELECT COUNT(*)
       INTO v_remaining_pending
       FROM agent_writing_number_submissions
@@ -58,7 +53,11 @@ BEGIN
       UPDATE agent_pipeline
          SET stage = 'actively_selling',
              stage_entered_at = NOW(),
-             tags = array_remove(tags, 'active_agent_request'),
+             tags = (
+               SELECT COALESCE(jsonb_agg(elem), '[]'::jsonb)
+               FROM jsonb_array_elements(COALESCE(tags, '[]'::jsonb)) AS elem
+               WHERE elem != '"active_agent_request"'::jsonb
+             ),
              wn_pending_review = FALSE,
              wn_pending_count = 0,
              last_updated_by = 'system_trigger',
@@ -91,4 +90,5 @@ GRANT EXECUTE ON FUNCTION fn_auto_advance_on_wn_add() TO anon, authenticated;
 COMMENT ON FUNCTION fn_auto_advance_on_wn_add() IS
   'Phase C: Auto-advance agent from in_contracting → actively_selling when a '
   'writing number is added/updated, if the agent has an active_agent_request tag. '
-  'Auto-verifies pending WN submissions for the same carrier. Server-side safety net.';
+  'Auto-verifies pending WN submissions for the same carrier. Server-side safety net. '
+  'Uses jsonb operators (tags column is jsonb, not text[]).';
