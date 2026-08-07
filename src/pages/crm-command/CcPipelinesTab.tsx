@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   TrendingUp, XCircle, DollarSign, Shield, TrendingDown, Minus, Loader2
@@ -7,21 +7,15 @@ import { cn } from '@/lib/utils';
 import { fetchBookOfBusiness } from '@/lib/prod-api';
 import { useOrgData } from '@/contexts/OrgDataCache';
 import { useCachedFetch } from '@/hooks/useCachedFetch';
-import { fmt$ } from '@/lib/formatUtils';
+import { supabase } from '@/lib/supabase';
+import { fmt$, fmtDate } from '@/lib/formatUtils';
 
 type PipelineTab = 'placements' | 'cancellations' | 'retention' | 'revenue';
 
-const tabs: { id: PipelineTab; label: string; icon: typeof TrendingUp }[] = [
-  { id: 'placements', label: 'Placements', icon: TrendingUp },
-  { id: 'cancellations', label: 'Cancellations', icon: XCircle },
-  { id: 'retention', label: 'Retention Agencies', icon: Shield },
-  { id: 'revenue', label: 'Revenue', icon: DollarSign },
-];
-
 interface PlacementRow {
   policy_number: string;
-  agent_name: string | null;
-  agency_name: string | null;
+  agent_name: string;
+  agency_name: string;
   product_type: string;
   status: string;
   annual_premium: number;
@@ -30,15 +24,15 @@ interface PlacementRow {
 
 interface CancellationRow {
   policy_number: string;
-  agent_name: string | null;
-  agency_name: string | null;
+  agent_name: string;
+  agency_name: string;
   annual_premium: number;
   paid_to_date: string | null;
 }
 
 interface RetentionAgencyRow {
   agency_id: string;
-  agency_name: string | null;
+  agency_name: string;
   active_policies: number;
   at_risk_count: number;
   retention_pct: number | null;
@@ -50,9 +44,32 @@ interface RevenueMonthRow {
   annual_premium: number;
 }
 
+// ── Agency name enrichment hook (same pattern as CcDashboardTab) ────────
+
+function useAgencyNames(): Map<string, string> {
+  const [names, setNames] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    if (!supabase) return;
+    (async () => {
+      const { data } = await supabase
+        .from('agencies')
+        .select('writing_number, name');
+      if (data) {
+        const nm = new Map<string, string>();
+        for (const a of data as { writing_number: string | null; name: string }[]) {
+          if (a.writing_number) nm.set(a.writing_number, a.name);
+        }
+        setNames(nm);
+      }
+    })();
+  }, []);
+  return names;
+}
+
 export function CcPipelinesTab() {
   const [activeTab, setActiveTab] = React.useState<PipelineTab>('placements');
   const orgData = useOrgData();
+  const agencyNames = useAgencyNames();
 
   // Placements — cached book-of-business fetch
   const { data: bobRecent } = useCachedFetch(
@@ -66,14 +83,14 @@ export function CcPipelinesTab() {
       .filter(p => p.policy_effective_date && p.policy_effective_date >= thirtyDaysAgo)
       .map(p => ({
         policy_number: p.policy_number,
-        agent_name: null,
-        agency_name: null,
+        agent_name: p.agent_writing_number || '—',
+        agency_name: agencyNames.get(p.agency_id) || p.agency_id || '—',
         product_type: p.product_type,
         status: p.status,
         annual_premium: p.annual_premium,
         policy_effective_date: p.policy_effective_date,
       }));
-  }, [bobRecent]);
+  }, [bobRecent, agencyNames]);
 
   // Cancellations — cached book-of-business fetch
   const { data: bobTerminated } = useCachedFetch(
@@ -84,12 +101,12 @@ export function CcPipelinesTab() {
     if (!bobTerminated) return null;
     return bobTerminated.data.map(p => ({
       policy_number: p.policy_number,
-      agent_name: null,
-      agency_name: null,
+      agent_name: p.agent_writing_number || '—',
+      agency_name: agencyNames.get(p.agency_id) || p.agency_id || '—',
       annual_premium: p.annual_premium,
       paid_to_date: p.paid_to_date,
     }));
-  }, [bobTerminated]);
+  }, [bobTerminated, agencyNames]);
 
   // Retention agencies — from OrgDataCache (instant)
   const retentionAgencies = useMemo((): RetentionAgencyRow[] | null => {
@@ -100,12 +117,12 @@ export function CcPipelinesTab() {
       .slice(0, 50)
       .map(a => ({
         agency_id: a.agency_id,
-        agency_name: null,
+        agency_name: agencyNames.get(a.agency_id) || a.agency_id,
         active_policies: a.active_policies,
         at_risk_count: a.at_risk_count,
         retention_pct: a.retention_pct,
       }));
-  }, [orgData.retentionAgencies, orgData.initialLoading]);
+  }, [orgData.retentionAgencies, orgData.initialLoading, agencyNames]);
 
   // Revenue — from OrgDataCache (instant)
   const revenue = useMemo((): RevenueMonthRow[] | null => {
@@ -127,13 +144,48 @@ export function CcPipelinesTab() {
       .sort((a, b) => a.month.localeCompare(b.month));
   }, [orgData.monthlyProduction, orgData.initialLoading]);
 
+  // Count badges for tabs
+  const counts: Record<PipelineTab, number | null> = {
+    placements: placements?.length ?? null,
+    cancellations: cancellations?.length ?? null,
+    retention: retentionAgencies?.length ?? null,
+    revenue: revenue?.length ?? null,
+  };
+
+  const tabs: { id: PipelineTab; label: string; icon: typeof TrendingUp }[] = [
+    { id: 'placements', label: 'Placements', icon: TrendingUp },
+    { id: 'cancellations', label: 'Cancellations', icon: XCircle },
+    { id: 'retention', label: 'Retention', icon: Shield },
+    { id: 'revenue', label: 'Revenue', icon: DollarSign },
+  ];
+
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">Pipelines</h1>
       <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-thin">
         {tabs.map((tab) => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={cn('flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all', activeTab === tab.id ? 'bg-primary/10 text-primary border border-primary/20' : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50')}>
-            <tab.icon className="w-3.5 h-3.5" />{tab.label}
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all',
+              activeTab === tab.id
+                ? 'bg-primary/10 text-primary border border-primary/20'
+                : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
+            )}
+          >
+            <tab.icon className="w-3.5 h-3.5" />
+            {tab.label}
+            {counts[tab.id] !== null && (
+              <span className={cn(
+                'ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold tabular-nums',
+                activeTab === tab.id
+                  ? 'bg-primary/20 text-primary'
+                  : 'bg-secondary text-muted-foreground'
+              )}>
+                {counts[tab.id]}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -192,9 +244,10 @@ function PlacementsView({ data }: { data: PlacementRow[] | null }) {
             <tr className="border-b border-border/50 bg-secondary/30">
               <th className="text-left py-3 px-4 font-medium text-muted-foreground">Policy #</th>
               <th className="text-left py-3 px-4 font-medium text-muted-foreground">Agent</th>
+              <th className="text-left py-3 px-4 font-medium text-muted-foreground">Agency</th>
               <th className="text-left py-3 px-4 font-medium text-muted-foreground">Product</th>
               <th className="text-right py-3 px-4 font-medium text-muted-foreground">Annual Premium</th>
-              <th className="text-left py-3 px-4 font-medium text-muted-foreground">Submitted</th>
+              <th className="text-left py-3 px-4 font-medium text-muted-foreground">Effective</th>
               <th className="text-left py-3 px-4 font-medium text-muted-foreground">Status</th>
             </tr>
           </thead>
@@ -202,12 +255,20 @@ function PlacementsView({ data }: { data: PlacementRow[] | null }) {
             {data.map((row) => (
               <tr key={row.policy_number} className="border-b border-border/30 hover:bg-secondary/20">
                 <td className="py-3 px-4 font-medium">{row.policy_number}</td>
-                <td className="py-3 px-4 text-muted-foreground">{row.agent_name || '—'}</td>
+                <td className="py-3 px-4 text-muted-foreground">{row.agent_name}</td>
+                <td className="py-3 px-4 text-muted-foreground">{row.agency_name}</td>
                 <td className="py-3 px-4 text-muted-foreground">{row.product_type}</td>
                 <td className="py-3 px-4 text-right">{fmt$(Number(row.annual_premium) || 0)}</td>
-                <td className="py-3 px-4 text-muted-foreground">{row.policy_effective_date || '—'}</td>
+                <td className="py-3 px-4 text-muted-foreground">{fmtDate(row.policy_effective_date)}</td>
                 <td className="py-3 px-4">
-                  <span className={cn('px-1.5 py-0.5 rounded text-[10px] font-medium', row.status === 'active' ? 'bg-emerald-400/10 text-emerald-400' : 'bg-amber-400/10 text-amber-400')}>{row.status}</span>
+                  <span className={cn(
+                    'px-1.5 py-0.5 rounded text-[10px] font-medium',
+                    row.status === 'active'
+                      ? 'bg-emerald-400/10 text-emerald-400'
+                      : 'bg-amber-400/10 text-amber-400'
+                  )}>
+                    {row.status}
+                  </span>
                 </td>
               </tr>
             ))}
@@ -220,12 +281,12 @@ function PlacementsView({ data }: { data: PlacementRow[] | null }) {
 
 function CancellationsView({ data }: { data: CancellationRow[] | null }) {
   if (data === null) return <Loading />;
-  if (data.length === 0) return <EmptyState message="No cancellations in the last 30 days." />;
+  if (data.length === 0) return <EmptyState message="No cancellations found." />;
   const premiumAtRisk = data.reduce((s, d) => s + (Number(d.annual_premium) || 0), 0);
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <StatCard label="Cancellations (30d)" value={data.length.toString()} trend="down" />
+        <StatCard label="Total Cancellations" value={data.length.toString()} trend="down" />
         <StatCard label="Premium Lost" value={fmt$(premiumAtRisk)} trend="down" />
       </div>
       <div className="glass rounded-xl overflow-hidden">
@@ -236,17 +297,17 @@ function CancellationsView({ data }: { data: CancellationRow[] | null }) {
               <th className="text-left py-3 px-4 font-medium text-muted-foreground">Agent</th>
               <th className="text-left py-3 px-4 font-medium text-muted-foreground">Agency</th>
               <th className="text-right py-3 px-4 font-medium text-muted-foreground">Annual Premium</th>
-              <th className="text-left py-3 px-4 font-medium text-muted-foreground">Term Date</th>
+              <th className="text-left py-3 px-4 font-medium text-muted-foreground">Paid To Date</th>
             </tr>
           </thead>
           <tbody>
             {data.map((row) => (
               <tr key={row.policy_number} className="border-b border-border/30 hover:bg-secondary/20">
                 <td className="py-3 px-4 font-medium">{row.policy_number}</td>
-                <td className="py-3 px-4 text-muted-foreground">{row.agent_name || '—'}</td>
-                <td className="py-3 px-4 text-muted-foreground">{row.agency_name || '—'}</td>
+                <td className="py-3 px-4 text-muted-foreground">{row.agent_name}</td>
+                <td className="py-3 px-4 text-muted-foreground">{row.agency_name}</td>
                 <td className="py-3 px-4 text-right text-red-400">{fmt$(Number(row.annual_premium) || 0)}</td>
-                <td className="py-3 px-4 text-muted-foreground">{row.paid_to_date || '—'}</td>
+                <td className="py-3 px-4 text-muted-foreground">{fmtDate(row.paid_to_date)}</td>
               </tr>
             ))}
           </tbody>
@@ -278,12 +339,12 @@ function RetentionAgenciesView({ data }: { data: RetentionAgencyRow[] | null }) 
           <tbody>
             {data.map((row) => (
               <tr key={row.agency_id} className="border-b border-border/30 hover:bg-secondary/20">
-                <td className="py-3 px-4 font-medium">{row.agency_name || 'Unknown Agency'}</td>
+                <td className="py-3 px-4 font-medium">{row.agency_name}</td>
                 <td className="py-3 px-4 text-right text-muted-foreground">{row.active_policies}</td>
                 <td className="py-3 px-4 text-right text-red-400">{row.at_risk_count}</td>
                 <td className="py-3 px-4 text-right font-medium">
                   <span className={row.retention_pct !== null && row.retention_pct >= 85 ? 'text-amber-400' : 'text-red-400'}>
-                    {row.retention_pct !== null ? `${row.retention_pct}%` : '—'}
+                    {row.retention_pct !== null ? `${row.retention_pct.toFixed(1)}%` : '—'}
                   </span>
                 </td>
               </tr>
