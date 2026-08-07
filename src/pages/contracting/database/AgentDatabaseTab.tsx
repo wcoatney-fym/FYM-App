@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { useFymAgentDirectory, type FymAgent } from '@/hooks/useFymAgentDirectory';
 import { portalSupabase } from '@/lib/portal-supabase';
+import { HudFrame } from '@/components/ui/hud-frame';
 import { fmt$ } from '@/lib/formatUtils';
 
 // ── Sorting ────────────────────────────────────────────────────────
@@ -261,54 +262,62 @@ export function AgentDatabaseTab() {
 
       {/* Source summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-4">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            Rostered
+        <HudFrame accentColor="hsl(145 63% 42% / 0.5)">
+          <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              Rostered
+            </div>
+            <div className="text-3xl font-bold text-foreground tabular-nums">
+              {totalRoster.toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              FYM agency roster
+            </p>
           </div>
-          <div className="text-2xl font-bold text-foreground">
-            {totalRoster.toLocaleString()}
+        </HudFrame>
+        <HudFrame accentColor="hsl(270 60% 55% / 0.5)">
+          <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+              <ClipboardCheck className="w-4 h-4 text-purple-400" />
+              Intake Forms
+            </div>
+            <div className="text-3xl font-bold text-foreground tabular-nums">
+              {totalIntake.toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Completed contracting intake
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            FYM agency roster
-          </p>
-        </div>
-        <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-4">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-            <ClipboardCheck className="w-4 h-4 text-purple-400" />
-            Intake Forms
+        </HudFrame>
+        <HudFrame accentColor="hsl(217 91% 60% / 0.5)">
+          <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+              <Globe className="w-4 h-4 text-blue-400" />
+              Production File
+            </div>
+            <div className="text-3xl font-bold text-foreground tabular-nums">
+              {totalProd.toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              FYM direct in prod DB
+            </p>
           </div>
-          <div className="text-2xl font-bold text-foreground">
-            {totalIntake.toLocaleString()}
+        </HudFrame>
+        <HudFrame accentColor="hsl(199 89% 48% / 0.5)">
+          <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+              <Users className="w-4 h-4 text-cyan-400" />
+              FYM Directory
+            </div>
+            <div className="text-3xl font-bold text-foreground tabular-nums">
+              {filteredAgents.length.toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Deduplicated across sources
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Completed contracting intake
-          </p>
-        </div>
-        <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-4">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-            <Globe className="w-4 h-4 text-blue-400" />
-            Production File
-          </div>
-          <div className="text-2xl font-bold text-foreground">
-            {totalProd.toLocaleString()}
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            FYM direct in prod DB
-          </p>
-        </div>
-        <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-4">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-            <Users className="w-4 h-4 text-cyan-400" />
-            FYM Directory
-          </div>
-          <div className="text-2xl font-bold text-foreground">
-            {filteredAgents.length.toLocaleString()}
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Deduplicated across sources
-          </p>
-        </div>
+        </HudFrame>
       </div>
 
       {/* Filters */}
