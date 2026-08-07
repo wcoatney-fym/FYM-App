@@ -23,8 +23,11 @@ import {
   AlertTriangle,
   Inbox,
   X,
+  ChevronsUpDown,
+  FileDown,
 } from 'lucide-react';
 import { HudFrame } from '@/components/ui/hud-frame';
+import { StaggerContainer, StaggerItem } from '@/components/ui/animated';
 import { portalSupabase } from '@/lib/portal-supabase';
 import { createActivationRecord, sendOnboardingEmail } from '@/lib/contracting/onboarding-service';
 import { triggerAgencySync } from '@/lib/sync-agencies';
@@ -88,6 +91,14 @@ function collectAllAncestorIds(agencyId: string, agencies: PortalCrmAgency[]): s
   return ids;
 }
 
+function countDescendants(node: AgencyNode): number {
+  let count = 0;
+  for (const child of node.children) {
+    count += 1 + countDescendants(child);
+  }
+  return count;
+}
+
 // ─── Main component ───────────────────────────────────────────────────────
 
 export function ContractingHierarchyTab() {
@@ -107,6 +118,7 @@ export function ContractingHierarchyTab() {
   const [pendingApproval, setPendingApproval] = useState<AgencyIntakeSubmission | null>(null);
   const [pendingApprovalParentId, setPendingApprovalParentId] = useState<string>('');
   const [intakeLinkCopied, setIntakeLinkCopied] = useState(false);
+  const [allCollapsed, setAllCollapsed] = useState(false);
 
   const handleCopyIntakeLink = async () => {
     const url = `${window.location.origin}/agency-intake`;
@@ -160,6 +172,7 @@ export function ContractingHierarchyTab() {
 
     const allIds = allAgencies.map((a) => a.id);
     setExpandedNodes(new Set(allIds));
+    setAllCollapsed(false);
     setLoading(false);
   }, []);
 
@@ -224,6 +237,45 @@ export function ContractingHierarchyTab() {
       else next.add(id);
       return next;
     });
+  };
+
+  const toggleCollapseAll = () => {
+    if (allCollapsed) {
+      setExpandedNodes(new Set(agencies.map((a) => a.id)));
+    } else {
+      setExpandedNodes(new Set());
+    }
+    setAllCollapsed(!allCollapsed);
+  };
+
+  const handleExportCSV = () => {
+    const rows = agencies
+      .filter((a) => a.agency_type !== 'main')
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const headers = ['Agency Name', 'Principal Agent', 'Agency NPN', 'Agency EIN', 'Contracting Email', 'CRM Enabled', 'Carriers', 'State', 'Date Created'];
+    const csvRows = [
+      headers.join(','),
+      ...rows.map((a) => [
+        `"${(a.name || '').replace(/"/g, '""')}"`,
+        `"${(a.principal_agent || '').replace(/"/g, '""')}"`,
+        a.agency_npn || '',
+        a.agency_ein || '',
+        a.contracting_email || '',
+        a.crm_enabled ? 'Yes' : 'No',
+        `"${(a.carriers || []).join(', ')}"`,
+        a.agency_state || '',
+        a.date_created || '',
+      ].join(','))
+    ];
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `fym-agency-directory-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const handleAgencyUpdated = (updated: PortalCrmAgency) => {
@@ -516,43 +568,73 @@ export function ContractingHierarchyTab() {
       )}
 
       {/* KPI Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-        <HudFrame accentColor="hsl(142 71% 45% / 0.5)">
-          <div className="bg-card border border-border rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <Building2 className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Agencies</span>
+      <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <StaggerItem>
+          <HudFrame accentColor="hsl(142 71% 45% / 0.5)">
+            <div className="bg-card border border-border rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Agencies</span>
+              </div>
+              <p className="text-3xl font-bold text-foreground tabular-nums">{kpiStats.total}</p>
             </div>
-            <p className="text-3xl font-bold text-foreground tabular-nums">{kpiStats.total}</p>
-          </div>
-        </HudFrame>
-        <HudFrame accentColor="hsl(142 71% 45% / 0.5)">
-          <div className="bg-card border border-border rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <Monitor className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">CRM Enabled</span>
+          </HudFrame>
+        </StaggerItem>
+        <StaggerItem>
+          <HudFrame accentColor="hsl(142 71% 45% / 0.5)">
+            <div className="bg-card border border-border rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Monitor className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">CRM Enabled</span>
+              </div>
+              <p className="text-3xl font-bold text-emerald-400 tabular-nums">{kpiStats.crmEnabled}</p>
             </div>
-            <p className="text-3xl font-bold text-emerald-400 tabular-nums">{kpiStats.crmEnabled}</p>
-          </div>
-        </HudFrame>
-        <HudFrame accentColor="hsl(25 95% 53% / 0.5)">
-          <div className="bg-card border border-border rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <AlertTriangle className="w-3.5 h-3.5 text-orange-400" />
-              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Incomplete</span>
+          </HudFrame>
+        </StaggerItem>
+        <StaggerItem>
+          <HudFrame accentColor="hsl(25 95% 53% / 0.5)">
+            <div className="bg-card border border-border rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <AlertTriangle className="w-3.5 h-3.5 text-orange-400" />
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Incomplete</span>
+              </div>
+              <p className="text-3xl font-bold text-orange-400 tabular-nums">{kpiStats.incomplete}</p>
             </div>
-            <p className="text-3xl font-bold text-orange-400 tabular-nums">{kpiStats.incomplete}</p>
-          </div>
-        </HudFrame>
-        <HudFrame accentColor="hsl(45 93% 47% / 0.5)">
-          <div className="bg-card border border-border rounded-lg p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <Inbox className="w-3.5 h-3.5 text-amber-400" />
-              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Pending Intake</span>
+          </HudFrame>
+        </StaggerItem>
+        <StaggerItem>
+          <HudFrame accentColor="hsl(45 93% 47% / 0.5)">
+            <div className="bg-card border border-border rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Inbox className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Pending Intake</span>
+              </div>
+              <p className="text-3xl font-bold text-amber-400 tabular-nums">{kpiStats.pendingIntakes}</p>
             </div>
-            <p className="text-3xl font-bold text-amber-400 tabular-nums">{kpiStats.pendingIntakes}</p>
-          </div>
-        </HudFrame>
+          </HudFrame>
+        </StaggerItem>
+      </StaggerContainer>
+
+      <div className="flex items-center gap-3 mb-4">
+        <button
+          onClick={toggleCollapseAll}
+          className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium border border-border rounded-lg text-foreground/80 hover:bg-secondary/30 transition-colors bg-card"
+        >
+          <ChevronsUpDown className="w-3.5 h-3.5" />
+          {allCollapsed ? 'Expand All' : 'Collapse All'}
+        </button>
+        <button
+          onClick={handleExportCSV}
+          className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium border border-border rounded-lg text-foreground/80 hover:bg-secondary/30 transition-colors bg-card"
+        >
+          <FileDown className="w-3.5 h-3.5" />
+          Export CSV
+        </button>
+        {(search || principalSearch) && (
+          <span className="text-xs text-muted-foreground ml-auto">
+            Showing {displayTree.reduce((acc, n) => acc + 1 + countDescendants(n), 0)} of {kpiStats.total} agencies
+          </span>
+        )}
       </div>
 
       <div className="flex gap-3 mb-6">
