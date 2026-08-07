@@ -2,7 +2,7 @@
  * PreviewTable — shows the first 10 rows of a parsed CSV with mapped
  * header labels, cancel/import controls, and a progress bar during import.
  */
-import React from 'react';
+
 import { FileSpreadsheet, Loader2, Users } from 'lucide-react';
 import {
   type ImportField,
