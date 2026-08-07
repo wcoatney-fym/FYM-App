@@ -1,8 +1,12 @@
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Target, TrendingDown, TrendingUp, AlertTriangle, Bot } from 'lucide-react';
+import { Target, TrendingDown, TrendingUp, AlertTriangle, Bot, Search } from 'lucide-react';
 import { useAgencyHealth } from '@/lib/command-center/use-agency-health';
-import type { AgencyHealth } from '@/lib/command-center/agency-health';
+import { HI_PCT_THRESHOLD, type AgencyHealth } from '@/lib/command-center/agency-health';
 import { cn } from '@/lib/utils';
+
+/** Row stagger animation is skipped when the visible list exceeds this count. */
+const STAGGER_CAP = 50;
 
 function TrajectoryBadge({ a }: { a: AgencyHealth }) {
   const map = {
@@ -21,6 +25,13 @@ function TrajectoryBadge({ a }: { a: AgencyHealth }) {
 
 export function CcAgencyHealthTab() {
   const { data, loading, error, configured } = useAgencyHealth();
+  const [search, setSearch] = useState('');
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return data;
+    const q = search.trim().toLowerCase();
+    return data.filter((a) => a.agency.toLowerCase().includes(q));
+  }, [data, search]);
 
   if (!configured) {
     return (
@@ -35,7 +46,8 @@ export function CcAgencyHealthTab() {
     );
   }
 
-  const targets = data.filter((a) => a.tylerTarget);
+  const targets = filtered.filter((a) => a.tylerTarget);
+  const skipStagger = filtered.length > STAGGER_CAP;
 
   return (
     <div className="space-y-6">
@@ -61,9 +73,21 @@ export function CcAgencyHealthTab() {
       {!loading && !error && (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <StatCard label="Agencies tracked" value={data.length} />
+            <StatCard label="Agencies tracked" value={filtered.length} />
             <StatCard label="Tyler targets" value={targets.length} accent />
             <StatCard label="Top opportunity" value={targets[0]?.agency ?? '—'} sub={targets[0] ? `${targets[0].appsRecent} recent apps · ${targets[0].hiPctRecent}% HI` : undefined} />
+          </div>
+
+          {/* Search bar */}
+          <div className="relative max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search agencies…"
+              className="w-full pl-9 pr-3 py-2 rounded-lg bg-secondary/40 border border-border/40 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+            />
           </div>
 
           <div className="glass rounded-xl overflow-hidden">
@@ -81,13 +105,13 @@ export function CcAgencyHealthTab() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.map((a, i) => (
-                    <motion.tr key={a.agency} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: Math.min(i * 0.015, 0.4) }} className={cn('border-b border-border/30 hover:bg-secondary/30', a.tylerTarget && 'bg-amber-400/[0.04]')}>
+                  {filtered.map((a, i) => (
+                    <motion.tr key={a.agency} initial={{ opacity: skipStagger ? 1 : 0 }} animate={{ opacity: 1 }} transition={skipStagger ? { duration: 0 } : { delay: Math.min(i * 0.015, 0.4) }} className={cn('border-b border-border/30 hover:bg-secondary/30', a.tylerTarget && 'bg-amber-400/[0.04]')}>
                       <td className="px-4 py-3 font-medium flex items-center gap-2">
                         {a.tylerTarget && <Target className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />}{a.agency}
                       </td>
                       <td className="px-4 py-3 text-right tabular-nums">{a.appsRecent}</td>
-                      <td className={cn('px-4 py-3 text-right tabular-nums', a.hiPctRecent >= 55 && 'text-amber-400')}>{a.appsRecent ? `${a.hiPctRecent}%` : '—'}</td>
+                      <td className={cn('px-4 py-3 text-right tabular-nums', a.hiPctRecent >= HI_PCT_THRESHOLD && 'text-amber-400')}>{a.appsRecent ? `${a.hiPctRecent}%` : '—'}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{a.hiPctAllTime}%</td>
                       <td className="px-4 py-3 text-right tabular-nums">{a.avgApRecent ? `$${a.avgApRecent}` : '—'}</td>
                       <td className={cn('px-4 py-3 text-right tabular-nums', a.apLiftPct === null ? 'text-muted-foreground' : a.apLiftPct >= 0 ? 'text-emerald-400' : 'text-red-400')}>
