@@ -1,8 +1,8 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   Users, DollarSign, TrendingUp, AlertTriangle,
-  Shield, Target, UserPlus, Clock, Bot, Zap
+  Shield, Target, UserPlus, Clock, Bot, Zap, RefreshCw
 } from 'lucide-react';
 import { useTasksStore } from '@/stores/cc-stores';
 import { formatDistanceToNow } from 'date-fns';
@@ -56,6 +56,7 @@ export function CcDashboardTab() {
   const [recruitingCount, setRecruitingCount] = useState<number | null>(null);
   const [activities, setActivities] = useState<ActivityRow[]>([]);
   const [dataErrors, setDataErrors] = useState<string[]>([]);
+  const [lastSynced, setLastSynced] = useState<Date | null>(null);
   const orgData = useOrgData();
 
   // Derive Placements MTD from OrgDataCache monthly production (current month only)
@@ -100,37 +101,57 @@ export function CcDashboardTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    (async () => {
-      if (!portalSupabase) return;
-      try {
-        const [{ count: activeCount }, { count: recruitCount }] = await Promise.all([
-          scopeToAgency(
-            portalSupabase
-              .from('agent_pipeline')
-              .select('id', { count: 'exact', head: true })
-              .in('stage', ACTIVE_LEAD_STAGES),
-            isOrgWide,
-            effectiveAgencyId
-          ),
-          scopeToAgency(
-            portalSupabase
-              .from('agent_pipeline')
-              .select('id', { count: 'exact', head: true })
-              .in('stage', RECRUITING_STAGES),
-            isOrgWide,
-            effectiveAgencyId
-          ),
-        ]);
-        setActiveLeads(activeCount ?? 0);
-        setRecruitingCount(recruitCount ?? 0);
-      } catch (err) {
-        setActiveLeads(0);
-        setRecruitingCount(0);
-        setDataErrors(prev => [...prev.filter(e => e !== 'Pipeline data unavailable'), 'Pipeline data unavailable']);
-      }
-    })();
+  // Consolidated portal data fetch — pipeline counts + activity log in one effect
+  const fetchPortalData = useCallback(async () => {
+    if (!portalSupabase) return;
+    const errors: string[] = [];
+
+    // Pipeline counts
+    try {
+      const [{ count: activeCount }, { count: recruitCount }] = await Promise.all([
+        scopeToAgency(
+          portalSupabase
+            .from('agent_pipeline')
+            .select('id', { count: 'exact', head: true })
+            .in('stage', ACTIVE_LEAD_STAGES),
+          isOrgWide,
+          effectiveAgencyId
+        ),
+        scopeToAgency(
+          portalSupabase
+            .from('agent_pipeline')
+            .select('id', { count: 'exact', head: true })
+            .in('stage', RECRUITING_STAGES),
+          isOrgWide,
+          effectiveAgencyId
+        ),
+      ]);
+      setActiveLeads(activeCount ?? 0);
+      setRecruitingCount(recruitCount ?? 0);
+    } catch {
+      setActiveLeads(0);
+      setRecruitingCount(0);
+      errors.push('Pipeline data unavailable');
+    }
+
+    // Activity log
+    try {
+      const { data } = await portalSupabase
+        .from('activity_log')
+        .select('id, action, details, created_at')
+        .order('created_at', { ascending: false })
+        .limit(20);
+      setActivities((data as ActivityRow[]) || []);
+    } catch {
+      setActivities([]);
+      errors.push('Activity log unavailable');
+    }
+
+    setDataErrors(errors);
+    setLastSynced(new Date());
   }, [isOrgWide, effectiveAgencyId]);
+
+  useEffect(() => { void fetchPortalData(); }, [fetchPortalData]);
 
   // Agency names enrichment for insights (lightweight, not Max's DB)
   const [insightNames, setInsightNames] = useState<Map<string, string>>(new Map());
@@ -157,23 +178,6 @@ export function CcDashboardTab() {
       agencyName: insightNames.get(i.agencyName) || i.agencyName,
     })),
   [insights, insightNames]);
-
-  useEffect(() => {
-    (async () => {
-      if (!portalSupabase) return;
-      try {
-        const { data } = await portalSupabase
-          .from('activity_log')
-          .select('id, action, details, created_at')
-          .order('created_at', { ascending: false })
-          .limit(20);
-        setActivities((data as ActivityRow[]) || []);
-      } catch (err) {
-        setActivities([]);
-        setDataErrors(prev => [...prev.filter(e => e !== 'Activity log unavailable'), 'Activity log unavailable']);
-      }
-    })();
-  }, []);
 
   const overdueTasks = tasks.filter((t) => new Date(t.dueDate) < new Date() && t.status !== 'done');
 
@@ -214,6 +218,16 @@ export function CcDashboardTab() {
           <h1 className="text-2xl font-bold">Command Center</h1>
           <p className="text-sm text-muted-foreground mt-1">Real-time overview of all operations</p>
         </div>
+        {lastSynced && (
+          <button
+            onClick={() => void fetchPortalData()}
+            className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors group"
+            title="Click to refresh"
+          >
+            <RefreshCw className="w-3 h-3 group-hover:rotate-180 transition-transform duration-300" />
+            Last synced {formatDistanceToNow(lastSynced, { addSuffix: true })}
+          </button>
+        )}
       </div>
 
       {dataErrors.length > 0 && (
