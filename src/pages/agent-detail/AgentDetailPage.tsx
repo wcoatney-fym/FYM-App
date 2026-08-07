@@ -502,6 +502,7 @@ export function AgentDetailPage() {
               pipelineRecord={pipelineRecord}
               portalAgentId={portalAgentId}
               loading={contractingLoading}
+              onPipelineUpdated={(updated) => setPipelineRecord(updated)}
             />
           </TabsContent>
         )}

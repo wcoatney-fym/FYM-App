@@ -1,10 +1,16 @@
 /**
- * ContractingTab — Agent-facing contracting view (Phase A)
+ * ContractingTab — Agent-facing contracting view (Phases A + B)
  *
  * FYM direct agents only. Two modes:
  * 1. Pre-RTS: Vertical stepper showing pipeline progress + training links
  * 2. Post-RTS (Actively Selling): Current carrier assignments + WN submission
  *    with contracting team approval workflow.
+ *
+ * Phase B additions:
+ * - "Request New Carrier" moves agent back to 'in_contracting' stage with
+ *   'active_agent_request' tag so the Kanban board flags them as re-entries.
+ * - Agent sees an "Active Request" banner when they have a pending carrier request.
+ * - On WN approval, the contracting team moves agent back to 'actively_selling'.
  *
  * Data source: Portal Supabase (akhojh…) — agent_pipeline, agent_lob_assignments,
  * agent_writing_number_submissions, agent_pipeline_stage_steps, agent_live_sessions.
@@ -36,6 +42,7 @@ import type {
   PortalLiveSession,
 } from '@/lib/contracting/types';
 import { HIP_CARRIERS } from '@/lib/contracting/types';
+import { portalUrl, portalKey } from '@/lib/portal-supabase';
 
 // ── Stage display order for stepper ────────────────────────────────────────
 const STAGE_ORDER: { key: AgentPipelineStage; label: string }[] = [
@@ -74,12 +81,15 @@ interface ContractingTabProps {
   portalAgentId: string | null;
   /** Whether data is still loading */
   loading: boolean;
+  /** Callback when pipeline record changes (e.g. stage move) */
+  onPipelineUpdated?: (record: PortalPipelineRecord) => void;
 }
 
 export function ContractingTab({
   pipelineRecord,
   portalAgentId,
   loading: parentLoading,
+  onPipelineUpdated,
 }: ContractingTabProps) {
   const [stageSteps, setStageSteps] = useState<PortalPipelineStageStep[]>([]);
   const [lobAssignments, setLobAssignments] = useState<PortalLobAssignment[]>([]);
@@ -140,7 +150,7 @@ export function ContractingTab({
     loadData();
   }, [loadData]);
 
-  // ── Submit writing number ─────────────────────────────────────────────────
+  // ── Submit writing number (Phase B: also moves agent to in_contracting) ──
   const handleSubmitWn = async () => {
     if (!portalSupabase || !portalAgentId || !wnCarrier.trim() || !wnNumber.trim()) return;
     setSubmitting(true);
@@ -158,18 +168,57 @@ export function ContractingTab({
 
       if (error) throw error;
 
-      // Bump pending count on pipeline record
       if (pipelineRecord) {
-        await portalSupabase
+        // Add active_agent_request tag if not already present
+        const currentTags = pipelineRecord.tags || [];
+        const newTags = currentTags.includes('active_agent_request')
+          ? currentTags
+          : [...currentTags, 'active_agent_request'];
+
+        // Move to in_contracting + bump pending count + set tag
+        const isAlreadyInContracting = pipelineRecord.stage === 'in_contracting';
+        const updatePayload: Record<string, unknown> = {
+          wn_pending_review: true,
+          wn_pending_count: (pipelineRecord.wn_pending_count || 0) + 1,
+          tags: newTags,
+        };
+
+        if (!isAlreadyInContracting) {
+          updatePayload.stage = 'in_contracting';
+          updatePayload.stage_entered_at = new Date().toISOString();
+          updatePayload.last_updated_by = 'agent_self_service';
+          updatePayload.updated_by_source = 'contracting_portal';
+        }
+
+        const { data: updated } = await portalSupabase
           .from('agent_pipeline')
-          .update({
-            wn_pending_review: true,
-            wn_pending_count: (pipelineRecord.wn_pending_count || 0) + 1,
-          })
-          .eq('id', pipelineRecord.id);
+          .update(updatePayload)
+          .eq('id', pipelineRecord.id)
+          .select()
+          .single();
+
+        if (updated && onPipelineUpdated) {
+          onPipelineUpdated(updated as PortalPipelineRecord);
+        }
+
+        // Push stage change to GHL if moving stages
+        if (!isAlreadyInContracting && portalUrl && portalKey) {
+          fetch(`${portalUrl}/functions/v1/push-pipeline-stage`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${portalKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              record_id: pipelineRecord.id,
+              new_stage: 'in_contracting',
+              updated_by: 'agent_self_service',
+            }),
+          }).catch(() => {}); // Best-effort GHL sync
+        }
       }
 
-      setSubmitMsg({ text: `Writing number submitted for ${wnCarrier}. The contracting team will review and approve.`, type: 'success' });
+      setSubmitMsg({ text: `Writing number submitted for ${wnCarrier}. You've been moved to In Contracting — the contracting team will review and approve.`, type: 'success' });
       setWnCarrier('');
       setWnNumber('');
       setShowWnForm(false);
@@ -205,6 +254,11 @@ export function ContractingTab({
   }
 
   const isPostRts = POST_RTS_STAGES.includes(pipelineRecord.stage);
+  const isActiveAgentRequest =
+    pipelineRecord.stage === 'in_contracting' &&
+    (pipelineRecord.tags || []).includes('active_agent_request');
+  // Show post-RTS view if actively selling OR if they're in_contracting as a re-entry
+  const showPostRtsView = isPostRts || isActiveAgentRequest;
   const currentStageIdx = STAGE_ORDER.findIndex((s) => s.key === pipelineRecord.stage);
   const stepsForStage = (stageKey: AgentPipelineStage) =>
     stageSteps.filter((s) => s.internal_stage === stageKey);
@@ -220,8 +274,31 @@ export function ContractingTab({
 
   return (
     <div className="space-y-6">
+      {/* ── Active Agent Request banner (Phase B) ─────────────────────── */}
+      {isActiveAgentRequest && (
+        <Card className="border-amber-500/20 bg-amber-500/5">
+          <CardContent className="p-4 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-amber-500/10">
+              <Clock size={20} className="text-amber-400" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-foreground">
+                Carrier Request In Progress
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Your writing number is being reviewed by the contracting team.
+                You'll be moved back to Actively Selling once approved.
+              </p>
+            </div>
+            <Badge className="ml-auto bg-amber-500/10 text-amber-400 border-amber-500/20 text-xs whitespace-nowrap">
+              Active Request
+            </Badge>
+          </CardContent>
+        </Card>
+      )}
+
       {/* ── Pre-RTS: Pipeline Stepper ─────────────────────────────────── */}
-      {!isPostRts && (
+      {!showPostRtsView && (
         <>
           {/* Status banner */}
           <Card className="border-primary/20 bg-primary/5">
@@ -350,24 +427,26 @@ export function ContractingTab({
       )}
 
       {/* ── Post-RTS: Carrier Assignments + WN Submission ─────────────── */}
-      {isPostRts && (
+      {showPostRtsView && (
         <>
-          {/* Status banner */}
-          <Card className="border-emerald-500/20 bg-emerald-500/5">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-emerald-500/10">
-                <ShieldCheck size={20} className="text-emerald-500" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-foreground">
-                  Actively Selling
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  You can request contracting for additional carriers below.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Status banner — only show if NOT in active request state (banner above covers it) */}
+          {!isActiveAgentRequest && (
+            <Card className="border-emerald-500/20 bg-emerald-500/5">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-emerald-500/10">
+                  <ShieldCheck size={20} className="text-emerald-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">
+                    Actively Selling
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    You can request contracting for additional carriers below.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Current carrier assignments */}
           <Card className="border-border">

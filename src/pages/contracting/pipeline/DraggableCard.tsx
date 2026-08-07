@@ -145,9 +145,13 @@ export function DraggableCard({
           {record.tags.slice(0, 3).map((tag) => (
             <span
               key={tag}
-              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-cyan-500/10 text-primary border border-blue-500/20 truncate max-w-[90px]"
+              className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium truncate max-w-[100px] ${
+                tag === 'active_agent_request'
+                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                  : 'bg-cyan-500/10 text-primary border border-blue-500/20'
+              }`}
             >
-              {tag}
+              {tag === 'active_agent_request' ? 'Agent Request' : tag}
             </span>
           ))}
           {record.tags.length > 3 && (
