@@ -26,7 +26,7 @@ import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useOrgData } from '@/contexts/OrgDataCache';
 import {
   Search, Building2, ChevronRight, ChevronUp, ChevronDown,
-  Download, ChevronLeft,
+  Download, ChevronLeft, Zap,
 } from 'lucide-react';
 import { fmt$ } from '@/lib/formatUtils';
 
@@ -42,6 +42,7 @@ interface AgencyRow {
   name?: string;
   slug?: string;
   is_active?: boolean;
+  ghl_api_enabled?: boolean;
 }
 
 type SortKey = 'name' | 'active_policies' | 'active_premium' | 'at_risk_count' | 'eligible_90d' | 'retention_pct';
@@ -92,11 +93,11 @@ export function AgenciesPage() {
     (async () => {
       const { data: agencyNames } = await (supabase as any)
         .from('agencies')
-        .select('id, writing_number, name, slug, is_active');
+        .select('id, writing_number, name, slug, is_active, ghl_api_enabled');
       if (agencyNames) {
-        const nm = new Map<string, { name: string; slug?: string; is_active: boolean }>();
+        const nm = new Map<string, { name: string; slug?: string; is_active: boolean; ghl_api_enabled?: boolean }>();
         for (const a of agencyNames as any[]) {
-          if (a.writing_number) nm.set(a.writing_number, { name: a.name, slug: a.slug ?? undefined, is_active: a.is_active });
+          if (a.writing_number) nm.set(a.writing_number, { name: a.name, slug: a.slug ?? undefined, is_active: a.is_active, ghl_api_enabled: a.ghl_api_enabled ?? false });
         }
         setNameMap(nm);
       }
@@ -405,6 +406,12 @@ export function AgenciesPage() {
                         <TableCell>
                           <div className="font-medium text-foreground">
                             {r.name ?? <span className="font-data text-xs text-muted-foreground">{r.agency_id.slice(0, 8)}…</span>}
+                          {r.ghl_api_enabled && (
+                            <span className="inline-flex items-center gap-1 ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-green-500/10 text-green-400 uppercase tracking-wider">
+                              <Zap className="w-2.5 h-2.5 fill-green-400" />
+                              GHL
+                            </span>
+                          )}
                           </div>
                           {r.slug && <div className="text-xs text-muted-foreground">{r.slug}</div>}
                         </TableCell>

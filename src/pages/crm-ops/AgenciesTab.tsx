@@ -14,7 +14,6 @@ import { formatPhoneDisplay } from '@/lib/crm/helpers';
 import type { CrmAgency } from '@/lib/crm/types';
 import { AddAgencyModal } from '@/pages/crm-ops/AddAgencyModal';
 import { AgencyProfileView } from './AgencyProfileView';
-import { useGhlLiveFeed } from '@/lib/use-ghl-live-feed';
 
 const STATUS_LABELS: Record<string, string> = {
   pending_csr_assignment: 'Pending CSR Assignment',
@@ -45,7 +44,7 @@ export const AgenciesTab: React.FC = () => {
   const [crmNumberValue, setCrmNumberValue] = useState('');
   const [crmSaving, setCrmSaving] = useState(false);
   const [selectedAgency, setSelectedAgency] = useState<CrmAgency | null>(null);
-  const { findBySlug, toggle: toggleGhl, togglingId } = useGhlLiveFeed();
+  const [togglingGhlId, setTogglingGhlId] = useState<string | null>(null);
 
   const getParentName = (agency: CrmAgency): string | null => {
     if (agency.agency_type !== 'sub' || !agency.parent_agency_id) return null;
@@ -403,42 +402,39 @@ export const AgenciesTab: React.FC = () => {
                       </td>
                       <td className="px-4 py-3.5 whitespace-nowrap">
                         {(() => {
-                          const ghlAgency = findBySlug(agency.slug);
-                          const ghlEnabled = ghlAgency?.ghl_api_enabled ?? false;
-                          const isToggling = ghlAgency ? togglingId === ghlAgency.id : false;
-                          const isLinked = !!ghlAgency;
+                          const ghlEnabled = agency.ghl_api_enabled ?? false;
+                          const isToggling = togglingGhlId === agency.id;
                           return (
                             <button
                               onClick={async (e) => {
                                 e.stopPropagation();
-                                if (!isLinked) return;
                                 const next = !ghlEnabled;
                                 if (next && !confirm(`Turn on GHL Live Feed for ${agency.name}?\n\nLive policy data and status changes (approved, terminated, at-risk) will push to this agency's GHL account.`)) return;
                                 if (!next && !confirm(`Turn off GHL Live Feed for ${agency.name}?\n\nPolicy lifecycle events will stop pushing to GHL for this agency.`)) return;
-                                await toggleGhl(ghlAgency.id, next);
+                                setTogglingGhlId(agency.id);
+                                try {
+                                  const { error } = await supabase.from('hierarchy_agencies').update({ ghl_api_enabled: next }).eq('id', agency.id);
+                                  if (!error) {
+                                    setAgencies((prev) => prev.map((a) => a.id === agency.id ? { ...a, ghl_api_enabled: next } : a));
+                                  }
+                                } finally {
+                                  setTogglingGhlId(null);
+                                }
                               }}
-                              disabled={isToggling || !isLinked}
+                              disabled={isToggling}
                               className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg transition-colors disabled:opacity-50 ${
-                                !isLinked
-                                  ? 'text-muted-foreground/50 bg-secondary/50 border border-border/50 cursor-not-allowed'
-                                  : ghlEnabled
-                                    ? 'text-green-400 bg-green-400/10 hover:bg-green-400/20 border border-green-500/20'
-                                    : 'text-muted-foreground bg-secondary hover:bg-secondary/80 border border-border'
+                                ghlEnabled
+                                  ? 'text-green-400 bg-green-400/10 hover:bg-green-400/20 border border-green-500/20'
+                                  : 'text-muted-foreground bg-secondary hover:bg-secondary/80 border border-border'
                               }`}
-                              title={
-                                !isLinked
-                                  ? 'Agency not linked to tracker — contact admin'
-                                  : ghlEnabled
-                                    ? 'GHL Live Feed ON — click to disable'
-                                    : 'GHL Live Feed OFF — click to enable'
-                              }
+                              title={ghlEnabled ? 'GHL Live Feed ON — click to disable' : 'GHL Live Feed OFF — click to enable'}
                             >
                               {isToggling ? (
                                 <Loader2 className="w-3 h-3 animate-spin" />
                               ) : (
                                 <Zap className={`w-3 h-3 ${ghlEnabled ? 'fill-green-400' : ''}`} />
                               )}
-                              {!isLinked ? '—' : ghlEnabled ? 'Live' : 'Off'}
+                              {ghlEnabled ? 'Live' : 'Off'}
                             </button>
                           );
                         })()}
