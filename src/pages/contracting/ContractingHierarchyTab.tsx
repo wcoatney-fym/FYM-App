@@ -45,7 +45,7 @@ import {
   AgencyDetailPanel,
 } from './hierarchy';
 import type { AgencyNode } from './hierarchy';
-import { useGhlLiveFeed } from '@/lib/use-ghl-live-feed';
+
 
 // ─── Tree building helpers ────────────────────────────────────────────────
 
@@ -120,7 +120,7 @@ export function ContractingHierarchyTab() {
   const [pendingApprovalParentId, setPendingApprovalParentId] = useState<string>('');
   const [intakeLinkCopied, setIntakeLinkCopied] = useState(false);
   const [allCollapsed, setAllCollapsed] = useState(false);
-  const { findBySlug } = useGhlLiveFeed();
+
 
   const handleCopyIntakeLink = async () => {
     const url = `${window.location.origin}/agency-intake`;
@@ -688,7 +688,7 @@ export function ContractingHierarchyTab() {
             onToggle={toggleExpand}
             onSelect={setSelectedAgency}
             onDelete={setDeleteTarget}
-            findGhlBySlug={findBySlug}
+
           />
         ))}
         {displayTree.length === 0 && (
