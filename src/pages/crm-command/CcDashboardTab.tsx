@@ -11,9 +11,7 @@ import { supabase } from '@/lib/supabase';
 import { portalSupabase } from '@/lib/portal-supabase';
 import { scopeToAgency } from '@/lib/query-helpers';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
-import { fetchBookOfBusiness } from '@/lib/prod-api';
 import { useOrgData } from '@/contexts/OrgDataCache';
-import { useCachedFetch } from '@/hooks/useCachedFetch';
 
 const container = {
   hidden: { opacity: 0 },
@@ -41,7 +39,7 @@ const RECRUITING_STAGES = ['hip_broker', 'hip_career', 'iaa', 'signed_iaa'];
 const ACTIVE_LEAD_EXCLUDED_STAGES = ['terminated', 'rts', 'actively_selling'];
 
 export function CcDashboardTab() {
-  const { effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide } = useEffectiveAuth();
+  const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
   const tasks = useTasksStore((s) => s.tasks);
   const loadLiveTasks = useTasksStore((s) => s.loadLive);
   const tasksSource = useTasksStore((s) => s.source);
@@ -51,18 +49,18 @@ export function CcDashboardTab() {
   const [activeLeads, setActiveLeads] = useState<number | null>(null);
   const [recruitingCount, setRecruitingCount] = useState<number | null>(null);
   const [activities, setActivities] = useState<ActivityRow[]>([]);
+  const [dataErrors, setDataErrors] = useState<string[]>([]);
   const orgData = useOrgData();
 
-  // Book of Business summary — cached to avoid shimmer
-  const agencyParam = !isOrgWide && effectiveAgencyWritingNumber ? { agency_id: effectiveAgencyWritingNumber } : {};
-  const { data: bobSummary } = useCachedFetch(
-    `cc-bob-summary-${effectiveAgencyWritingNumber || 'org'}`,
-    () => fetchBookOfBusiness({ ...agencyParam, page_size: 1 }),
-    { deps: [effectiveAgencyWritingNumber, isOrgWide] }
-  );
-
-  // Derive metrics from OrgDataCache (instant — no fetch)
-  const placementsMTD = bobSummary?.summary.total_policies ?? null;
+  // Derive Placements MTD from OrgDataCache monthly production (current month only)
+  const placementsMTD = useMemo(() => {
+    if (orgData.monthlyProduction.length === 0) return null;
+    const now = new Date();
+    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return orgData.monthlyProduction
+      .filter(m => m.month === monthKey)
+      .reduce((s, r) => s + r.policies, 0);
+  }, [orgData.monthlyProduction]);
   const revenueMTD = useMemo(() => {
     if (orgData.monthlyProduction.length === 0) return null;
     const now = new Date();
@@ -72,7 +70,7 @@ export function CcDashboardTab() {
       .reduce((s, r) => s + r.annual_premium, 0);
   }, [orgData.monthlyProduction]);
 
-  const cancelRate = useMemo(() => {
+  const atRiskRate = useMemo(() => {
     if (!orgData.retentionSummary) return '0';
     const org = orgData.retentionSummary.data.org_wide;
     const total = org.total_active_policies + org.total_at_risk;
@@ -120,9 +118,10 @@ export function CcDashboardTab() {
         ]);
         setActiveLeads(activeCount ?? 0);
         setRecruitingCount(recruitCount ?? 0);
-      } catch {
+      } catch (err) {
         setActiveLeads(0);
         setRecruitingCount(0);
+        setDataErrors(prev => [...prev.filter(e => e !== 'Pipeline data unavailable'), 'Pipeline data unavailable']);
       }
     })();
   }, [isOrgWide, effectiveAgencyId]);
@@ -132,12 +131,12 @@ export function CcDashboardTab() {
   useEffect(() => {
     if (!supabase) return;
     (async () => {
-      const { data: nameData } = await (supabase as any)
+      const { data: nameData } = await supabase
         .from('agencies')
         .select('writing_number, name');
       if (nameData) {
         const nm = new Map<string, string>();
-        for (const a of nameData as any[]) {
+        for (const a of nameData as { writing_number: string | null; name: string }[]) {
           if (a.writing_number) nm.set(a.writing_number, a.name);
         }
         setInsightNames(nm);
@@ -163,8 +162,9 @@ export function CcDashboardTab() {
           .order('created_at', { ascending: false })
           .limit(20);
         setActivities((data as ActivityRow[]) || []);
-      } catch {
+      } catch (err) {
         setActivities([]);
+        setDataErrors(prev => [...prev.filter(e => e !== 'Activity log unavailable'), 'Activity log unavailable']);
       }
     })();
   }, []);
@@ -189,7 +189,7 @@ export function CcDashboardTab() {
     { label: 'Active Leads', value: activeLeads === null ? '…' : activeLeads.toLocaleString(), icon: Target, color: 'text-sky-400', bg: 'bg-sky-400/10', live: true },
     { label: 'Placements MTD', value: placementsMTD === null ? '…' : placementsMTD.toLocaleString(), icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-400/10', live: true },
     { label: 'Revenue MTD', value: revenueMTD === null ? '…' : (revenueMTD > 0 ? `$${(revenueMTD / 1000).toFixed(1)}K` : '$0'), icon: DollarSign, color: 'text-emerald-400', bg: 'bg-emerald-400/10', live: true },
-    { label: 'Cancel Rate', value: `${cancelRate}%`, icon: AlertTriangle, color: 'text-amber-400', bg: 'bg-amber-400/10', live: true },
+    { label: 'At-Risk Rate', value: `${atRiskRate}%`, icon: AlertTriangle, color: 'text-amber-400', bg: 'bg-amber-400/10', live: true },
     { label: 'Persistency', value: persistencyPct, icon: Shield, color: 'text-sky-400', bg: 'bg-sky-400/10', live: liveStats.configured },
     {
       label: '90-Day Retention',
@@ -211,6 +211,15 @@ export function CcDashboardTab() {
           <p className="text-sm text-muted-foreground mt-1">Real-time overview of all operations</p>
         </div>
       </div>
+
+      {dataErrors.length > 0 && (
+        <div className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
+          <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+          <p className="text-xs text-amber-300">
+            Partial data — {dataErrors.join(', ').toLowerCase()}. Some metrics may be incomplete.
+          </p>
+        </div>
+      )}
 
       <motion.div variants={container} initial="hidden" animate="show" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {kpis.map((kpi) => (
