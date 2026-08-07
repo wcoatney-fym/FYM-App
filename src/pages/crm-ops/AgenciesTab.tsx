@@ -45,7 +45,7 @@ export const AgenciesTab: React.FC = () => {
   const [crmNumberValue, setCrmNumberValue] = useState('');
   const [crmSaving, setCrmSaving] = useState(false);
   const [selectedAgency, setSelectedAgency] = useState<CrmAgency | null>(null);
-  const { isEnabledByName, toggle: toggleGhl, togglingId, statuses: ghlStatuses } = useGhlLiveFeed();
+  const { findBySlug, toggle: toggleGhl, togglingId } = useGhlLiveFeed();
 
   const getParentName = (agency: CrmAgency): string | null => {
     if (agency.agency_type !== 'sub' || !agency.parent_agency_id) return null;
@@ -403,33 +403,42 @@ export const AgenciesTab: React.FC = () => {
                       </td>
                       <td className="px-4 py-3.5 whitespace-nowrap">
                         {(() => {
-                          const ghlAgency = ghlStatuses.find(s => s.name.toLowerCase() === agency.name.toLowerCase());
+                          const ghlAgency = findBySlug(agency.slug);
                           const ghlEnabled = ghlAgency?.ghl_api_enabled ?? false;
-                          const isToggling = togglingId === ghlAgency?.id;
-                          if (!ghlAgency) return <span className="text-xs text-muted-foreground">—</span>;
+                          const isToggling = ghlAgency ? togglingId === ghlAgency.id : false;
+                          const isLinked = !!ghlAgency;
                           return (
                             <button
                               onClick={async (e) => {
                                 e.stopPropagation();
+                                if (!isLinked) return;
                                 const next = !ghlEnabled;
                                 if (next && !confirm(`Turn on GHL Live Feed for ${agency.name}?\n\nLive policy data and status changes (approved, terminated, at-risk) will push to this agency's GHL account.`)) return;
                                 if (!next && !confirm(`Turn off GHL Live Feed for ${agency.name}?\n\nPolicy lifecycle events will stop pushing to GHL for this agency.`)) return;
                                 await toggleGhl(ghlAgency.id, next);
                               }}
-                              disabled={isToggling}
+                              disabled={isToggling || !isLinked}
                               className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg transition-colors disabled:opacity-50 ${
-                                ghlEnabled
-                                  ? 'text-green-400 bg-green-400/10 hover:bg-green-400/20 border border-green-500/20'
-                                  : 'text-muted-foreground bg-secondary hover:bg-secondary/80 border border-border'
+                                !isLinked
+                                  ? 'text-muted-foreground/50 bg-secondary/50 border border-border/50 cursor-not-allowed'
+                                  : ghlEnabled
+                                    ? 'text-green-400 bg-green-400/10 hover:bg-green-400/20 border border-green-500/20'
+                                    : 'text-muted-foreground bg-secondary hover:bg-secondary/80 border border-border'
                               }`}
-                              title={ghlEnabled ? 'GHL Live Feed ON — click to disable' : 'GHL Live Feed OFF — click to enable'}
+                              title={
+                                !isLinked
+                                  ? 'Agency not linked to tracker — contact admin'
+                                  : ghlEnabled
+                                    ? 'GHL Live Feed ON — click to disable'
+                                    : 'GHL Live Feed OFF — click to enable'
+                              }
                             >
                               {isToggling ? (
                                 <Loader2 className="w-3 h-3 animate-spin" />
                               ) : (
                                 <Zap className={`w-3 h-3 ${ghlEnabled ? 'fill-green-400' : ''}`} />
                               )}
-                              {ghlEnabled ? 'Live' : 'Off'}
+                              {!isLinked ? '—' : ghlEnabled ? 'Live' : 'Off'}
                             </button>
                           );
                         })()}

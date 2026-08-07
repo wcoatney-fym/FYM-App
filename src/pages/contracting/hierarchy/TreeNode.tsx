@@ -14,9 +14,9 @@ export const TreeNode: React.FC<{
   onToggle: (id: string) => void;
   onSelect: (agency: PortalCrmAgency) => void;
   onDelete: (node: AgencyNode) => void;
-  ghlEnabledNames?: Set<string>;
-}> = ({ node, depth, expandedNodes, onToggle, onSelect, onDelete, ghlEnabledNames }) => {
-  const isGhlLive = ghlEnabledNames?.has(node.name.toLowerCase()) ?? false;
+  findGhlBySlug?: (slug: string | null | undefined) => { ghl_api_enabled: boolean } | undefined;
+}> = ({ node, depth, expandedNodes, onToggle, onSelect, onDelete, findGhlBySlug }) => {
+  const isGhlLive = findGhlBySlug?.(node.slug)?.ghl_api_enabled ?? false;
   const hasChildren = node.children.length > 0;
   const isExpanded = expandedNodes.has(node.id);
   const isRoot = node.agency_type === 'main';
@@ -157,7 +157,7 @@ export const TreeNode: React.FC<{
               onToggle={onToggle}
               onSelect={onSelect}
               onDelete={onDelete}
-              ghlEnabledNames={ghlEnabledNames}
+              findGhlBySlug={findGhlBySlug}
             />
           ))}
         </div>

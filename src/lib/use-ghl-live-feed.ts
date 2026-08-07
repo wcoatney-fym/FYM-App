@@ -10,12 +10,27 @@
  *   await toggle('some-agency-id', true);
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   fetchGhlAgencyStatuses,
   toggleGhlLiveFeed,
   type GhlAgencyStatus,
 } from '@/lib/ghl-live-feed';
+
+/**
+ * Normalize a slug for fuzzy cross-DB matching.
+ * Strips common business suffixes (-llc, -inc, -group, -agency, etc.)
+ * so "dh-insurance-group" matches "dh-insurance" and
+ * "wisechoice-senior-advisors-llc" matches "wisechoice".
+ */
+function normalizeSlug(slug: string | null | undefined): string {
+  if (!slug) return '';
+  return slug
+    .toLowerCase()
+    .replace(/-(llc|inc|group|agency|advisors|solutions|partners|holdings|services|insurance|senior|enterprises|media|dba)$/g, '')
+    .replace(/-(llc|inc|group|agency|advisors|solutions|partners|holdings|services|insurance|senior|enterprises|media|dba)$/g, '') // second pass for chained suffixes
+    .replace(/-+$/, '');
+}
 
 export function useGhlLiveFeed() {
   const [statuses, setStatuses] = useState<GhlAgencyStatus[]>([]);
@@ -47,6 +62,33 @@ export function useGhlLiveFeed() {
       return statuses.some((s) => s.id === agencyId && s.ghl_api_enabled);
     },
     [statuses]
+  );
+
+  /** Build a normalized-slug → GhlAgencyStatus lookup map */
+  const slugMap = useMemo(() => {
+    const map = new Map<string, GhlAgencyStatus>();
+    for (const s of statuses) {
+      // Index by exact slug
+      if (s.slug) map.set(s.slug, s);
+      // Index by normalized slug
+      const norm = normalizeSlug(s.slug);
+      if (norm && !map.has(norm)) map.set(norm, s);
+    }
+    return map;
+  }, [statuses]);
+
+  /** Find a tracker agency by slug with normalized fallback */
+  const findBySlug = useCallback(
+    (slug: string | null | undefined): GhlAgencyStatus | undefined => {
+      if (!slug) return undefined;
+      // Try exact match first
+      const exact = slugMap.get(slug);
+      if (exact) return exact;
+      // Try normalized match
+      const norm = normalizeSlug(slug);
+      return norm ? slugMap.get(norm) : undefined;
+    },
+    [slugMap]
   );
 
   /** Look up GHL status by agency name (for cross-DB matching) */
@@ -108,6 +150,7 @@ export function useGhlLiveFeed() {
     isEnabled,
     isEnabledByName,
     isEnabledBySlug,
+    findBySlug,
     toggle,
     reload: load,
   };
