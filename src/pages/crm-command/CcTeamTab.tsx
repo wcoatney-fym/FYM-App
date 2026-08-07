@@ -13,8 +13,8 @@ const skillColors: Record<string, string> = {
   recruiting: 'bg-green-400', retention: 'bg-rose-400', ghl: 'bg-violet-400',
 };
 const skillDisplay: Record<string, string> = {
-  marketing: 'marketing', sales: 'sales', tech: 'tech',
-  recruiting: 'recruiting', retention: 'retention', ghl: 'GHL',
+  marketing: 'Marketing', sales: 'Sales', tech: 'Tech',
+  recruiting: 'Recruiting', retention: 'Retention', ghl: 'GHL',
 };
 const confidenceStyle: Record<string, string> = {
   low: 'bg-slate-400/10 text-muted-foreground border-slate-400/20',
@@ -34,8 +34,7 @@ export function CcTeamTab() {
   useEffect(() => {
     if (source === 'mock') return;
     if (members.length === 0) void loadLive();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [source, members.length, loadLive]);
 
   if (loading && members.length === 0) {
     return (
@@ -72,17 +71,20 @@ export function CcTeamTab() {
           <motion.div key={member.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} onClick={() => setSelectedMember(member)} className="glass rounded-xl p-5 glass-hover cursor-pointer hover:border-primary/30 transition-all">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center">
-                <span className="text-sm font-bold text-background">{member.avatar}</span>
+                <span className="text-sm font-bold text-background">{member.avatar || member.name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)}</span>
               </div>
-              <div>
-                <h3 className="text-sm font-semibold">{member.name}</h3>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold truncate">{member.name}</h3>
+                  {(() => { const count = allTasks.filter((t) => t.assigneeId === member.id && t.status !== 'done').length; return count > 0 ? <span className="flex-shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-primary/20 text-primary">{count} task{count !== 1 ? 's' : ''}</span> : null; })()}
+                </div>
                 <p className="text-xs text-muted-foreground">{member.role}</p>
               </div>
             </div>
             <div className="space-y-2">
               {skillLabels.map((skill) => {
                 const score = member.proficiency?.[skill];
-                const level = score ? score.level : member.skills[skill] * 10;
+                const level = score ? score.level : ((member.skills?.[skill] ?? 0) * 10);
                 const confidence = score?.confidence ?? 'low';
                 return (
                   <div key={skill} className="flex items-center gap-2">
