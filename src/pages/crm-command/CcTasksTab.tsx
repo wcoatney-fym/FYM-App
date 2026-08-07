@@ -1,12 +1,12 @@
 /**
  * CcTasksTab — Task Board with @dnd-kit kanban, shadcn components, and toast confirmations.
  *
- * Group 1 fixes:
- * 1. shadcn Select/Input/Textarea replace raw <select>/<input>
- * 2. @dnd-kit for drag preview, keyboard a11y, touch support, drop zone highlighting
- * 3. Sonner toasts on task create, move, update, delete
+ * Group 1: shadcn Select/Input/Textarea, @dnd-kit kanban, Sonner toasts
+ * Group 2: list pagination, default due date, delete persistence
+ * Group 3: URL filter persistence, inline validation, bulk actions
  */
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   DndContext,
@@ -23,7 +23,7 @@ import {
 } from '@dnd-kit/core';
 import {
   KanbanSquare, List, Plus, Filter, Calendar, Bot, X,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, CheckSquare, Square, Trash2, ArrowRightLeft,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTasksStore, useTeamStore } from '@/stores/cc-stores';
@@ -82,15 +82,56 @@ export function CcTasksTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const [view, setView] = useState<'kanban' | 'list'>('kanban');
-  const [filterAssignee, setFilterAssignee] = useState('');
-  const [filterCategory, setFilterCategory] = useState('');
-  const [filterPriority, setFilterPriority] = useState('');
+  // ─── URL filter persistence ──────────────────────────────────────────
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const view = (searchParams.get('view') as 'kanban' | 'list') || 'kanban';
+  const filterAssignee = searchParams.get('assignee') || '';
+  const filterCategory = searchParams.get('category') || '';
+  const filterPriority = searchParams.get('priority') || '';
+
+  const setParam = useCallback((key: string, value: string) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (value) next.set(key, value);
+      else next.delete(key);
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const setView = useCallback((v: 'kanban' | 'list') => setParam('view', v === 'kanban' ? '' : v), [setParam]);
+  const setFilterAssignee = useCallback((v: string) => setParam('assignee', v), [setParam]);
+  const setFilterCategory = useCallback((v: string) => setParam('category', v), [setParam]);
+  const setFilterPriority = useCallback((v: string) => setParam('priority', v), [setParam]);
+
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [listPage, setListPage] = useState(0);
   const LIST_PAGE_SIZE = 25;
+
+  // ─── Bulk selection (list view only) ─────────────────────────────────
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBulkMove, setShowBulkMove] = useState(false);
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const selectAll = useCallback(() => {
+    setSelectedIds(new Set(pagedTaskIds));
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+    setShowBulkMove(false);
+  }, []);
+
   const updateTask = useTasksStore((s) => s.updateTask);
   const deleteTask = useTasksStore((s) => s.deleteTask);
   const runEngines = useTasksStore((s) => s.runEngines);
@@ -102,8 +143,8 @@ export function CcTasksTab() {
     return true;
   }), [tasks, filterAssignee, filterCategory, filterPriority]);
 
-  // Reset list pagination when filters change
-  useEffect(() => { setListPage(0); }, [filterAssignee, filterCategory, filterPriority]);
+  // Reset list pagination and clear selection when filters change
+  useEffect(() => { setListPage(0); clearSelection(); }, [filterAssignee, filterCategory, filterPriority, clearSelection]);
 
   // Paginated slice for list view
   const totalListPages = Math.max(1, Math.ceil(filteredTasks.length / LIST_PAGE_SIZE));
@@ -111,8 +152,24 @@ export function CcTasksTab() {
     () => filteredTasks.slice(listPage * LIST_PAGE_SIZE, (listPage + 1) * LIST_PAGE_SIZE),
     [filteredTasks, listPage],
   );
-  const handlePrevPage = useCallback(() => setListPage((p) => Math.max(0, p - 1)), []);
-  const handleNextPage = useCallback(() => setListPage((p) => Math.min(totalListPages - 1, p + 1)), [totalListPages]);
+  const pagedTaskIds = useMemo(() => pagedTasks.map((t) => t.id), [pagedTasks]);
+  const handlePrevPage = useCallback(() => { setListPage((p) => Math.max(0, p - 1)); clearSelection(); }, [clearSelection]);
+  const handleNextPage = useCallback(() => { setListPage((p) => Math.min(totalListPages - 1, p + 1)); clearSelection(); }, [totalListPages, clearSelection]);
+
+  // ─── Bulk action handlers ────────────────────────────────────────────
+  const handleBulkMove = useCallback((status: TaskStatus) => {
+    const colLabel = columns.find((c) => c.id === status)?.label ?? status;
+    selectedIds.forEach((id) => moveTask(id, status));
+    toast.success(`Moved ${selectedIds.size} task${selectedIds.size > 1 ? 's' : ''} → ${colLabel}`);
+    clearSelection();
+  }, [selectedIds, moveTask, clearSelection]);
+
+  const handleBulkDelete = useCallback(() => {
+    const count = selectedIds.size;
+    selectedIds.forEach((id) => deleteTask(id));
+    toast.success(`Deleted ${count} task${count > 1 ? 's' : ''}`);
+    clearSelection();
+  }, [selectedIds, deleteTask, clearSelection]);
 
   // ─── @dnd-kit sensors (pointer + touch + keyboard) ──────────────────
   const pointerSensor = useSensor(PointerSensor, { activationConstraint: { distance: 8 } });
@@ -142,6 +199,7 @@ export function CcTasksTab() {
   const getMemberAvatar = (id: string) => members.find((m) => m.id === id)?.avatar || '?';
 
   const hasActiveFilters = !!(filterAssignee || filterCategory || filterPriority);
+  const hasBulkSelection = selectedIds.size > 0;
 
   return (
     <div className="space-y-4">
@@ -192,11 +250,64 @@ export function CcTasksTab() {
           </SelectContent>
         </Select>
         {hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={() => { setFilterAssignee(''); setFilterCategory(''); setFilterPriority(''); }} className="text-xs text-primary h-8 px-2 gap-1">
+          <Button variant="ghost" size="sm" onClick={() => {
+            setSearchParams((prev) => {
+              const next = new URLSearchParams(prev);
+              next.delete('assignee'); next.delete('category'); next.delete('priority');
+              return next;
+            }, { replace: true });
+          }} className="text-xs text-primary h-8 px-2 gap-1">
             <X className="w-3 h-3" />Clear
           </Button>
         )}
       </div>
+
+      {/* Bulk action bar (list view) */}
+      {view === 'list' && hasBulkSelection && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-3 glass rounded-lg px-4 py-2.5"
+        >
+          <span className="text-xs font-medium">{selectedIds.size} selected</span>
+          <div className="flex items-center gap-1.5 ml-auto">
+            <div className="relative">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowBulkMove(!showBulkMove)}
+                className="text-xs gap-1.5 h-7"
+              >
+                <ArrowRightLeft className="w-3 h-3" />Move to…
+              </Button>
+              {showBulkMove && (
+                <div className="absolute right-0 top-full mt-1 z-50 glass rounded-lg border border-border/50 p-1 min-w-[140px] shadow-lg">
+                  {columns.map((col) => (
+                    <button
+                      key={col.id}
+                      onClick={() => { handleBulkMove(col.id); setShowBulkMove(false); }}
+                      className="flex items-center gap-2 w-full px-3 py-1.5 rounded-md text-xs hover:bg-secondary/60 transition-colors"
+                    >
+                      <div className={cn('w-2 h-2 rounded-full', col.dotColor)} />{col.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleBulkDelete}
+              className="text-xs gap-1.5 h-7 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+            >
+              <Trash2 className="w-3 h-3" />Delete
+            </Button>
+            <Button variant="ghost" size="sm" onClick={clearSelection} className="text-xs h-7 px-2">
+              <X className="w-3 h-3" />
+            </Button>
+          </div>
+        </motion.div>
+      )}
 
       {/* Empty state */}
       {tasks.length === 0 && (
@@ -237,11 +348,18 @@ export function CcTasksTab() {
           </DragOverlay>
         </DndContext>
       ) : (
-        /* List view with pagination */
+        /* List view with pagination + bulk select */
         <div className="glass rounded-xl overflow-hidden">
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-border/50 bg-secondary/30">
+                <th className="py-3 px-2 w-8">
+                  <button onClick={selectedIds.size === pagedTasks.length ? clearSelection : selectAll} className="text-muted-foreground hover:text-foreground transition-colors">
+                    {selectedIds.size === pagedTasks.length && pagedTasks.length > 0
+                      ? <CheckSquare className="w-3.5 h-3.5 text-primary" />
+                      : <Square className="w-3.5 h-3.5" />}
+                  </button>
+                </th>
                 <th className="text-left py-3 px-4 font-medium text-muted-foreground">Task</th>
                 <th className="text-left py-3 px-4 font-medium text-muted-foreground">Assignee</th>
                 <th className="text-left py-3 px-4 font-medium text-muted-foreground">Priority</th>
@@ -252,7 +370,21 @@ export function CcTasksTab() {
             </thead>
             <tbody>
               {pagedTasks.map((task) => (
-                <tr key={task.id} onClick={() => setSelectedTask(task)} className="border-b border-border/30 hover:bg-secondary/20 transition-colors cursor-pointer">
+                <tr
+                  key={task.id}
+                  onClick={() => setSelectedTask(task)}
+                  className={cn(
+                    'border-b border-border/30 hover:bg-secondary/20 transition-colors cursor-pointer',
+                    selectedIds.has(task.id) && 'bg-primary/5',
+                  )}
+                >
+                  <td className="py-3 px-2 w-8" onClick={(e) => e.stopPropagation()}>
+                    <button onClick={() => toggleSelect(task.id)} className="text-muted-foreground hover:text-foreground transition-colors">
+                      {selectedIds.has(task.id)
+                        ? <CheckSquare className="w-3.5 h-3.5 text-primary" />
+                        : <Square className="w-3.5 h-3.5" />}
+                    </button>
+                  </td>
                   <td className="py-3 px-4"><div className="flex items-center gap-2">{task.aiGenerated && <Bot className="w-3 h-3 text-primary" />}<span className="font-medium">{task.title}</span></div></td>
                   <td className="py-3 px-4 text-muted-foreground">{getMemberName(task.assigneeId)}</td>
                   <td className="py-3 px-4"><Badge variant="outline" className={cn('text-[10px] font-medium', priorityColors[task.priority])}>{task.priority}</Badge></td>
@@ -492,6 +624,10 @@ function CreateTaskModal({
     skillCategory: 'retention' as SkillCategoryKey,
   });
   const [autoNote, setAutoNote] = useState('');
+  const [touched, setTouched] = useState(false);
+
+  const titleEmpty = !form.title.trim();
+  const difficultyValid = form.difficulty >= 1 && form.difficulty <= 10;
 
   const handleAutoAssign = () => {
     const pick = suggestAssignee({ skillCategory: form.skillCategory, difficulty: form.difficulty, members });
@@ -503,9 +639,13 @@ function CreateTaskModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setTouched(true);
+    if (titleEmpty) return;
+    const clampedDifficulty = Math.min(10, Math.max(1, form.difficulty));
     const task: Task = {
       id: crypto.randomUUID(),
       ...form,
+      difficulty: clampedDifficulty,
       status: 'todo',
       createdAt: new Date().toISOString().split('T')[0],
     };
@@ -523,14 +663,18 @@ function CreateTaskModal({
         <h2 className="text-lg font-semibold mb-4">Create New Task</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-xs text-muted-foreground font-medium">Title</label>
+            <label className="text-xs text-muted-foreground font-medium">Title <span className="text-red-400">*</span></label>
             <Input
               value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              onChange={(e) => { setForm({ ...form, title: e.target.value }); setTouched(true); }}
               required
               placeholder="Task title"
-              className="mt-1 bg-secondary/50 border-border/50 text-sm"
+              className={cn(
+                'mt-1 bg-secondary/50 border-border/50 text-sm',
+                touched && titleEmpty && 'border-red-500/60 focus-visible:ring-red-500/40',
+              )}
             />
+            {touched && titleEmpty && <p className="text-[10px] text-red-400 mt-1">Title is required</p>}
           </div>
           <div>
             <label className="text-xs text-muted-foreground font-medium">Description</label>
@@ -600,8 +744,14 @@ function CreateTaskModal({
                 min={1}
                 max={10}
                 value={form.difficulty}
-                onChange={(e) => setForm({ ...form, difficulty: Number(e.target.value) })}
-                className="mt-1 bg-secondary/50 border-border/50 text-sm"
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setForm({ ...form, difficulty: Math.min(10, Math.max(1, isNaN(v) ? 1 : v)) });
+                }}
+                className={cn(
+                  'mt-1 bg-secondary/50 border-border/50 text-sm',
+                  !difficultyValid && 'border-amber-500/60',
+                )}
               />
             </div>
           </div>
