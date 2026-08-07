@@ -2,14 +2,19 @@ import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   TrendingUp, XCircle, DollarSign, Shield, TrendingDown, Minus, Loader2,
-  ArrowUpDown, ArrowUp, ArrowDown, AlertTriangle
+  ArrowUpDown, ArrowUp, ArrowDown, AlertTriangle, Calendar
 } from 'lucide-react';
+import {
+  ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis,
+  CartesianGrid, Tooltip, Legend,
+} from 'recharts';
 import { cn } from '@/lib/utils';
 import { fetchBookOfBusiness } from '@/lib/prod-api';
 import { useOrgData } from '@/contexts/OrgDataCache';
 import { useCachedFetch } from '@/hooks/useCachedFetch';
 import { supabase } from '@/lib/supabase';
-import { fmt$, fmtDate } from '@/lib/formatUtils';
+import { fmt$, fmtDate, fmtNum } from '@/lib/formatUtils';
+import { type DatePreset, DATE_PRESETS, getDateRange } from '@/lib/dateUtils';
 
 type PipelineTab = 'placements' | 'cancellations' | 'retention' | 'revenue';
 type SortDir = 'asc' | 'desc';
@@ -207,15 +212,17 @@ export function CcPipelinesTab() {
       }));
   }, [orgData.retentionAgencies, orgData.initialLoading, agencyNames]);
 
-  // Revenue — from OrgDataCache (instant)
+  // Revenue — from OrgDataCache, filtered by date preset
+  const [revenuePreset, setRevenuePreset] = useState<DatePreset>('past6Months');
+  const revenueDateRange = useMemo(() => getDateRange(revenuePreset), [revenuePreset]);
+
   const revenue = useMemo((): RevenueMonthRow[] | null => {
     if (orgData.monthlyProduction.length === 0 && orgData.initialLoading) return null;
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-    const monthKey = sixMonthsAgo.toISOString().slice(0, 7);
+    const startMonth = revenueDateRange.startDate.slice(0, 7);
+    const endMonth = revenueDateRange.endDate.slice(0, 7);
     const byMonth = new Map<string, { policies: number; annual_premium: number }>();
     orgData.monthlyProduction
-      .filter(m => m.month >= monthKey)
+      .filter(m => m.month >= startMonth && m.month <= endMonth)
       .forEach(m => {
         const existing = byMonth.get(m.month) || { policies: 0, annual_premium: 0 };
         existing.policies += m.policies;
@@ -225,7 +232,7 @@ export function CcPipelinesTab() {
     return Array.from(byMonth.entries())
       .map(([month, v]) => ({ month, ...v }))
       .sort((a, b) => a.month.localeCompare(b.month));
-  }, [orgData.monthlyProduction, orgData.initialLoading]);
+  }, [orgData.monthlyProduction, orgData.initialLoading, revenueDateRange]);
 
   // Count badges for tabs
   const counts: Record<PipelineTab, number | null> = {
@@ -276,7 +283,7 @@ export function CcPipelinesTab() {
         {activeTab === 'placements' && <PlacementsView data={placements} truncated={bobRecent ? bobRecent.data.length >= PAGE_SIZE : false} />}
         {activeTab === 'cancellations' && <CancellationsView data={cancellations} truncated={bobTerminated ? bobTerminated.data.length >= PAGE_SIZE : false} />}
         {activeTab === 'retention' && <RetentionAgenciesView data={retentionAgencies} />}
-        {activeTab === 'revenue' && <RevenueView data={revenue} />}
+        {activeTab === 'revenue' && <RevenueView data={revenue} preset={revenuePreset} onPresetChange={setRevenuePreset} />}
       </motion.div>
     </div>
   );
@@ -516,8 +523,29 @@ const REVENUE_ACCESSORS: Record<RevenueSortKey, (r: RevenueMonthRow) => string |
   premium: r => r.annual_premium,
 };
 
-function RevenueView({ data }: { data: RevenueMonthRow[] | null }) {
+const REVENUE_PRESETS: DatePreset[] = ['thisQuarter', 'past6Months', 'pastYear', 'allTime'];
+
+function fmtMonthLabel(iso: string): string {
+  const [y, m] = iso.split('-');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${months[parseInt(m, 10) - 1]} ${y.slice(2)}`;
+}
+
+function RevenueView({ data, preset, onPresetChange }: {
+  data: RevenueMonthRow[] | null;
+  preset: DatePreset;
+  onPresetChange: (p: DatePreset) => void;
+}) {
   const { sortKey, sortDir, toggleSort } = useSort<RevenueSortKey>();
+
+  // Chart data is always chronological; table data respects sort
+  const chartData = useMemo(() => {
+    if (!data) return null;
+    return data.map(r => ({
+      ...r,
+      label: fmtMonthLabel(r.month),
+    }));
+  }, [data]);
 
   const sorted = useMemo(() => {
     if (!data) return null;
@@ -529,13 +557,109 @@ function RevenueView({ data }: { data: RevenueMonthRow[] | null }) {
 
   const totalPremium = sorted.reduce((s, d) => s + d.annual_premium, 0);
   const totalPolicies = sorted.reduce((s, d) => s + d.policies, 0);
+  const presetLabel = DATE_PRESETS.find(p => p.key === preset)?.label ?? preset;
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <StatCard label="Total Policies (6mo)" value={totalPolicies.toLocaleString()} trend="up" />
-        <StatCard label="Total Annual Premium (6mo)" value={fmt$(totalPremium)} trend="up" />
+      {/* Date range selector */}
+      <div className="flex items-center gap-2">
+        <Calendar className="w-4 h-4 text-muted-foreground" />
+        <div className="flex gap-1">
+          {REVENUE_PRESETS.map(p => {
+            const label = DATE_PRESETS.find(dp => dp.key === p)?.label ?? p;
+            return (
+              <button
+                key={p}
+                onClick={() => onPresetChange(p)}
+                className={cn(
+                  'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
+                  preset === p
+                    ? 'bg-primary/10 text-primary border border-primary/20'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
+                )}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
       </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <StatCard label={`Total Policies (${presetLabel})`} value={totalPolicies.toLocaleString()} trend="up" />
+        <StatCard label={`Total Annual Premium (${presetLabel})`} value={fmt$(totalPremium)} trend="up" />
+      </div>
+
+      {/* Revenue trend chart */}
+      {chartData && chartData.length > 1 && (
+        <div className="glass rounded-xl p-4">
+          <p className="text-xs text-muted-foreground mb-3">Revenue Trend — {presetLabel}</p>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 33% 17%)" />
+                <XAxis
+                  dataKey="label"
+                  stroke="hsl(215 20% 55%)"
+                  fontSize={11}
+                  interval={chartData.length > 12 ? Math.floor(chartData.length / 8) : 0}
+                  angle={chartData.length > 8 ? -45 : 0}
+                  textAnchor={chartData.length > 8 ? 'end' : 'middle'}
+                  height={chartData.length > 8 ? 50 : 30}
+                />
+                <YAxis
+                  yAxisId="ap"
+                  orientation="left"
+                  stroke="hsl(215 20% 55%)"
+                  fontSize={11}
+                  tickFormatter={v => fmt$(v)}
+                />
+                <YAxis
+                  yAxisId="policies"
+                  orientation="right"
+                  stroke="hsl(215 20% 55%)"
+                  fontSize={11}
+                />
+                <Tooltip
+                  contentStyle={{
+                    borderRadius: '8px',
+                    border: '1px solid hsl(217 33% 20%)',
+                    background: 'hsl(222 47% 9%)',
+                    color: 'hsl(210 40% 98%)',
+                    fontSize: 12,
+                  }}
+                  formatter={(value: number, name: string) => [
+                    name === 'annual_premium' ? fmt$(value) : fmtNum(value),
+                    name === 'annual_premium' ? 'Annual Premium' : 'Policies',
+                  ]}
+                  labelFormatter={(label: string) => label}
+                />
+                <Legend
+                  formatter={(value: string) => value === 'annual_premium' ? 'Annual Premium' : 'Policies'}
+                  wrapperStyle={{ color: 'hsl(215 20% 65%)' }}
+                />
+                <Bar
+                  yAxisId="ap"
+                  dataKey="annual_premium"
+                  fill="hsl(199 89% 48%)"
+                  fillOpacity={0.3}
+                  stroke="hsl(199 89% 48%)"
+                  radius={[3, 3, 0, 0]}
+                />
+                <Line
+                  yAxisId="policies"
+                  type="monotone"
+                  dataKey="policies"
+                  stroke="hsl(142 71% 45%)"
+                  strokeWidth={2.5}
+                  dot={{ r: 3, fill: 'hsl(142 71% 45%)' }}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
       <div className="glass rounded-xl overflow-hidden">
         <table className="w-full text-xs">
           <thead>
@@ -548,7 +672,7 @@ function RevenueView({ data }: { data: RevenueMonthRow[] | null }) {
           <tbody>
             {sorted.map((row) => (
               <tr key={row.month} className="border-b border-border/30 hover:bg-secondary/20">
-                <td className="py-3 px-4 font-medium">{row.month}</td>
+                <td className="py-3 px-4 font-medium">{fmtMonthLabel(row.month)}</td>
                 <td className="py-3 px-4 text-right">{row.policies.toLocaleString()}</td>
                 <td className="py-3 px-4 text-right">{fmt$(row.annual_premium)}</td>
               </tr>
