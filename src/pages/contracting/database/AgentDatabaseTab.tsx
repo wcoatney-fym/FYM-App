@@ -41,6 +41,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { useFymAgentDirectory, type FymAgent } from '@/hooks/useFymAgentDirectory';
+import { supabase } from '@/lib/supabase';
 import { portalSupabase } from '@/lib/portal-supabase';
 import { HudFrame } from '@/components/ui/hud-frame';
 import { fmt$ } from '@/lib/formatUtils';
@@ -914,6 +915,14 @@ interface WnDraft {
   isNew: boolean;
 }
 
+// Carrier WN column map for agency_rosters table (FYM App DB)
+const ROSTER_WN_COLUMNS: Record<string, string> = {
+  GTL: 'gtl_writing_number',
+  AHL: 'ahl_writing_number',
+  Heartland: 'heartland_writing_number',
+  Manhattan: 'manhattan_writing_number',
+};
+
 function CarrierWnEditor({
   agent,
   portalAgentId,
@@ -1029,19 +1038,56 @@ function CarrierWnEditor({
         }
       }
 
+      if (!targetAgentId && agent.source === 'roster' && supabase) {
+        // Roster-only agent — save carrier WNs directly to agency_rosters
+        const rosterUpdate: Record<string, string | null> = {};
+        // Clear all carrier WN columns first
+        for (const col of Object.values(ROSTER_WN_COLUMNS)) {
+          rosterUpdate[col] = null;
+        }
+        // Set the ones from drafts
+        for (const d of validDrafts) {
+          const col = ROSTER_WN_COLUMNS[d.carrier];
+          if (col) {
+            rosterUpdate[col] = d.writing_number.trim();
+          }
+          // UNL is stored as unl_writing_number on the roster
+          if (d.carrier === 'UNL') {
+            rosterUpdate['unl_writing_number'] = d.writing_number.trim();
+          }
+        }
+
+        const { error: rosterErr } = await supabase
+          .from('agency_rosters')
+          .update(rosterUpdate)
+          .eq('id', agent.id);
+        if (rosterErr) throw rosterErr;
+
+        // Update local state
+        setAssignments(validDrafts.map(d => ({
+          carrier: d.carrier,
+          writing_number: d.writing_number.trim(),
+          verified: false,
+        })));
+        setEditing(false);
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3000);
+        setSaving(false);
+        return;
+      }
+
       if (!targetAgentId) {
         setSaveError('Cannot resolve portal agent — agent must exist in the portal (intake or roster) first');
         setSaving(false);
         return;
       }
 
-      // Delete existing LOB assignments
+      // Portal agent found — save to agent_lob_assignments
       await portalSupabase
         .from('agent_lob_assignments')
         .delete()
         .eq('agent_id', targetAgentId);
 
-      // Insert new ones
       if (validDrafts.length > 0) {
         const rows = validDrafts.map(d => ({
           agent_id: targetAgentId,
