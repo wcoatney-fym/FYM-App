@@ -163,9 +163,52 @@ Deno.serve(async (req) => {
         });
       }
 
+
+      case "sync": {
+        const { agencyName, enabled: syncEnabled } = body as {
+          agencyName: string;
+          enabled: boolean;
+        };
+
+        if (!agencyName) {
+          return json({ error: "agencyName required" }, 400);
+        }
+        if (typeof syncEnabled !== "boolean") {
+          return json({ error: "enabled (boolean) required" }, 400);
+        }
+
+        // Match by name (case-insensitive) in tracker DB
+        const safeName = agencyName.replace(/'/g, "''");
+
+        const matches = await trackerQuery(
+          `UPDATE agencies
+           SET ghl_api_enabled = ${syncEnabled}
+           WHERE lower(name) = lower('${safeName}')
+           RETURNING id, name, ghl_api_enabled`,
+          mgmtToken
+        ) as Array<{ id: string; name: string; ghl_api_enabled: boolean }>;
+
+        if (matches.length === 0) {
+          // No matching tracker agency — not an error, just means
+          // this agency doesn't exist in the tracker yet
+          return json({
+            success: true,
+            synced: false,
+            reason: "No matching agency in tracker DB",
+          });
+        }
+
+        return json({
+          success: true,
+          synced: true,
+          agencyId: matches[0].id,
+          name: matches[0].name,
+          ghl_api_enabled: matches[0].ghl_api_enabled,
+        });
+      }
       default:
         return json(
-          { error: `Unknown action: ${action}. Use "list" or "toggle".` },
+          { error: `Unknown action: ${action}. Use "list", "toggle", or "sync".` },
           400
         );
     }

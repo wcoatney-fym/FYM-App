@@ -14,6 +14,7 @@ import { formatPhoneDisplay } from '@/lib/crm/helpers';
 import type { CrmAgency } from '@/lib/crm/types';
 import { AddAgencyModal } from '@/pages/crm-ops/AddAgencyModal';
 import { AgencyProfileView } from './AgencyProfileView';
+import { syncGhlToTracker } from '@/lib/ghl-live-feed';
 
 const STATUS_LABELS: Record<string, string> = {
   pending_csr_assignment: 'Pending CSR Assignment',
@@ -416,6 +417,8 @@ export const AgenciesTab: React.FC = () => {
                                   const { error } = await supabase.from('hierarchy_agencies').update({ ghl_api_enabled: next }).eq('id', agency.id);
                                   if (!error) {
                                     setAgencies((prev) => prev.map((a) => a.id === agency.id ? { ...a, ghl_api_enabled: next } : a));
+                                    // Fire-and-forget: sync to tracker DB for push logic
+                                    syncGhlToTracker(agency.name, next);
                                   }
                                 } finally {
                                   setTogglingGhlId(null);

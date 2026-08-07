@@ -1,70 +1,35 @@
 /**
- * GHL Live Feed API client.
+ * GHL Live Feed — tracker sync client.
  *
- * Calls the ghl-live-feed edge function on FYM App Supabase (rcbzag)
- * to read and toggle ghl_api_enabled on the Activity Tracker's agencies table.
+ * After toggling ghl_api_enabled on hierarchy_agencies (portal DB),
+ * call syncGhlToTracker() to push the same flag to the Activity Tracker's
+ * agencies table via the ghl-live-feed edge function.
  *
- * Phase 1: edge function proxies to tracker DB via Management API.
- * Phase 2: data moves to rcbzag and this becomes a direct table query.
+ * Fire-and-forget — tracker sync failure doesn't block the UI toggle.
  */
 
 import { supabase } from '@/lib/supabase';
 
 const FUNCTION_NAME = 'ghl-live-feed';
 
-export interface GhlAgencyStatus {
-  id: string;
-  name: string;
-  slug: string;
-  ghl_api_enabled: boolean;
-}
-
-async function callGhlLiveFeed<T>(body: Record<string, unknown>): Promise<T> {
-  if (!supabase) {
-    throw new Error('Supabase client not configured');
-  }
-
-  const { data: sessionData } = await supabase.auth.getSession();
-  const token = sessionData?.session?.access_token;
-
-  if (!token) {
-    throw new Error('Not authenticated');
-  }
-
-  const { data, error } = await supabase.functions.invoke(FUNCTION_NAME, {
-    body,
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (error) {
-    throw new Error(error.message || 'GHL Live Feed request failed');
-  }
-
-  if (data?.error) {
-    throw new Error(data.error);
-  }
-
-  return data as T;
-}
-
-/** Fetch all active agencies with their GHL live feed status */
-export async function fetchGhlAgencyStatuses(): Promise<GhlAgencyStatus[]> {
-  const result = await callGhlLiveFeed<{ agencies: GhlAgencyStatus[] }>({
-    action: 'list',
-  });
-  return result.agencies || [];
-}
-
-/** Toggle GHL live feed for an agency */
-export async function toggleGhlLiveFeed(
-  agencyId: string,
+/** Sync ghl_api_enabled to the tracker DB by agency name */
+export async function syncGhlToTracker(
+  agencyName: string,
   enabled: boolean
-): Promise<{ success: boolean; ghl_api_enabled: boolean }> {
-  return callGhlLiveFeed({
-    action: 'toggle',
-    agencyId,
-    enabled,
-  });
+): Promise<void> {
+  if (!supabase) return;
+
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if (!token) return;
+
+    await supabase.functions.invoke(FUNCTION_NAME, {
+      body: { action: 'sync', agencyName, enabled },
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch (err) {
+    // Fire-and-forget — log but don't throw
+    console.warn('[ghl-live-feed] Tracker sync failed:', err);
+  }
 }
