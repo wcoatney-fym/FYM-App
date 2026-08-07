@@ -1,12 +1,64 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Target, TrendingDown, TrendingUp, AlertTriangle, Bot, Search } from 'lucide-react';
+import { Target, TrendingDown, TrendingUp, AlertTriangle, Bot, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { useAgencyHealth } from '@/lib/command-center/use-agency-health';
 import { HI_PCT_THRESHOLD, type AgencyHealth } from '@/lib/command-center/agency-health';
 import { cn } from '@/lib/utils';
 
 /** Row stagger animation is skipped when the visible list exceeds this count. */
 const STAGGER_CAP = 50;
+
+/** Sortable column keys mapped to their accessor. */
+type SortKey = 'agency' | 'appsRecent' | 'hiPctRecent' | 'hiPctAllTime' | 'avgApRecent' | 'apLiftPct';
+type SortDir = 'asc' | 'desc';
+
+const SORT_ACCESSORS: Record<SortKey, (a: AgencyHealth) => number | string | null> = {
+  agency: (a) => a.agency.toLowerCase(),
+  appsRecent: (a) => a.appsRecent,
+  hiPctRecent: (a) => a.hiPctRecent,
+  hiPctAllTime: (a) => a.hiPctAllTime,
+  avgApRecent: (a) => a.avgApRecent,
+  apLiftPct: (a) => a.apLiftPct,
+};
+
+function sortRows(rows: AgencyHealth[], key: SortKey | null, dir: SortDir): AgencyHealth[] {
+  if (!key) return rows;
+  const acc = SORT_ACCESSORS[key];
+  return [...rows].sort((a, b) => {
+    const va = acc(a);
+    const vb = acc(b);
+    // nulls always last
+    if (va === null && vb === null) return 0;
+    if (va === null) return 1;
+    if (vb === null) return -1;
+    const cmp = typeof va === 'string' && typeof vb === 'string'
+      ? va.localeCompare(vb)
+      : (va as number) - (vb as number);
+    return dir === 'asc' ? cmp : -cmp;
+  });
+}
+
+function SortIcon({ columnKey, activeKey, dir }: { columnKey: SortKey; activeKey: SortKey | null; dir: SortDir }) {
+  if (activeKey !== columnKey) return <ArrowUpDown className="w-3 h-3 opacity-30" />;
+  return dir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />;
+}
+
+function SortableHeader({ label, sortKey: key, active, dir, onSort, align }: {
+  label: string; sortKey: SortKey; active: SortKey | null; dir: SortDir;
+  onSort: (k: SortKey) => void; align?: 'right';
+}) {
+  return (
+    <th
+      className={cn('px-4 py-3 font-medium cursor-pointer select-none hover:text-foreground transition-colors', align === 'right' && 'text-right')}
+      onClick={() => onSort(key)}
+    >
+      <span className={cn('inline-flex items-center gap-1', align === 'right' && 'justify-end')}>
+        {label}
+        <SortIcon columnKey={key} activeKey={active} dir={dir} />
+      </span>
+    </th>
+  );
+}
 
 function TrajectoryBadge({ a }: { a: AgencyHealth }) {
   const map = {
@@ -26,12 +78,33 @@ function TrajectoryBadge({ a }: { a: AgencyHealth }) {
 export function CcAgencyHealthTab() {
   const { data, loading, error, configured } = useAgencyHealth();
   const [search, setSearch] = useState('');
+  const [targetsOnly, setTargetsOnly] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+
+  const toggleSort = useCallback((key: SortKey) => {
+    setSortKey((prev) => {
+      if (prev === key) {
+        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+        return key;
+      }
+      // Default: numeric cols start desc, agency starts asc
+      setSortDir(key === 'agency' ? 'asc' : 'desc');
+      return key;
+    });
+  }, []);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return data;
-    const q = search.trim().toLowerCase();
-    return data.filter((a) => a.agency.toLowerCase().includes(q));
-  }, [data, search]);
+    let rows = data;
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      rows = rows.filter((a) => a.agency.toLowerCase().includes(q));
+    }
+    if (targetsOnly) {
+      rows = rows.filter((a) => a.tylerTarget);
+    }
+    return sortRows(rows, sortKey, sortDir);
+  }, [data, search, targetsOnly, sortKey, sortDir]);
 
   if (!configured) {
     return (
@@ -78,8 +151,9 @@ export function CcAgencyHealthTab() {
             <StatCard label="Top opportunity" value={targets[0]?.agency ?? '—'} sub={targets[0] ? `${targets[0].appsRecent} recent apps · ${targets[0].hiPctRecent}% HI` : undefined} />
           </div>
 
-          {/* Search bar */}
-          <div className="relative max-w-xs">
+          {/* Toolbar: search + targets toggle */}
+          <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative max-w-xs flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
             <input
               type="text"
@@ -89,18 +163,31 @@ export function CcAgencyHealthTab() {
               className="w-full pl-9 pr-3 py-2 rounded-lg bg-secondary/40 border border-border/40 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
             />
           </div>
+          <button
+            onClick={() => setTargetsOnly((v) => !v)}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all border',
+              targetsOnly
+                ? 'bg-amber-400/15 border-amber-400/40 text-amber-400'
+                : 'bg-secondary/40 border-border/40 text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <Target className="w-3.5 h-3.5" />
+            Targets only
+          </button>
+          </div>
 
           <div className="glass rounded-xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground border-b border-border/50">
-                    <th className="px-4 py-3 font-medium">Agency</th>
-                    <th className="px-4 py-3 font-medium text-right">Apps 30d</th>
-                    <th className="px-4 py-3 font-medium text-right">HI% 30d</th>
-                    <th className="px-4 py-3 font-medium text-right">HI% all-time</th>
-                    <th className="px-4 py-3 font-medium text-right">Avg AP 30d</th>
-                    <th className="px-4 py-3 font-medium text-right">AP Δ</th>
+                    <SortableHeader label="Agency" sortKey="agency" active={sortKey} dir={sortDir} onSort={toggleSort} />
+                    <SortableHeader label="Apps 30d" sortKey="appsRecent" active={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
+                    <SortableHeader label="HI% 30d" sortKey="hiPctRecent" active={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
+                    <SortableHeader label="HI% all-time" sortKey="hiPctAllTime" active={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
+                    <SortableHeader label="Avg AP 30d" sortKey="avgApRecent" active={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
+                    <SortableHeader label="AP Δ" sortKey="apLiftPct" active={sortKey} dir={sortDir} onSort={toggleSort} align="right" />
                     <th className="px-4 py-3 font-medium">Trajectory</th>
                   </tr>
                 </thead>
