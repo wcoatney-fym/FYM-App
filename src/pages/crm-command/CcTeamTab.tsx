@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Loader2, AlertTriangle } from 'lucide-react';
+import { Users, Loader2, AlertTriangle, UserPlus, X } from 'lucide-react';
 import { useTeamStore, useTasksStore } from '@/stores/cc-stores';
 import type { SkillCategoryKey, TeamMember } from '@/lib/command-center/types';
 import { TeamMemberPanel } from './TeamMemberPanel';
@@ -66,8 +66,10 @@ export function CcTeamTab() {
   const source = useTeamStore((s) => s.source);
   const loadLive = useTeamStore((s) => s.loadLive);
   const updateMember = useTeamStore((s) => s.updateMember);
+  const addMember = useTeamStore((s) => s.addMember);
   const allTasks = useTasksStore((s) => s.tasks);
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   useEffect(() => {
     if (source === 'mock') return;
@@ -97,11 +99,16 @@ export function CcTeamTab() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-2xl font-bold">Team &amp; Roles</h1>
-        {source && source !== 'mock' && (
-          <span className="text-[11px] text-muted-foreground">
-            {source === 'live' ? 'Live — task-HQ DB' : 'Seed estimates (low confidence) — firms up as tasks complete'}
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          {source && source !== 'mock' && (
+            <span className="text-[11px] text-muted-foreground">
+              {source === 'live' ? 'Live — task-HQ DB' : 'Seed estimates (low confidence) — firms up as tasks complete'}
+            </span>
+          )}
+          <button onClick={() => setShowAddModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/20 hover:bg-primary/30 text-primary text-xs font-medium transition-colors">
+            <UserPlus className="w-3.5 h-3.5" /> Add Member
+          </button>
+        </div>
       </div>
 
       <WorkloadSummaryStrip members={members} allTasks={allTasks} />
@@ -147,6 +154,62 @@ export function CcTeamTab() {
           <TeamMemberPanel key={selectedMember.id} member={selectedMember} allTasks={allTasks} onClose={() => setSelectedMember(null)} onUpdate={(id, updates) => { updateMember(id, updates); setSelectedMember((prev) => prev ? { ...prev, ...updates } : null); }} />
         )}
       </AnimatePresence>
+
+      <AnimatePresence>
+        {showAddModal && (
+          <AddMemberModal onClose={() => setShowAddModal(false)} onAdd={async (m) => { const ok = await addMember(m); if (ok) setShowAddModal(false); return ok; }} />
+        )}
+      </AnimatePresence>
     </div>
+  );
+}
+
+function AddMemberModal({ onClose, onAdd }: { onClose: () => void; onAdd: (m: { name: string; role: string; capacity: number }) => Promise<boolean> }) {
+  const [form, setForm] = useState({ name: '', role: '', capacity: 10 });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim()) { setError('Name is required'); return; }
+    if (!form.role.trim()) { setError('Role is required'); return; }
+    setSaving(true);
+    setError('');
+    const ok = await onAdd({ name: form.name.trim(), role: form.role.trim(), capacity: form.capacity });
+    setSaving(false);
+    if (!ok) setError('Failed to save — check portal DB connection');
+  };
+
+  return (
+    <>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <form onSubmit={handleSubmit} className="w-full max-w-sm bg-background border border-border/60 rounded-xl shadow-2xl p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold">Add Team Member</h2>
+            <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors"><X className="w-4 h-4" /></button>
+          </div>
+          <div>
+            <label className="text-[11px] text-muted-foreground font-medium">Name</label>
+            <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="e.g. Jane Smith" className="w-full mt-1 bg-secondary/50 border border-border/50 rounded-lg px-3 py-2 text-xs outline-none focus:border-primary/50" autoFocus />
+          </div>
+          <div>
+            <label className="text-[11px] text-muted-foreground font-medium">Role</label>
+            <input value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} placeholder="e.g. GHL Specialist" className="w-full mt-1 bg-secondary/50 border border-border/50 rounded-lg px-3 py-2 text-xs outline-none focus:border-primary/50" />
+          </div>
+          <div>
+            <label className="text-[11px] text-muted-foreground font-medium">Task Capacity</label>
+            <input type="number" min={1} max={50} value={form.capacity} onChange={(e) => setForm((f) => ({ ...f, capacity: Number(e.target.value) || 10 }))} className="w-full mt-1 bg-secondary/50 border border-border/50 rounded-lg px-3 py-2 text-xs outline-none focus:border-primary/50" />
+          </div>
+          {error && <p className="text-[11px] text-red-400">{error}</p>}
+          <div className="flex gap-2 pt-1">
+            <button type="button" onClick={onClose} className="flex-1 py-2 rounded-lg bg-secondary/60 hover:bg-secondary text-xs font-medium transition-colors text-muted-foreground">Cancel</button>
+            <button type="submit" disabled={saving} className="flex-1 py-2 rounded-lg gradient-primary text-background text-xs font-medium disabled:opacity-50">
+              {saving ? 'Saving…' : 'Add Member'}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </>
   );
 }

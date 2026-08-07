@@ -188,6 +188,76 @@ export async function persistTaskUpdate(id: string, updates: Partial<Task>): Pro
   }
 }
 
+export async function createMember(member: { name: string; role: string; capacity: number }): Promise<{ id: string } | null> {
+  if (!portalConfigured) return null;
+  try {
+    await ensurePortalAuth();
+    const avatar = member.name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2);
+    const { data, error } = await portalSupabase
+      .from('cc_team_members')
+      .insert({ name: member.name, role: member.role, avatar, capacity: member.capacity, active: true })
+      .select('id')
+      .single();
+    if (error || !data) return null;
+    // Seed skill rows at level 0 / low confidence
+    const skillRows = SKILL_KEYS.map((cat) => ({
+      member_id: data.id,
+      category: cat,
+      level: 0,
+      confidence: 'low' as const,
+      stale: false,
+    }));
+    await portalSupabase.from('cc_team_member_skills').insert(skillRows);
+    return { id: data.id };
+  } catch {
+    return null;
+  }
+}
+
+export async function recalculateSkills(memberId: string, tasks: import('./types').Task[]): Promise<Record<SkillCategoryKey, { level: number; confidence: 'low' | 'medium' | 'high' }> | null> {
+  // Derive skill scores from completed task history
+  const doneTasks = tasks.filter((t) => t.assigneeId === memberId && t.status === 'done' && t.skillCategory);
+  const bySkill: Partial<Record<SkillCategoryKey, { count: number; diffSum: number; onTimeCount: number }>> = {};
+  for (const t of doneTasks) {
+    const cat = t.skillCategory!;
+    if (!bySkill[cat]) bySkill[cat] = { count: 0, diffSum: 0, onTimeCount: 0 };
+    bySkill[cat]!.count++;
+    bySkill[cat]!.diffSum += t.difficulty;
+    if (t.onTime) bySkill[cat]!.onTimeCount++;
+  }
+  const result = {} as Record<SkillCategoryKey, { level: number; confidence: 'low' | 'medium' | 'high' }>;
+  for (const key of SKILL_KEYS) {
+    const s = bySkill[key];
+    if (!s || s.count === 0) {
+      result[key] = { level: 0, confidence: 'low' };
+    } else {
+      // level = avg difficulty * 10 * on-time bonus (max 100)
+      const avgDiff = s.diffSum / s.count;
+      const onTimeRate = s.onTimeCount / s.count;
+      const level = Math.min(100, Math.round(avgDiff * 10 * (0.8 + 0.2 * onTimeRate)));
+      const confidence: 'low' | 'medium' | 'high' = s.count >= 5 ? 'high' : s.count >= 2 ? 'medium' : 'low';
+      result[key] = { level, confidence };
+    }
+  }
+  // Persist to DB
+  if (portalConfigured) {
+    try {
+      await ensurePortalAuth();
+      const now = new Date().toISOString();
+      for (const key of SKILL_KEYS) {
+        await portalSupabase
+          .from('cc_team_member_skills')
+          .update({ level: result[key].level, confidence: result[key].confidence, last_evidence_at: now, stale: false })
+          .eq('member_id', memberId)
+          .eq('category', key);
+      }
+    } catch {
+      /* best-effort */
+    }
+  }
+  return result;
+}
+
 export async function persistMemberUpdate(id: string, updates: { role?: string; capacity?: number; active?: boolean }): Promise<void> {
   if (!portalConfigured) return;
   try {
