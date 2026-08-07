@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Target, TrendingDown, TrendingUp, AlertTriangle, Bot, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Target, TrendingDown, TrendingUp, AlertTriangle, Bot, Search, ArrowUpDown, ArrowUp, ArrowDown, Download } from 'lucide-react';
 import { useAgencyHealth } from '@/lib/command-center/use-agency-health';
 import { HI_PCT_THRESHOLD, type AgencyHealth } from '@/lib/command-center/agency-health';
 import { cn } from '@/lib/utils';
@@ -75,8 +76,40 @@ function TrajectoryBadge({ a }: { a: AgencyHealth }) {
   );
 }
 
+function escCsv(v: string | number | null): string {
+  const s = String(v ?? '');
+  return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function exportCsv(rows: AgencyHealth[]) {
+  const headers = ['Agency', 'Apps 30d', 'HI% 30d', 'HI% All-Time', 'Avg AP 30d', 'Avg AP All-Time', 'AP Δ%', 'Trajectory', 'Tyler Target', 'Opportunity Score'];
+  const csvRows = rows.map((a) => [
+    escCsv(a.agency),
+    a.appsRecent,
+    a.appsRecent ? `${a.hiPctRecent}%` : '',
+    `${a.hiPctAllTime}%`,
+    a.avgApRecent || '',
+    a.avgApAllTime || '',
+    a.apLiftPct !== null ? `${a.apLiftPct}%` : '',
+    a.trajectory,
+    a.tylerTarget ? 'Yes' : 'No',
+    a.opportunityScore,
+  ]);
+  const csv = [headers, ...csvRows].map((r) => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `agency_health_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 export function CcAgencyHealthTab() {
   const { data, loading, error, configured } = useAgencyHealth();
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [targetsOnly, setTargetsOnly] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
@@ -175,6 +208,15 @@ export function CcAgencyHealthTab() {
             <Target className="w-3.5 h-3.5" />
             Targets only
           </button>
+          <button
+            onClick={() => exportCsv(filtered)}
+            disabled={filtered.length === 0}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all border bg-secondary/40 border-border/40 text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Export to CSV"
+          >
+            <Download className="w-3.5 h-3.5" />
+            CSV
+          </button>
           </div>
 
           <div className="glass rounded-xl overflow-hidden">
@@ -193,7 +235,18 @@ export function CcAgencyHealthTab() {
                 </thead>
                 <tbody>
                   {filtered.map((a, i) => (
-                    <motion.tr key={a.agency} initial={{ opacity: skipStagger ? 1 : 0 }} animate={{ opacity: 1 }} transition={skipStagger ? { duration: 0 } : { delay: Math.min(i * 0.015, 0.4) }} className={cn('border-b border-border/30 hover:bg-secondary/30', a.tylerTarget && 'bg-amber-400/[0.04]')}>
+                    <motion.tr
+                      key={a.agency}
+                      initial={{ opacity: skipStagger ? 1 : 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={skipStagger ? { duration: 0 } : { delay: Math.min(i * 0.015, 0.4) }}
+                      onClick={() => a.agencyId && navigate(`/agencies/${a.agencyId}`)}
+                      className={cn(
+                        'border-b border-border/30 hover:bg-secondary/30',
+                        a.tylerTarget && 'bg-amber-400/[0.04]',
+                        a.agencyId && 'cursor-pointer',
+                      )}
+                    >
                       <td className="px-4 py-3 font-medium flex items-center gap-2">
                         {a.tylerTarget && <Target className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />}{a.agency}
                       </td>

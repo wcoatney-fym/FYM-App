@@ -10,6 +10,7 @@ export interface PolicyRow {
 }
 
 export interface AgencyHealth {
+  agencyId: string | null;
   agency: string;
   appsAllTime: number;
   appsRecent: number;
@@ -81,9 +82,12 @@ export function computeAgencyHealth(
 
   const all = new Map<string, Bucket>();
   const recent = new Map<string, Bucket>();
+  /** Track the first agency_id seen for each resolved name. */
+  const idByName = new Map<string, string | null>();
 
   for (const r of rows) {
     const name = (r.agency_id && agencyNames[r.agency_id]) || r.agency || 'Unknown';
+    if (!idByName.has(name)) idByName.set(name, r.agency_id);
     const isHi = r.product_type === HI ? 1 : 0;
     const premium = toNum(r.plan_premium);
     const ap = premium !== null ? annualize(premium, r.billing_mode) : null;
@@ -130,6 +134,7 @@ export function computeAgencyHealth(
     const opportunityScore = tylerTarget ? Math.round(r.n * (hiRecent / 100) * (apGap / 700) * 100) : 0;
 
     out.push({
+      agencyId: idByName.get(name) ?? null,
       agency: name,
       appsAllTime: a.n,
       appsRecent: r.n,
