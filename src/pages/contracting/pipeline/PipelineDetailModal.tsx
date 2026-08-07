@@ -350,13 +350,23 @@ export function PipelineDetailModal({
               agentId={record.agent_id}
               agentName={record.agent_name}
               pendingCount={wnPendingCount}
+              pipelineTags={record.tags || []}
+              pipelineRecordId={record.id}
               onReviewComplete={(remaining) => {
                 setWnPendingCount(remaining);
-                onRecordUpdated({
+                const isActiveRequest = (record.tags || []).includes('active_agent_request');
+                const updatedRecord = {
                   ...record,
                   wn_pending_review: remaining > 0,
                   wn_pending_count: remaining,
-                });
+                };
+                // If active_agent_request and no pending left, reflect stage move
+                if (isActiveRequest && remaining === 0) {
+                  updatedRecord.stage = 'actively_selling';
+                  updatedRecord.stage_entered_at = new Date().toISOString();
+                  updatedRecord.tags = (record.tags || []).filter((t) => t !== 'active_agent_request');
+                }
+                onRecordUpdated(updatedRecord);
               }}
             />
           )}

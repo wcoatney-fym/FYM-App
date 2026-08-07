@@ -15,7 +15,7 @@ import {
   ChevronUp,
   AlertTriangle,
 } from 'lucide-react';
-import { portalSupabase } from '@/lib/portal-supabase';
+import { portalSupabase, portalUrl, portalKey } from '@/lib/portal-supabase';
 
 type Submission = {
   id: string;
@@ -36,14 +36,21 @@ interface WritingNumberReviewPanelProps {
   agentId: string;
   agentName: string;
   pendingCount: number;
+  /** Current tags on the pipeline record */
+  pipelineTags?: string[];
+  /** Pipeline record ID (for stage updates) */
+  pipelineRecordId?: string;
   onReviewComplete: (remainingPending: number) => void;
 }
 
 export function WritingNumberReviewPanel({
   agentId,
   pendingCount,
+  pipelineTags = [],
+  pipelineRecordId,
   onReviewComplete,
 }: WritingNumberReviewPanelProps) {
+  const isActiveAgentRequest = pipelineTags.includes('active_agent_request');
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(true);
@@ -106,10 +113,42 @@ export function WritingNumberReviewPanel({
       const remaining = submissions.filter(
         (s) => s.id !== sub.id && s.status === 'pending'
       ).length;
+
+      // Phase B: If this was an active_agent_request and no pending submissions
+      // remain, auto-move agent back to actively_selling and remove the tag
+      const pipelineUpdate: Record<string, unknown> = {
+        wn_pending_review: remaining > 0,
+        wn_pending_count: remaining,
+      };
+
+      if (isActiveAgentRequest && remaining === 0) {
+        pipelineUpdate.stage = 'actively_selling';
+        pipelineUpdate.stage_entered_at = new Date().toISOString();
+        pipelineUpdate.last_updated_by = 'FYM App';
+        pipelineUpdate.updated_by_source = 'contracting_portal';
+        pipelineUpdate.tags = pipelineTags.filter((t) => t !== 'active_agent_request');
+      }
+
       await portalSupabase
         .from('agent_pipeline')
-        .update({ wn_pending_review: remaining > 0, wn_pending_count: remaining })
+        .update(pipelineUpdate)
         .eq('agent_id', agentId);
+
+      // Push stage change to GHL if auto-moving back
+      if (isActiveAgentRequest && remaining === 0 && pipelineRecordId && portalUrl && portalKey) {
+        fetch(`${portalUrl}/functions/v1/push-pipeline-stage`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${portalKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            record_id: pipelineRecordId,
+            new_stage: 'actively_selling',
+            updated_by: 'FYM App',
+          }),
+        }).catch(() => {}); // Best-effort GHL sync
+      }
 
       setSubmissions((prev) =>
         prev.map((s) =>
