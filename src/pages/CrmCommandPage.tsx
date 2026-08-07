@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, ScrollText, KanbanSquare, GitBranch,
@@ -42,8 +43,21 @@ const tabs: { id: CrmCommandTab; label: string; icon: React.ElementType }[] = [
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
+const VALID_TABS = new Set<string>(tabs.map((t) => t.id));
+
 export function CrmCommandPage() {
-  const [activeTab, setActiveTab] = useState<CrmCommandTab>('dashboard');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const rawTab = searchParams.get('tab') || '';
+  const activeTab: CrmCommandTab = VALID_TABS.has(rawTab) ? (rawTab as CrmCommandTab) : 'dashboard';
+
+  const setActiveTab = useCallback((tab: CrmCommandTab) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (tab === 'dashboard') next.delete('tab');
+      else next.set('tab', tab);
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   return (
     <div className="flex flex-col h-full">
