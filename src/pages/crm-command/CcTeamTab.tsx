@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Loader2 } from 'lucide-react';
+import { Users, Loader2, AlertTriangle } from 'lucide-react';
 import { useTeamStore, useTasksStore } from '@/stores/cc-stores';
 import type { SkillCategoryKey, TeamMember } from '@/lib/command-center/types';
 import { TeamMemberPanel } from './TeamMemberPanel';
@@ -21,6 +21,44 @@ const confidenceStyle: Record<string, string> = {
   medium: 'bg-sky-400/10 text-sky-300 border-sky-400/20',
   high: 'bg-emerald-400/10 text-emerald-300 border-emerald-400/20',
 };
+
+function WorkloadSummaryStrip({ members, allTasks }: { members: TeamMember[]; allTasks: import('@/lib/command-center/types').Task[] }) {
+  const stats = useMemo(() => {
+    const openTasks = allTasks.filter((t) => t.status !== 'done');
+    const unassigned = openTasks.filter((t) => !t.assigneeId || !members.some((m) => m.id === t.assigneeId)).length;
+    const overloaded = members.filter((m) => {
+      const cap = m.workload || 10;
+      const count = openTasks.filter((t) => t.assigneeId === m.id).length;
+      return cap > 0 && (count / cap) >= 0.9;
+    }).length;
+    const idle = members.filter((m) => {
+      const count = openTasks.filter((t) => t.assigneeId === m.id).length;
+      return count === 0;
+    }).length;
+    return { total: openTasks.length, unassigned, overloaded, idle };
+  }, [members, allTasks]);
+
+  if (members.length === 0) return null;
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {[
+        { label: 'Open Tasks', value: stats.total, color: 'text-sky-400' },
+        { label: 'Unassigned', value: stats.unassigned, color: stats.unassigned > 0 ? 'text-amber-400' : 'text-muted-foreground' },
+        { label: 'At Capacity', value: stats.overloaded, color: stats.overloaded > 0 ? 'text-red-400' : 'text-muted-foreground', icon: stats.overloaded > 0 },
+        { label: 'Idle', value: stats.idle, color: stats.idle > 0 ? 'text-emerald-400' : 'text-muted-foreground' },
+      ].map((s) => (
+        <div key={s.label} className="glass rounded-lg px-4 py-3 flex items-center gap-3">
+          <p className={`text-xl font-bold leading-none ${s.color}`}>{s.value}</p>
+          <div className="flex items-center gap-1">
+            {s.icon && <AlertTriangle className="w-3 h-3 text-red-400" />}
+            <p className="text-[11px] text-muted-foreground">{s.label}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function CcTeamTab() {
   const members = useTeamStore((s) => s.members);
@@ -65,6 +103,8 @@ export function CcTeamTab() {
           </span>
         )}
       </div>
+
+      <WorkloadSummaryStrip members={members} allTasks={allTasks} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {members.map((member, i) => (
