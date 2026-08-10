@@ -18,6 +18,11 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/lib/supabase';
+import {
+  fetchAgentProduction,
+  fetchBookOfBusiness,
+  type PolicyRow as ProdPolicyRow,
+} from '@/lib/prod-api';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import {
   ArrowLeft, DollarSign, FileText, ShieldCheck,
@@ -157,79 +162,111 @@ export function AgentDetailPage() {
     loadContractingData();
   }, [agentId]);
 
-  // ── Data loading ─────────────────────────────────────────────────────────
+  // ── Data loading (edge functions — writing-number based) ─────────────────
   useEffect(() => {
-    if (!agentId || !supabase) return;
+    if (!agentId) return;
+    let cancelled = false;
 
     async function load() {
       setLoading(true);
-      if (!supabase) { setLoading(false); return; }
 
       try {
         const startDate = dateRange.startDate.split('T')[0];
         const endDate = dateRange.endDate.split('T')[0];
-        const useRpc = datePreset !== 'allTime';
+        const useDate = datePreset !== 'allTime';
 
-        // Agent stats
-        if (useRpc) {
-          const { data: rpcData } = await supabase.rpc('filtered_agent_production', {
-            start_date: startDate,
-            end_date: endDate,
-          });
-          const match = ((rpcData || []) as unknown as AgentStats[]).find(r => r.agent_id === agentId);
-          if (match) setStats(match);
-          else setStats(null);
+        // Parallel: agent stats from prod-data + policies from book-of-business
+        const [agentRes, bobRes] = await Promise.all([
+          fetchAgentProduction({
+            agent_id: agentId,
+            ...(useDate ? { start_date: startDate, end_date: endDate } : {}),
+          }),
+          fetchBookOfBusiness({
+            agent_wn: agentId,
+            page_size: 500,
+            page: 0,
+            sort: 'submit_date',
+            order: 'desc',
+          }),
+        ]);
+
+        if (cancelled) return;
+
+        // Stats — the edge function returns an array; find our agent
+        const match = agentRes.find(r => r.agent_id === agentId);
+        if (match) {
+          setStats(match as unknown as AgentStats);
         } else {
-          const { data: agentData } = await supabase
-            .from('agent_production')
-            .select('*')
-            .eq('agent_id', agentId!)
-            .single();
-          if (agentData) setStats(agentData as unknown as AgentStats);
+          setStats(null);
         }
 
-        // Policies — paginate
-        const allPolicies: PolicyRow[] = [];
-        const PAGE = 1000;
-        let offset = 0;
-        let done = false;
-        while (!done) {
-          let q = supabase
-            .from('book_of_business')
-            .select('policy_number, product_type, status, monthly_premium, annual_premium, policy_effective_date, paid_to_date, draft_count, is_at_risk, flag_type, days_since_paid')
-            .eq('agent_id', agentId!)
-            .order('policy_effective_date', { ascending: false })
-            .range(offset, offset + PAGE - 1);
-          if (useRpc) {
-            q = q.gte('policy_effective_date', startDate).lt('policy_effective_date', endDate);
+        // Policies — map prod-api PolicyRow → agent-detail PolicyRow
+        const today = new Date();
+        const mappedPolicies: PolicyRow[] = (bobRes.data || []).map((p: ProdPolicyRow) => {
+          let daysSincePaid: number | null = null;
+          if (p.paid_to_date) {
+            const ptd = new Date(p.paid_to_date);
+            daysSincePaid = Math.floor((today.getTime() - ptd.getTime()) / 86400000);
           }
-          const { data: policyData } = await q;
-          if (!policyData || policyData.length === 0) { done = true; break; }
-          allPolicies.push(...(policyData as unknown as PolicyRow[]));
-          if (policyData.length < PAGE) done = true;
-          else offset += PAGE;
-        }
-        setPolicies(allPolicies);
+          return {
+            policy_number: p.policy_number,
+            product_type: p.product_type,
+            status: p.status,
+            monthly_premium: p.plan_premium,
+            annual_premium: p.annual_premium,
+            policy_effective_date: p.policy_effective_date,
+            paid_to_date: p.paid_to_date,
+            draft_count: p.draft_count,
+            is_at_risk: p.is_at_risk,
+            flag_type: p.flag_type,
+            days_since_paid: daysSincePaid,
+          };
+        });
 
-        // Trend — daily from policy_cache
-        let trendQuery = supabase
-          .from('policy_cache')
-          .select('policy_effective_date, plan_premium, product_type')
-          .eq('agent_id', agentId!)
-          .not('policy_effective_date', 'is', null);
-        if (useRpc) {
-          trendQuery = trendQuery.gte('policy_effective_date', startDate).lt('policy_effective_date', endDate);
+        // Paginate remaining pages if more exist
+        if (bobRes.pagination && bobRes.pagination.total_pages > 1) {
+          for (let pg = 1; pg < bobRes.pagination.total_pages; pg++) {
+            if (cancelled) return;
+            const nextPage = await fetchBookOfBusiness({
+              agent_wn: agentId,
+              page_size: 500,
+              page: pg,
+              sort: 'submit_date',
+              order: 'desc',
+            });
+            (nextPage.data || []).forEach((p: ProdPolicyRow) => {
+              let daysSincePaid: number | null = null;
+              if (p.paid_to_date) {
+                const ptd = new Date(p.paid_to_date);
+                daysSincePaid = Math.floor((today.getTime() - ptd.getTime()) / 86400000);
+              }
+              mappedPolicies.push({
+                policy_number: p.policy_number,
+                product_type: p.product_type,
+                status: p.status,
+                monthly_premium: p.plan_premium,
+                annual_premium: p.annual_premium,
+                policy_effective_date: p.policy_effective_date,
+                paid_to_date: p.paid_to_date,
+                draft_count: p.draft_count,
+                is_at_risk: p.is_at_risk,
+                flag_type: p.flag_type,
+                days_since_paid: daysSincePaid,
+              });
+            });
+          }
         }
-        const { data: cacheRows } = await trendQuery;
+        setPolicies(mappedPolicies);
 
+        // Trend — derive from policies (replaces old policy_cache query)
         const gran = getGranularity(dateRange);
         const byBucket = new Map<string, { policies: number; ap: number }>();
-        (cacheRows || []).forEach((r: any) => {
-          if (!r.policy_effective_date) return;
-          const key = bucketKey(r.policy_effective_date, gran);
+        mappedPolicies.forEach(p => {
+          if (!p.policy_effective_date) return;
+          const key = bucketKey(p.policy_effective_date, gran);
           const existing = byBucket.get(key) || { policies: 0, ap: 0 };
           existing.policies += 1;
-          existing.ap += (Number(r.plan_premium) || 0) * 12;
+          existing.ap += p.annual_premium || 0;
           byBucket.set(key, existing);
         });
         setTrend(
@@ -240,10 +277,12 @@ export function AgentDetailPage() {
       } catch (err) {
         console.error('Agent detail load error:', err);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
     load();
+
+    return () => { cancelled = true; };
   }, [agentId, dateRange, datePreset]);
 
   // Product mix from active policies

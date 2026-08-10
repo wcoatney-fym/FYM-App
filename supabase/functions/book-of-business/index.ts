@@ -89,6 +89,15 @@ Deno.serve(async (req) => {
       writing_number: string | null;
     }
 
+    // Push agency/agent filters to SQL level for performance.
+    // JS-level filters remain as a second pass for roster remapping correctness.
+    const agencySQL = agencyFilter
+      ? sql`AND TRIM(ga) = ${agencyFilter}`
+      : sql``;
+    const agentSQL = agentWnFilter
+      ? sql`AND TRIM(wa) = ${agentWnFilter}`
+      : sql``;
+
     const allPolicies: PolicyRow[] = [];
 
     while (true) {
@@ -109,6 +118,7 @@ Deno.serve(async (req) => {
           TRIM(wa) AS wa,
           roster_hierarchy_json
         FROM typed.unl_fym_policy_latest_load
+        WHERE 1=1 ${agencySQL} ${agentSQL}
         ORDER BY policy_nbr
         OFFSET ${offset}
         LIMIT ${FETCH_SIZE}
