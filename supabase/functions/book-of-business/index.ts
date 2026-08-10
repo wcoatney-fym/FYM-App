@@ -24,6 +24,8 @@
 import {
   createProdConnection,
   CONTRACT_STATUS,
+  FYM_MGA_WN,
+  toTitleCase,
   planToProductType,
   extractAgencyWritingNumber,
   extractAgentWritingNumber,
@@ -83,7 +85,9 @@ Deno.serve(async (req) => {
       is_at_risk: boolean;
       flag_type: string | null;
       agency_id: string;
+      agency_name: string | null;
       agent_writing_number: string | null;
+      agent_name: string | null;
       client_name: string | null;
       billing_mode: number | null;
       writing_number: string | null;
@@ -91,8 +95,11 @@ Deno.serve(async (req) => {
 
     // Push agency/agent filters to SQL level for performance.
     // JS-level filters remain as a second pass for roster remapping correctness.
+    // FYM direct agents have null/empty ga — include those when filtering for FYM.
     const agencySQL = agencyFilter
-      ? sql`AND TRIM(ga) = ${agencyFilter}`
+      ? agencyFilter === FYM_MGA_WN
+        ? sql`AND (TRIM(ga) = ${agencyFilter} OR ga IS NULL OR TRIM(ga) = '')`
+        : sql`AND TRIM(ga) = ${agencyFilter}`
       : sql``;
     const agentSQL = agentWnFilter
       ? sql`AND TRIM(wa) = ${agentWnFilter}`
@@ -115,7 +122,9 @@ Deno.serve(async (req) => {
           TRIM(first_name) AS first_name,
           TRIM(last_name) AS last_name,
           TRIM(ga) AS ga,
+          TRIM(ga_name) AS ga_name,
           TRIM(wa) AS wa,
+          TRIM(wa_name) AS wa_name,
           roster_hierarchy_json
         FROM typed.unl_fym_policy_latest_load
         WHERE 1=1 ${agencySQL} ${agentSQL}
@@ -198,10 +207,11 @@ Deno.serve(async (req) => {
           row.billing_mode as number | null
         );
 
-        const clientName = [row.first_name as string, row.last_name as string]
+        const rawClientName = [row.first_name as string, row.last_name as string]
           .filter(Boolean)
           .map((s) => s.trim())
           .join(" ") || null;
+        const clientName = rawClientName ? toTitleCase(rawClientName) : null;
 
         const policyNumber = (row.policy_nbr as string) || "";
 
@@ -212,6 +222,12 @@ Deno.serve(async (req) => {
           const matchesName = clientName?.toLowerCase().includes(q) || false;
           if (!matchesPolicyNum && !matchesName) continue;
         }
+
+        // Resolve display names — fallback to "FYM" for null-ga direct agents
+        const rawAgencyName = ((row.ga_name as string) || '').trim() || (agencyWn === FYM_MGA_WN ? 'FYM' : null);
+        const rawAgentName = ((row.wa_name as string) || '').trim() || null;
+        const agencyName = rawAgencyName ? toTitleCase(rawAgencyName) : null;
+        const agentName = rawAgentName ? toTitleCase(rawAgentName) : null;
 
         allPolicies.push({
           policy_number: policyNumber,
@@ -226,7 +242,9 @@ Deno.serve(async (req) => {
           is_at_risk: isAtRisk,
           flag_type: flagType,
           agency_id: agencyWn || "unknown",
+          agency_name: agencyName,
           agent_writing_number: agentWn,
+          agent_name: agentName,
           client_name: clientName,
           billing_mode: row.billing_mode as number | null,
           writing_number: agentWn,

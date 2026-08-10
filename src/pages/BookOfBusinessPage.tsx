@@ -185,9 +185,9 @@ export function BookOfBusinessPage() {
       const mapped: Policy[] = res.data.map(p => ({
         policy_number: p.policy_number,
         client_name: p.client_name,
-        agent_name: null,
+        agent_name: p.agent_name || null,
         writing_number: p.writing_number,
-        agency_name: null,
+        agency_name: p.agency_name || null,
         agency_id: p.agency_id,
         product_type: p.product_type,
         status: p.status,
@@ -246,9 +246,9 @@ export function BookOfBusinessPage() {
         const mapped = res.data.map(p => ({
           policy_number: p.policy_number,
           client_name: p.client_name,
-          agent_name: null,
+          agent_name: p.agent_name || null,
           writing_number: p.writing_number,
-          agency_name: null,
+          agency_name: p.agency_name || null,
           agency_id: p.agency_id,
           product_type: p.product_type,
           status: p.status,

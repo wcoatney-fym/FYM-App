@@ -16,6 +16,42 @@ import {
 } from 'lucide-react';
 import { fmt$ } from '@/lib/formatUtils';
 
+// ── Carrier tag colors ─────────────────────────────────────────────────────
+const CARRIER_COLORS: Record<string, { bg: string; text: string; label: string }> = {
+  unl: { bg: 'bg-cyan-500/20', text: 'text-cyan-400', label: 'UNL' },
+  gtl: { bg: 'bg-violet-500/20', text: 'text-violet-400', label: 'GTL' },
+  ahl: { bg: 'bg-amber-500/20', text: 'text-amber-400', label: 'AHL' },
+  heartland: { bg: 'bg-emerald-500/20', text: 'text-emerald-400', label: 'HLN' },
+  manhattan: { bg: 'bg-rose-500/20', text: 'text-rose-400', label: 'MHT' },
+};
+
+function CarrierTags({ agent }: { agent: UnifiedAgent }) {
+  const carriers: string[] = [];
+  if (agent.writing_number) carriers.push('unl');
+  if (agent.gtl_writing_number) carriers.push('gtl');
+  if (agent.ahl_writing_number) carriers.push('ahl');
+  if (agent.heartland_writing_number) carriers.push('heartland');
+  if (agent.manhattan_writing_number) carriers.push('manhattan');
+
+  if (carriers.length === 0) return <span className="text-muted-foreground">—</span>;
+
+  return (
+    <div className="flex items-center gap-1 flex-wrap">
+      {carriers.map(c => {
+        const style = CARRIER_COLORS[c];
+        return (
+          <span
+            key={c}
+            className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide ${style.bg} ${style.text}`}
+          >
+            {style.label}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 function fmtPhone(raw: string | null): string {
   if (!raw) return '';
@@ -205,7 +241,6 @@ export function AgentsPage() {
                       Agent <SortIcon k="name" />
                     </TableHead>
                     <TableHead className="font-semibold text-muted-foreground">Carriers</TableHead>
-                    <TableHead className="font-semibold text-muted-foreground">NPN</TableHead>
                     <TableHead className="font-semibold text-muted-foreground">Agency</TableHead>
                     <TableHead className="font-semibold text-muted-foreground">Phone</TableHead>
                     <TableHead className="font-semibold text-muted-foreground">Email</TableHead>
@@ -242,29 +277,7 @@ export function AgentsPage() {
                         </span>
                       </TableCell>
                       <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {a.writing_number && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">UNL</span>
-                          )}
-                          {a.gtl_writing_number && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-violet-500/10 text-violet-400 border border-violet-500/20">GTL</span>
-                          )}
-                          {a.ahl_writing_number && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20">AHL</span>
-                          )}
-                          {a.heartland_writing_number && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">HLN</span>
-                          )}
-                          {a.manhattan_writing_number && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-rose-500/10 text-rose-400 border border-rose-500/20">MHT</span>
-                          )}
-                          {!a.writing_number && !a.gtl_writing_number && !a.ahl_writing_number && !a.heartland_writing_number && !a.manhattan_writing_number && (
-                            <span className="text-muted-foreground text-xs">—</span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-data text-sm text-foreground/80">
-                        {a.npn || '—'}
+                        <CarrierTags agent={a} />
                       </TableCell>
                       <TableCell className="text-muted-foreground truncate max-w-[160px]">
                         {a.agency_name || '—'}
@@ -292,7 +305,7 @@ export function AgentsPage() {
                   ))}
                   {pagedRows.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
+                      <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
                         {loading ? 'Loading…' : scopedAgents.length === 0 ? 'No agent data found.' : 'No agents match your search.'}
                       </TableCell>
                     </TableRow>

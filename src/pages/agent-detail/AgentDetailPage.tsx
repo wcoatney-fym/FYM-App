@@ -38,6 +38,7 @@ import { fmt$, fmtNum, retentionColor, retentionBg } from './helpers';
 import { portalSupabase } from '@/lib/portal-supabase';
 import type { PortalPipelineRecord } from '@/lib/contracting/types';
 import { PeriodPills } from '@/components/filters/PeriodPills';
+import { Header } from '@/components/layout/Header';
 import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange, getGranularity, bucketKey, fmtBucketLabel } from '@/lib/dateUtils';
 
 // ── Resolve back-navigation label from referrer ────────────────────────────
@@ -302,6 +303,8 @@ export function AgentDetailPage() {
   // ── Loading state ────────────────────────────────────────────────────────
   if (loading) {
     return (
+      <div>
+      <Header title="Agent Detail" />
       <div className="p-6 space-y-6 max-w-screen-xl mx-auto">
         {/* Back bar skeleton */}
         <Skeleton className="h-4 w-32" />
@@ -320,12 +323,15 @@ export function AgentDetailPage() {
         <Skeleton className="h-10 w-96" />
         <Skeleton className="h-64 w-full rounded-lg" />
       </div>
+      </div>
     );
   }
 
   // ── Empty state ──────────────────────────────────────────────────────────
   if (!stats) {
     return (
+      <div>
+      <Header title="Agent Not Found" />
       <div className="p-6 space-y-6 max-w-screen-xl mx-auto">
         <Link
           to={backPath}
@@ -339,6 +345,7 @@ export function AgentDetailPage() {
           <p className="text-sm text-muted-foreground mt-1">No production data found for this agent.</p>
         </div>
       </div>
+      </div>
     );
   }
 
@@ -346,6 +353,8 @@ export function AgentDetailPage() {
   const grad = avatarGradient(agentName);
 
   return (
+    <div>
+    <Header title={agentName} />
     <div className="p-6 space-y-6 max-w-screen-xl mx-auto">
       {/* ── Back bar + breadcrumb (§11.2) ───────────────────────────────── */}
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -546,6 +555,7 @@ export function AgentDetailPage() {
           </TabsContent>
         )}
       </Tabs>
+    </div>
     </div>
   );
 }

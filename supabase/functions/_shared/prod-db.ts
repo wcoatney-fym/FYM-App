@@ -51,6 +51,19 @@ export function createProdConnection(): ReturnType<typeof postgres> {
   });
 }
 
+// ── Title case helper ────────────────────────────────────────────────
+// Max's DB stores names in ALL CAPS. Convert to proper Title Case.
+export function toTitleCase(str: string): string {
+  return str
+    .toLowerCase()
+    .replace(/(?:^|\s|[-'/])\S/g, (ch) => ch.toUpperCase());
+}
+
+// ── FYM MGA parent writing number ─────────────────────────────────────
+// Policies with null/empty ga are FYM direct agents — no sub-agency in
+// the hierarchy. All such production rolls up under FYM.
+export const FYM_MGA_WN = '202JVV00';
+
 // ── Contract code → status ────────────────────────────────────────────
 export const CONTRACT_STATUS: Record<string, string> = {
   A: "active",
@@ -134,10 +147,9 @@ export function resolveAgencyWn(
   if (flat) return flat;
   const fromRoster = extractAgencyWritingNumber(roster);
   if (fromRoster) return fromRoster;
-  // Blank ga — check if this is FYM house production (202JVV* agents)
-  const wa = ((row.wa as string) ?? '').trim();
-  if (wa.startsWith('202JVV')) return '202JVV00';
-  return null;
+  // Blank ga = FYM direct agent (no sub-agency in the hierarchy).
+  // All production with null/empty ga rolls up under FYM.
+  return '202JVV00';
 }
 
 /**

@@ -32,6 +32,7 @@ import { AgentDatabaseTab } from './database';
 import { ContractingHierarchyTab } from './ContractingHierarchyTab';
 import { ContractingRosterImportTab } from './ContractingRosterImportTab';
 import { CarrierUploadTab } from './carrier-upload';
+import { ContractingOnboardingTab } from './onboarding/ContractingOnboardingTab';
 import type { ContractingTab } from '@/lib/contracting/types';
 // carrier-upload tab type added below
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
@@ -44,6 +45,7 @@ const ALL_TABS: ContractingTab[] = [
   'training',
   'database',
   'hierarchy',
+  'onboarding',
   'roster-import',
   'carrier-upload',
 ];
@@ -58,6 +60,7 @@ const TAB_LABELS: Record<ContractingTab, string> = {
   training: 'Training',
   database: 'Database',
   hierarchy: 'Hierarchy',
+  onboarding: 'Onboarding',
   'roster-import': 'Roster Import',
   'carrier-upload': 'Carrier Upload',
 };
@@ -172,6 +175,12 @@ export function ContractingPage() {
           {availableTabs.includes('hierarchy') && (
             <TabsContent value="hierarchy">
               <ContractingHierarchyTab />
+            </TabsContent>
+          )}
+
+          {availableTabs.includes('onboarding') && (
+            <TabsContent value="onboarding">
+              <ContractingOnboardingTab />
             </TabsContent>
           )}
 
