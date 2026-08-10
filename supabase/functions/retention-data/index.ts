@@ -20,6 +20,7 @@
 import {
   createProdConnection,
   CONTRACT_STATUS,
+  FYM_MGA_WN,
   planToProductType,
   extractAgencyWritingNumber,
   extractAgentWritingNumber,
@@ -65,8 +66,8 @@ Deno.serve(async (req) => {
       const rows = await sql`
         WITH filtered AS (
           SELECT
-            TRIM(ga) AS agency_wn,
-            TRIM(ga_name) AS ga_name,
+            COALESCE(NULLIF(TRIM(ga), ''), '202JVV00') AS agency_wn,
+            COALESCE(NULLIF(TRIM(ga_name), ''), 'FYM') AS ga_name,
             UPPER(TRIM(cntrct_code)) AS status_code,
             COALESCE(annual_premium, 0) AS annual_premium,
             COALESCE(at_risk_policy, false) AS at_risk_policy,
@@ -75,7 +76,9 @@ Deno.serve(async (req) => {
             COALESCE(billing_mode, 1) AS billing_mode,
             TRIM(plan_code) AS plan_code
           FROM typed.unl_fym_policy_latest_load
-          WHERE TRIM(ga) = ${agencyFilter}
+          WHERE ${agencyFilter === FYM_MGA_WN
+            ? sql`(TRIM(ga) = ${agencyFilter} OR ga IS NULL OR TRIM(ga) = '')`
+            : sql`TRIM(ga) = ${agencyFilter}`}
         ),
         with_status AS (
           SELECT *,
@@ -182,7 +185,9 @@ Deno.serve(async (req) => {
 
     // Push agency/agent filters to SQL level for performance.
     const agencySQL = agencyFilter
-      ? sql`AND TRIM(ga) = ${agencyFilter}`
+      ? agencyFilter === FYM_MGA_WN
+        ? sql`AND (TRIM(ga) = ${agencyFilter} OR ga IS NULL OR TRIM(ga) = '')`
+        : sql`AND TRIM(ga) = ${agencyFilter}`
       : sql``;
     const agentSQL = agentFilter
       ? sql`AND TRIM(wa) = ${agentFilter}`

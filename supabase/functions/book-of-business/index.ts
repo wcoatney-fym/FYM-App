@@ -24,6 +24,7 @@
 import {
   createProdConnection,
   CONTRACT_STATUS,
+  FYM_MGA_WN,
   planToProductType,
   extractAgencyWritingNumber,
   extractAgentWritingNumber,
@@ -91,8 +92,11 @@ Deno.serve(async (req) => {
 
     // Push agency/agent filters to SQL level for performance.
     // JS-level filters remain as a second pass for roster remapping correctness.
+    // FYM direct agents have null/empty ga — include those when filtering for FYM.
     const agencySQL = agencyFilter
-      ? sql`AND TRIM(ga) = ${agencyFilter}`
+      ? agencyFilter === FYM_MGA_WN
+        ? sql`AND (TRIM(ga) = ${agencyFilter} OR ga IS NULL OR TRIM(ga) = '')`
+        : sql`AND TRIM(ga) = ${agencyFilter}`
       : sql``;
     const agentSQL = agentWnFilter
       ? sql`AND TRIM(wa) = ${agentWnFilter}`

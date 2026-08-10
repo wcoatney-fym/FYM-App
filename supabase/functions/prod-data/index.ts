@@ -22,6 +22,7 @@
 import {
   createProdConnection,
   CONTRACT_STATUS,
+  FYM_MGA_WN,
   planToProductType,
   extractAgencyWritingNumber,
   extractAgentWritingNumber,
@@ -58,7 +59,11 @@ Deno.serve(async (req) => {
       const dateF = startDate && endDate
         ? sql`AND app_recvd_date >= ${startDate}::date AND app_recvd_date < ${endDate}::date`
         : sql``;
-      const agF = agencyFilter ? sql`AND TRIM(ga) = ${agencyFilter}` : sql``;
+      const agF = agencyFilter
+        ? agencyFilter === FYM_MGA_WN
+          ? sql`AND (TRIM(ga) = ${agencyFilter} OR ga IS NULL OR TRIM(ga) = '')`
+          : sql`AND TRIM(ga) = ${agencyFilter}`
+        : sql``;
       const atF = agentFilter ? sql`AND TRIM(wa) = ${agentFilter}` : sql``;
 
       const now = new Date();
@@ -69,7 +74,7 @@ Deno.serve(async (req) => {
           SELECT
             TRIM(wa) AS agent_wn,
             TRIM(wa_name) AS wa_name,
-            TRIM(ga) AS agency_wn,
+            COALESCE(NULLIF(TRIM(ga), ''), '202JVV00') AS agency_wn,
             UPPER(TRIM(cntrct_code)) AS status_code,
             COALESCE(annual_premium, 0) AS annual_premium,
             COALESCE(at_risk_policy, false) AS at_risk_policy,
@@ -183,7 +188,9 @@ Deno.serve(async (req) => {
       ? sql`AND app_recvd_date >= ${startDate}::date AND app_recvd_date < ${endDate}::date`
       : sql``;
     const agencySQL = agencyFilter
-      ? sql`AND TRIM(ga) = ${agencyFilter}`
+      ? agencyFilter === FYM_MGA_WN
+        ? sql`AND (TRIM(ga) = ${agencyFilter} OR ga IS NULL OR TRIM(ga) = '')`
+        : sql`AND TRIM(ga) = ${agencyFilter}`
       : sql``;
     const agentSQL = agentFilter
       ? sql`AND TRIM(wa) = ${agentFilter}`
