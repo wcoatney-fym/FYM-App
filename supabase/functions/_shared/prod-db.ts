@@ -130,7 +130,14 @@ export function resolveAgencyWn(
   row: Record<string, unknown>,
   roster: Array<{ writing_number: string; depth: string; is_person: boolean; name: string }> | null
 ): string | null {
-  return extractAgencyWnFlat(row) || extractAgencyWritingNumber(roster);
+  const flat = extractAgencyWnFlat(row);
+  if (flat) return flat;
+  const fromRoster = extractAgencyWritingNumber(roster);
+  if (fromRoster) return fromRoster;
+  // Blank ga — check if this is FYM house production (202JVV* agents)
+  const wa = ((row.wa as string) ?? '').trim();
+  if (wa.startsWith('202JVV')) return '202JVV00';
+  return null;
 }
 
 /**

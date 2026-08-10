@@ -195,7 +195,8 @@ Deno.serve(async (req) => {
 
         // ── Agency accumulation ──
         if (type === "agency" || type === "daily" || type === "monthly" || type === "product_mix") {
-          const rawGaName = (row.ga_name as string | null)?.trim() || null;
+          // FYM house production has blank ga_name — hardcode it
+          const rawGaName = agencyId === '202JVV00' ? 'FYM' : ((row.ga_name as string | null)?.trim() || null);
 
           if (!agencyMap.has(agencyId)) {
             agencyMap.set(agencyId, {

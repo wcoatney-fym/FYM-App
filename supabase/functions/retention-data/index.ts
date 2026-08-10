@@ -181,7 +181,8 @@ Deno.serve(async (req) => {
 
         // Init bucket
         // Resolve agency name from flattened ga_name field
-        const rawGaName = (row.ga_name as string | null)?.trim() || null;
+        // FYM house production has blank ga_name — hardcode it
+        const rawGaName = agencyId === '202JVV00' ? 'FYM' : ((row.ga_name as string | null)?.trim() || null);
 
         if (!buckets.has(agencyId)) {
           buckets.set(agencyId, {
