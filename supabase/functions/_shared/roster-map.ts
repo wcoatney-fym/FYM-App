@@ -30,6 +30,14 @@ export interface RosterMap {
   size: number;
 }
 
+export interface WritingNumberMap {
+  /** Resolve any carrier writing number to the agency's primary (UNL) writing number.
+   *  Returns the input if no mapping is found (passthrough). */
+  toPrimary(writingNumber: string | null): string | null;
+  /** Number of junction entries loaded */
+  size: number;
+}
+
 /**
  * Load all active roster entries and build a lookup map:
  *   agent_writing_number → agency_writing_number
@@ -112,5 +120,74 @@ export async function loadRosterMap(): Promise<RosterMap> {
       return hierarchyAgencyWn;
     },
     size: map.size,
+  };
+}
+
+/**
+ * Load all carrier writing numbers from the junction table and build
+ * a reverse-lookup map: any_carrier_writing_number → primary_writing_number.
+ *
+ * This lets edge functions resolve GTL/AHL/Manhattan/Heartland writing
+ * numbers back to the canonical agency (identified by its UNL primary WN).
+ *
+ * Usage:
+ *   const wnMap = await loadWritingNumberMap();
+ *   const primaryWn = wnMap.toPrimary(someCarrierWritingNumber);
+ */
+export async function loadWritingNumberMap(): Promise<WritingNumberMap> {
+  const supabaseUrl = Deno.env.get("APP_SUPABASE_URL") || Deno.env.get("SUPABASE_URL") || "";
+  const supabaseKey = Deno.env.get("APP_SUPABASE_SERVICE_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.warn("[wn-map] Missing Supabase credentials — multi-carrier WN lookup disabled");
+    return { toPrimary: (wn) => wn, size: 0 };
+  }
+
+  const sb = createClient(supabaseUrl, supabaseKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  // Load all junction entries, grouped by agency_id
+  const { data, error } = await sb
+    .from("agency_writing_numbers")
+    .select("agency_id, carrier, writing_number, is_primary");
+
+  if (error) {
+    console.error("[wn-map] Failed to load writing numbers:", error.message);
+    return { toPrimary: (wn) => wn, size: 0 };
+  }
+
+  // Build: agency_id → primary WN, and every WN → primary WN
+  const agencyPrimary = new Map<string, string>();
+  const wnToAgencyId = new Map<string, string>();
+
+  for (const row of data || []) {
+    const wn = (row.writing_number as string)?.trim();
+    if (!wn) continue;
+    wnToAgencyId.set(wn, row.agency_id as string);
+    if (row.is_primary) {
+      agencyPrimary.set(row.agency_id as string, wn);
+    }
+  }
+
+  // Build the final lookup: any WN → primary WN
+  const map = new Map<string, string>();
+  for (const [wn, agencyId] of wnToAgencyId) {
+    const primary = agencyPrimary.get(agencyId);
+    if (primary && primary !== wn) {
+      map.set(wn, primary);
+    }
+    // Primary WNs map to themselves (no entry needed — passthrough)
+  }
+
+  console.log(`[wn-map] Loaded ${wnToAgencyId.size} carrier WNs across ${agencyPrimary.size} agencies (${map.size} non-primary mappings)`);
+
+  return {
+    toPrimary(writingNumber: string | null): string | null {
+      if (!writingNumber) return writingNumber;
+      const trimmed = writingNumber.trim();
+      return map.get(trimmed) || trimmed;
+    },
+    size: wnToAgencyId.size,
   };
 }
