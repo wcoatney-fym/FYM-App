@@ -16,7 +16,6 @@ import { AgentHealthPage } from '@/pages/AgentHealthPage';
 import { AgentDashboardPage } from '@/pages/AgentDashboardPage';
 import { GoalPage } from '@/pages/GoalPage';
 import { ManagerTeamPage } from '@/pages/ManagerTeamPage';
-import { AgentProvisioningPage } from '@/pages/AgentProvisioningPage';
 import { AdminFinancialsPage } from '@/pages/AdminFinancialsPage';
 import { ManagerWorkboardPage } from '@/pages/ManagerWorkboardPage';
 // Onboarding pages moved into Contracting tab — see contracting/onboarding/
@@ -67,7 +66,6 @@ function App() {
               <Route index element={<Navigate to="/people/agencies" replace />} />
               <Route path="agencies" element={<AgenciesPage />} />
               <Route path="agents" element={<AgentsPage />} />
-              <Route path="provision" element={<RoleGuard allow={[]} allowFymAdmin={true}><AgentProvisioningPage /></RoleGuard>} />
               <Route path="onboarding" element={<Navigate to="/contracting?tab=onboarding" replace />} />
               <Route path="onboarding/new" element={<Navigate to="/contracting?tab=onboarding" replace />} />
               <Route path="onboarding/:slug" element={<Navigate to="/contracting?tab=onboarding" replace />} />
@@ -110,7 +108,6 @@ function App() {
             {/* ── Legacy redirects — preserve old bookmarks ── */}
             <Route path="/agencies" element={<Navigate to="/people/agencies" replace />} />
             <Route path="/agents" element={<Navigate to="/people/agents" replace />} />
-            <Route path="/provision" element={<Navigate to="/people/provision" replace />} />
             <Route path="/onboarding" element={<Navigate to="/contracting?tab=onboarding" replace />} />
             <Route path="/book" element={<Navigate to="/production/book" replace />} />
             <Route path="/financials" element={<Navigate to="/production/financials" replace />} />
