@@ -67,6 +67,7 @@ Deno.serve(async (req) => {
     // Accumulators by type
     const agencyMap = new Map<string, {
       agency_id: string;
+      agency_name: string | null;
       total_policies: number;
       total_annual_premium: number;
       active_policies: number;
@@ -127,6 +128,7 @@ Deno.serve(async (req) => {
           TRIM(first_name) AS first_name,
           TRIM(last_name) AS last_name,
           TRIM(ga) AS ga,
+          TRIM(ga_name) AS ga_name,
           TRIM(wa) AS wa,
           roster_hierarchy_json
         FROM typed.unl_fym_policy_latest_load
@@ -193,9 +195,12 @@ Deno.serve(async (req) => {
 
         // ── Agency accumulation ──
         if (type === "agency" || type === "daily" || type === "monthly" || type === "product_mix") {
+          const rawGaName = (row.ga_name as string | null)?.trim() || null;
+
           if (!agencyMap.has(agencyId)) {
             agencyMap.set(agencyId, {
               agency_id: agencyId,
+              agency_name: rawGaName,
               total_policies: 0,
               total_annual_premium: 0,
               active_policies: 0,

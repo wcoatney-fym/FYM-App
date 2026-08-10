@@ -134,16 +134,28 @@ export function AgenciesPage() {
   const rows = useMemo((): AgencyRow[] => {
     const stats = orgData.retentionAgencies;
     if (!stats || stats.length === 0) return [];
-    return stats.map(s => ({
-      agency_id: s.agency_id,
-      active_policies: s.active_policies,
-      active_premium: s.active_premium,
-      at_risk_count: s.at_risk_count,
-      eligible_90d: s.eligible_90d,
-      retained_90d: s.retained_90d,
-      retention_pct: s.retention_pct,
-      ...(nameMap.get(s.agency_id) ?? {}),
-    }));
+    return stats.map(s => {
+      // Name priority: 1) agencies table lookup (canonical), 2) edge function ga_name from Max's DB
+      const lookup = nameMap.get(s.agency_id);
+      const edgeName = (s as any).agency_name as string | null;
+      // Title-case the ga_name from Max's DB (it comes in ALL CAPS)
+      const formattedEdgeName = edgeName
+        ? edgeName.replace(/\b\w+/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        : undefined;
+      return {
+        agency_id: s.agency_id,
+        active_policies: s.active_policies,
+        active_premium: s.active_premium,
+        at_risk_count: s.at_risk_count,
+        eligible_90d: s.eligible_90d,
+        retained_90d: s.retained_90d,
+        retention_pct: s.retention_pct,
+        name: lookup?.name ?? formattedEdgeName,
+        slug: lookup?.slug,
+        is_active: lookup?.is_active,
+        ghl_api_enabled: (lookup as any)?.ghl_api_enabled,
+      };
+    });
   }, [orgData.retentionAgencies, nameMap]);
 
   // Managers / agency admins: redirect to their own agency detail
