@@ -109,6 +109,7 @@ export function AdminFinancialsPage() {
     })),
   [orgData.retentionAgencies]);
 
+  // Combined org-wide cohorts (for the detail table)
   const cohorts = useMemo((): CohortRow[] =>
     orgData.cohorts.slice(-24).reverse().map(c => ({
       product_type: 'combined',
@@ -120,6 +121,19 @@ export function AdminFinancialsPage() {
       active_premium: 0,
     })),
   [orgData.cohorts]);
+
+  // Per-product cohorts (for the chart — HI vs HHC lines)
+  const productCohorts = useMemo((): CohortRow[] =>
+    (orgData.productCohorts ?? []).map(c => ({
+      product_type: c.product_type,
+      cohort_month: c.month,
+      cohort_size: c.eligible,
+      drafted_first: c.eligible,
+      retained: c.retained,
+      retention_pct: c.retention_pct ?? 0,
+      active_premium: 0,
+    })),
+  [orgData.productCohorts]);
 
   const concentration = useMemo((): ConcentrationRow[] => {
     const totalPremium = orgData.retentionAgencies.reduce((s, a) => s + a.active_premium, 0);
@@ -160,11 +174,11 @@ export function AdminFinancialsPage() {
     const blendedRetention = totalEligible > 0 ? Math.round((totalRetained / totalEligible) * 1000) / 10 : null;
     const flaggedConcentration = filteredConcentration.filter(c => c.premium_concentration_pct >= 10);
 
-    // Product-level stats from cohort_retention (latest cohorts)
+    // Product-level stats from per-product cohorts (HI vs HHC)
     const latestByProduct: Record<string, { active: number; premium: number; atRisk: number; atRiskPremium: number; retention: number | null }> = {};
-    // Aggregate across all cohorts per product
+    // Aggregate across per-product cohorts
     const productAgg: Record<string, { drafted: number; retained: number; premium: number }> = {};
-    for (const c of cohorts) {
+    for (const c of productCohorts) {
       const pt = c.product_type;
       if (!productAgg[pt]) productAgg[pt] = { drafted: 0, retained: 0, premium: 0 };
       productAgg[pt].drafted += c.drafted_first;
@@ -181,14 +195,14 @@ export function AdminFinancialsPage() {
     }
 
     return { totalPremium, totalActive, totalAtRisk, totalAtRiskPremium, blendedRetention, flaggedConcentration, latestByProduct };
-  }, [agencySummaries, concentration, cohorts, filterAgencyId]);
+  }, [agencySummaries, concentration, productCohorts, filterAgencyId]);
 
-  // Chart data — last 12 cohort months
+  // Chart data — last 12 cohort months from per-product cohorts
   const retentionChartData = useMemo(() => {
-    const months = [...new Set(cohorts.map(c => c.cohort_month))].sort().slice(-12);
+    const months = [...new Set(productCohorts.map(c => c.cohort_month))].sort().slice(-12);
     return months.map(month => {
-      const hi = cohorts.find(c => c.cohort_month === month && c.product_type === 'HI');
-      const hhc = cohorts.find(c => c.cohort_month === month && c.product_type === 'HHC');
+      const hi = productCohorts.find(c => c.cohort_month === month && c.product_type === 'HI');
+      const hhc = productCohorts.find(c => c.cohort_month === month && c.product_type === 'HHC');
       return {
         month: fmtMonth(month),
         HI: hi?.retention_pct ?? null,
@@ -196,7 +210,7 @@ export function AdminFinancialsPage() {
         target: 90,
       };
     });
-  }, [cohorts]);
+  }, [productCohorts]);
 
   // Concentration chart with names
   const concChartData = useMemo(() => {
@@ -354,8 +368,8 @@ export function AdminFinancialsPage() {
                       ]}
                       contentStyle={{ borderRadius: '8px', border: '1px solid hsl(217 33% 20%)', background: 'hsl(222 47% 9%)', color: 'hsl(210 40% 98%)', fontSize: 12 }}
                     />
-                    <Line type="monotone" dataKey="HI" stroke="hsl(199 89% 48%)" strokeWidth={2.5} dot={{ r: 3, fill: 'hsl(199 89% 48%)' }} connectNulls />
-                    <Line type="monotone" dataKey="HHC" stroke="#0ea5e9" strokeWidth={2.5} dot={{ r: 3, fill: '#0ea5e9' }} connectNulls />
+                    <Line type="monotone" dataKey="HI" stroke="hsl(262 83% 58%)" strokeWidth={2.5} dot={{ r: 3, fill: 'hsl(262 83% 58%)' }} connectNulls />
+                    <Line type="monotone" dataKey="HHC" stroke="hsl(199 89% 48%)" strokeWidth={2.5} dot={{ r: 3, fill: 'hsl(199 89% 48%)' }} connectNulls />
                     <Line type="monotone" dataKey="target" stroke="#ef4444" strokeDasharray="4 3" strokeWidth={1.5} dot={false} />
                   </LineChart>
                 </ResponsiveContainer>
