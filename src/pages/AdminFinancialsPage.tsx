@@ -109,6 +109,33 @@ export function AdminFinancialsPage() {
     })),
   [orgData.retentionAgencies]);
 
+  // Per-product cohort data from the retention-data edge function
+  const productCohorts = useMemo((): CohortRow[] => {
+    // If product cohorts exist, use them; otherwise fall back to combined
+    if (orgData.productCohorts && orgData.productCohorts.length > 0) {
+      return orgData.productCohorts.map(c => ({
+        product_type: c.product_type,
+        cohort_month: c.month,
+        cohort_size: c.eligible,
+        drafted_first: c.eligible,
+        retained: c.retained,
+        retention_pct: c.retention_pct ?? 0,
+        active_premium: 0,
+      }));
+    }
+    // Fallback: combined cohorts (no product split)
+    return orgData.cohorts.map(c => ({
+      product_type: 'combined',
+      cohort_month: c.month,
+      cohort_size: c.eligible,
+      drafted_first: c.eligible,
+      retained: c.retained,
+      retention_pct: c.retention_pct ?? 0,
+      active_premium: 0,
+    }));
+  }, [orgData.cohorts, orgData.productCohorts]);
+
+  // Combined cohorts for the detail table (org-wide)
   const cohorts = useMemo((): CohortRow[] =>
     orgData.cohorts.slice(-24).reverse().map(c => ({
       product_type: 'combined',
@@ -160,12 +187,12 @@ export function AdminFinancialsPage() {
     const blendedRetention = totalEligible > 0 ? Math.round((totalRetained / totalEligible) * 1000) / 10 : null;
     const flaggedConcentration = filteredConcentration.filter(c => c.premium_concentration_pct >= 10);
 
-    // Product-level stats from cohort_retention (latest cohorts)
+    // Product-level stats from per-product cohorts
     const latestByProduct: Record<string, { active: number; premium: number; atRisk: number; atRiskPremium: number; retention: number | null }> = {};
-    // Aggregate across all cohorts per product
     const productAgg: Record<string, { drafted: number; retained: number; premium: number }> = {};
-    for (const c of cohorts) {
+    for (const c of productCohorts) {
       const pt = c.product_type;
+      if (pt === 'combined') continue; // Skip combined — we only want HI/HHC
       if (!productAgg[pt]) productAgg[pt] = { drafted: 0, retained: 0, premium: 0 };
       productAgg[pt].drafted += c.drafted_first;
       productAgg[pt].retained += c.retained;
@@ -181,22 +208,24 @@ export function AdminFinancialsPage() {
     }
 
     return { totalPremium, totalActive, totalAtRisk, totalAtRiskPremium, blendedRetention, flaggedConcentration, latestByProduct };
-  }, [agencySummaries, concentration, cohorts, filterAgencyId]);
+  }, [agencySummaries, concentration, productCohorts, filterAgencyId]);
 
-  // Chart data — last 12 cohort months
+  // Chart data — last 12 cohort months using per-product data
   const retentionChartData = useMemo(() => {
-    const months = [...new Set(cohorts.map(c => c.cohort_month))].sort().slice(-12);
+    const months = [...new Set(productCohorts.map(c => c.cohort_month))].sort().slice(-12);
     return months.map(month => {
-      const hi = cohorts.find(c => c.cohort_month === month && c.product_type === 'HI');
-      const hhc = cohorts.find(c => c.cohort_month === month && c.product_type === 'HHC');
+      const hi = productCohorts.find(c => c.cohort_month === month && c.product_type === 'HI');
+      const hhc = productCohorts.find(c => c.cohort_month === month && c.product_type === 'HHC');
+      const combined = productCohorts.find(c => c.cohort_month === month && c.product_type === 'combined');
       return {
         month: fmtMonth(month),
         HI: hi?.retention_pct ?? null,
         HHC: hhc?.retention_pct ?? null,
+        Combined: combined?.retention_pct ?? null,
         target: 90,
       };
     });
-  }, [cohorts]);
+  }, [productCohorts]);
 
   // Concentration chart with names
   const concChartData = useMemo(() => {

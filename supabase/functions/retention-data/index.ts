@@ -223,6 +223,8 @@ Deno.serve(async (req) => {
 
     // Cohort map: issue month → { eligible, retained }
     const cohortMap = new Map<string, { eligible: number; retained: number }>();
+    // Per-product cohort map: "HI:2026-05" → { eligible, retained }
+    const productCohortMap = new Map<string, { eligible: number; retained: number }>();
     // Per-agency cohort map: agencyId → month → { eligible, retained }
     const agencyCohortMap = new Map<string, Map<string, { eligible: number; retained: number }>>();
 
@@ -380,7 +382,7 @@ Deno.serve(async (req) => {
 
             if (isRetained) bucket.retained++;
 
-            // Cohort tracking (org-wide + per-agency)
+            // Cohort tracking (org-wide + per-product + per-agency)
             if (type === "cohort" || type === "summary") {
               const monthKey = appRecvdDate.slice(0, 7);
               if (!cohortMap.has(monthKey)) {
@@ -389,6 +391,15 @@ Deno.serve(async (req) => {
               const cohort = cohortMap.get(monthKey)!;
               cohort.eligible++;
               if (isRetained) cohort.retained++;
+
+              // Per-product cohort
+              const prodKey = `${productType}:${monthKey}`;
+              if (!productCohortMap.has(prodKey)) {
+                productCohortMap.set(prodKey, { eligible: 0, retained: 0 });
+              }
+              const prodCohort = productCohortMap.get(prodKey)!;
+              prodCohort.eligible++;
+              if (isRetained) prodCohort.retained++;
 
               // Per-agency cohort
               if (!agencyCohortMap.has(agencyId)) {
@@ -533,6 +544,30 @@ Deno.serve(async (req) => {
           }))
           .sort((a, b) => a.month.localeCompare(b.month));
 
+        // Per-product monthly cohort breakdown
+        const productCohorts: Array<{
+          product_type: string;
+          month: string;
+          eligible: number;
+          retained: number;
+          retention_pct: number | null;
+        }> = [];
+        for (const [key, c] of productCohortMap) {
+          const [pt, month] = key.split(":");
+          productCohorts.push({
+            product_type: pt,
+            month,
+            eligible: c.eligible,
+            retained: c.retained,
+            retention_pct: c.eligible > 0
+              ? Math.round((c.retained / c.eligible) * 1000) / 10
+              : null,
+          });
+        }
+        productCohorts.sort((a, b) =>
+          a.product_type.localeCompare(b.product_type) || a.month.localeCompare(b.month)
+        );
+
         // Per-agency monthly cohort breakdown
         const agencyCohorts: Array<{
           agency_id: string;
@@ -558,7 +593,7 @@ Deno.serve(async (req) => {
           a.agency_id.localeCompare(b.agency_id) || a.month.localeCompare(b.month)
         );
 
-        result = { cohorts, agency_cohorts: agencyCohorts };
+        result = { cohorts, product_cohorts: productCohorts, agency_cohorts: agencyCohorts };
         break;
       }
 
