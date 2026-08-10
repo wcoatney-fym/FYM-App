@@ -53,6 +53,15 @@ Deno.serve(async (req) => {
     const FETCH_SIZE = 5000;
     let offset = 0;
 
+    // Push agency/agent filters to SQL level for performance.
+    // JS-level filters remain as a second pass for roster remapping correctness.
+    const agencySQL = agencyFilter
+      ? sql`AND TRIM(ga) = ${agencyFilter}`
+      : sql``;
+    const agentSQL = agentFilter
+      ? sql`AND TRIM(wa) = ${agentFilter}`
+      : sql``;
+
     // Per-agency retention accumulators
     interface RetentionBucket {
       agency_id: string;
@@ -108,6 +117,7 @@ Deno.serve(async (req) => {
           TRIM(wa) AS wa,
           roster_hierarchy_json
         FROM typed.unl_fym_policy_latest_load
+        WHERE 1=1 ${agencySQL} ${agentSQL}
         ORDER BY policy_nbr
         OFFSET ${offset}
         LIMIT ${FETCH_SIZE}
