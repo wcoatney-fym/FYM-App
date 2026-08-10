@@ -254,7 +254,6 @@ export function AgencyDetailPage() {
 
   // Aggregate stats from agents
   const totalAgents = agents.length;
-  const totalAtRisk = agents.reduce((s, a) => s + a.at_risk_policies, 0);
 
   if (loading) {
     return (
