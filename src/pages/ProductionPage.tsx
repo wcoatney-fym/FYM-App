@@ -610,9 +610,6 @@ export function ProductionPage() {
               </TableHeader>
               <TableBody>
                 {sortedAgencies.filter(a => a.active_policies > 0 || a.policies_this_month > 0).map(agency => {
-                  const retentionPct = agency.total_policies > 0
-                    ? Math.round((agency.active_policies / agency.total_policies) * 1000) / 10
-                    : null;
                   return (
                     <TableRow key={agency.agency_id} className="cursor-pointer group hover:bg-background transition-colors">
                       <TableCell className="py-3">
