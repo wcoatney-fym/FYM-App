@@ -50,23 +50,141 @@ Deno.serve(async (req) => {
   try {
     sql = createProdConnection();
 
+    // ── FAST PATH: SQL-level aggregation for filtered queries ──────────
+    // When filtering to a specific agency/agent, push ALL aggregation to
+    // Postgres in a single query instead of streaming rows to JS.
+    // Skips roster map load and pagination loop entirely.
+    if (type === "agent" && (agencyFilter || agentFilter)) {
+      const dateF = startDate && endDate
+        ? sql`AND app_recvd_date >= ${startDate}::date AND app_recvd_date < ${endDate}::date`
+        : sql``;
+      const agF = agencyFilter ? sql`AND TRIM(ga) = ${agencyFilter}` : sql``;
+      const atF = agentFilter ? sql`AND TRIM(wa) = ${agentFilter}` : sql``;
+
+      const now = new Date();
+      const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+      const rows = await sql`
+        WITH filtered AS (
+          SELECT
+            TRIM(wa) AS agent_wn,
+            TRIM(wa_name) AS wa_name,
+            TRIM(ga) AS agency_wn,
+            UPPER(TRIM(cntrct_code)) AS status_code,
+            COALESCE(annual_premium, 0) AS annual_premium,
+            COALESCE(at_risk_policy, false) AS at_risk_policy,
+            app_recvd_date,
+            paid_to_date,
+            COALESCE(billing_mode, 1) AS billing_mode,
+            TRIM(plan_code) AS plan_code
+          FROM typed.unl_fym_policy_latest_load
+          WHERE 1=1 ${dateF} ${agF} ${atF}
+            AND TRIM(wa) IS NOT NULL AND TRIM(wa) != ''
+            AND (
+              UPPER(TRIM(plan_code)) LIKE '%HHC%' OR UPPER(TRIM(plan_code)) LIKE '%AHH%'
+              OR UPPER(TRIM(plan_code)) NOT LIKE '%HHC%'
+            )
+        ),
+        with_status AS (
+          SELECT *,
+            CASE status_code
+              WHEN 'A' THEN 'active'
+              WHEN 'T' THEN 'terminated'
+              WHEN 'P' THEN 'pending'
+              WHEN 'S' THEN 'suspended'
+              ELSE 'pending'
+            END AS status,
+            CASE
+              WHEN UPPER(plan_code) LIKE '%HHC%' OR UPPER(plan_code) LIKE '%AHH%' THEN 'HHC'
+              ELSE 'HI'
+            END AS product_type,
+            CASE
+              WHEN paid_to_date IS NOT NULL AND app_recvd_date IS NOT NULL
+                AND paid_to_date >= app_recvd_date
+              THEN GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (paid_to_date::timestamp - app_recvd_date::timestamp)) / 86400 /
+                CASE WHEN billing_mode = 12 THEN 365
+                     WHEN billing_mode = 6 THEN 182
+                     WHEN billing_mode = 3 THEN 91
+                     ELSE 30 END))
+              ELSE 0
+            END AS draft_count
+          FROM filtered
+          WHERE (
+            UPPER(plan_code) LIKE '%HHC%' OR UPPER(plan_code) LIKE '%AHH%'
+            OR UPPER(plan_code) LIKE '%HI%' OR UPPER(plan_code) LIKE '%HIP%'
+            OR UPPER(plan_code) LIKE '%UHL%' OR plan_code IS NOT NULL
+          )
+        )
+        SELECT
+          agent_wn AS agent_id,
+          MIN(wa_name) AS wa_name,
+          MIN(agency_wn) AS agency_id,
+          COUNT(*) AS total_policies,
+          COUNT(*) FILTER (WHERE status = 'active') AS active_policies,
+          COUNT(*) FILTER (WHERE status = 'terminated') AS terminated_policies,
+          COUNT(*) FILTER (WHERE status = 'pending') AS pending_policies,
+          COUNT(*) FILTER (WHERE at_risk_policy = true AND status = 'active') AS at_risk_policies,
+          COALESCE(SUM(annual_premium / 12) FILTER (WHERE status = 'active'), 0) AS active_monthly_premium,
+          COALESCE(SUM(annual_premium) FILTER (WHERE status = 'active'), 0) AS active_annual_premium,
+          COUNT(*) FILTER (WHERE TO_CHAR(app_recvd_date, 'YYYY-MM') = ${thisMonth}) AS policies_this_month,
+          COALESCE(SUM(annual_premium) FILTER (WHERE TO_CHAR(app_recvd_date, 'YYYY-MM') = ${thisMonth}), 0) AS ap_this_month,
+          COUNT(*) FILTER (WHERE draft_count >= 1) AS ever_drafted,
+          COUNT(*) FILTER (WHERE draft_count >= 3) AS retained_policies,
+          MIN(app_recvd_date) AS earliest_issue_date
+        FROM with_status
+        WHERE product_type IN ('HI', 'HHC')
+        GROUP BY agent_wn
+        ORDER BY active_annual_premium DESC
+      `;
+
+      const agents = rows.map((r: Record<string, unknown>) => {
+        const rawWaName = (r.wa_name as string | null)?.trim() || null;
+        const agentName = rawWaName
+          ? rawWaName.replace(/\b\w+/g, (w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+          : null;
+        const activePolicies = Number(r.active_policies) || 0;
+        const activeAP = Number(r.active_annual_premium) || 0;
+        const everDrafted = Number(r.ever_drafted) || 0;
+        const retained = Number(r.retained_policies) || 0;
+        return {
+          agent_id: r.agent_id as string,
+          agent_name: agentName,
+          writing_number: r.agent_id as string,
+          agency_id: r.agency_id as string,
+          total_policies: Number(r.total_policies) || 0,
+          active_policies: activePolicies,
+          terminated_policies: Number(r.terminated_policies) || 0,
+          pending_policies: Number(r.pending_policies) || 0,
+          at_risk_policies: Number(r.at_risk_policies) || 0,
+          active_monthly_premium: Math.round((Number(r.active_monthly_premium) || 0) * 100) / 100,
+          active_annual_premium: activeAP,
+          policies_this_month: Number(r.policies_this_month) || 0,
+          ap_this_month: Number(r.ap_this_month) || 0,
+          retained_policies: retained,
+          ever_drafted: everDrafted,
+          avg_annual_premium: activePolicies > 0 ? Math.round((activeAP / activePolicies) * 100) / 100 : 0,
+          retention_pct: everDrafted > 0 ? Math.round((retained / everDrafted) * 1000) / 10 : null,
+          earliest_issue_date: r.earliest_issue_date
+            ? new Date(r.earliest_issue_date as string).toISOString().split("T")[0]
+            : null,
+        };
+      });
+
+      const elapsedMs = Math.round(performance.now() - started);
+      return jsonResponse({ data: agents, _source: "prod_direct_sql_agg", _elapsed_ms: elapsedMs });
+    }
+
+    // ── STANDARD PATH: row-by-row scan (org-wide or unfiltered) ────────
     // Load roster-based agent→agency overrides from FYM App DB.
-    // When an agent's writing number exists in a roster, the roster's
-    // agency assignment takes precedence over the UNL hierarchy.
     const rosterMap = await loadRosterMap();
 
     // Build the base query with optional date/agency/agent SQL filters
     const dateFilter = startDate && endDate
       ? sql`AND app_recvd_date >= ${startDate}::date AND app_recvd_date < ${endDate}::date`
       : sql``;
-    // Push agency filter to SQL level (ga = agency writing number).
-    // Roster remapping may reassign some policies, so JS-level filtering
-    // remains as a second pass — but the SQL filter eliminates ~90% of rows
-    // for single-agency queries, making it dramatically faster.
     const agencySQL = agencyFilter
       ? sql`AND TRIM(ga) = ${agencyFilter}`
       : sql``;
-    // Push agent filter to SQL level (wa = agent writing number).
     const agentSQL = agentFilter
       ? sql`AND TRIM(wa) = ${agentFilter}`
       : sql``;
