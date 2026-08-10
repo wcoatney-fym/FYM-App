@@ -1,30 +1,51 @@
-import { useEffect, useState, useMemo } from 'react';
-import { useParams, Link, Navigate } from 'react-router-dom';
+/**
+ * AgencyDetailPage — Agency drill-down with agents table
+ *
+ * Rewrite (2026-08-10):
+ * - Dropped slow fetchBookOfBusiness paginated fetch (caused loading timeout on 14K+ agencies)
+ * - Uses fetchRetentionSummary for agency KPIs (fast, single call)
+ * - Uses fetchAgentProduction for per-agent stats table (new)
+ * - Full drill-down: Agencies → Agency (agents list) → Agent detail
+ * - Product mix derived from agent stats, not individual policies
+ *
+ * Route: /agencies/:agencyId
+ */
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useParams, Link, Navigate, useNavigate } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { supabase } from '@/lib/supabase';
-import { fetchRetentionSummary, fetchBookOfBusiness } from '@/lib/prod-api';
-import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
-import { useCachedMultiFetch } from '@/hooks/useCachedFetch';
+import { Input } from '@/components/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { HudFrame } from '@/components/ui/hud-frame';
-import { StaggerContainer, StaggerItem } from '@/components/ui/animated';
+import { supabase } from '@/lib/supabase';
 import {
-  ShieldCheck, TrendingUp, AlertTriangle, DollarSign,
-  ArrowLeft, ChevronDown, ChevronUp,
-} from 'lucide-react';
+  fetchRetentionSummary,
+  fetchAgentProduction,
+  type AgentProduction,
+} from '@/lib/prod-api';
+import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { fmt$ } from '@/lib/formatUtils';
+import {
+  ArrowLeft, ShieldCheck, TrendingUp, AlertTriangle, DollarSign,
+  Search, ChevronRight, ChevronUp, ChevronDown, Download, Users,
+  ChevronLeft,
+} from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface AgencySummary {
   agency_id: string;
+  agency_name: string | null;
   active_policies: number;
+  terminated_policies: number;
   active_premium: number;
   at_risk_count: number;
   retained_90d: number;
   eligible_90d: number;
   retention_pct: number | null;
+  recent_3mo_pct: number | null;
+  prior_3mo_pct: number | null;
 }
 
 interface AgencyInfo {
@@ -34,59 +55,56 @@ interface AgencyInfo {
   is_active: boolean;
 }
 
-interface PolicyRow {
-  policy_number: string;
-  product_type: string | null;
-  status: string | null;
-  plan_premium: number | null;
-  paid_to_date: string | null;
-  policy_effective_date: string | null;
-  draft_count: number | null;
-  is_at_risk: boolean;
-  flag_type: string | null;
-}
+type SortKey = 'name' | 'active_policies' | 'active_monthly_premium' | 'at_risk_policies' | 'retention_pct' | 'ap_this_month';
 
-interface ProductBreakdown {
-  product: string;
-  count: number;
-  premium: number;
-  atRisk: number;
-}
+const PAGE_SIZE = 25;
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function retentionColor(pct: number | null) {
   if (pct === null) return 'text-muted-foreground';
-  if (pct >= 90) return 'text-emerald-400';
-  if (pct >= 85) return 'text-amber-400';
-  return 'text-red-400';
+  if (pct >= 90) return 'text-emerald-400 font-semibold';
+  if (pct >= 85) return 'text-amber-400 font-semibold';
+  return 'text-red-400 font-bold';
 }
 
-function retentionBg(pct: number | null) {
-  if (pct === null) return 'bg-background';
-  if (pct >= 90) return 'bg-emerald-500/10';
-  if (pct >= 85) return 'bg-amber-500/10';
-  return 'bg-red-500/10';
+function retentionBadge(pct: number | null) {
+  if (pct === null) return null;
+  if (pct >= 90) return <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 border text-[10px] px-1.5 py-0">On target</Badge>;
+  if (pct >= 85) return <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20 border text-[10px] px-1.5 py-0">At risk</Badge>;
+  return <Badge className="bg-red-500/10 text-red-400 border-red-500/20 border text-[10px] px-1.5 py-0">Below target</Badge>;
 }
 
-type SortKey = 'premium' | 'days' | 'product' | 'status';
-type SortDir = 'asc' | 'desc';
+function escCsv(val: string | number | null | undefined): string {
+  if (val === null || val === undefined) return '';
+  const s = String(val);
+  if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function AgencyDetailPage() {
   const { agencyId } = useParams<{ agencyId: string }>();
+  const navigate = useNavigate();
   const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
-  const [info, setInfo] = useState<AgencyInfo | null>(null);
-  const [resolvedWritingNumber, setResolvedWritingNumber] = useState<string>(agencyId || '');
-  const [showAtRisk, setShowAtRisk] = useState(false);
-  const [sortKey, setSortKey] = useState<SortKey>('premium');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
-  const [togglingTask, setTogglingTask] = useState<string | null>(null);
 
-  // Resolve agency name from local Supabase (not Max's DB)
+  const [info, setInfo] = useState<AgencyInfo | null>(null);
+  const [summary, setSummary] = useState<AgencySummary | null>(null);
+  const [agents, setAgents] = useState<AgentProduction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Agent table controls
+  const [search, setSearch] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey>('active_monthly_premium');
+  const [sortAsc, setSortAsc] = useState(false);
+  const [page, setPage] = useState(0);
+
+  // Load agency name from local Supabase
   useEffect(() => {
     if (!supabase || !agencyId) return;
     (async () => {
-      let resolved = agencyId;
       const { data: byWn } = await (supabase as any)
         .from('agencies')
         .select('id, writing_number, name, slug, is_active')
@@ -94,169 +112,184 @@ export function AgencyDetailPage() {
         .maybeSingle();
       if (byWn) {
         setInfo(byWn as AgencyInfo);
-        resolved = byWn.writing_number;
       } else {
-        // Fallback: try matching by agency UUID (legacy routes)
         const { data: byId } = await (supabase as any)
           .from('agencies')
           .select('id, writing_number, name, slug, is_active')
           .eq('id', agencyId)
           .maybeSingle();
-        if (byId) {
-          setInfo(byId as AgencyInfo);
-          resolved = byId.writing_number || agencyId;
-        }
+        if (byId) setInfo(byId as AgencyInfo);
       }
-      setResolvedWritingNumber(resolved);
     })();
   }, [agencyId]);
 
-  // Cached edge function data — instant render from localStorage
-  const cacheKey = `agency-detail-${resolvedWritingNumber}`;
-  const { data: cached, loading } = useCachedMultiFetch(
-    cacheKey,
-    {
-      retRes: () => fetchRetentionSummary({ agency_id: resolvedWritingNumber }),
-      bobRes: async () => {
-        // Paginate to get ALL policies (old code had a while loop)
-        const allData: any[] = [];
-        const PAGE_SIZE = 500;
-        let page = 0;
-        while (true) {
-          const res = await fetchBookOfBusiness({
-            agency_id: resolvedWritingNumber,
-            sort: 'premium',
-            order: 'desc',
-            page,
-            page_size: PAGE_SIZE,
-          });
-          allData.push(...res.data);
-          if (res.data.length < PAGE_SIZE) break;
-          page++;
+  // Load data from edge functions — parallel, no book-of-business
+  useEffect(() => {
+    if (!agencyId) return;
+    let cancelled = false;
+
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const [retRes, agentRes] = await Promise.all([
+          fetchRetentionSummary({ agency_id: agencyId }),
+          fetchAgentProduction({ agency_id: agencyId }),
+        ]);
+
+        if (cancelled) return;
+
+        // Find this agency in the retention summary
+        const agencySummary = retRes.data.agencies.find(
+          (a: any) => a.agency_id === agencyId
+        );
+        if (agencySummary) {
+          setSummary(agencySummary as AgencySummary);
+        } else {
+          // Agency exists but no data — show empty state
+          setSummary(null);
         }
-        return { data: allData };
-      },
-    },
-    { skip: !resolvedWritingNumber, deps: [resolvedWritingNumber] }
-  );
 
-  const summary = useMemo((): AgencySummary | null => {
-    if (!cached) return null;
-    const retRes = cached.retRes as any;
-    const agencySummary = retRes.data.agencies.find((a: any) => a.agency_id === resolvedWritingNumber);
-    if (!agencySummary) return null;
-    return {
-      agency_id: agencySummary.agency_id,
-      active_policies: agencySummary.active_policies,
-      active_premium: agencySummary.active_premium,
-      at_risk_count: agencySummary.at_risk_count,
-      retained_90d: agencySummary.retained_90d,
-      eligible_90d: agencySummary.eligible_90d,
-      retention_pct: agencySummary.retention_pct,
-    };
-  }, [cached, resolvedWritingNumber]);
-
-  const policies = useMemo((): PolicyRow[] => {
-    if (!cached) return [];
-    const bobRes = cached.bobRes as any;
-    return bobRes.data.map((p: any) => ({
-      policy_number: p.policy_number,
-      product_type: p.product_type,
-      status: p.status,
-      plan_premium: p.plan_premium,
-      paid_to_date: p.paid_to_date,
-      policy_effective_date: p.policy_effective_date,
-      draft_count: p.draft_count,
-      is_at_risk: p.is_at_risk,
-      flag_type: p.flag_type,
-    }));
-  }, [cached]);
-
-  // Product breakdown
-  const productBreakdown = useMemo(() => {
-    const map: Record<string, ProductBreakdown> = {};
-    for (const p of policies) {
-      const key = p.product_type ?? 'Unknown';
-      if (!map[key]) map[key] = { product: key, count: 0, premium: 0, atRisk: 0 };
-      if (p.status === 'active') {
-        map[key].count++;
-        map[key].premium += Number(p.plan_premium) || 0;
+        setAgents(agentRes);
+      } catch (err) {
+        if (!cancelled) {
+          console.error('AgencyDetailPage fetch error:', err);
+          setError(err instanceof Error ? err.message : 'Failed to load agency data');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      if (p.is_at_risk) map[key].atRisk++;
-    }
-    return Object.values(map).sort((a, b) => b.premium - a.premium);
-  }, [policies]);
+    })();
 
-  // At-risk policies (sortable)
-  const atRiskPolicies = useMemo(() => {
-    let rows = policies.filter(p => p.is_at_risk);
-    const dir = sortDir === 'desc' ? -1 : 1;
-    return [...rows].sort((a, b) => {
-      if (sortKey === 'premium') return dir * ((Number(a.plan_premium) || 0) - (Number(b.plan_premium) || 0));
-      if (sortKey === 'days') {
-        const daysA = a.paid_to_date ? Math.floor((Date.now() - new Date(a.paid_to_date).getTime()) / 86400000) : 0;
-        const daysB = b.paid_to_date ? Math.floor((Date.now() - new Date(b.paid_to_date).getTime()) / 86400000) : 0;
-        return dir * (daysA - daysB);
-      }
-      if (sortKey === 'product') return dir * (a.product_type ?? '').localeCompare(b.product_type ?? '');
-      return 0;
-    });
-  }, [policies, sortKey, sortDir]);
-
-  // Policy status breakdown
-  const statusCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const p of policies) {
-      const s = p.status ?? 'unknown';
-      counts[s] = (counts[s] || 0) + 1;
-    }
-    return counts;
-  }, [policies]);
-
-  function toggleSort(key: SortKey) {
-    if (sortKey === key) setSortDir(d => d === 'desc' ? 'asc' : 'desc');
-    else { setSortKey(key); setSortDir('desc'); }
-  }
-
-  function SortIcon({ k }: { k: SortKey }) {
-    if (sortKey !== k) return null;
-    return sortDir === 'desc' ? <ChevronDown size={13} className="inline ml-0.5" /> : <ChevronUp size={13} className="inline ml-0.5" />;
-  }
-
-  async function openTask(policy_number: string) {
-    if (!supabase || !agencyId) return;
-    setTogglingTask(policy_number);
-    await (supabase as any)
-      .from('atrisk_tasks')
-      .insert({
-        policy_number,
-        agency_id: agencyId,
-        status: 'open',
-        flag_type: 'at_risk',
-        due_date: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
-      });
-    setTogglingTask(null);
-  }
-
-  const agencyName = info?.name ?? agencyId?.slice(0, 8) + '…';
-  const s = summary;
+    return () => { cancelled = true; };
+  }, [agencyId]);
 
   // Guard: managers / agency admins cannot view another agency's detail page
-  // Placed AFTER all hooks to satisfy React's rules of hooks.
   if (!isOrgWide && effectiveAgencyId && agencyId !== effectiveAgencyId) {
     return <Navigate to="/" replace />;
   }
+
+  const agencyName = info?.name ?? summary?.agency_name ?? agencyId ?? '—';
+
+  // Filter + sort agents
+  const filtered = useMemo(() => {
+    let result = agents;
+    if (search) {
+      const q = search.toLowerCase();
+      result = result.filter(a =>
+        (a.agent_name ?? a.agent_id).toLowerCase().includes(q) ||
+        a.agent_id.toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [agents, search]);
+
+  const sorted = useMemo(() => {
+    const dir = sortAsc ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      switch (sortKey) {
+        case 'name': {
+          const nameA = (a.agent_name ?? a.agent_id).toLowerCase();
+          const nameB = (b.agent_name ?? b.agent_id).toLowerCase();
+          return dir * nameA.localeCompare(nameB);
+        }
+        case 'active_policies': return dir * (a.active_policies - b.active_policies);
+        case 'active_monthly_premium': return dir * (a.active_monthly_premium - b.active_monthly_premium);
+        case 'at_risk_policies': return dir * (a.at_risk_policies - b.at_risk_policies);
+        case 'retention_pct': return dir * ((a.retention_pct ?? -1) - (b.retention_pct ?? -1));
+        case 'ap_this_month': return dir * (a.ap_this_month - b.ap_this_month);
+        default: return 0;
+      }
+    });
+  }, [filtered, sortKey, sortAsc]);
+
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages - 1);
+  const paginated = sorted.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
+
+  // Reset page when filters change
+  useEffect(() => { setPage(0); }, [search]);
+
+  // Sort toggle
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) setSortAsc(p => !p);
+    else { setSortKey(key); setSortAsc(key === 'name'); }
+  }
+
+  function SortArrow({ k }: { k: SortKey }) {
+    if (sortKey !== k) return null;
+    return sortAsc
+      ? <ChevronUp size={10} className="inline ml-0.5" />
+      : <ChevronDown size={10} className="inline ml-0.5" />;
+  }
+
+  // Navigate to agent detail
+  const handleAgentClick = useCallback((agentWn: string) => {
+    navigate(`/production/${agencyId}/agent/${agentWn}`);
+  }, [navigate, agencyId]);
+
+  // CSV export
+  const handleExport = useCallback(() => {
+    const headers = ['Agent', 'Writing Number', 'Active Policies', 'Premium/mo', 'At-Risk', 'Retention %', 'MTD AP', 'Status'];
+    const csvRows = sorted.map(a => [
+      escCsv(a.agent_name ?? a.agent_id),
+      escCsv(a.agent_id),
+      a.active_policies,
+      Math.round(a.active_monthly_premium),
+      a.at_risk_policies,
+      a.retention_pct !== null ? a.retention_pct : '',
+      Math.round(a.ap_this_month),
+      a.retention_pct === null ? '' : a.retention_pct >= 90 ? 'On target' : a.retention_pct >= 85 ? 'At risk' : 'Below target',
+    ]);
+    const csv = [headers.join(','), ...csvRows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${(info?.name ?? agencyId ?? 'agency').replace(/[^a-zA-Z0-9]/g, '_')}-agents-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [sorted, info, agencyId]);
+
+  // Aggregate stats from agents
+  const totalAgents = agents.length;
 
   if (loading) {
     return (
       <div>
         <Header title="Agency Detail" />
         <div className="p-6 space-y-4">
-          {[1, 2, 3].map(i => <div key={i} className="h-28 rounded-lg shimmer " />)}
+          <Link to="/people/agencies" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors">
+            <ArrowLeft size={14} /> All Agencies
+          </Link>
+          {[1, 2, 3, 4].map(i => <div key={i} className="h-24 rounded-lg shimmer" />)}
         </div>
       </div>
     );
   }
+
+  if (error) {
+    return (
+      <div>
+        <Header title="Agency Detail" />
+        <div className="p-6 space-y-4">
+          <Link to="/people/agencies" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors">
+            <ArrowLeft size={14} /> All Agencies
+          </Link>
+          <Card className="border-red-500/20">
+            <CardContent className="py-8 text-center">
+              <AlertTriangle size={32} className="mx-auto text-red-400 mb-3" />
+              <p className="text-foreground font-medium mb-1">Failed to load agency data</p>
+              <p className="text-sm text-muted-foreground">{error}</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  const s = summary;
 
   return (
     <div>
@@ -268,60 +301,81 @@ export function AgencyDetailPage() {
           <ArrowLeft size={14} /> All Agencies
         </Link>
 
-        {/* KPI strip — HudFrame + text-3xl to match Dashboard/Agencies list */}
+        {/* Agency name + writing number header */}
+        <div>
+          <h2 className="text-xl font-bold text-foreground">{agencyName}</h2>
+          {agencyId && agencyId !== agencyName && (
+            <p className="text-sm text-muted-foreground font-data mt-0.5">{agencyId}</p>
+          )}
+          {info?.slug && (
+            <p className="text-xs text-muted-foreground mt-0.5">{info.slug}</p>
+          )}
+        </div>
+
+        {/* KPI strip */}
         <StaggerContainer
-          className="grid grid-cols-2 lg:grid-cols-4 gap-4"
+          className="grid grid-cols-2 lg:grid-cols-5 gap-4"
           role="region"
           aria-label="Agency key metrics"
         >
           {[
             {
-              title: 'Active Policies',
-              value: s ? s.active_policies.toLocaleString() : '—',
+              label: 'Active Policies',
+              end: s?.active_policies ?? 0,
               sub: s ? fmt$(s.active_premium) + '/mo' : '',
-              icon: ShieldCheck, color: 'text-primary', bg: 'bg-cyan-500/10',
+              icon: ShieldCheck,
               accent: undefined,
             },
             {
-              title: '90-Day Retention',
-              value: s?.retention_pct !== null && s?.retention_pct !== undefined ? `${s.retention_pct}%` : '—',
+              label: '90-Day Retention',
+              end: s?.retention_pct ?? 0,
+              fmt: (n: number) => n > 0 ? `${n}%` : '—',
               sub: s ? `${s.retained_90d} of ${s.eligible_90d} eligible` : '',
               icon: TrendingUp,
               color: s ? retentionColor(s.retention_pct) : 'text-muted-foreground',
-              bg: s ? retentionBg(s.retention_pct) : 'bg-background',
               accent: s?.retention_pct !== null && (s?.retention_pct ?? 0) >= 90
-                ? 'hsl(142 71% 45% / 0.4)'
-                : 'hsl(38 92% 50% / 0.4)',
+                ? 'hsl(142 71% 45% / 0.4)' : 'hsl(38 92% 50% / 0.4)',
             },
             {
-              title: 'At-Risk',
-              value: s ? s.at_risk_count.toString() : '—',
+              label: 'At-Risk',
+              end: s?.at_risk_count ?? 0,
               sub: 'flagged policies',
               icon: AlertTriangle,
-              color: s && s.at_risk_count > 0 ? 'text-red-400' : 'text-muted-foreground',
-              bg: s && s.at_risk_count > 0 ? 'bg-red-500/10' : 'bg-background',
-              accent: s && s.at_risk_count > 0 ? 'hsl(0 84% 60% / 0.4)' : undefined,
+              color: (s?.at_risk_count ?? 0) > 0 ? 'text-red-400' : 'text-muted-foreground',
+              accent: (s?.at_risk_count ?? 0) > 0 ? 'hsl(0 84% 60% / 0.4)' : undefined,
             },
             {
-              title: 'Avg Premium',
-              value: s && s.active_policies > 0 ? fmt$(s.active_premium / s.active_policies) : '—',
-              sub: 'per active policy',
-              icon: DollarSign, color: 'text-foreground/80', bg: 'bg-secondary',
+              label: 'Agents',
+              end: totalAgents,
+              sub: 'writing agents',
+              icon: Users,
               accent: undefined,
             },
-          ].map(card => (
-            <StaggerItem key={card.title}>
-              <HudFrame accentColor={card.accent}>
-                <Card className="border-border" role="group" aria-label={`${card.title}: ${card.value}`}>
-                  <CardContent className="p-5">
+            {
+              label: 'Avg Premium',
+              end: s && s.active_policies > 0 ? Math.round(s.active_premium / s.active_policies) : 0,
+              fmt: (n: number) => n > 0 ? fmt$(n) : '—',
+              sub: 'per active policy',
+              icon: DollarSign,
+              accent: undefined,
+            },
+          ].map(c => (
+            <StaggerItem key={c.label}>
+              <HudFrame accentColor={c.accent}>
+                <Card className="border-border" role="group" aria-label={`${c.label}: ${c.fmt ? c.fmt(c.end) : c.end}`}>
+                  <CardContent className="py-4 px-5">
                     <div className="flex items-start justify-between">
                       <div>
-                        <p className="text-sm font-medium text-muted-foreground">{card.title}</p>
-                        <p className="text-3xl font-bold text-foreground mt-1">{card.value}</p>
-                        {card.sub && <p className="text-xs text-muted-foreground mt-0.5">{card.sub}</p>}
+                        <p className="text-xs font-medium text-muted-foreground">{c.label}</p>
+                        <CountUp
+                          end={c.end}
+                          format={c.fmt}
+                          className={`text-2xl font-bold mt-0.5 block ${c.color ?? 'text-foreground'}`}
+                        />
+                        <p className="text-xs text-muted-foreground mt-0.5">{c.sub}</p>
                       </div>
-                      <div className={`p-2.5 rounded-lg ${card.bg}`} aria-hidden="true">
-                        <card.icon size={20} className={card.color} />
+                      <div className="p-2 rounded-lg bg-cyan-500/10" aria-hidden="true">
+                        <c.icon size={16} className="text-primary" />
                       </div>
                     </div>
                   </CardContent>
@@ -331,152 +385,215 @@ export function AgencyDetailPage() {
           ))}
         </StaggerContainer>
 
-        {/* Product breakdown + status */}
-        <div className="grid lg:grid-cols-2 gap-6">
+        {/* Retention trend (recent vs prior 3-month) */}
+        {s?.recent_3mo_pct !== null && s?.prior_3mo_pct !== null && s?.recent_3mo_pct !== undefined && s?.prior_3mo_pct !== undefined && (
           <Card className="border-border">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-semibold text-foreground">Product Mix</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="divide-y divide-border/30">
-                <div className="grid grid-cols-4 gap-2 px-4 py-2 bg-background text-xs font-semibold text-muted-foreground">
-                  <span>Product</span>
-                  <span className="text-right">Active</span>
-                  <span className="text-right">Premium/mo</span>
-                  <span className="text-right">At-Risk</span>
+            <CardContent className="py-4 px-5">
+              <div className="flex items-center gap-6">
+                <div>
+                  <p className="text-xs text-muted-foreground">Recent 3-Month Retention</p>
+                  <p className={`text-lg font-bold ${retentionColor(s.recent_3mo_pct)}`}>
+                    {s.recent_3mo_pct}%
+                  </p>
                 </div>
-                {productBreakdown.map(p => (
-                  <div key={p.product} className="grid grid-cols-4 gap-2 px-4 py-2.5 text-sm">
-                    <span>
-                      <Badge className={`text-[10px] px-1.5 py-0 border ${
-                        p.product === 'HHC' ? 'bg-sky-500/10 text-sky-400 border-sky-500/20' :
-                        p.product === 'HI' ? 'bg-violet-500/10 text-violet-400 border-violet-500/20' :
-                        'bg-background text-muted-foreground border-border'
-                      }`}>{p.product}</Badge>
-                    </span>
-                    <span className="text-right text-foreground/80 font-medium">{p.count}</span>
-                    <span className="text-right text-foreground/80">{fmt$(p.premium)}</span>
-                    <span className={`text-right font-medium ${p.atRisk > 0 ? 'text-red-400' : 'text-muted-foreground'}`}>
-                      {p.atRisk || '—'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-border">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-semibold text-foreground">Policy Status</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {Object.entries(statusCounts)
-                  .sort(([, a], [, b]) => b - a)
-                  .map(([status, count]) => {
-                    const total = policies.length || 1;
-                    const pct = Math.round((count / total) * 100);
-                    const barColor =
-                      status === 'active' ? 'bg-emerald-500/100' :
-                      status === 'lapsed' ? 'bg-red-400' :
-                      status === 'terminated' ? 'bg-slate-400' :
-                      'bg-amber-400';
-                    return (
-                      <div key={status}>
-                        <div className="flex items-center justify-between text-sm mb-1">
-                          <span className="capitalize text-foreground/80 font-medium">{status}</span>
-                          <span className="text-muted-foreground font-data">{count} ({pct}%)</span>
-                        </div>
-                        <div className="h-2 shimmer rounded-full overflow-hidden">
-                          <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* At-risk policies expandable section */}
-        {atRiskPolicies.length > 0 && (
-          <Card className="border-border">
-            <CardHeader className="pb-3">
-              <button
-                onClick={() => setShowAtRisk(!showAtRisk)}
-                className="w-full flex items-center justify-between"
-              >
-                <div className="flex items-center gap-2">
-                  <CardTitle className="text-base font-semibold text-foreground">
-                    At-Risk Policies
-                  </CardTitle>
-                  <Badge className="bg-red-500/10 text-red-400 border-red-500/20 border">
-                    {atRiskPolicies.length}
+                <div className="text-muted-foreground">vs</div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Prior 3-Month</p>
+                  <p className={`text-lg font-bold ${retentionColor(s.prior_3mo_pct)}`}>
+                    {s.prior_3mo_pct}%
+                  </p>
+                </div>
+                {s.recent_3mo_pct !== s.prior_3mo_pct && (
+                  <Badge className={`text-xs px-2 py-0.5 ${
+                    s.recent_3mo_pct > s.prior_3mo_pct
+                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                      : 'bg-red-500/10 text-red-400 border-red-500/20'
+                  } border`}>
+                    {s.recent_3mo_pct > s.prior_3mo_pct ? '↑' : '↓'}{' '}
+                    {Math.abs(Math.round((s.recent_3mo_pct - s.prior_3mo_pct) * 10) / 10)}pp
                   </Badge>
-                </div>
-                {showAtRisk ? <ChevronUp size={18} className="text-muted-foreground" /> : <ChevronDown size={18} className="text-muted-foreground" />}
-              </button>
-            </CardHeader>
-            {showAtRisk && (
-              <CardContent className="p-0 border-t border-border/50">
-                <div className="grid grid-cols-8 gap-2 px-4 py-2 bg-background text-xs font-semibold text-muted-foreground">
-                  <span className="col-span-2">Policy #</span>
-                  <span className="cursor-pointer hover:text-foreground" onClick={() => toggleSort('product')}>Product <SortIcon k="product" /></span>
-                  <span className="text-right cursor-pointer hover:text-foreground" onClick={() => toggleSort('premium')}>Premium <SortIcon k="premium" /></span>
-                  <span className="text-center">Drafts</span>
-                  <span className="text-right cursor-pointer hover:text-foreground" onClick={() => toggleSort('days')}>Days Idle <SortIcon k="days" /></span>
-                  <span className="text-center">Flag</span>
-                  <span className="text-center">Action</span>
-                </div>
-                <div className="divide-y divide-border/30 max-h-[400px] overflow-y-auto">
-                  {atRiskPolicies.map(p => {
-                    const daysIdle = p.paid_to_date
-                      ? Math.floor((Date.now() - new Date(p.paid_to_date).getTime()) / 86400000)
-                      : 0;
-                    const isBusy = togglingTask === p.policy_number;
-                    return (
-                      <div
-                        key={p.policy_number}
-                        className={`grid grid-cols-8 gap-2 px-4 py-2.5 text-sm items-center hover:bg-background ${
-                          daysIdle >= 30 ? 'border-l-2 border-l-red-400' : daysIdle >= 14 ? 'border-l-2 border-l-amber-400' : ''
-                        }`}
-                      >
-                        <span className="col-span-2 font-data text-xs text-foreground/80 truncate">{p.policy_number}</span>
-                        <span>
-                          <Badge className={`text-[10px] px-1.5 py-0 border ${
-                            p.product_type === 'HHC' ? 'bg-sky-500/10 text-sky-400 border-sky-500/20' : 'bg-violet-500/10 text-violet-400 border-violet-500/20'
-                          }`}>{p.product_type}</Badge>
-                        </span>
-                        <span className="text-right text-foreground/80 font-medium font-data">${(Number(p.plan_premium) || 0).toFixed(0)}</span>
-                        <span className="text-center text-muted-foreground font-data">{p.draft_count ?? 0}</span>
-                        <span className={`text-right font-semibold font-data ${daysIdle >= 30 ? 'text-red-400' : daysIdle >= 14 ? 'text-amber-400' : 'text-muted-foreground'}`}>
-                          {daysIdle}d
-                        </span>
-                        <span className="text-center">
-                          <Badge className={`text-[10px] px-1.5 py-0 border ${
-                            p.flag_type === 'at_risk' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
-                            'bg-background text-muted-foreground border-border'
-                          }`}>{p.flag_type ?? '—'}</Badge>
-                        </span>
-                        <span className="text-center">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={isBusy}
-                            onClick={() => openTask(p.policy_number)}
-                            className="h-6 px-2 text-[11px] border-border hover:border-primary/50 hover:text-primary"
-                          >
-                            {isBusy ? '…' : 'Task'}
-                          </Button>
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            )}
+                )}
+              </div>
+            </CardContent>
           </Card>
         )}
+
+        {/* Agents table */}
+        <Card className="border-border">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-base font-semibold text-foreground">Agents</CardTitle>
+                <Badge className="bg-primary/10 text-primary border-primary/20 border text-xs">
+                  {filtered.length}
+                </Badge>
+              </div>
+              <div className="flex items-center gap-3 flex-wrap">
+                {/* CSV export */}
+                <button
+                  onClick={handleExport}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-secondary/50 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label="Export agents to CSV"
+                  disabled={sorted.length === 0}
+                >
+                  <Download size={12} /> Export
+                </button>
+                {/* Search */}
+                <div className="relative w-full sm:w-56">
+                  <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Search agent…"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    className="pl-8 bg-card h-8 text-sm"
+                    aria-label="Search agents"
+                  />
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-background">
+                  <TableHead
+                    className="font-semibold text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                    onClick={() => toggleSort('name')}
+                  >
+                    Agent <SortArrow k="name" />
+                  </TableHead>
+                  <TableHead
+                    className="font-semibold text-muted-foreground text-right cursor-pointer hover:text-foreground transition-colors"
+                    onClick={() => toggleSort('active_policies')}
+                  >
+                    Active <SortArrow k="active_policies" />
+                  </TableHead>
+                  <TableHead
+                    className="font-semibold text-muted-foreground text-right cursor-pointer hover:text-foreground transition-colors"
+                    onClick={() => toggleSort('active_monthly_premium')}
+                  >
+                    Premium/mo <SortArrow k="active_monthly_premium" />
+                  </TableHead>
+                  <TableHead
+                    className="font-semibold text-muted-foreground text-right cursor-pointer hover:text-foreground transition-colors"
+                    onClick={() => toggleSort('at_risk_policies')}
+                  >
+                    At-Risk <SortArrow k="at_risk_policies" />
+                  </TableHead>
+                  <TableHead
+                    className="font-semibold text-muted-foreground text-right cursor-pointer hover:text-foreground transition-colors"
+                    onClick={() => toggleSort('retention_pct')}
+                  >
+                    Retention <SortArrow k="retention_pct" />
+                  </TableHead>
+                  <TableHead
+                    className="font-semibold text-muted-foreground text-right cursor-pointer hover:text-foreground transition-colors"
+                    onClick={() => toggleSort('ap_this_month')}
+                  >
+                    MTD AP <SortArrow k="ap_this_month" />
+                  </TableHead>
+                  <TableHead className="font-semibold text-muted-foreground text-center">Status</TableHead>
+                  <TableHead className="w-10" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paginated.map(a => (
+                  <TableRow
+                    key={a.agent_id}
+                    className={`hover:bg-background transition-colors cursor-pointer ${
+                      a.retention_pct !== null && a.retention_pct < 90 ? 'bg-red-500/5' : ''
+                    }`}
+                    onClick={() => handleAgentClick(a.agent_id)}
+                    role="link"
+                    tabIndex={0}
+                    onKeyDown={e => { if (e.key === 'Enter') handleAgentClick(a.agent_id); }}
+                  >
+                    <TableCell>
+                      <div className="font-medium text-foreground">
+                        {a.agent_name ?? <span className="font-data text-xs text-muted-foreground">{a.agent_id}</span>}
+                      </div>
+                      <div className="text-xs text-muted-foreground font-data">{a.agent_id}</div>
+                    </TableCell>
+                    <TableCell className="text-right font-medium text-foreground/80 font-data">
+                      {a.active_policies.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right text-foreground/80 font-data">
+                      {fmt$(a.active_monthly_premium)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className={a.at_risk_policies > 0 ? 'text-red-400 font-semibold' : 'text-muted-foreground'}>
+                        {a.at_risk_policies || '—'}
+                      </span>
+                    </TableCell>
+                    <TableCell className={`text-right ${retentionColor(a.retention_pct)}`}>
+                      {a.retention_pct !== null ? `${a.retention_pct}%` : '—'}
+                    </TableCell>
+                    <TableCell className="text-right text-foreground/80 font-data">
+                      {a.ap_this_month > 0 ? fmt$(a.ap_this_month) : '—'}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {retentionBadge(a.retention_pct)}
+                    </TableCell>
+                    <TableCell className="text-center" onClick={e => e.stopPropagation()}>
+                      <ChevronRight
+                        size={16}
+                        className="text-muted-foreground hover:text-primary transition-colors"
+                        aria-label={`View ${a.agent_name ?? a.agent_id} details`}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {paginated.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
+                      {agents.length === 0 ? 'No agents found for this agency.' : 'No agents match your search.'}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+
+            {/* Pagination controls */}
+            {sorted.length > PAGE_SIZE && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-border/50 text-sm">
+                <span className="text-muted-foreground">
+                  Showing {safePage * PAGE_SIZE + 1}–{Math.min((safePage + 1) * PAGE_SIZE, sorted.length)} of {sorted.length} agents
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setPage(p => Math.max(0, p - 1))}
+                    disabled={safePage === 0}
+                    className="p-1.5 rounded-md hover:bg-secondary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    aria-label="Previous page"
+                  >
+                    <ChevronLeft size={16} className="text-muted-foreground" />
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setPage(i)}
+                      className={`min-w-[28px] h-7 rounded-md text-xs font-medium transition-all ${
+                        i === safePage
+                          ? 'gradient-primary text-primary-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+                      }`}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                    disabled={safePage >= totalPages - 1}
+                    className="p-1.5 rounded-md hover:bg-secondary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    aria-label="Next page"
+                  >
+                    <ChevronRight size={16} className="text-muted-foreground" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

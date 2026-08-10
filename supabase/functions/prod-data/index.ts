@@ -130,6 +130,7 @@ Deno.serve(async (req) => {
           TRIM(ga) AS ga,
           TRIM(ga_name) AS ga_name,
           TRIM(wa) AS wa,
+          TRIM(wa_name) AS wa_name,
           roster_hierarchy_json
         FROM typed.unl_fym_policy_latest_load
         WHERE 1=1 ${dateFilter}
@@ -193,6 +194,13 @@ Deno.serve(async (req) => {
           .map((s) => s.trim())
           .join(" ") || null;
 
+        // Agent name from wa_name (writing agent name) — proper agent identity,
+        // not the policyholder (clientName). Title Case for display.
+        const rawWaName = (row.wa_name as string | null)?.trim() || null;
+        const agentName = rawWaName
+          ? rawWaName.replace(/\b\w+/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+          : null;
+
         // ── Agency accumulation ──
         if (type === "agency" || type === "daily" || type === "monthly" || type === "product_mix") {
           // FYM house production has blank ga_name — hardcode it
@@ -254,7 +262,7 @@ Deno.serve(async (req) => {
           if (!agentMap.has(agentWn)) {
             agentMap.set(agentWn, {
               agent_id: agentWn,
-              agent_name: clientName,
+              agent_name: agentName,
               writing_number: agentWn,
               agency_id: agencyId,
               total_policies: 0,
