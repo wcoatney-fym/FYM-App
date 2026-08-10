@@ -51,6 +51,14 @@ export function createProdConnection(): ReturnType<typeof postgres> {
   });
 }
 
+// ── Title case helper ────────────────────────────────────────────────
+// Max's DB stores names in ALL CAPS. Convert to proper Title Case.
+export function toTitleCase(str: string): string {
+  return str
+    .toLowerCase()
+    .replace(/(?:^|\s|[-'/])\S/g, (ch) => ch.toUpperCase());
+}
+
 // ── FYM MGA parent writing number ─────────────────────────────────────
 // Policies with null/empty ga are FYM direct agents — no sub-agency in
 // the hierarchy. All such production rolls up under FYM.

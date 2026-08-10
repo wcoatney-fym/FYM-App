@@ -25,6 +25,7 @@ import {
   createProdConnection,
   CONTRACT_STATUS,
   FYM_MGA_WN,
+  toTitleCase,
   planToProductType,
   extractAgencyWritingNumber,
   extractAgentWritingNumber,
@@ -206,10 +207,11 @@ Deno.serve(async (req) => {
           row.billing_mode as number | null
         );
 
-        const clientName = [row.first_name as string, row.last_name as string]
+        const rawClientName = [row.first_name as string, row.last_name as string]
           .filter(Boolean)
           .map((s) => s.trim())
           .join(" ") || null;
+        const clientName = rawClientName ? toTitleCase(rawClientName) : null;
 
         const policyNumber = (row.policy_nbr as string) || "";
 
@@ -222,8 +224,10 @@ Deno.serve(async (req) => {
         }
 
         // Resolve display names — fallback to "FYM" for null-ga direct agents
-        const agencyName = ((row.ga_name as string) || '').trim() || (agencyWn === FYM_MGA_WN ? 'FYM' : null);
-        const agentName = ((row.wa_name as string) || '').trim() || null;
+        const rawAgencyName = ((row.ga_name as string) || '').trim() || (agencyWn === FYM_MGA_WN ? 'FYM' : null);
+        const rawAgentName = ((row.wa_name as string) || '').trim() || null;
+        const agencyName = rawAgencyName ? toTitleCase(rawAgencyName) : null;
+        const agentName = rawAgentName ? toTitleCase(rawAgentName) : null;
 
         allPolicies.push({
           policy_number: policyNumber,
