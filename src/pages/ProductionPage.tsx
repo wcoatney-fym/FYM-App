@@ -57,6 +57,7 @@ interface AgencyRow {
   policies_last_month: number;
   ap_last_month: number;
   at_risk_policies: number;
+  at_risk_annual_premium: number;
 }
 
 // RawMonthlyRow kept for all-time fallback to monthly_production view
@@ -89,11 +90,25 @@ export function ProductionPage() {
 
   const useRpc = datePreset !== 'allTime';
 
+  // Build agency name lookup from retention data (ga_name from Max's DB) + local agencies table
+  const agencyNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    // Retention agencies have ga_name from Max's DB
+    for (const ra of orgData.retentionAgencies) {
+      if (ra.agency_name) {
+        // Title-case the name (ga_name comes in ALL CAPS)
+        const name = ra.agency_name.replace(/\b\w+/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+        map.set(ra.agency_id, name);
+      }
+    }
+    return map;
+  }, [orgData.retentionAgencies]);
+
   // Map org cache agency production to AgencyRow for all-time view
   const cachedAgencies = useMemo((): AgencyRow[] => {
     return orgData.agencyProduction.map(a => ({
       agency_id: a.agency_id,
-      agency_name: null,
+      agency_name: agencyNameMap.get(a.agency_id) ?? null,
       total_policies: a.total_policies,
       active_policies: a.active_policies,
       terminated_policies: a.terminated_policies,
@@ -105,8 +120,9 @@ export function ProductionPage() {
       policies_last_month: a.policies_last_month,
       ap_last_month: a.ap_last_month,
       at_risk_policies: a.at_risk_policies,
+      at_risk_annual_premium: a.at_risk_annual_premium,
     }));
-  }, [orgData.agencyProduction]);
+  }, [orgData.agencyProduction, agencyNameMap]);
 
   // Map org cache monthly production to RawMonthlyRow
   const cachedMonthly = useMemo((): RawMonthlyRow[] => {
@@ -171,7 +187,7 @@ export function ProductionPage() {
     ]).then(([prodAgencies, dailyData]) => {
       setLocalAgencies(prodAgencies.map(a => ({
         agency_id: a.agency_id,
-        agency_name: null,
+        agency_name: agencyNameMap.get(a.agency_id) ?? null,
         total_policies: a.total_policies,
         active_policies: a.active_policies,
         terminated_policies: a.terminated_policies,
@@ -183,6 +199,7 @@ export function ProductionPage() {
         policies_last_month: a.policies_last_month,
         ap_last_month: a.ap_last_month,
         at_risk_policies: a.at_risk_policies,
+        at_risk_annual_premium: a.at_risk_annual_premium,
       })));
       setLocalDaily(dailyData.map(d => ({
         agency_id: d.agency_id,
@@ -201,7 +218,7 @@ export function ProductionPage() {
       setDateLoading(false);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateRange, datePreset, effectiveAgencyWritingNumber, isOrgWide]);
+  }, [dateRange, datePreset, effectiveAgencyWritingNumber, isOrgWide, agencyNameMap]);
 
   // Filter + sort agencies
   const filteredAgencies = useMemo(() => {
@@ -289,7 +306,7 @@ export function ProductionPage() {
   const handleExport = () => {
     const activeAgencies = sortedAgencies.filter(a => a.active_policies > 0);
     if (activeAgencies.length === 0) return;
-    const headers = ['Agency', 'Active Policies', 'Annual Premium', 'Avg AP', 'Policies This Month', 'Policies Last Month', 'At Risk'];
+    const headers = ['Agency', 'Total Policies', 'Active', 'Pending', 'Terminated', 'Active AP', 'Avg AP', 'MTD Policies', 'MTD AP', 'Last Mo Policies', 'At Risk', 'At-Risk AP'];
     const escCsv = (val: string | number | null | undefined): string => {
       if (val === null || val === undefined) return '';
       const s = String(val);
@@ -298,12 +315,17 @@ export function ProductionPage() {
     };
     const csvRows = activeAgencies.map(a => [
       escCsv(a.agency_name ?? a.agency_id),
+      a.total_policies,
       a.active_policies,
+      a.pending_policies,
+      a.terminated_policies,
       Math.round(Number(a.active_annual_premium)),
       Math.round(Number(a.avg_annual_premium)),
       a.policies_this_month,
+      Math.round(Number(a.ap_this_month)),
       a.policies_last_month,
       a.at_risk_policies,
+      Math.round(Number(a.at_risk_annual_premium || 0)),
     ]);
     const csv = [headers.join(','), ...csvRows.map(r => r.join(','))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -568,58 +590,82 @@ export function ProductionPage() {
               </button>
             </div>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent className="p-0 overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead className="font-data text-xs w-[25%]">Agency</TableHead>
-                  <TableHead className="font-data text-xs text-right">Active</TableHead>
-                  <TableHead className="font-data text-xs text-right hidden md:table-cell">Annual Premium</TableHead>
-                  <TableHead className="font-data text-xs text-right hidden lg:table-cell">Avg AP</TableHead>
-                  <TableHead className="font-data text-xs text-right">This Month</TableHead>
-                  <TableHead className="font-data text-xs text-right hidden sm:table-cell">vs Last</TableHead>
-                  <TableHead className="font-data text-xs text-right">At Risk</TableHead>
+                <TableRow className="bg-background">
+                  <TableHead className="font-semibold text-xs text-muted-foreground min-w-[180px]">Agency</TableHead>
+                  <TableHead className="font-semibold text-xs text-muted-foreground text-right">Total</TableHead>
+                  <TableHead className="font-semibold text-xs text-muted-foreground text-right">Active</TableHead>
+                  <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden md:table-cell">Pending</TableHead>
+                  <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden lg:table-cell">Terminated</TableHead>
+                  <TableHead className="font-semibold text-xs text-muted-foreground text-right">Active AP</TableHead>
+                  <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden lg:table-cell">Avg AP</TableHead>
+                  <TableHead className="font-semibold text-xs text-muted-foreground text-right">MTD Policies</TableHead>
+                  <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden md:table-cell">MTD AP</TableHead>
+                  <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden sm:table-cell">vs Last Mo</TableHead>
+                  <TableHead className="font-semibold text-xs text-muted-foreground text-right">At Risk</TableHead>
+                  <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden lg:table-cell">At-Risk AP</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sortedAgencies.filter(a => a.active_policies > 0).map(agency => (
-                  <TableRow key={agency.agency_id} className="cursor-pointer group">
-                    <TableCell className="py-3">
-                      <Link
-                        to={`/production/${agency.agency_id}`}
-                        className="font-medium text-foreground truncate block group-hover:text-primary transition-colors"
-                      >
-                        {agency.agency_name || agency.agency_id.slice(0, 12) + '…'}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="text-right text-muted-foreground font-data">
-                      {fmtNum(agency.active_policies)}
-                    </TableCell>
-                    <TableCell className="text-right text-foreground/80 font-medium font-data hidden md:table-cell">
-                      {fmt$(Number(agency.active_annual_premium))}
-                    </TableCell>
-                    <TableCell className="text-right text-muted-foreground font-data hidden lg:table-cell">
-                      {fmt$(Number(agency.avg_annual_premium))}
-                    </TableCell>
-                    <TableCell className="text-right text-foreground font-data font-medium">
-                      {fmtNum(agency.policies_this_month)}
-                    </TableCell>
-                    <TableCell className="text-right hidden sm:table-cell">
-                      <DeltaBadge
-                        current={agency.policies_this_month}
-                        previous={agency.policies_last_month}
-                      />
-                    </TableCell>
-                    <TableCell className={`text-right font-data ${
-                      agency.at_risk_policies > 0 ? 'text-red-400 font-medium' : 'text-muted-foreground'
-                    }`}>
-                      {agency.at_risk_policies || '—'}
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {sortedAgencies.filter(a => a.active_policies > 0).length === 0 && (
+                {sortedAgencies.filter(a => a.active_policies > 0 || a.policies_this_month > 0).map(agency => {
+                  return (
+                    <TableRow key={agency.agency_id} className="cursor-pointer group hover:bg-background transition-colors">
+                      <TableCell className="py-3">
+                        <Link
+                          to={`/production/${agency.agency_id}`}
+                          className="font-medium text-foreground truncate block max-w-[200px] group-hover:text-primary transition-colors"
+                        >
+                          {agency.agency_name || agency.agency_id}
+                        </Link>
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground font-data text-sm">
+                        {fmtNum(agency.total_policies)}
+                      </TableCell>
+                      <TableCell className="text-right font-data text-sm">
+                        <span className="text-emerald-400 font-medium">{fmtNum(agency.active_policies)}</span>
+                      </TableCell>
+                      <TableCell className="text-right text-amber-400 font-data text-sm hidden md:table-cell">
+                        {agency.pending_policies > 0 ? fmtNum(agency.pending_policies) : '—'}
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground font-data text-sm hidden lg:table-cell">
+                        {agency.terminated_policies > 0 ? fmtNum(agency.terminated_policies) : '—'}
+                      </TableCell>
+                      <TableCell className="text-right text-foreground/80 font-medium font-data text-sm">
+                        {fmt$(Number(agency.active_annual_premium))}
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground font-data text-sm hidden lg:table-cell">
+                        {fmt$(Number(agency.avg_annual_premium))}
+                      </TableCell>
+                      <TableCell className="text-right text-foreground font-data font-medium text-sm">
+                        {fmtNum(agency.policies_this_month)}
+                      </TableCell>
+                      <TableCell className="text-right text-foreground/80 font-data text-sm hidden md:table-cell">
+                        {fmt$(Number(agency.ap_this_month))}
+                      </TableCell>
+                      <TableCell className="text-right hidden sm:table-cell">
+                        <DeltaBadge
+                          current={agency.policies_this_month}
+                          previous={agency.policies_last_month}
+                        />
+                      </TableCell>
+                      <TableCell className={`text-right font-data text-sm ${
+                        agency.at_risk_policies > 0 ? 'text-red-400 font-medium' : 'text-muted-foreground'
+                      }`}>
+                        {agency.at_risk_policies > 0 ? fmtNum(agency.at_risk_policies) : '—'}
+                      </TableCell>
+                      <TableCell className={`text-right font-data text-sm hidden lg:table-cell ${
+                        agency.at_risk_policies > 0 ? 'text-red-400/80' : 'text-muted-foreground'
+                      }`}>
+                        {agency.at_risk_policies > 0 ? fmt$(Number(agency.at_risk_annual_premium || 0)) : '—'}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+                {sortedAgencies.filter(a => a.active_policies > 0 || a.policies_this_month > 0).length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
                       {search ? `No agencies matching "${search}"` : 'No active agencies'}
                     </TableCell>
                   </TableRow>

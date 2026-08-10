@@ -187,6 +187,11 @@ Deno.serve(async (req) => {
     const dateFilter = startDate && endDate
       ? sql`AND app_recvd_date >= ${startDate}::date AND app_recvd_date < ${endDate}::date`
       : sql``;
+    // Push agency filter to SQL level (ga = agency writing number).
+    // Roster remapping may reassign some policies, so JS-level filtering
+    // remains as a second pass — but the SQL filter eliminates ~90% of rows
+    // for single-agency queries, making it dramatically faster.
+    // FYM direct agents have null/empty ga — include those when filtering for FYM.
     const agencySQL = agencyFilter
       ? agencyFilter === FYM_MGA_WN
         ? sql`AND (TRIM(ga) = ${agencyFilter} OR ga IS NULL OR TRIM(ga) = '')`
