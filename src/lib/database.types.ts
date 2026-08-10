@@ -30,6 +30,25 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['agencies']['Insert']>;
         Relationships: [];
       };
+      agency_writing_numbers: {
+        Row: {
+          id: string;
+          agency_id: string;
+          carrier: string;
+          writing_number: string;
+          is_primary: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['agency_writing_numbers']['Row'], 'id' | 'created_at' | 'updated_at' | 'is_primary'> & {
+          id?: string;
+          is_primary?: boolean;
+        };
+        Update: Partial<Database['public']['Tables']['agency_writing_numbers']['Insert']>;
+        Relationships: [
+          { foreignKeyName: 'agency_writing_numbers_agency_id_fkey'; columns: ['agency_id']; referencedRelation: 'agencies'; referencedColumns: ['id'] }
+        ];
+      };
       profiles: {
         Row: {
           id: string;
