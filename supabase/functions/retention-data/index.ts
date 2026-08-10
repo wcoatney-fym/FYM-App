@@ -56,6 +56,7 @@ Deno.serve(async (req) => {
     // Per-agency retention accumulators
     interface RetentionBucket {
       agency_id: string;
+      agency_name: string | null;
       total_policies: number;
       active_policies: number;
       terminated_policies: number;
@@ -103,6 +104,7 @@ Deno.serve(async (req) => {
           TRIM(first_name) AS first_name,
           TRIM(last_name) AS last_name,
           TRIM(ga) AS ga,
+          TRIM(ga_name) AS ga_name,
           TRIM(wa) AS wa,
           roster_hierarchy_json
         FROM typed.unl_fym_policy_latest_load
@@ -178,9 +180,13 @@ Deno.serve(async (req) => {
           : 0;
 
         // Init bucket
+        // Resolve agency name from flattened ga_name field
+        const rawGaName = (row.ga_name as string | null)?.trim() || null;
+
         if (!buckets.has(agencyId)) {
           buckets.set(agencyId, {
             agency_id: agencyId,
+            agency_name: rawGaName,
             total_policies: 0,
             active_policies: 0,
             terminated_policies: 0,
@@ -305,6 +311,7 @@ Deno.serve(async (req) => {
         // Return per-agency retention summaries
         const summaries = Array.from(buckets.values()).map((b) => ({
           agency_id: b.agency_id,
+          agency_name: b.agency_name,
           active_policies: b.active_policies,
           terminated_policies: b.terminated_policies,
           active_premium: Math.round(b.active_premium * 100) / 100,
