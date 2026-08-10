@@ -236,6 +236,7 @@ export async function fetchBookOfBusiness(params?: {
 
 export interface AgencyRetentionSummary {
   agency_id: string;
+  agency_name: string | null;
   active_policies: number;
   terminated_policies: number;
   active_premium: number;
