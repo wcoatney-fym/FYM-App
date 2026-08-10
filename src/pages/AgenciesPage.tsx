@@ -88,19 +88,41 @@ export function AgenciesPage() {
   const [page, setPage] = useState(0);
 
   // Load agency names from local Supabase (lightweight, not from Max's DB)
+  // Also loads agency_writing_numbers junction table for multi-carrier WN resolution
   useEffect(() => {
     if (!supabase) { setNamesLoaded(true); return; }
     (async () => {
+      // Step 1: load agencies (primary WN → name)
       const { data: agencyNames } = await (supabase as any)
         .from('agencies')
         .select('id, writing_number, name, slug, is_active, ghl_api_enabled');
+
+      const nm = new Map<string, { name: string; slug?: string; is_active: boolean; ghl_api_enabled?: boolean }>();
+      const idToMeta = new Map<string, { name: string; slug?: string; is_active: boolean; ghl_api_enabled?: boolean }>();
+
       if (agencyNames) {
-        const nm = new Map<string, { name: string; slug?: string; is_active: boolean; ghl_api_enabled?: boolean }>();
         for (const a of agencyNames as any[]) {
-          if (a.writing_number) nm.set(a.writing_number, { name: a.name, slug: a.slug ?? undefined, is_active: a.is_active, ghl_api_enabled: a.ghl_api_enabled ?? false });
+          const meta = { name: a.name, slug: a.slug ?? undefined, is_active: a.is_active, ghl_api_enabled: a.ghl_api_enabled ?? false };
+          if (a.writing_number) nm.set(a.writing_number, meta);
+          idToMeta.set(a.id, meta);
         }
-        setNameMap(nm);
       }
+
+      // Step 2: load junction table — map all carrier WNs to the same agency
+      const { data: junctionRows } = await (supabase as any)
+        .from('agency_writing_numbers')
+        .select('agency_id, writing_number');
+
+      if (junctionRows) {
+        for (const row of junctionRows as any[]) {
+          if (row.writing_number && !nm.has(row.writing_number)) {
+            const meta = idToMeta.get(row.agency_id);
+            if (meta) nm.set(row.writing_number, meta);
+          }
+        }
+      }
+
+      setNameMap(nm);
       setNamesLoaded(true);
     })();
   }, []);

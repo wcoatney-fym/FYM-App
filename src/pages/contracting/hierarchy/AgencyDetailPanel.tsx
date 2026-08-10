@@ -41,6 +41,7 @@ import {
   Building2,
 } from 'lucide-react';
 import { portalSupabase } from '@/lib/portal-supabase';
+import { supabase } from '@/lib/supabase';
 import { parseCSV } from '@/lib/contracting/csvParser';
 import { normalizeRosterRows } from '@/lib/contracting/rosterNormalizer';
 import type {
@@ -1458,17 +1459,76 @@ const AddAgentToRosterModal: React.FC<{
 
 const ALL_CARRIERS = ['UNL', 'GTL', 'AHL', 'Manhattan', 'Heartland'] as const;
 
+interface CarrierWritingNumber {
+  id: string;
+  carrier: string;
+  writing_number: string;
+  is_primary: boolean;
+}
+
 const CarriersSubTab: React.FC<{
   agency: PortalCrmAgency;
   onAgencyUpdated: (updated: PortalCrmAgency) => void;
 }> = ({ agency, onAgencyUpdated }) => {
   const [saving, setSaving] = useState<string | null>(null);
+  const [savingWn, setSavingWn] = useState<string | null>(null);
+  const [wnDrafts, setWnDrafts] = useState<Record<string, string>>({});
+  const [carrierWns, setCarrierWns] = useState<CarrierWritingNumber[]>([]);
+  const [appAgencyId, setAppAgencyId] = useState<string | null>(null);
+  const [wnLoaded, setWnLoaded] = useState(false);
   const current = agency.carriers || [];
+
+  // Look up the FYM App agency ID via the portal agency's UNL writing number,
+  // then load all writing numbers from the junction table.
+  useEffect(() => {
+    if (!supabase || !agency.unl_writing_number) {
+      setWnLoaded(true);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      // Step 1: resolve portal agency → FYM App agency ID
+      const { data: agencyRow } = await (supabase as any)
+        .from('agencies')
+        .select('id')
+        .eq('writing_number', agency.unl_writing_number)
+        .maybeSingle();
+
+      if (cancelled) return;
+      if (!agencyRow) {
+        setWnLoaded(true);
+        return;
+      }
+      setAppAgencyId(agencyRow.id);
+
+      // Step 2: load all writing numbers for this agency
+      const { data: wns } = await (supabase as any)
+        .from('agency_writing_numbers')
+        .select('id, carrier, writing_number, is_primary')
+        .eq('agency_id', agencyRow.id)
+        .order('carrier');
+
+      if (cancelled) return;
+      const loaded = (wns || []) as CarrierWritingNumber[];
+      setCarrierWns(loaded);
+
+      // Pre-fill drafts from saved values
+      const drafts: Record<string, string> = {};
+      for (const wn of loaded) {
+        drafts[wn.carrier] = wn.writing_number;
+      }
+      setWnDrafts(drafts);
+      setWnLoaded(true);
+    })();
+    return () => { cancelled = true; };
+  }, [agency.unl_writing_number]);
 
   const toggle = async (carrier: string) => {
     if (!portalSupabase) return;
     setSaving(carrier);
-    const updated = current.includes(carrier) ? current.filter((c) => c !== carrier) : [...current, carrier];
+    const updated = current.includes(carrier)
+      ? current.filter((c) => c !== carrier)
+      : [...current, carrier];
 
     const { error } = await (portalSupabase as any)
       .from('hierarchy_agencies')
@@ -1477,8 +1537,88 @@ const CarriersSubTab: React.FC<{
 
     if (!error) {
       onAgencyUpdated({ ...agency, carriers: updated });
+
+      // If carrier was removed and it had a writing number, delete it
+      if (!updated.includes(carrier) && appAgencyId && supabase) {
+        const existing = carrierWns.find((w) => w.carrier === carrier);
+        if (existing) {
+          await (supabase as any)
+            .from('agency_writing_numbers')
+            .delete()
+            .eq('id', existing.id);
+          setCarrierWns((prev) => prev.filter((w) => w.carrier !== carrier));
+          setWnDrafts((prev) => {
+            const next = { ...prev };
+            delete next[carrier];
+            return next;
+          });
+        }
+      }
     }
     setSaving(null);
+  };
+
+  const saveWritingNumber = async (carrier: string) => {
+    if (!supabase || !appAgencyId) return;
+    const draft = (wnDrafts[carrier] || '').trim();
+    if (!draft) return;
+
+    setSavingWn(carrier);
+    const existing = carrierWns.find((w) => w.carrier === carrier);
+
+    if (existing) {
+      // Update
+      const { error } = await (supabase as any)
+        .from('agency_writing_numbers')
+        .update({ writing_number: draft })
+        .eq('id', existing.id);
+
+      if (!error) {
+        setCarrierWns((prev) =>
+          prev.map((w) => (w.carrier === carrier ? { ...w, writing_number: draft } : w))
+        );
+      }
+    } else {
+      // Insert
+      const isPrimary = carrier === 'UNL';
+      const { data, error } = await (supabase as any)
+        .from('agency_writing_numbers')
+        .insert({
+          agency_id: appAgencyId,
+          carrier,
+          writing_number: draft,
+          is_primary: isPrimary,
+        })
+        .select('id, carrier, writing_number, is_primary')
+        .single();
+
+      if (!error && data) {
+        setCarrierWns((prev) => [...prev, data as CarrierWritingNumber]);
+      }
+    }
+    setSavingWn(null);
+  };
+
+  const deleteWritingNumber = async (carrier: string) => {
+    if (!supabase) return;
+    const existing = carrierWns.find((w) => w.carrier === carrier);
+    if (!existing) return;
+
+    setSavingWn(carrier);
+    const { error } = await (supabase as any)
+      .from('agency_writing_numbers')
+      .delete()
+      .eq('id', existing.id);
+
+    if (!error) {
+      setCarrierWns((prev) => prev.filter((w) => w.carrier !== carrier));
+      setWnDrafts((prev) => {
+        const next = { ...prev };
+        delete next[carrier];
+        return next;
+      });
+    }
+    setSavingWn(null);
   };
 
   return (
@@ -1489,7 +1629,7 @@ const CarriersSubTab: React.FC<{
         </div>
         <div>
           <h3 className="text-base font-bold text-foreground">Carrier Assignments</h3>
-          <p className="text-sm text-muted-foreground">Toggle which carriers this agency is contracted with</p>
+          <p className="text-sm text-muted-foreground">Toggle carriers and enter writing numbers</p>
         </div>
       </div>
 
@@ -1497,26 +1637,86 @@ const CarriersSubTab: React.FC<{
         {ALL_CARRIERS.map((carrier) => {
           const active = current.includes(carrier);
           const isSaving = saving === carrier;
+          const isSavingWn = savingWn === carrier;
+          const savedWn = carrierWns.find((w) => w.carrier === carrier);
+          const draft = wnDrafts[carrier] || '';
+          const isDirty = draft.trim() !== (savedWn?.writing_number || '');
+
           return (
-            <button
-              key={carrier}
-              onClick={() => toggle(carrier)}
-              disabled={isSaving}
-              className={`flex items-center justify-between px-4 py-3 rounded-lg border-2 transition-all ${
-                active ? 'border-sky-500/30 bg-sky-500/10' : 'border-border bg-card hover:border-border'
-              } ${isSaving ? 'opacity-60 pointer-events-none' : ''}`}
+            <div key={carrier} className="rounded-lg border-2 transition-all overflow-hidden"
+              style={{ borderColor: active ? 'rgba(14, 165, 233, 0.3)' : undefined }}
             >
-              <span className={`text-sm font-semibold ${active ? 'text-sky-400' : 'text-foreground/80'}`}>
-                {carrier}
-              </span>
-              <div
-                className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
-                  active ? 'bg-sky-500 text-white' : 'bg-secondary/30 text-muted-foreground'
-                }`}
+              {/* Carrier toggle row */}
+              <button
+                onClick={() => toggle(carrier)}
+                disabled={isSaving}
+                className={`w-full flex items-center justify-between px-4 py-3 transition-all ${
+                  active ? 'bg-sky-500/10' : 'bg-card hover:bg-secondary/10'
+                } ${isSaving ? 'opacity-60 pointer-events-none' : ''}`}
               >
-                <Check className="w-3.5 h-3.5" />
-              </div>
-            </button>
+                <span className={`text-sm font-semibold ${active ? 'text-sky-400' : 'text-foreground/80'}`}>
+                  {carrier}
+                </span>
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+                  active ? 'bg-sky-500 text-white' : 'bg-secondary/30 text-muted-foreground'
+                }`}>
+                  <Check className="w-3.5 h-3.5" />
+                </div>
+              </button>
+
+              {/* Writing number input — shown when carrier is active */}
+              {active && wnLoaded && (
+                <div className="px-4 pb-3 pt-1 bg-sky-500/5 border-t border-sky-500/10">
+                  <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1 block">
+                    Writing Number
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                      <Hash className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                      <input
+                        type="text"
+                        value={draft}
+                        onChange={(e) => setWnDrafts((prev) => ({ ...prev, [carrier]: e.target.value }))}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && isDirty) saveWritingNumber(carrier); }}
+                        placeholder={`e.g. ${carrier === 'UNL' ? '202NEW00' : carrier === 'GTL' ? 'GTL-12345' : carrier + '-WN'}`}
+                        className="w-full pl-8 pr-3 py-1.5 text-sm rounded-md bg-card border border-border text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-sky-500/50"
+                        disabled={isSavingWn}
+                      />
+                    </div>
+                    {isDirty && draft.trim() && (
+                      <button
+                        onClick={() => saveWritingNumber(carrier)}
+                        disabled={isSavingWn}
+                        className="p-1.5 rounded-md bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 transition-colors disabled:opacity-50"
+                        title="Save writing number"
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {savedWn && !isDirty && (
+                      <span className="p-1.5 text-emerald-400" title="Saved">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                      </span>
+                    )}
+                    {savedWn && (
+                      <button
+                        onClick={() => deleteWritingNumber(carrier)}
+                        disabled={isSavingWn}
+                        className="p-1.5 rounded-md text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                        title="Remove writing number"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  {savedWn?.is_primary && (
+                    <span className="inline-flex items-center gap-1 mt-1.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-400">
+                      Primary
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
           );
         })}
       </div>
@@ -1527,15 +1727,27 @@ const CarriersSubTab: React.FC<{
             Active Carriers
           </p>
           <div className="flex flex-wrap gap-2">
-            {current.map((c) => (
-              <span
-                key={c}
-                className="px-2.5 py-1 rounded-full text-xs font-bold bg-sky-500/10 text-sky-400 uppercase tracking-wider"
-              >
-                {c}
-              </span>
-            ))}
+            {current.map((c) => {
+              const wn = carrierWns.find((w) => w.carrier === c);
+              return (
+                <span
+                  key={c}
+                  className="px-2.5 py-1 rounded-full text-xs font-bold bg-sky-500/10 text-sky-400 uppercase tracking-wider"
+                >
+                  {c}{wn ? ` · ${wn.writing_number}` : ''}
+                </span>
+              );
+            })}
           </div>
+        </div>
+      )}
+
+      {!agency.unl_writing_number && (
+        <div className="mt-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-start gap-2">
+          <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+          <p className="text-xs text-amber-400">
+            This agency has no UNL writing number set. Add one in the Onboarding tab to enable writing number management.
+          </p>
         </div>
       )}
     </div>
