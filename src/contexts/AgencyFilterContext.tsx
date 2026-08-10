@@ -17,8 +17,13 @@ export function AgencyFilterProvider({ children }: { children: ReactNode }) {
   const { isFymAdmin } = useEffectiveAuth();
 
   // Single source of truth for the selected agency across all pages.
-  // FYM admins default to org-wide view (null = all agencies).
-  const [filterAgencyId, setFilterAgencyId] = useState<string | null>(null);
+  // FYM admins default to FYM agency view — Charlie requested this
+  // so the Agent Directory doesn't show "All Agencies" by default.
+  // FYM agency UUID: 338230f2-2058-407c-9507-5aa88d6d5e14 (writing_number: 202JVV00)
+  const FYM_AGENCY_ID = '338230f2-2058-407c-9507-5aa88d6d5e14';
+  const [filterAgencyId, setFilterAgencyId] = useState<string | null>(
+    isFymAdmin ? FYM_AGENCY_ID : null
+  );
 
   const showAgencyFilter = isFymAdmin;
   const isAllAgencies = isFymAdmin && filterAgencyId === null;

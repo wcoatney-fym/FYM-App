@@ -204,7 +204,7 @@ export function AgentsPage() {
                     >
                       Agent <SortIcon k="name" />
                     </TableHead>
-                    <TableHead className="font-semibold text-muted-foreground">Writing #</TableHead>
+                    <TableHead className="font-semibold text-muted-foreground">Carriers</TableHead>
                     <TableHead className="font-semibold text-muted-foreground">NPN</TableHead>
                     <TableHead className="font-semibold text-muted-foreground">Agency</TableHead>
                     <TableHead className="font-semibold text-muted-foreground">Phone</TableHead>
@@ -241,8 +241,27 @@ export function AgentsPage() {
                           {a.full_name || <span className="text-muted-foreground italic">Unknown</span>}
                         </span>
                       </TableCell>
-                      <TableCell className="font-data text-sm text-foreground/80">
-                        {a.writing_number || '—'}
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {a.writing_number && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">UNL</span>
+                          )}
+                          {a.gtl_writing_number && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-violet-500/10 text-violet-400 border border-violet-500/20">GTL</span>
+                          )}
+                          {a.ahl_writing_number && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20">AHL</span>
+                          )}
+                          {a.heartland_writing_number && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">HLN</span>
+                          )}
+                          {a.manhattan_writing_number && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-rose-500/10 text-rose-400 border border-rose-500/20">MHT</span>
+                          )}
+                          {!a.writing_number && !a.gtl_writing_number && !a.ahl_writing_number && !a.heartland_writing_number && !a.manhattan_writing_number && (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="font-data text-sm text-foreground/80">
                         {a.npn || '—'}
