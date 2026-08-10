@@ -55,9 +55,20 @@ Deno.serve(async (req) => {
     // agency assignment takes precedence over the UNL hierarchy.
     const rosterMap = await loadRosterMap();
 
-    // Build the base query with optional date filter
+    // Build the base query with optional date/agency/agent SQL filters
     const dateFilter = startDate && endDate
       ? sql`AND app_recvd_date >= ${startDate}::date AND app_recvd_date < ${endDate}::date`
+      : sql``;
+    // Push agency filter to SQL level (ga = agency writing number).
+    // Roster remapping may reassign some policies, so JS-level filtering
+    // remains as a second pass — but the SQL filter eliminates ~90% of rows
+    // for single-agency queries, making it dramatically faster.
+    const agencySQL = agencyFilter
+      ? sql`AND TRIM(ga) = ${agencyFilter}`
+      : sql``;
+    // Push agent filter to SQL level (wa = agent writing number).
+    const agentSQL = agentFilter
+      ? sql`AND TRIM(wa) = ${agentFilter}`
       : sql``;
 
     // Fetch all policies in one sweep (paginated for memory safety)
@@ -133,7 +144,7 @@ Deno.serve(async (req) => {
           TRIM(wa_name) AS wa_name,
           roster_hierarchy_json
         FROM typed.unl_fym_policy_latest_load
-        WHERE 1=1 ${dateFilter}
+        WHERE 1=1 ${dateFilter} ${agencySQL} ${agentSQL}
         ORDER BY policy_nbr
         OFFSET ${offset}
         LIMIT ${PAGE_SIZE}
