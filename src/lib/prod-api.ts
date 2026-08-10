@@ -184,7 +184,9 @@ export interface PolicyRow {
   is_at_risk: boolean;
   flag_type: string | null;
   agency_id: string;
+  agency_name: string | null;
   agent_writing_number: string | null;
+  agent_name: string | null;
   client_name: string | null;
   billing_mode: number | null;
   writing_number: string | null;
