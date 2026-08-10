@@ -301,6 +301,14 @@ export interface CohortEntry {
   retention_pct: number | null;
 }
 
+export interface ProductCohortEntry {
+  product_type: string;
+  month: string;
+  eligible: number;
+  retained: number;
+  retention_pct: number | null;
+}
+
 export interface AgencyCohortEntry {
   agency_id: string;
   month: string;
@@ -312,6 +320,7 @@ export interface AgencyCohortEntry {
 export interface CohortResponse {
   data: {
     cohorts: CohortEntry[];
+    product_cohorts?: ProductCohortEntry[];
     agency_cohorts?: AgencyCohortEntry[];
   };
   _source: string;
