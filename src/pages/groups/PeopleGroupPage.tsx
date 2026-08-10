@@ -11,7 +11,6 @@ export function PeopleGroupPage() {
     ...(isOrgWide
       ? [
           { to: '/people/provision', label: 'Provision Agents' },
-          { to: '/people/onboarding', label: 'Onboarding' },
         ]
       : []),
   ];
