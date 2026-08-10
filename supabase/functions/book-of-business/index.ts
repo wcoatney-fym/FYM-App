@@ -84,7 +84,9 @@ Deno.serve(async (req) => {
       is_at_risk: boolean;
       flag_type: string | null;
       agency_id: string;
+      agency_name: string | null;
       agent_writing_number: string | null;
+      agent_name: string | null;
       client_name: string | null;
       billing_mode: number | null;
       writing_number: string | null;
@@ -119,7 +121,9 @@ Deno.serve(async (req) => {
           TRIM(first_name) AS first_name,
           TRIM(last_name) AS last_name,
           TRIM(ga) AS ga,
+          TRIM(ga_name) AS ga_name,
           TRIM(wa) AS wa,
+          TRIM(wa_name) AS wa_name,
           roster_hierarchy_json
         FROM typed.unl_fym_policy_latest_load
         WHERE 1=1 ${agencySQL} ${agentSQL}
@@ -217,6 +221,10 @@ Deno.serve(async (req) => {
           if (!matchesPolicyNum && !matchesName) continue;
         }
 
+        // Resolve display names — fallback to "FYM" for null-ga direct agents
+        const agencyName = ((row.ga_name as string) || '').trim() || (agencyWn === FYM_MGA_WN ? 'FYM' : null);
+        const agentName = ((row.wa_name as string) || '').trim() || null;
+
         allPolicies.push({
           policy_number: policyNumber,
           product_type: productType,
@@ -230,7 +238,9 @@ Deno.serve(async (req) => {
           is_at_risk: isAtRisk,
           flag_type: flagType,
           agency_id: agencyWn || "unknown",
+          agency_name: agencyName,
           agent_writing_number: agentWn,
+          agent_name: agentName,
           client_name: clientName,
           billing_mode: row.billing_mode as number | null,
           writing_number: agentWn,
