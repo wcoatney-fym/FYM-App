@@ -18,6 +18,8 @@ import {
   planToProductType,
   extractAgencyWritingNumber,
   extractAgentWritingNumber,
+  resolveAgencyWn,
+  resolveAgentWn,
   resolveRiskFlag,
   estimateDraftCount,
   jsonResponse,
@@ -93,6 +95,8 @@ Deno.serve(async (req) => {
           at_risk_policy,
           TRIM(first_name) AS first_name,
           TRIM(last_name) AS last_name,
+          TRIM(ga) AS ga,
+          TRIM(wa) AS wa,
           roster_hierarchy_json
         FROM typed.unl_fym_policy_latest_load
         ORDER BY policy_nbr
@@ -114,9 +118,9 @@ Deno.serve(async (req) => {
           name: string;
         }> | null;
 
-        // Agency filter — use roster override when available
+        // Agency filter — use flattened ga field (primary), roster override as fallback
         if (agencyFilter) {
-          const hierarchyAgencyWn = extractAgencyWritingNumber(roster);
+          const hierarchyAgencyWn = resolveAgencyWn(row, roster);
           const resolvedAgencyWn = rosterMap.resolveAgencyFromHierarchy(roster, hierarchyAgencyWn);
           if (resolvedAgencyWn !== agencyFilter) continue;
         }
@@ -135,7 +139,7 @@ Deno.serve(async (req) => {
         // Determine which writing number(s) from our target set matched
         const matchedWns = targetWns.size > 0
           ? allWns.filter((wn) => targetWns.has(wn))
-          : [extractAgentWritingNumber(roster)].filter(Boolean);
+          : [resolveAgentWn(row, roster)].filter(Boolean);
 
         if (matchedWns.length === 0) continue;
 

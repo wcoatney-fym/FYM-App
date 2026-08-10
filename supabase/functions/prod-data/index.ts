@@ -25,6 +25,8 @@ import {
   planToProductType,
   extractAgencyWritingNumber,
   extractAgentWritingNumber,
+  resolveAgencyWn,
+  resolveAgentWn,
   resolveRiskFlag,
   estimateDraftCount,
   jsonResponse,
@@ -124,6 +126,8 @@ Deno.serve(async (req) => {
           at_risk_policy,
           TRIM(first_name) AS first_name,
           TRIM(last_name) AS last_name,
+          TRIM(ga) AS ga,
+          TRIM(wa) AS wa,
           roster_hierarchy_json
         FROM typed.unl_fym_policy_latest_load
         WHERE 1=1 ${dateFilter}
@@ -159,13 +163,12 @@ Deno.serve(async (req) => {
           name: string;
         }> | null;
 
-        const hierarchyAgencyWn = extractAgencyWritingNumber(roster);
-        const agentWn = extractAgentWritingNumber(roster);
+        // Primary path: flattened ga/wa fields (always populated)
+        // Fallback: roster_hierarchy_json (currently empty in Max's DB)
+        const hierarchyAgencyWn = resolveAgencyWn(row, roster);
+        const agentWn = resolveAgentWn(row, roster);
 
         // Roster override: scan ALL hierarchy writing numbers for a roster match.
-        // This catches agents whose individual writing number appears at any
-        // depth in the UNL hierarchy, even if extractAgentWritingNumber returns
-        // a different entry.
         const agencyWn = rosterMap.resolveAgencyFromHierarchy(roster, hierarchyAgencyWn);
         const agencyId = agencyWn || "unknown";
 

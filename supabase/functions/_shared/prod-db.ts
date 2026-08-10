@@ -66,7 +66,9 @@ export function planToProductType(planCode: string): string {
   return "HI";
 }
 
-// ── Extract agency writing number from roster hierarchy ───────────────
+// ── Extract agency writing number from roster hierarchy (LEGACY) ─────
+// roster_hierarchy_json is currently empty in Max's DB (0/46K rows as of
+// 2026-08-10). Kept for backward compat if it comes back.
 export function extractAgencyWritingNumber(
   roster: Array<{
     writing_number: string;
@@ -83,7 +85,7 @@ export function extractAgencyWritingNumber(
   return null;
 }
 
-// ── Extract writing agent's writing number ────────────────────────────
+// ── Extract writing agent's writing number (LEGACY) ──────────────────
 export function extractAgentWritingNumber(
   roster: Array<{
     writing_number: string;
@@ -96,6 +98,50 @@ export function extractAgentWritingNumber(
   const sorted = [...roster].sort((a, b) => b.depth.localeCompare(a.depth));
   const agent = sorted[0];
   return agent?.writing_number?.trim() || null;
+}
+
+// ── Flattened hierarchy extraction (PRIMARY — always populated) ──────
+// Max's DB has flattened fields: ga (depth-02 agency WN), wa (depth-03
+// writing agent WN). These are 100% populated vs roster_hierarchy_json
+// which is currently empty. Use these as the primary resolution path.
+
+/** Extract agency writing number from flattened ga field (depth-02). */
+export function extractAgencyWnFlat(row: Record<string, unknown>): string | null {
+  const ga = row.ga as string | null;
+  if (!ga) return null;
+  const trimmed = ga.trim();
+  return trimmed || null;
+}
+
+/** Extract agent writing number from flattened wa field (writing agent). */
+export function extractAgentWnFlat(row: Record<string, unknown>): string | null {
+  const wa = row.wa as string | null;
+  if (!wa) return null;
+  const trimmed = wa.trim();
+  return trimmed || null;
+}
+
+/**
+ * Resolve agency writing number — tries flattened fields first (always
+ * populated), then falls back to roster_hierarchy_json (currently empty
+ * but kept for forward compat).
+ */
+export function resolveAgencyWn(
+  row: Record<string, unknown>,
+  roster: Array<{ writing_number: string; depth: string; is_person: boolean; name: string }> | null
+): string | null {
+  return extractAgencyWnFlat(row) || extractAgencyWritingNumber(roster);
+}
+
+/**
+ * Resolve agent writing number — tries flattened fields first, then
+ * falls back to roster_hierarchy_json.
+ */
+export function resolveAgentWn(
+  row: Record<string, unknown>,
+  roster: Array<{ writing_number: string; depth: string; is_person: boolean; name: string }> | null
+): string | null {
+  return extractAgentWnFlat(row) || extractAgentWritingNumber(roster);
 }
 
 // ── Estimate draft count from dates + billing mode ────────────────────
