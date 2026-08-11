@@ -15,7 +15,7 @@ import {
   Command,
   TrendingUp,
   HeartPulse,
-  Swords,
+  
   FileSpreadsheet,
   Target,
   Megaphone,
@@ -41,7 +41,6 @@ const agentNav: NavItem[] = [
   { to: '/my-health', label: 'Book Health', icon: ShieldCheck },
   { to: '/coaching', label: 'Coaching', icon: HeartPulse },
   { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
-  { to: '/compete', label: 'Compete', icon: Swords },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -53,7 +52,6 @@ const managerNav: NavItem[] = [
   { to: '/quality/retention', label: 'Quality', icon: ShieldCheck, activePrefix: '/quality' },
   { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { to: '/workboard', label: 'Workboard', icon: ClipboardList },
-  { to: '/compete', label: 'Compete', icon: Swords },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -67,7 +65,6 @@ const fymAdminNav: NavItem[] = [
   { to: '/crm-command', label: 'CRM Command', icon: Command },
   { to: '/rosters', label: 'Rosters', icon: FileSpreadsheet },
   { to: '/recruiting', label: 'Recruiting', icon: Megaphone, activePrefix: '/recruiting' },
-  { to: '/compete', label: 'Compete', icon: Swords },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -80,7 +77,6 @@ const agencyAdminNav: NavItem[] = [
   { to: '/workboard', label: 'Workboard', icon: ClipboardList },
   { to: '/contracting', label: 'Contracting', icon: FileText },
   { to: '/crm-command', label: 'CRM Command', icon: Command },
-  { to: '/compete', label: 'Compete', icon: Swords },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 

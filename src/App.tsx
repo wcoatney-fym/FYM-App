@@ -29,7 +29,7 @@ import { BookOfBusinessPage } from '@/pages/BookOfBusinessPage';
 import { RetentionPage } from '@/pages/RetentionPage';
 import { CoachingPage } from '@/pages/CoachingPage';
 import { AtRiskPage } from '@/pages/AtRiskPage';
-import { GamificationPage } from '@/pages/GamificationPage';
+// GamificationPage removed — Compete content merged into LeaderboardPage
 import { AgencyRosterPage } from '@/pages/AgencyRosterPage';
 import { PeopleGroupPage } from '@/pages/groups/PeopleGroupPage';
 import { ProductionGroupPage } from '@/pages/groups/ProductionGroupPage';
@@ -52,7 +52,7 @@ function App() {
             {/* Accessible to all roles */}
             <Route path="/" element={<DashboardPage />} />
             <Route path="/leaderboard" element={<LeaderboardPage />} />
-            <Route path="/compete" element={<GamificationPage />} />
+            <Route path="/compete" element={<Navigate to="/leaderboard" replace />} />
             <Route path="/agents/:agentId/health" element={<RoleGuard allow={['admin', 'manager']}><AgentHealthPage /></RoleGuard>} />
             <Route path="/my-health" element={<AgentHealthPage />} />
             <Route path="/my-dashboard" element={<AgentDashboardPage />} />
