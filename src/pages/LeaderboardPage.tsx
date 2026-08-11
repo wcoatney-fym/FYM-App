@@ -32,9 +32,9 @@ import { DataFilters } from '@/components/filters/DataFilters';
 import { RampUpBoard, type RampUpAgent } from '@/components/leaderboard/RampUpBoard';
 import type { GamificationMetric, BattleType, ChallengeType } from '@/lib/database.types';
 import {
-  Trophy, TrendingUp, ShieldCheck, AlertTriangle, ChevronRight,
-  ChevronDown, ChevronUp, Calendar, DollarSign, FileText, Rocket,
-  Search, Swords, Target, Users, Percent, Crown, Plus,
+  Trophy, TrendingUp, ShieldCheck,
+  Calendar, DollarSign, FileText, Rocket,
+  Swords, Target, Users, Percent, Crown, Plus,
   CheckCircle2, XCircle, Clock,
 } from 'lucide-react';
 import { fmt$ } from '@/lib/formatUtils';
@@ -57,11 +57,10 @@ interface AgentLeaderRow {
   rank: number;
 }
 
-type SortKey = 'rank' | 'retention' | 'policies' | 'premium' | 'at_risk' | 'period_policies' | 'period_ap'
-  | 'ap' | 'apps' | 'save_rate' | 'taken_pct' | 'avg_ap' | 'agents';
+// SortKey removed — top 10 leaderboard sorts by category, not user-toggled columns
 type BoardTab = 'agencies' | 'ramp_up' | 'battles' | 'challenges' | 'create';
-// Period type removed — period toggles no longer in agency view
-// Metric type removed — period/metric toggles replaced by agent leaderboard
+type LeaderPeriod = 'week' | 'month' | 'year';
+type LeaderCategory = 'overall' | 'quality' | 'production';
 
 // ── Compete types ──────────────────────────────────────────────────────────
 interface Battle {
@@ -233,16 +232,15 @@ export function LeaderboardPage() {
   // rows state removed — agency-level view replaced by agent leaderboard
   const [agentRows, setAgentRows] = useState<AgentLeaderRow[]>([]);
   const [agentLoading, setAgentLoading] = useState(false);
-  // loading removed — replaced by agentLoading for agent leaderboard
-  const [sortKey, setSortKey] = useState<SortKey>('rank');
-  const [sortAsc, setSortAsc] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'above' | 'below'>('all');
-  // period state removed — period toggles no longer in agency view
-  // metric state removed — period/metric toggles replaced by agent leaderboard
+  // sortKey/sortAsc removed — top 10 leaderboard sorts by category
+  // filter/search removed — top 10 leaderboard doesn't need manual filtering
+  // Leaderboard period + category state
+  const [leaderPeriod, setLeaderPeriod] = useState<LeaderPeriod>('month');
+  const [leaderCategory, setLeaderCategory] = useState<LeaderCategory>('overall');
   const [boardTab, setBoardTab] = useState<BoardTab>('agencies');
   const [rampUpAgents, setRampUpAgents] = useState<RampUpAgent[]>([]);
   const [rampUpLoading, setRampUpLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  // searchQuery removed — top 10 leaderboard doesn't need search
 
   // ── Compete state ──
   const canCreate = role === 'admin' || role === 'manager';
@@ -293,6 +291,29 @@ export function LeaderboardPage() {
     return effectiveAgencyId || null;
   }, [isOrgWide, filterAgencyId, effectiveAgencyId]);
 
+  // Compute date range for selected leaderboard period
+  const leaderDateRange = useMemo(() => {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const endDate = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    let startDate: string;
+    switch (leaderPeriod) {
+      case 'week': {
+        const d = new Date(now);
+        d.setDate(d.getDate() - d.getDay()); // start of week (Sunday)
+        startDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        break;
+      }
+      case 'month':
+        startDate = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`;
+        break;
+      case 'year':
+        startDate = `${now.getFullYear()}-01-01`;
+        break;
+    }
+    return { startDate, endDate };
+  }, [leaderPeriod]);
+
   useEffect(() => {
     if (boardTab !== 'agencies' || !agentLeaderAgencyId) return;
     let cancelled = false;
@@ -300,7 +321,11 @@ export function LeaderboardPage() {
 
     (async () => {
       try {
-        const agents = await fetchAgentProduction({ agency_id: agentLeaderAgencyId });
+        const agents = await fetchAgentProduction({
+          agency_id: agentLeaderAgencyId,
+          start_date: leaderDateRange.startDate,
+          end_date: leaderDateRange.endDate,
+        });
         if (cancelled) return;
 
         // Look up agency name
@@ -315,7 +340,10 @@ export function LeaderboardPage() {
         }
         if (cancelled) return;
 
-        const ranked = agents
+        // Only include agents who actually produced in this period
+        const producingAgents = agents.filter(a => a.total_policies > 0);
+
+        const ranked = producingAgents
           .map(a => ({
             agent_id: a.agent_id,
             agent_name: a.agent_name,
@@ -347,7 +375,7 @@ export function LeaderboardPage() {
     })();
 
     return () => { cancelled = true; };
-  }, [boardTab, agentLeaderAgencyId]);
+  }, [boardTab, agentLeaderAgencyId, leaderDateRange]);
 
   // Load ramp-up agents (first app within last 90 days)
   useEffect(() => {
@@ -362,8 +390,9 @@ export function LeaderboardPage() {
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
         const cutoff = `${ninetyDaysAgo.getFullYear()}-${String(ninetyDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(ninetyDaysAgo.getDate()).padStart(2, '0')}`;
 
-        // Scope to effective agency for non-FYM-admin users
-        const agencyScope = isOrgWide ? (filterAgencyId || undefined) : (effectiveAgencyId || undefined);
+        // Scope to effective agency — FYM admin defaults to FYM house (202JVV00)
+        // to avoid the slow org-wide scan that times out
+        const agencyScope = isOrgWide ? (filterAgencyId || '202JVV00') : (effectiveAgencyId || undefined);
 
         // Fetch agents — scoped by agency if applicable
         const allAgents = await fetchAgentProduction({
@@ -605,17 +634,7 @@ export function LeaderboardPage() {
   const activeBattleCount = battles.filter(b => b.status === 'active').length;
 
 
-  function toggleSort(key: SortKey) {
-    if (sortKey === key) setSortAsc(p => !p);
-    else { setSortKey(key); setSortAsc(key === 'rank'); }
-  }
-
-  function SortArrow({ k }: { k: SortKey }) {
-    if (sortKey !== k) return null;
-    return sortAsc
-      ? <ChevronUp size={10} className="inline ml-0.5" />
-      : <ChevronDown size={10} className="inline ml-0.5" />;
-  }
+  // toggleSort/SortArrow removed — top 10 leaderboard sorts by category
 
   return (
     <div>
@@ -663,137 +682,123 @@ export function LeaderboardPage() {
           <RampUpBoard agents={rampUpAgents} loading={rampUpLoading} />
         )}
 
-        {/* Agencies Board — Agent Leaderboard (scoped by agency) */}
+        {/* Agencies Board — Top 10 Agent Leaderboard by Period + Category */}
         {boardTab === 'agencies' && (<>
 
         {(() => {
-          // Filter + search agent rows
-          const agentSortKey = sortKey;
-          const filteredAgents = agentRows
-            .filter(r => {
-              if (filter === 'above') return r.retention_pct !== null && r.retention_pct >= 90;
-              if (filter === 'below') return r.retention_pct === null || r.retention_pct < 90;
-              return true;
-            })
-            .filter(r => {
-              if (!searchQuery.trim()) return true;
-              const q = searchQuery.trim().toLowerCase();
-              return (r.agent_name?.toLowerCase().includes(q)) || r.agent_id.toLowerCase().includes(q);
-            });
-
-          // Sort
-          const sortedAgents = [...filteredAgents].sort((a, b) => {
-            let cmp = 0;
-            switch (agentSortKey) {
-              case 'rank': cmp = a.rank - b.rank; break;
-              case 'retention': cmp = (a.retention_pct ?? -1) - (b.retention_pct ?? -1); break;
-              case 'policies': cmp = a.active_policies - b.active_policies; break;
-              case 'premium': cmp = a.active_annual_premium - b.active_annual_premium; break;
-              case 'at_risk': cmp = a.at_risk_policies - b.at_risk_policies; break;
-              default: cmp = a.rank - b.rank;
+          // Sort agents by category
+          const sortByCategory = (agents: AgentLeaderRow[], cat: LeaderCategory) => {
+            const sorted = [...agents];
+            switch (cat) {
+              case 'quality':
+                sorted.sort((a, b) => {
+                  const retA = a.retention_pct ?? -1;
+                  const retB = b.retention_pct ?? -1;
+                  if (retB !== retA) return retB - retA;
+                  return b.active_annual_premium - a.active_annual_premium;
+                });
+                break;
+              case 'production':
+                sorted.sort((a, b) => {
+                  if (b.active_annual_premium !== a.active_annual_premium)
+                    return b.active_annual_premium - a.active_annual_premium;
+                  return b.active_policies - a.active_policies;
+                });
+                break;
+              case 'overall': {
+                // Weighted: 50% retention rank + 30% premium rank + 20% policies rank
+                const retRanked = [...agents].sort((a, b) => (b.retention_pct ?? -1) - (a.retention_pct ?? -1));
+                const premRanked = [...agents].sort((a, b) => b.active_annual_premium - a.active_annual_premium);
+                const polRanked = [...agents].sort((a, b) => b.active_policies - a.active_policies);
+                const scoreMap = new Map<string, number>();
+                agents.forEach(a => {
+                  const retIdx = retRanked.findIndex(r => r.agent_id === a.agent_id);
+                  const premIdx = premRanked.findIndex(r => r.agent_id === a.agent_id);
+                  const polIdx = polRanked.findIndex(r => r.agent_id === a.agent_id);
+                  scoreMap.set(a.agent_id, retIdx * 0.5 + premIdx * 0.3 + polIdx * 0.2);
+                });
+                sorted.sort((a, b) => (scoreMap.get(a.agent_id) ?? 999) - (scoreMap.get(b.agent_id) ?? 999));
+                break;
+              }
             }
-            return sortAsc ? cmp : -cmp;
-          });
-
-          // Agent stats
-          const agentStats = {
-            total: sortedAgents.length,
-            above: sortedAgents.filter(r => r.retention_pct !== null && r.retention_pct >= 90).length,
-            below: sortedAgents.filter(r => r.retention_pct === null || r.retention_pct < 90).length,
-            totalPremium: sortedAgents.reduce((s, r) => s + r.active_annual_premium, 0),
-            totalPolicies: sortedAgents.reduce((s, r) => s + r.active_policies, 0),
+            sorted.forEach((r, i) => { r.rank = i + 1; });
+            return sorted.slice(0, 10);
           };
 
+          const top10 = sortByCategory(agentRows, leaderCategory);
           const agencyLabel = agentRows[0]?.agency_name || agentLeaderAgencyId || 'Agency';
 
+          const periodLabels: Record<LeaderPeriod, string> = {
+            week: 'This Week',
+            month: 'This Month',
+            year: 'This Year',
+          };
+          const categoryLabels: Record<LeaderCategory, { label: string; icon: typeof Trophy }> = {
+            overall: { label: 'Overall', icon: Trophy },
+            quality: { label: 'Quality', icon: ShieldCheck },
+            production: { label: 'Production', icon: TrendingUp },
+          };
+
           return <>
-            {/* Agency header */}
-            <div className="flex items-center gap-3">
-              <h2 className="text-lg font-semibold text-foreground">{agencyLabel} — Agent Leaderboard</h2>
-            </div>
-
-            {/* Stats strip */}
-            <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {[
-                { title: 'Total Agents', end: agentStats.total, icon: Users, color: 'text-primary', bg: 'bg-cyan-500/10' },
-                { title: 'Above 90% Target', end: agentStats.above, icon: ShieldCheck, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-                { title: 'Below 90% Target', end: agentStats.below, icon: AlertTriangle, color: agentStats.below > 0 ? 'text-red-400' : 'text-muted-foreground', bg: agentStats.below > 0 ? 'bg-red-500/10' : 'bg-secondary' },
-                { title: 'Total Active Premium', end: agentStats.totalPremium, icon: TrendingUp, color: 'text-foreground/80', bg: 'bg-secondary', fmt: (n: number) => fmt$(n) },
-              ].map(card => (
-                <StaggerItem key={card.title}>
-                  <Card className="border-border">
-                    <CardContent className="p-4">
-                      {agentLoading ? (
-                        <div className="h-12 rounded shimmer" />
-                      ) : (
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-xs font-medium text-muted-foreground">{card.title}</p>
-                            <CountUp
-                              end={card.end}
-                              format={card.fmt}
-                              className="text-2xl font-bold text-foreground mt-0.5 block"
-                            />
-                          </div>
-                          <div className={`p-2 rounded-lg ${card.bg}`}>
-                            <card.icon size={18} className={card.color} />
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </StaggerItem>
-              ))}
-            </StaggerContainer>
-
-            {/* Filter tabs + search */}
-            <div className="flex flex-wrap items-center gap-2">
-              {([['all', 'All'], ['above', '≥ 90%'], ['below', '< 90%']] as const).map(([key, label]) => (
-                <button
-                  key={key}
-                  onClick={() => setFilter(key)}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                    filter === key
-                      ? 'gradient-primary text-primary-foreground'
-                      : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-              <div className="relative ml-auto">
-                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Search agents…"
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  className="pl-8 pr-3 py-1.5 text-sm rounded-md bg-secondary border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary w-48"
-                />
+            {/* Header + Period selector */}
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <Crown size={20} className="text-amber-400" />
+                <h2 className="text-lg font-semibold text-foreground">Top 10 — {agencyLabel}</h2>
               </div>
-              <span className="text-xs text-muted-foreground">
-                {sortedAgents.length} {sortedAgents.length === 1 ? 'agent' : 'agents'}
-              </span>
+              <div className="flex items-center gap-1 bg-secondary/50 rounded-lg p-1">
+                {(['week', 'month', 'year'] as LeaderPeriod[]).map(p => (
+                  <button
+                    key={p}
+                    onClick={() => setLeaderPeriod(p)}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                      leaderPeriod === p
+                        ? 'gradient-primary text-primary-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {periodLabels[p]}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* Agent leaderboard table */}
+            {/* Category tabs */}
+            <div className="flex items-center gap-1 bg-secondary/30 rounded-lg p-1 w-fit">
+              {(['overall', 'quality', 'production'] as LeaderCategory[]).map(cat => {
+                const { label, icon: Icon } = categoryLabels[cat];
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => setLeaderCategory(cat)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                      leaderCategory === cat
+                        ? 'bg-background text-foreground shadow-sm border border-border/50'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <Icon size={14} />
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Top 10 leaderboard */}
             <Card className="border-border overflow-hidden">
               <CardContent className="p-0">
                 {agentLoading ? (
                   <div className="p-6 space-y-3">
                     {[1, 2, 3, 4, 5].map(i => <div key={i} className="h-12 rounded shimmer" />)}
                   </div>
-                ) : sortedAgents.length === 0 ? (
+                ) : top10.length === 0 ? (
                   <div className="py-16 text-center">
-                    <Users size={32} className="mx-auto text-muted-foreground mb-3 opacity-50" />
+                    <Trophy size={32} className="mx-auto text-muted-foreground mb-3 opacity-50" />
                     <p className="text-sm font-medium text-muted-foreground">
-                      {searchQuery.trim()
-                        ? `No agents matching "${searchQuery.trim()}"`
-                        : 'No agents match the current filter'}
+                      No agents produced {periodLabels[leaderPeriod].toLowerCase()}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {filter !== 'all' && `Showing: ${filter === 'above' ? '≥ 90%' : '< 90%'} retention. `}
-                      Try adjusting the retention filter.
+                      Try a different period or check back later.
                     </p>
                   </div>
                 ) : (
@@ -801,36 +806,22 @@ export function LeaderboardPage() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-background border-b border-border/50 text-xs font-semibold text-muted-foreground">
-                          <th
-                            className="px-4 py-2.5 text-left cursor-pointer hover:text-foreground whitespace-nowrap w-16"
-                            onClick={() => toggleSort('rank')}
-                          >Rank <SortArrow k="rank" /></th>
+                          <th className="px-4 py-2.5 text-center w-16">#</th>
                           <th className="px-2 py-2.5 text-left">Agent</th>
-                          <th
-                            className="px-2 py-2.5 text-center cursor-pointer hover:text-foreground whitespace-nowrap"
-                            onClick={() => toggleSort('retention')}
-                          >90-Day Retention <SortArrow k="retention" /></th>
-                          <th
-                            className="px-2 py-2.5 text-right cursor-pointer hover:text-foreground whitespace-nowrap"
-                            onClick={() => toggleSort('policies')}
-                          >Active <SortArrow k="policies" /></th>
-                          <th
-                            className="px-2 py-2.5 text-right cursor-pointer hover:text-foreground whitespace-nowrap"
-                            onClick={() => toggleSort('premium')}
-                          >Premium <SortArrow k="premium" /></th>
-                          <th
-                            className="px-2 py-2.5 text-center cursor-pointer hover:text-foreground whitespace-nowrap w-20"
-                            onClick={() => toggleSort('at_risk')}
-                          >At-Risk <SortArrow k="at_risk" /></th>
-                          <th className="px-2 py-2.5 w-10" />
+                          <th className="px-2 py-2.5 text-center whitespace-nowrap">Retention</th>
+                          <th className="px-2 py-2.5 text-right whitespace-nowrap">Policies</th>
+                          <th className="px-2 py-2.5 text-right whitespace-nowrap">Premium</th>
+                          {leaderCategory !== 'production' && (
+                            <th className="px-2 py-2.5 text-center whitespace-nowrap w-20">At-Risk</th>
+                          )}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border/30">
-                        {sortedAgents.map((r) => (
+                        {top10.map((r) => (
                           <tr
                             key={r.agent_id}
                             className={`hover:bg-background/80 transition-colors ${
-                              r.rank <= 3 ? 'bg-amber-500/10' : ''
+                              r.rank === 1 ? 'bg-amber-500/10' : r.rank <= 3 ? 'bg-amber-500/5' : ''
                             }`}
                           >
                             <td className="px-4 py-3 text-center">{rankBadge(r.rank)}</td>
@@ -850,12 +841,11 @@ export function LeaderboardPage() {
                             <td className="px-2 py-3 text-right text-foreground/80 font-data">
                               {fmt$(r.active_annual_premium)}
                             </td>
-                            <td className={`px-2 py-3 text-center font-medium font-data ${r.at_risk_policies > 0 ? 'text-red-400' : 'text-muted-foreground'}`}>
-                              {r.at_risk_policies || '—'}
-                            </td>
-                            <td className="px-2 py-3 text-center">
-                              <ChevronRight size={16} className="text-muted-foreground" />
-                            </td>
+                            {leaderCategory !== 'production' && (
+                              <td className={`px-2 py-3 text-center font-medium font-data ${r.at_risk_policies > 0 ? 'text-red-400' : 'text-muted-foreground'}`}>
+                                {r.at_risk_policies || '—'}
+                              </td>
+                            )}
                           </tr>
                         ))}
                       </tbody>
