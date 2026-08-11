@@ -96,7 +96,7 @@ interface CountUpProps {
 
 export function CountUp({
   end,
-  duration = 1.2,
+  duration = 0.4,
   prefix = '',
   suffix = '',
   decimals = 0,
