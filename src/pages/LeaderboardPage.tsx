@@ -55,6 +55,21 @@ interface AgencyLeaderRow {
   period_ap: number;
 }
 
+interface AgentLeaderRow {
+  agent_id: string;
+  agent_name: string | null;
+  agency_id: string;
+  agency_name: string | null;
+  active_policies: number;
+  active_annual_premium: number;
+  at_risk_policies: number;
+  retained_policies: number;
+  ever_drafted: number;
+  retention_pct: number | null;
+  avg_annual_premium: number;
+  rank: number;
+}
+
 type SortKey = 'rank' | 'retention' | 'policies' | 'premium' | 'at_risk' | 'period_policies' | 'period_ap'
   | 'ap' | 'apps' | 'save_rate' | 'taken_pct' | 'avg_ap' | 'agents';
 type BoardTab = 'agencies' | 'ramp_up' | 'battles' | 'challenges' | 'create';
@@ -295,6 +310,8 @@ export function LeaderboardPage() {
   const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
   const orgData = useOrgData();
   const [rows, setRows] = useState<AgencyLeaderRow[]>([]);
+  const [agentRows, setAgentRows] = useState<AgentLeaderRow[]>([]);
+  const [agentLoading, setAgentLoading] = useState(false);
   const loading = orgData.initialLoading;
   const [sortKey, setSortKey] = useState<SortKey>('rank');
   const [sortAsc, setSortAsc] = useState(true);
@@ -479,25 +496,118 @@ export function LeaderboardPage() {
     loadPeriodData(period);
   }, [period, loadPeriodData]);
 
+  // ── Agent leaderboard data ──
+  // Scoped by agency: FYM admin defaults to FYM (or selected agency),
+  // everyone else sees only their own agency's agents.
+  const agentLeaderAgencyId = useMemo(() => {
+    if (isOrgWide) return filterAgencyId || '202JVV00'; // FYM admin defaults to FYM house
+    return effectiveAgencyId || null;
+  }, [isOrgWide, filterAgencyId, effectiveAgencyId]);
+
+  useEffect(() => {
+    if (boardTab !== 'agencies' || !agentLeaderAgencyId) return;
+    let cancelled = false;
+    setAgentLoading(true);
+
+    (async () => {
+      try {
+        const agents = await fetchAgentProduction({ agency_id: agentLeaderAgencyId });
+        if (cancelled) return;
+
+        // Look up agency name
+        let agencyName: string | null = null;
+        if (supabase) {
+          const { data } = await (supabase as any)
+            .from('agencies')
+            .select('name')
+            .eq('writing_number', agentLeaderAgencyId)
+            .maybeSingle();
+          if (data?.name) agencyName = data.name;
+        }
+        if (cancelled) return;
+
+        const ranked = agents
+          .map(a => ({
+            agent_id: a.agent_id,
+            agent_name: a.agent_name,
+            agency_id: a.agency_id,
+            agency_name: agencyName,
+            active_policies: a.active_policies,
+            active_annual_premium: a.active_annual_premium,
+            at_risk_policies: a.at_risk_policies,
+            retained_policies: a.retained_policies,
+            ever_drafted: a.ever_drafted,
+            retention_pct: a.retention_pct,
+            avg_annual_premium: a.avg_annual_premium,
+            rank: 0,
+          }))
+          .sort((a, b) => {
+            const retA = a.retention_pct ?? -1;
+            const retB = b.retention_pct ?? -1;
+            if (retB !== retA) return retB - retA;
+            return b.active_annual_premium - a.active_annual_premium;
+          });
+        ranked.forEach((r, i) => { r.rank = i + 1; });
+        if (!cancelled) setAgentRows(ranked);
+      } catch (err) {
+        console.error('Agent leaderboard load error:', err);
+        if (!cancelled) setAgentRows([]);
+      } finally {
+        if (!cancelled) setAgentLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [boardTab, agentLeaderAgencyId]);
+
   // Load ramp-up agents (first app within last 90 days)
   useEffect(() => {
     if (boardTab !== 'ramp_up') return;
     setRampUpLoading(true);
 
     const loadRampUp = async () => {
+      let cancelled = false;
       try {
         const today = new Date();
         const ninetyDaysAgo = new Date(today);
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
         const cutoff = `${ninetyDaysAgo.getFullYear()}-${String(ninetyDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(ninetyDaysAgo.getDate()).padStart(2, '0')}`;
 
-        // Server-side date filter — only fetch agents with activity in last 90 days
-        const allAgents = await fetchAgentProduction({ start_date: cutoff });
+        // Scope to effective agency for non-FYM-admin users
+        const agencyScope = isOrgWide ? (filterAgencyId || undefined) : (effectiveAgencyId || undefined);
+
+        // Fetch agents — scoped by agency if applicable
+        const allAgents = await fetchAgentProduction({
+          start_date: cutoff,
+          ...(agencyScope ? { agency_id: agencyScope } : {}),
+        });
+        if (cancelled) return;
+
+        // Build agency name lookup for enrichment
+        const agencyIds = [...new Set(allAgents.map(a => a.agency_id).filter(Boolean))];
+        const agencyNameMap = new Map<string, string>();
+        if (supabase && agencyIds.length > 0) {
+          // Batch lookup in chunks of 50
+          for (let i = 0; i < agencyIds.length; i += 50) {
+            const chunk = agencyIds.slice(i, i + 50);
+            const { data: agencyNames } = await (supabase as any)
+              .from('agencies')
+              .select('writing_number, name')
+              .in('writing_number', chunk);
+            if (agencyNames) {
+              for (const a of agencyNames as any[]) {
+                if (a.writing_number && a.name) agencyNameMap.set(a.writing_number, a.name);
+              }
+            }
+          }
+        }
+        if (cancelled) return;
+
         const rampAgents: RampUpAgent[] = [];
 
         for (const a of allAgents) {
-          // Check if this is a ramp-up agent (first_issue_date within 90 days)
-          const firstDate = (a as any).first_issue_date;
+          // Check if this is a ramp-up agent (earliest_issue_date within 90 days)
+          const firstDate = a.earliest_issue_date;
           if (!firstDate || firstDate < cutoff) continue;
 
           const daysActive = Math.floor(
@@ -510,7 +620,7 @@ export function LeaderboardPage() {
           rampAgents.push({
             agent_id: a.agent_id,
             agent_name: a.agent_name ?? a.agent_id,
-            agency_name: (a as any).parent_agency_name ?? null,
+            agency_name: agencyNameMap.get(a.agency_id) ?? null,
             first_app_date: firstDate,
             days_active: daysActive,
             total_apps: totalApps,
@@ -521,13 +631,14 @@ export function LeaderboardPage() {
           });
         }
 
-        setRampUpAgents(rampAgents);
+        if (!cancelled) setRampUpAgents(rampAgents);
       } catch (err) {
         console.error('Ramp-up load error:', err);
-        setRampUpAgents([]);
+        if (!cancelled) setRampUpAgents([]);
       } finally {
-        setRampUpLoading(false);
+        if (!cancelled) setRampUpLoading(false);
       }
+      return () => { cancelled = true; };
     };
 
     loadRampUp();
@@ -893,284 +1004,214 @@ export function LeaderboardPage() {
         {/* Agencies Board */}
         {boardTab === 'agencies' && (<>
 
-        {/* Executive Summary */}
-        {execSummary && (
-          <ExecutiveSummary
-            data={execSummary}
-            activeSort={sortKey as LeaderboardSortKey}
-            onSortChange={(key) => {
-              // Map exec summary keys to table sort keys
-              const keyMap: Record<string, SortKey> = {
-                ap: 'premium',
-                apps: 'policies',
-                save_rate: 'retention',
-                at_risk: 'at_risk',
-                avg_ap: 'premium',
-                taken_pct: 'retention',
-              };
-              const mapped = keyMap[key] || 'rank';
-              if (sortKey === mapped) setSortAsc(p => !p);
-              else { setSortKey(mapped); setSortAsc(false); }
-            }}
-          />
-        )}
+        {/* Agent Leaderboard — scoped by agency */}
+        {(() => {
+          // Filter + search agent rows
+          const agentSortKey = sortKey;
+          const filteredAgents = agentRows
+            .filter(r => {
+              if (filter === 'above') return r.retention_pct !== null && r.retention_pct >= 90;
+              if (filter === 'below') return r.retention_pct === null || r.retention_pct < 90;
+              return true;
+            })
+            .filter(r => {
+              if (!searchQuery.trim()) return true;
+              const q = searchQuery.trim().toLowerCase();
+              return (r.agent_name?.toLowerCase().includes(q)) || r.agent_id.toLowerCase().includes(q);
+            });
 
-        {/* Period + Metric Toggles */}
-        <div className="flex flex-wrap items-center gap-4">
-          {/* Period */}
-          <div className="flex items-center gap-1 bg-secondary/50 rounded-lg p-0.5">
-            {(['all', 'year', 'month', 'week', 'today'] as Period[]).map(p => (
-              <button
-                key={p}
-                onClick={() => setPeriod(p)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                  period === p
-                    ? 'gradient-primary text-primary-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {periodLabel(p)}
-              </button>
-            ))}
-          </div>
+          // Sort
+          const sortedAgents = [...filteredAgents].sort((a, b) => {
+            let cmp = 0;
+            switch (agentSortKey) {
+              case 'rank': cmp = a.rank - b.rank; break;
+              case 'retention': cmp = (a.retention_pct ?? -1) - (b.retention_pct ?? -1); break;
+              case 'policies': cmp = a.active_policies - b.active_policies; break;
+              case 'premium': cmp = a.active_annual_premium - b.active_annual_premium; break;
+              case 'at_risk': cmp = a.at_risk_policies - b.at_risk_policies; break;
+              default: cmp = a.rank - b.rank;
+            }
+            return sortAsc ? cmp : -cmp;
+          });
 
-          {/* Metric toggle — only shows for period views */}
-          {period !== 'all' && (
-            <div className="flex items-center gap-1 bg-secondary/50 rounded-lg p-0.5">
-              <button
-                onClick={() => setMetric('policies')}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1 ${
-                  metric === 'policies'
-                    ? 'bg-card text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <FileText size={12} /> Policies
-              </button>
-              <button
-                onClick={() => setMetric('premium')}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center gap-1 ${
-                  metric === 'premium'
-                    ? 'bg-card text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <DollarSign size={12} /> Premium
-              </button>
+          // "Your position" logic for FYM admin — show top 5, then viewer's agency position if not in top 5
+          // For agent view, show all agents (no top-5 limit needed since this is already agency-scoped)
+
+          // Agent stats
+          const agentStats = {
+            total: sortedAgents.length,
+            above: sortedAgents.filter(r => r.retention_pct !== null && r.retention_pct >= 90).length,
+            below: sortedAgents.filter(r => r.retention_pct === null || r.retention_pct < 90).length,
+            totalPremium: sortedAgents.reduce((s, r) => s + r.active_annual_premium, 0),
+            totalPolicies: sortedAgents.reduce((s, r) => s + r.active_policies, 0),
+          };
+
+          const agencyLabel = agentRows[0]?.agency_name || agentLeaderAgencyId || 'Agency';
+
+          return <>
+            {/* Agency header */}
+            <div className="flex items-center gap-3">
+              <h2 className="text-lg font-semibold text-foreground">{agencyLabel} — Agent Leaderboard</h2>
+              <span className="text-xs text-muted-foreground">{agentStats.total} agents</span>
             </div>
-          )}
 
-          {period !== 'all' && (
-            <span className="text-xs text-muted-foreground ml-auto">
-              <Calendar size={12} className="inline mr-1" />
-              {periodLabel(period)} — new business effective dates
-            </span>
-          )}
-        </div>
-
-        {/* Stats strip */}
-        <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { title: 'Total Agencies', end: stats.total, icon: Trophy, color: 'text-primary', bg: 'bg-cyan-500/10' },
-            { title: 'Above 90% Target', end: stats.above, icon: ShieldCheck, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-            { title: 'Below 90% Target', end: stats.below, icon: AlertTriangle, color: stats.below > 0 ? 'text-red-400' : 'text-muted-foreground', bg: stats.below > 0 ? 'bg-red-500/10' : 'bg-secondary' },
-            {
-              title: period === 'all' ? 'Total Active Premium' : `${periodLabel(period)} Production`,
-              end: metric === 'premium' || period === 'all' ? stats.totalPremium : stats.totalPolicies,
-              icon: TrendingUp,
-              color: 'text-foreground/80',
-              bg: 'bg-secondary',
-              fmt: metric === 'premium' || period === 'all'
-                ? (n: number) => fmt$(n) + (period === 'all' ? '/mo' : '')
-                : (n: number) => `${n.toLocaleString()} policies`,
-            },
-          ].map(card => (
-            <StaggerItem key={card.title}>
-              <Card className="border-border">
-                <CardContent className="p-4">
-                  {loading ? (
-                    <div className="h-12 rounded shimmer" />
-                  ) : (
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground">{card.title}</p>
-                        <CountUp
-                          end={card.end}
-                          format={card.fmt}
-                          className="text-2xl font-bold text-foreground mt-0.5 block"
-                        />
-                      </div>
-                      <div className={`p-2 rounded-lg ${card.bg}`}>
-                        <card.icon size={18} className={card.color} />
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </StaggerItem>
-          ))}
-        </StaggerContainer>
-
-        {/* Filter tabs + search */}
-        <div className="flex flex-wrap items-center gap-2">
-          {([['all', 'All'], ['above', '≥ 90%'], ['below', '< 90%']] as const).map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setFilter(key)}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                filter === key
-                  ? 'gradient-primary text-primary-foreground'
-                  : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-          <div className="relative ml-auto">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Search agencies…"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="pl-8 pr-3 py-1.5 text-sm rounded-md bg-secondary border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary w-48"
-            />
-          </div>
-          <span className="text-xs text-muted-foreground">
-            {displayed.length} {displayed.length === 1 ? 'agency' : 'agencies'}
-          </span>
-          {displayed.length > 0 && (
-            <button
-              onClick={() => exportLeaderboardCsv(displayed, period, metric)}
-              className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-secondary text-muted-foreground hover:text-foreground hover:bg-secondary/80 transition-colors"
-            >
-              <Download size={12} /> Export CSV
-            </button>
-          )}
-        </div>
-
-        {/* Leaderboard table — semantic HTML */}
-        <Card className="border-border overflow-hidden">
-          <CardContent className="p-0">
-            {loading ? (
-              <div className="p-6 space-y-3">
-                {[1, 2, 3, 4, 5].map(i => <div key={i} className="h-12 rounded shimmer" />)}
-              </div>
-            ) : displayed.length === 0 ? (
-              <div className="py-16 text-center">
-                <Trophy size={32} className="mx-auto text-muted-foreground mb-3 opacity-50" />
-                <p className="text-sm font-medium text-muted-foreground">
-                  {searchQuery.trim()
-                    ? `No agencies matching "${searchQuery.trim()}"`
-                    : 'No agencies match the current filter'}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {filter !== 'all' && `Showing: ${filter === 'above' ? '≥ 90%' : '< 90%'} retention. `}
-                  Try adjusting the retention filter or period.
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-background border-b border-border/50 text-xs font-semibold text-muted-foreground">
-                      <th
-                        className="px-4 py-2.5 text-left cursor-pointer hover:text-foreground whitespace-nowrap w-16"
-                        onClick={() => toggleSort('rank')}
-                      >Rank <SortArrow k="rank" /></th>
-                      <th className="px-2 py-2.5 text-left">Agency</th>
-                      <th
-                        className="px-2 py-2.5 text-center cursor-pointer hover:text-foreground whitespace-nowrap"
-                        onClick={() => toggleSort('retention')}
-                      >90-Day Retention <SortArrow k="retention" /></th>
-                      <th
-                        className="px-2 py-2.5 text-right cursor-pointer hover:text-foreground whitespace-nowrap"
-                        onClick={() => toggleSort('policies')}
-                      >Active <SortArrow k="policies" /></th>
-                      <th
-                        className="px-2 py-2.5 text-right cursor-pointer hover:text-foreground whitespace-nowrap"
-                        onClick={() => toggleSort('premium')}
-                      >Premium/mo <SortArrow k="premium" /></th>
-                      {period !== 'all' && (
-                        <th
-                          className="px-2 py-2.5 text-right cursor-pointer hover:text-foreground whitespace-nowrap"
-                          onClick={() => toggleSort(metric === 'policies' ? 'period_policies' : 'period_ap')}
-                        >
-                          {periodLabel(period)} {metric === 'policies' ? 'Policies' : 'AP'}
-                          <SortArrow k={metric === 'policies' ? 'period_policies' : 'period_ap'} />
-                        </th>
+            {/* Stats strip */}
+            <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { title: 'Total Agents', end: agentStats.total, icon: Users, color: 'text-primary', bg: 'bg-cyan-500/10' },
+                { title: 'Above 90% Target', end: agentStats.above, icon: ShieldCheck, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+                { title: 'Below 90% Target', end: agentStats.below, icon: AlertTriangle, color: agentStats.below > 0 ? 'text-red-400' : 'text-muted-foreground', bg: agentStats.below > 0 ? 'bg-red-500/10' : 'bg-secondary' },
+                {
+                  title: 'Total Active Premium',
+                  end: agentStats.totalPremium,
+                  icon: TrendingUp,
+                  color: 'text-foreground/80',
+                  bg: 'bg-secondary',
+                  fmt: (n: number) => fmt$(n) + '/yr',
+                },
+              ].map(card => (
+                <StaggerItem key={card.title}>
+                  <Card className="border-border">
+                    <CardContent className="p-4">
+                      {agentLoading ? (
+                        <div className="h-12 rounded shimmer" />
+                      ) : (
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground">{card.title}</p>
+                            <CountUp
+                              end={card.end}
+                              format={card.fmt}
+                              className="text-2xl font-bold text-foreground mt-0.5 block"
+                            />
+                          </div>
+                          <div className={`p-2 rounded-lg ${card.bg}`}>
+                            <card.icon size={18} className={card.color} />
+                          </div>
+                        </div>
                       )}
-                      <th
-                        className="px-2 py-2.5 text-center cursor-pointer hover:text-foreground whitespace-nowrap w-20"
-                        onClick={() => toggleSort('at_risk')}
-                      >At-Risk <SortArrow k="at_risk" /></th>
-                      <th className="px-2 py-2.5 w-10" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/30">
-                    {displayed.map((r) => (
-                      <tr
-                        key={r.agency_id}
-                        onClick={() => navigate(`/production/${r.agency_id}`)}
-                        className={`cursor-pointer hover:bg-background/80 transition-colors ${
-                          r.rank <= 3 ? 'bg-amber-500/10' : ''
-                        } ${
-                          !isOrgWide && effectiveAgencyWritingNumber === r.agency_id ? 'ring-1 ring-primary/40 bg-primary/5' : ''
-                        }`}
-                      >
-                        <td className="px-4 py-3 text-center">{rankBadge(r.rank)}</td>
-                        <td className="px-2 py-3">
-                          <span className="font-medium text-foreground flex items-center gap-1.5">
-                            <span className="truncate max-w-[200px]">
-                              {r.name ?? <span className="font-data text-xs text-muted-foreground">{r.agency_id.slice(0, 12)}…</span>}
-                              {!isOrgWide && effectiveAgencyWritingNumber === r.agency_id && (
-                                <span className="ml-1.5 text-[10px] text-primary font-semibold">YOU</span>
-                              )}
-                            </span>
-                            {(agencyBattleWins?.get(r.agency_id) || 0) > 0 && (
-                              <span className="text-[10px] font-data text-amber-400 whitespace-nowrap" title="Battle wins">
-                                🏆 x{agencyBattleWins?.get(r.agency_id)}
-                              </span>
-                            )}
-                          </span>
-                        </td>
-                        <td className="px-2 py-3 text-center">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${retentionBg(r.retention_pct)} ${retentionColor(r.retention_pct)}`}>
-                            {r.retention_pct !== null ? `${r.retention_pct}%` : '—'}
-                          </span>
-                        </td>
-                        <td className="px-2 py-3 text-right text-foreground/80 font-data">
-                          {r.active_policies.toLocaleString()}
-                        </td>
-                        <td className="px-2 py-3 text-right text-foreground/80 font-data">
-                          {fmt$(r.active_premium)}
-                        </td>
-                        {period !== 'all' && (
-                          <td className={`px-2 py-3 text-right font-data font-medium ${
-                            (metric === 'policies' ? r.period_policies : r.period_ap) > 0
-                              ? 'text-primary'
-                              : 'text-muted-foreground'
-                          }`}>
-                            {metric === 'policies'
-                              ? (r.period_policies > 0 ? r.period_policies.toLocaleString() : '—')
-                              : (r.period_ap > 0 ? fmt$(r.period_ap) : '—')
-                            }
-                          </td>
-                        )}
-                        <td className={`px-2 py-3 text-center font-medium font-data ${r.at_risk_count > 0 ? 'text-red-400' : 'text-muted-foreground'}`}>
-                          {r.at_risk_count || '—'}
-                        </td>
-                        <td className="px-2 py-3 text-center">
-                          <ChevronRight size={16} className="text-muted-foreground" />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </CardContent>
+                  </Card>
+                </StaggerItem>
+              ))}
+            </StaggerContainer>
+
+            {/* Filter tabs + search */}
+            <div className="flex flex-wrap items-center gap-2">
+              {([['all', 'All'], ['above', '≥ 90%'], ['below', '< 90%']] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => setFilter(key)}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    filter === key
+                      ? 'gradient-primary text-primary-foreground'
+                      : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+              <div className="relative ml-auto">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Search agents…"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="pl-8 pr-3 py-1.5 text-sm rounded-md bg-secondary border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary w-48"
+                />
               </div>
-            )}
-          </CardContent>
-        </Card>
+              <span className="text-xs text-muted-foreground">
+                {sortedAgents.length} {sortedAgents.length === 1 ? 'agent' : 'agents'}
+              </span>
+            </div>
+
+            {/* Agent leaderboard table */}
+            <Card className="border-border overflow-hidden">
+              <CardContent className="p-0">
+                {agentLoading ? (
+                  <div className="p-6 space-y-3">
+                    {[1, 2, 3, 4, 5].map(i => <div key={i} className="h-12 rounded shimmer" />)}
+                  </div>
+                ) : sortedAgents.length === 0 ? (
+                  <div className="py-16 text-center">
+                    <Users size={32} className="mx-auto text-muted-foreground mb-3 opacity-50" />
+                    <p className="text-sm font-medium text-muted-foreground">
+                      {searchQuery.trim()
+                        ? `No agents matching "${searchQuery.trim()}"`
+                        : 'No agents found for this agency'}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {filter !== 'all' && `Showing: ${filter === 'above' ? '≥ 90%' : '< 90%'} retention. `}
+                      Try adjusting the retention filter.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-background border-b border-border/50 text-xs font-semibold text-muted-foreground">
+                          <th
+                            className="px-4 py-2.5 text-left cursor-pointer hover:text-foreground whitespace-nowrap w-16"
+                            onClick={() => toggleSort('rank')}
+                          >Rank <SortArrow k="rank" /></th>
+                          <th className="px-2 py-2.5 text-left">Agent</th>
+                          <th
+                            className="px-2 py-2.5 text-center cursor-pointer hover:text-foreground whitespace-nowrap"
+                            onClick={() => toggleSort('retention')}
+                          >90-Day Retention <SortArrow k="retention" /></th>
+                          <th
+                            className="px-2 py-2.5 text-right cursor-pointer hover:text-foreground whitespace-nowrap"
+                            onClick={() => toggleSort('policies')}
+                          >Active Policies <SortArrow k="policies" /></th>
+                          <th
+                            className="px-2 py-2.5 text-right cursor-pointer hover:text-foreground whitespace-nowrap"
+                            onClick={() => toggleSort('premium')}
+                          >Annual Premium <SortArrow k="premium" /></th>
+                          <th
+                            className="px-2 py-2.5 text-center cursor-pointer hover:text-foreground whitespace-nowrap w-20"
+                            onClick={() => toggleSort('at_risk')}
+                          >At-Risk <SortArrow k="at_risk" /></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/30">
+                        {sortedAgents.map((r) => (
+                          <tr
+                            key={r.agent_id}
+                            className={`hover:bg-background/80 transition-colors ${
+                              r.rank <= 3 ? 'bg-amber-500/10' : ''
+                            }`}
+                          >
+                            <td className="px-4 py-3 text-center">{rankBadge(r.rank)}</td>
+                            <td className="px-2 py-3">
+                              <span className="font-medium text-foreground truncate max-w-[200px] block">
+                                {r.agent_name ?? <span className="font-data text-xs text-muted-foreground">{r.agent_id}</span>}
+                              </span>
+                            </td>
+                            <td className="px-2 py-3 text-center">
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${retentionBg(r.retention_pct)} ${retentionColor(r.retention_pct)}`}>
+                                {r.retention_pct !== null ? `${r.retention_pct}%` : '—'}
+                              </span>
+                            </td>
+                            <td className="px-2 py-3 text-right text-foreground/80 font-data">
+                              {r.active_policies.toLocaleString()}
+                            </td>
+                            <td className="px-2 py-3 text-right text-foreground/80 font-data">
+                              {fmt$(r.active_annual_premium)}
+                            </td>
+                            <td className={`px-2 py-3 text-center font-medium font-data ${r.at_risk_policies > 0 ? 'text-red-400' : 'text-muted-foreground'}`}>
+                              {r.at_risk_policies || '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </>;
+        })()}
 
         </>)}{/* end boardTab === 'agencies' */}
 
