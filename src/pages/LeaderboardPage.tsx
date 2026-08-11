@@ -342,13 +342,16 @@ export function LeaderboardPage() {
   const [periodData, setPeriodData] = useState<Map<string, { policies: number; ap: number }>>(new Map());
 
   // Battle wins per agency (trophy count badge) — cached, wins don't change often
-  const { data: agencyBattleWins } = useCachedFetch<Map<string, number>>(
-    'leaderboard-battle-wins',
+  // NOTE: Must use a plain object (not Map) because useCachedFetch serializes
+  // to localStorage via JSON.stringify, which turns Map into {} and crashes
+  // on .get() when deserialized back.
+  const { data: agencyBattleWins } = useCachedFetch<Record<string, number>>(
+    'leaderboard-battle-wins-v2',
     async () => {
-      if (!supabase) return new Map();
+      if (!supabase) return {};
       const PAGE = 100;
       let offset = 0;
-      const winMap = new Map<string, number>();
+      const winMap: Record<string, number> = {};
       let done = false;
       while (!done) {
         const { data: winData } = await (supabase as any)
@@ -360,7 +363,7 @@ export function LeaderboardPage() {
         if (!winData || winData.length === 0) { done = true; break; }
         for (const w of winData as any[]) {
           if (!w.agency_id) continue;
-          winMap.set(w.agency_id, (winMap.get(w.agency_id) || 0) + 1);
+          winMap[w.agency_id] = (winMap[w.agency_id] || 0) + 1;
         }
         if (winData.length < PAGE) done = true;
         else offset += PAGE;
@@ -1127,9 +1130,9 @@ export function LeaderboardPage() {
                                 <span className="ml-1.5 text-[10px] text-primary font-semibold">YOU</span>
                               )}
                             </span>
-                            {(agencyBattleWins?.get(r.agency_id) || 0) > 0 && (
+                            {(agencyBattleWins?.[r.agency_id] || 0) > 0 && (
                               <span className="text-[10px] font-data text-amber-400 whitespace-nowrap" title="Battle wins">
-                                🏆 x{agencyBattleWins?.get(r.agency_id)}
+                                🏆 x{agencyBattleWins?.[r.agency_id]}
                               </span>
                             )}
                           </span>
