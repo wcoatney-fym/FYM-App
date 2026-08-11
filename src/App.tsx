@@ -35,6 +35,7 @@ import { PeopleGroupPage } from '@/pages/groups/PeopleGroupPage';
 import { ProductionGroupPage } from '@/pages/groups/ProductionGroupPage';
 import { QualityGroupPage } from '@/pages/groups/QualityGroupPage';
 import { RecruitingGroupPage, RecruitingDashboardTab, RecruitingLeadsTab, RecruitingAnalyticsTab } from '@/pages/recruiting';
+import { DailyPulsePage } from '@/pages/DailyPulsePage';
 import { Toaster } from 'sonner';
 
 function App() {
@@ -104,6 +105,7 @@ function App() {
               <Route path="analytics" element={<RecruitingAnalyticsTab />} />
             </Route>
             <Route path="/rosters" element={<RoleGuard allow={['admin', 'manager']}><AgencyRosterPage /></RoleGuard>} />
+            <Route path="/daily-pulse" element={<RoleGuard allow={['admin', 'manager']}><DailyPulsePage /></RoleGuard>} />
 
             {/* ── Legacy redirects — preserve old bookmarks ── */}
             <Route path="/agencies" element={<Navigate to="/people/agencies" replace />} />

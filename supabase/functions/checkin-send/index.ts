@@ -1,0 +1,152 @@
+// checkin-send: Sends the daily 9 AM EST check-in SMS to all active recipients
+// Triggered by cron (pg_cron or external scheduler)
+// Creates checkin_responses records for today and sends Q1 to each agent
+
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+const TWILIO_SID = Deno.env.get("TWILIO_SID_SURVEY_NUMBER")!;
+const TWILIO_TOKEN = Deno.env.get("TWILIO_SID_SURVEY_NUMBER_TOKEN")!;
+const TWILIO_FROM = "+13466342716";
+
+const supabaseUrl = Deno.env.get("APP_SUPABASE_URL")!;
+const supabaseKey = Deno.env.get("APP_SUPABASE_SERVICE_KEY")!;
+
+async function sendSms(to: string, body: string): Promise<boolean> {
+  const url = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/Messages.json`;
+  const params = new URLSearchParams({ To: to, From: TWILIO_FROM, Body: body });
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: "Basic " + btoa(`${TWILIO_SID}:${TWILIO_TOKEN}`),
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: params.toString(),
+  });
+  if (!resp.ok) {
+    const err = await resp.text();
+    console.error(`SMS to ${to} failed:`, err);
+    return false;
+  }
+  return true;
+}
+
+function isWeekday(): boolean {
+  // Check in EST (America/New_York)
+  const now = new Date();
+  const estDay = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    weekday: "short",
+  }).format(now);
+  return !["Sat", "Sun"].includes(estDay);
+}
+
+function getTodayEST(): string {
+  // Get today's date in EST
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const y = parts.find((p) => p.type === "year")!.value;
+  const m = parts.find((p) => p.type === "month")!.value;
+  const d = parts.find((p) => p.type === "day")!.value;
+  return `${y}-${m}-${d}`;
+}
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    // Skip weekends
+    if (!isWeekday()) {
+      return new Response(
+        JSON.stringify({ message: "Weekend — skipping check-in", sent: 0 }),
+        { headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    const sb = createClient(supabaseUrl, supabaseKey);
+    const today = getTodayEST();
+
+    // Get all active recipients
+    const { data: recipients, error: recErr } = await sb
+      .from("checkin_recipients")
+      .select("id, first_name, phone")
+      .eq("active", true);
+
+    if (recErr) throw recErr;
+    if (!recipients?.length) {
+      return new Response(
+        JSON.stringify({ message: "No active recipients", sent: 0 }),
+        { headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    let sent = 0;
+    let skipped = 0;
+
+    for (const r of recipients) {
+      // Check if response already exists for today (idempotency)
+      const { data: existing } = await sb
+        .from("checkin_responses")
+        .select("id")
+        .eq("recipient_id", r.id)
+        .eq("check_in_date", today)
+        .single();
+
+      if (existing) {
+        skipped++;
+        continue;
+      }
+
+      // Create response record
+      const { error: insertErr } = await sb.from("checkin_responses").insert({
+        recipient_id: r.id,
+        check_in_date: today,
+        conversation_state: "q1_sent",
+      });
+
+      if (insertErr) {
+        console.error(`Failed to create response for ${r.first_name}:`, insertErr);
+        continue;
+      }
+
+      // Send Q1
+      const ok = await sendSms(
+        r.phone,
+        `Good morning, ${r.first_name}! 📋 Quick daily check-in from FYM — are you working today? Reply YES or NO`
+      );
+
+      if (ok) sent++;
+
+      // Small delay to avoid Twilio rate limits (~1 msg/sec is safe)
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+
+    return new Response(
+      JSON.stringify({
+        message: `Check-in sent for ${today}`,
+        sent,
+        skipped,
+        total: recipients.length,
+      }),
+      { headers: { "Content-Type": "application/json", ...corsHeaders } }
+    );
+  } catch (err) {
+    console.error("checkin-send error:", err);
+    return new Response(
+      JSON.stringify({ error: String(err) }),
+      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+    );
+  }
+});

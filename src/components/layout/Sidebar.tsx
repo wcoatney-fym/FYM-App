@@ -19,6 +19,7 @@ import {
   FileSpreadsheet,
   Target,
   Megaphone,
+  Activity,
 } from 'lucide-react';
 import { useAppStore } from '@/store/app-store';
 import { useAuth } from '@/contexts/AuthContext';
@@ -52,6 +53,7 @@ const managerNav: NavItem[] = [
   { to: '/quality/retention', label: 'Quality', icon: ShieldCheck, activePrefix: '/quality' },
   { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { to: '/workboard', label: 'Workboard', icon: ClipboardList },
+  { to: '/daily-pulse', label: 'Daily Pulse', icon: Activity },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -64,6 +66,7 @@ const fymAdminNav: NavItem[] = [
   { to: '/contracting', label: 'Contracting', icon: FileText },
   { to: '/crm-command', label: 'CRM Command', icon: Command },
   { to: '/rosters', label: 'Rosters', icon: FileSpreadsheet },
+  { to: '/daily-pulse', label: 'Daily Pulse', icon: Activity },
   { to: '/recruiting', label: 'Recruiting', icon: Megaphone, activePrefix: '/recruiting' },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
