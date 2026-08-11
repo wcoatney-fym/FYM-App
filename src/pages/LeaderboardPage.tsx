@@ -1,19 +1,28 @@
 /**
- * Agency Leaderboard — Enhanced
+ * Agency Leaderboard + Compete & Conquer
  *
- * Period toggles: All Time, This Year, This Month, This Week, Today
- * Metric toggle: Policies ↔ Annual Premium
- * Sortable columns, retention filter, drill-down to agency production.
+ * Single page combining:
+ * - Agency leaderboard (rankings, period toggles, metric toggles)
+ * - Ramp Up board (new agents in last 90 days)
+ * - Battles (head-to-head competitions)
+ * - Challenges (time-boxed org/agency goals)
+ * - Create New (battles + challenges form — admin/manager only)
  */
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
-import { Card, CardContent } from '@/components/ui/card';
-import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { StaggerContainer, StaggerItem, CountUp, RadialGauge } from '@/components/ui/animated';
+import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
 import { fetchAgencyProduction, fetchAgentProduction } from '@/lib/prod-api';
 import { filterDailyByRange } from '@/lib/clientFilters';
 import { useCachedFetch } from '@/hooks/useCachedFetch';
+import { useAuth } from '@/contexts/AuthContext';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { useOrgData } from '@/contexts/OrgDataCache';
@@ -21,10 +30,12 @@ import { DataFilters } from '@/components/filters/DataFilters';
 import { ExecutiveSummary, type LeaderboardSortKey, type ExecSummaryData } from '@/components/leaderboard/ExecutiveSummary';
 import { type KpiTileData } from '@/components/leaderboard/KpiSummaryTile';
 import { RampUpBoard, type RampUpAgent } from '@/components/leaderboard/RampUpBoard';
+import type { GamificationMetric, BattleType, ChallengeType } from '@/lib/database.types';
 import {
   Trophy, TrendingUp, ShieldCheck, AlertTriangle, ChevronRight,
   ChevronDown, ChevronUp, Calendar, DollarSign, FileText, Rocket,
-  Search, Download,
+  Search, Download, Swords, Target, Users, Percent, Crown, Plus,
+  CheckCircle2, XCircle, Clock,
 } from 'lucide-react';
 import { fmt$ } from '@/lib/formatUtils';
 
@@ -46,9 +57,65 @@ interface AgencyLeaderRow {
 
 type SortKey = 'rank' | 'retention' | 'policies' | 'premium' | 'at_risk' | 'period_policies' | 'period_ap'
   | 'ap' | 'apps' | 'save_rate' | 'taken_pct' | 'avg_ap' | 'agents';
-type BoardTab = 'agencies' | 'ramp_up';
+type BoardTab = 'agencies' | 'ramp_up' | 'battles' | 'challenges' | 'create';
 type Period = 'all' | 'year' | 'month' | 'week' | 'today';
 type Metric = 'policies' | 'premium';
+
+// ── Compete types ──────────────────────────────────────────────────────────
+interface Battle {
+  id: string;
+  title: string;
+  description: string | null;
+  battle_type: BattleType;
+  metric: GamificationMetric;
+  start_date: string;
+  end_date: string;
+  status: 'upcoming' | 'active' | 'completed';
+  created_by: string | null;
+  created_at: string;
+}
+
+interface BattleParticipant {
+  id: string;
+  battle_id: string;
+  participant_type: 'agent' | 'agency';
+  agent_id: string | null;
+  agency_id: string | null;
+  display_name: string;
+  starting_value: number;
+  current_value: number;
+  is_winner: boolean;
+}
+
+interface Challenge {
+  id: string;
+  title: string;
+  description: string | null;
+  challenge_type: ChallengeType;
+  target_agency_id: string | null;
+  metric: GamificationMetric;
+  goal_value: number;
+  current_value: number;
+  start_date: string;
+  end_date: string;
+  status: 'upcoming' | 'active' | 'completed';
+  is_achieved: boolean;
+  created_at: string;
+}
+
+interface ChallengeParticipant {
+  id: string;
+  challenge_id: string;
+  agent_id: string | null;
+  agency_id: string | null;
+  display_name: string;
+  contribution: number;
+}
+
+interface AgencyOption {
+  writing_number: string;
+  name: string;
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function retentionColor(pct: number | null) {
@@ -70,6 +137,78 @@ function rankBadge(rank: number) {
   if (rank === 2) return <span className="text-lg">🥈</span>;
   if (rank === 3) return <span className="text-lg">🥉</span>;
   return <span className="text-sm font-bold text-muted-foreground tabular-nums">#{rank}</span>;
+}
+
+// ── Compete helpers ────────────────────────────────────────────────────────
+function competeMetricLabel(m: GamificationMetric) {
+  switch (m) {
+    case 'policies': return 'Policies Written';
+    case 'ap': return 'Annual Premium';
+    case 'retention': return 'Retention %';
+  }
+}
+
+function competeMetricIcon(m: GamificationMetric) {
+  switch (m) {
+    case 'policies': return FileText;
+    case 'ap': return DollarSign;
+    case 'retention': return ShieldCheck;
+  }
+}
+
+function competeFmtValue(v: number, m: GamificationMetric) {
+  if (m === 'ap') {
+    if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
+    if (v >= 1_000) return `$${Math.round(v / 1_000).toLocaleString()}K`;
+    return `$${Math.round(v).toLocaleString()}`;
+  }
+  if (m === 'retention') return `${v.toFixed(1)}%`;
+  return v.toLocaleString();
+}
+
+function competeStatusBadge(status: 'upcoming' | 'active' | 'completed') {
+  if (status === 'active') {
+    return (
+      <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 pulse-glow">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 inline-block" />
+        Active
+      </Badge>
+    );
+  }
+  if (status === 'upcoming') {
+    return <Badge className="bg-slate-500/15 text-slate-300 border-slate-500/30">Upcoming</Badge>;
+  }
+  return <Badge className="bg-muted text-muted-foreground border-border">Completed</Badge>;
+}
+
+function competeDaysRemaining(endDate: string): number {
+  const end = new Date(endDate + 'T23:59:59');
+  const now = new Date();
+  const diff = end.getTime() - now.getTime();
+  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+}
+
+function competeDateRange(start: string, end: string) {
+  const fmt = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return `${fmt(start)} \u2013 ${fmt(end)}`;
+}
+
+async function fetchCompeteRows<T>(table: string, select: string, filter?: (q: any) => any): Promise<T[]> {
+  if (!supabase) return [];
+  const PG = 100;
+  let offset = 0;
+  const rows: T[] = [];
+  let done = false;
+  while (!done) {
+    let q = (supabase as any).from(table).select(select).range(offset, offset + PG - 1);
+    if (filter) q = filter(q);
+    const { data, error } = await q;
+    if (error || !data || data.length === 0) { done = true; break; }
+    rows.push(...(data as T[]));
+    if (data.length < PG) done = true;
+    else offset += PG;
+  }
+  return rows;
 }
 
 /** Export displayed leaderboard rows to CSV and trigger download. */
@@ -150,7 +289,9 @@ function periodStart(p: Period): string | null {
 // ── Component ──────────────────────────────────────────────────────────────
 export function LeaderboardPage() {
   const navigate = useNavigate();
-  const { effectiveAgencyWritingNumber, isOrgWide } = useEffectiveAuth();
+  const { toast } = useToast();
+  const { role, profile } = useAuth();
+  const { effectiveAgencyWritingNumber, effectiveAgencyId, isOrgWide } = useEffectiveAuth();
   const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
   const orgData = useOrgData();
   const [rows, setRows] = useState<AgencyLeaderRow[]>([]);
@@ -164,6 +305,38 @@ export function LeaderboardPage() {
   const [rampUpAgents, setRampUpAgents] = useState<RampUpAgent[]>([]);
   const [rampUpLoading, setRampUpLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // ── Compete state ──
+  const canCreate = role === 'admin' || role === 'manager';
+  const [competeLoading, setCompeteLoading] = useState(true);
+  const [battles, setBattles] = useState<Battle[]>([]);
+  const [battleParticipants, setBattleParticipants] = useState<Map<string, BattleParticipant[]>>(new Map());
+  const [challenges, setChallenges] = useState<Challenge[]>([]);
+  const [challengeParticipants, setChallengeParticipants] = useState<Map<string, ChallengeParticipant[]>>(new Map());
+  const [competeAgencies, setCompeteAgencies] = useState<AgencyOption[]>([]);
+  // Create Battle form
+  const [battleTitle, setBattleTitle] = useState('');
+  const [battleDesc, setBattleDesc] = useState('');
+  const [battleType, setBattleType] = useState<BattleType>('agent_vs_agent');
+  const [battleMetric, setBattleMetric] = useState<GamificationMetric>('policies');
+  const [battleStart, setBattleStart] = useState('');
+  const [battleEnd, setBattleEnd] = useState('');
+  const [battleSubmitting, setBattleSubmitting] = useState(false);
+  // Create Challenge form
+  const [challengeTitle, setChallengeTitle] = useState('');
+  const [challengeDesc, setChallengeDesc] = useState('');
+  const [challengeType, setChallengeType] = useState<ChallengeType>('org_wide');
+  const [challengeAgencyId, setChallengeAgencyId] = useState('');
+  const [challengeMetric, setChallengeMetric] = useState<GamificationMetric>('policies');
+  const [challengeGoal, setChallengeGoal] = useState('');
+  const [challengeStart, setChallengeStart] = useState('');
+  const [challengeEnd, setChallengeEnd] = useState('');
+  const [challengeSubmitting, setChallengeSubmitting] = useState(false);
+
+  const scopedAgencies = useMemo(() => {
+    if (isOrgWide || !effectiveAgencyId) return competeAgencies;
+    return competeAgencies.filter(a => a.writing_number === effectiveAgencyId);
+  }, [competeAgencies, isOrgWide, effectiveAgencyId]);
 
   // Cache period data
   const [periodData, setPeriodData] = useState<Map<string, { policies: number; ap: number }>>(new Map());
@@ -244,53 +417,18 @@ export function LeaderboardPage() {
   }, [isOrgWide, orgData.dailyProduction]);
 
 
-  // Derive rows from org cache + enrich with names
+  // Derive rows from org cache + enrich with agency names.
+  // Uses cleanup flag to prevent stale async writes (fixes blank-out on re-render).
   useEffect(() => {
     const summaryData = orgData.retentionAgencies;
     if (!summaryData || summaryData.length === 0) return;
+    let cancelled = false;
 
-    // Agency names from rcbzag
-    const nameMap = new Map<string, string>();
-    if (supabase) {
-      (supabase as any)
-        .from('agencies')
-        .select('id, writing_number, name')
-        .then(({ data: agencyNames }: { data: any }) => {
-          if (agencyNames) {
-            for (const a of agencyNames as any[]) {
-              if (a.writing_number) nameMap.set(a.writing_number, a.name);
-            }
-          }
-
-          const ranked = summaryData
-            .map(r => ({
-              agency_id: r.agency_id,
-              name: nameMap.get(r.agency_id) ?? null,
-              active_policies: r.active_policies,
-              active_premium: r.active_premium,
-              at_risk_count: r.at_risk_count,
-              retained_90d: r.retained_90d,
-              eligible_90d: r.eligible_90d,
-              retention_pct: r.retention_pct,
-              rank: 0,
-              period_policies: 0,
-              period_ap: 0,
-            }))
-            .sort((a, b) => {
-              const retA = a.retention_pct ?? -1;
-              const retB = b.retention_pct ?? -1;
-              if (retB !== retA) return retB - retA;
-              return b.active_premium - a.active_premium;
-            });
-
-          ranked.forEach((r, i) => { r.rank = i + 1; });
-          setRows(ranked);
-        });
-    } else {
+    function buildRows(nameMap: Map<string, string>) {
       const ranked = summaryData
         .map(r => ({
           agency_id: r.agency_id,
-          name: null,
+          name: nameMap.get(r.agency_id) ?? null,
           active_policies: r.active_policies,
           active_premium: r.active_premium,
           at_risk_count: r.at_risk_count,
@@ -308,9 +446,32 @@ export function LeaderboardPage() {
           return b.active_premium - a.active_premium;
         });
       ranked.forEach((r, i) => { r.rank = i + 1; });
-      setRows(ranked);
+      return ranked;
     }
 
+    if (supabase) {
+      // Render immediately with data we have (no names), then enrich async
+      setRows(buildRows(new Map()));
+
+      (supabase as any)
+        .from('agencies')
+        .select('id, writing_number, name')
+        .then(({ data: agencyNames }: { data: any }) => {
+          if (cancelled) return;
+          const nameMap = new Map<string, string>();
+          if (agencyNames) {
+            for (const a of agencyNames as any[]) {
+              if (a.writing_number) nameMap.set(a.writing_number, a.name);
+            }
+          }
+          setRows(buildRows(nameMap));
+        })
+        .catch(() => { /* already rendered without names — graceful */ });
+    } else {
+      setRows(buildRows(new Map()));
+    }
+
+    return () => { cancelled = true; };
   }, [orgData.retentionAgencies]);
 
   // Load period data when period changes
@@ -488,8 +649,174 @@ export function LeaderboardPage() {
     };
   }, [enrichedRows, isOrgWide, effectiveAgencyWritingNumber, period]);
 
+  // ── Compete data loading ──
+  const loadCompeteData = useCallback(async () => {
+    if (!supabase) { setCompeteLoading(false); return; }
+    setCompeteLoading(true);
+    try {
+      const [battleRows, challengeRows, agencyRows] = await Promise.all([
+        fetchCompeteRows<Battle>('battles', '*', (q) => q.order('created_at', { ascending: false })),
+        fetchCompeteRows<Challenge>('challenges', '*', (q) => q.order('created_at', { ascending: false })),
+        fetchCompeteRows<AgencyOption>('agencies', 'writing_number, name'),
+      ]);
+      setBattles(battleRows);
+      setChallenges(challengeRows);
+      setCompeteAgencies(agencyRows.filter(a => a.writing_number));
+
+      if (battleRows.length > 0) {
+        const bpMap = new Map<string, BattleParticipant[]>();
+        const allBp = await fetchCompeteRows<BattleParticipant>(
+          'battle_participants', '*',
+          (q) => q.in('battle_id', battleRows.map(b => b.id))
+        );
+        for (const bp of allBp) {
+          const list = bpMap.get(bp.battle_id) || [];
+          list.push(bp);
+          bpMap.set(bp.battle_id, list);
+        }
+        for (const [k, list] of bpMap) {
+          list.sort((a, b) => b.current_value - a.current_value);
+          bpMap.set(k, list);
+        }
+        setBattleParticipants(bpMap);
+      } else {
+        setBattleParticipants(new Map());
+      }
+
+      if (challengeRows.length > 0) {
+        const cpMap = new Map<string, ChallengeParticipant[]>();
+        const allCp = await fetchCompeteRows<ChallengeParticipant>(
+          'challenge_participants', '*',
+          (q) => q.in('challenge_id', challengeRows.map(c => c.id))
+        );
+        for (const cp of allCp) {
+          const list = cpMap.get(cp.challenge_id) || [];
+          list.push(cp);
+          cpMap.set(cp.challenge_id, list);
+        }
+        for (const [k, list] of cpMap) {
+          list.sort((a, b) => b.contribution - a.contribution);
+          cpMap.set(k, list);
+        }
+        setChallengeParticipants(cpMap);
+      } else {
+        setChallengeParticipants(new Map());
+      }
+    } catch (err) {
+      console.error('Compete data load error:', err);
+    } finally {
+      setCompeteLoading(false);
+    }
+  }, []);
+
+  // Load compete data when switching to battles/challenges/create tab
+  useEffect(() => {
+    if (boardTab === 'battles' || boardTab === 'challenges' || boardTab === 'create') {
+      loadCompeteData();
+    }
+  }, [boardTab, loadCompeteData]);
+
+  // ── Compete stats ──
+  const battleStats = useMemo(() => {
+    const active = battles.filter(b => b.status === 'active').length;
+    const completed = battles.filter(b => b.status === 'completed').length;
+    let totalParticipants = 0;
+    for (const list of battleParticipants.values()) totalParticipants += list.length;
+    let won = 0;
+    let completedForUser = 0;
+    if (profile) {
+      for (const b of battles) {
+        if (b.status !== 'completed') continue;
+        const parts = battleParticipants.get(b.id) || [];
+        const mine = parts.find(p => p.agent_id === profile.id || p.agency_id === (profile as any).agency_id);
+        if (mine) {
+          completedForUser += 1;
+          if (mine.is_winner) won += 1;
+        }
+      }
+    }
+    const winRate = completedForUser > 0 ? Math.round((won / completedForUser) * 100) : 0;
+    return { active, completed, totalParticipants, winRate };
+  }, [battles, battleParticipants, profile]);
+
+  const challengeStats = useMemo(() => {
+    const active = challenges.filter(c => c.status === 'active').length;
+    const completed = challenges.filter(c => c.status === 'completed').length;
+    const achieved = challenges.filter(c => c.is_achieved).length;
+    const achievementRate = completed > 0 ? Math.round((achieved / completed) * 100) : 0;
+    return { active, completed, achieved, achievementRate };
+  }, [challenges]);
+
+  // ── Compete form handlers ──
+  async function handleCreateBattle(e: React.FormEvent) {
+    e.preventDefault();
+    if (!supabase) return;
+    if (!battleTitle.trim() || !battleStart || !battleEnd) {
+      toast({ title: 'Missing fields', description: 'Title, start date, and end date are required.', variant: 'destructive' });
+      return;
+    }
+    setBattleSubmitting(true);
+    try {
+      const { error } = await (supabase as any).from('battles').insert({
+        title: battleTitle.trim(),
+        description: battleDesc.trim() || null,
+        battle_type: battleType,
+        metric: battleMetric,
+        start_date: battleStart,
+        end_date: battleEnd,
+        status: 'upcoming',
+        created_by: profile?.id ?? null,
+      });
+      if (error) throw error;
+      toast({ title: 'Battle created', description: `"${battleTitle.trim()}" is ready to go.` });
+      setBattleTitle(''); setBattleDesc(''); setBattleType('agent_vs_agent');
+      setBattleMetric('policies'); setBattleStart(''); setBattleEnd('');
+      await loadCompeteData();
+    } catch (err: any) {
+      toast({ title: 'Failed to create battle', description: err.message ?? 'Unknown error', variant: 'destructive' });
+    } finally {
+      setBattleSubmitting(false);
+    }
+  }
+
+  async function handleCreateChallenge(e: React.FormEvent) {
+    e.preventDefault();
+    if (!supabase) return;
+    if (!challengeTitle.trim() || !challengeGoal || !challengeStart || !challengeEnd) {
+      toast({ title: 'Missing fields', description: 'Title, goal value, start date, and end date are required.', variant: 'destructive' });
+      return;
+    }
+    const resolvedAgencyId = !isOrgWide && effectiveAgencyId ? effectiveAgencyId : (challengeAgencyId || null);
+    setChallengeSubmitting(true);
+    try {
+      const { error } = await (supabase as any).from('challenges').insert({
+        title: challengeTitle.trim(),
+        description: challengeDesc.trim() || null,
+        challenge_type: challengeType,
+        target_agency_id: challengeType === 'agency' ? resolvedAgencyId : null,
+        metric: challengeMetric,
+        goal_value: Number(challengeGoal),
+        start_date: challengeStart,
+        end_date: challengeEnd,
+        status: 'upcoming',
+        created_by: profile?.id ?? null,
+      });
+      if (error) throw error;
+      toast({ title: 'Challenge created', description: `"${challengeTitle.trim()}" is ready to go.` });
+      setChallengeTitle(''); setChallengeDesc(''); setChallengeType('org_wide');
+      setChallengeAgencyId(''); setChallengeMetric('policies'); setChallengeGoal('');
+      setChallengeStart(''); setChallengeEnd('');
+      await loadCompeteData();
+    } catch (err: any) {
+      toast({ title: 'Failed to create challenge', description: err.message ?? 'Unknown error', variant: 'destructive' });
+    } finally {
+      setChallengeSubmitting(false);
+    }
+  }
+
   // Ramp-up agent count for badge
   const rampUpCount = rampUpAgents.length;
+  const activeBattleCount = battles.filter(b => b.status === 'active').length;
 
   // Stats — derived from displayed (filtered) data
   const stats = useMemo(() => {
@@ -531,32 +858,31 @@ export function LeaderboardPage() {
         )}
 
         {/* Board Tab Switcher */}
-        <div className="flex items-center gap-1 bg-secondary/50 rounded-lg p-0.5 w-fit">
-          <button
-            onClick={() => setBoardTab('agencies')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${
-              boardTab === 'agencies'
-                ? 'gradient-primary text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Trophy size={14} /> Agencies
-          </button>
-          <button
-            onClick={() => setBoardTab('ramp_up')}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${
-              boardTab === 'ramp_up'
-                ? 'gradient-primary text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Rocket size={14} /> Ramp Up
-            {rampUpCount > 0 && boardTab !== 'ramp_up' && (
-              <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-400">
-                {rampUpCount}
-              </span>
-            )}
-          </button>
+        <div className="flex items-center gap-1 bg-secondary/50 rounded-lg p-0.5 w-fit flex-wrap">
+          {([
+            { key: 'agencies' as BoardTab, label: 'Agencies', icon: Trophy },
+            { key: 'ramp_up' as BoardTab, label: 'Ramp Up', icon: Rocket, badge: rampUpCount > 0 ? rampUpCount : undefined },
+            { key: 'battles' as BoardTab, label: 'Battles', icon: Swords, badge: activeBattleCount > 0 ? activeBattleCount : undefined },
+            { key: 'challenges' as BoardTab, label: 'Challenges', icon: Target },
+            ...(canCreate ? [{ key: 'create' as BoardTab, label: 'Create New', icon: Plus }] : []),
+          ]).map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setBoardTab(tab.key)}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${
+                boardTab === tab.key
+                  ? 'gradient-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <tab.icon size={14} /> {tab.label}
+              {tab.badge && boardTab !== tab.key && (
+                <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-400">
+                  {tab.badge}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
 
         {/* Ramp Up Board */}
@@ -847,6 +1173,386 @@ export function LeaderboardPage() {
         </Card>
 
         </>)}{/* end boardTab === 'agencies' */}
+
+        {/* ── Battles tab ── */}
+        {boardTab === 'battles' && (
+          <div className="space-y-6">
+            <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { title: 'Active Battles', end: battleStats.active, icon: Swords, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+                { title: 'Completed', end: battleStats.completed, icon: CheckCircle2, color: 'text-primary', bg: 'bg-cyan-500/10' },
+                { title: 'Total Participants', end: battleStats.totalParticipants, icon: Users, color: 'text-foreground/80', bg: 'bg-secondary' },
+                { title: 'Your Win Rate', end: battleStats.winRate, icon: Crown, color: 'text-amber-400', bg: 'bg-amber-500/10', suffix: '%' },
+              ].map(card => (
+                <StaggerItem key={card.title}>
+                  <Card className="border-border">
+                    <CardContent className="p-4">
+                      {competeLoading ? (
+                        <div className="h-12 rounded shimmer" />
+                      ) : (
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground">{card.title}</p>
+                            <CountUp
+                              end={card.end}
+                              suffix={card.suffix}
+                              className="text-xl font-bold text-foreground mt-0.5 block"
+                            />
+                          </div>
+                          <div className={`p-2 rounded-lg ${card.bg}`}>
+                            <card.icon size={18} className={card.color} />
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </StaggerItem>
+              ))}
+            </StaggerContainer>
+
+            {competeLoading ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {[1, 2].map(i => <div key={i} className="h-64 rounded-lg shimmer" />)}
+              </div>
+            ) : battles.length === 0 ? (
+              <Card className="border-border">
+                <CardContent className="py-16 text-center">
+                  <Swords size={32} className="mx-auto text-muted-foreground mb-3" />
+                  <p className="text-muted-foreground">No battles yet.</p>
+                  {canCreate && (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Head to <button onClick={() => setBoardTab('create')} className="text-primary hover:underline">Create New</button> to start one.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {battles.map(battle => {
+                  const participants = battleParticipants.get(battle.id) || [];
+                  const maxValue = Math.max(1, ...participants.map(p => p.current_value));
+                  const MetricIcon = competeMetricIcon(battle.metric);
+                  const winner = participants.find(p => p.is_winner);
+                  return (
+                    <Card key={battle.id} className="border-border">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <CardTitle className="text-base font-semibold text-foreground">{battle.title}</CardTitle>
+                            {battle.description && <p className="text-xs text-muted-foreground mt-1">{battle.description}</p>}
+                          </div>
+                          {competeStatusBadge(battle.status)}
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
+                          <span className="flex items-center gap-1"><MetricIcon size={12} />{competeMetricLabel(battle.metric)}</span>
+                          <span className="flex items-center gap-1"><Calendar size={12} />{competeDateRange(battle.start_date, battle.end_date)}</span>
+                          {battle.status === 'active' && (
+                            <span className="flex items-center gap-1 text-emerald-400"><Clock size={12} />{competeDaysRemaining(battle.end_date)}d left</span>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent className="pt-0 space-y-3">
+                        {participants.length === 0 ? (
+                          <p className="text-xs text-muted-foreground py-4 text-center">No participants added yet.</p>
+                        ) : (
+                          participants.map(p => (
+                            <div key={p.id}>
+                              <div className="flex items-center justify-between text-xs mb-1">
+                                <span className={`font-medium truncate flex items-center gap-1.5 ${battle.status === 'completed' && p.is_winner ? 'text-amber-400' : 'text-foreground'}`}>
+                                  {battle.status === 'completed' && p.is_winner && <Trophy size={12} className="text-amber-400" />}
+                                  {p.display_name}
+                                </span>
+                                <span className="font-data text-muted-foreground">{competeFmtValue(p.current_value, battle.metric)}</span>
+                              </div>
+                              <div className="h-2 rounded-full bg-secondary/50 overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all ${battle.status === 'completed' && p.is_winner ? 'bg-amber-400' : 'gradient-primary'}`}
+                                  style={{ width: `${Math.min(100, (p.current_value / maxValue) * 100)}%` }}
+                                />
+                              </div>
+                            </div>
+                          ))
+                        )}
+                        {battle.status === 'completed' && winner && (
+                          <div className="flex items-center gap-2 pt-2 border-t border-border/30 text-xs text-amber-400">
+                            <Trophy size={14} />
+                            <span className="font-semibold">{winner.display_name}</span> wins this battle
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Challenges tab ── */}
+        {boardTab === 'challenges' && (
+          <div className="space-y-6">
+            <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { title: 'Active Challenges', end: challengeStats.active, icon: Target, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+                { title: 'Completed', end: challengeStats.completed, icon: CheckCircle2, color: 'text-primary', bg: 'bg-cyan-500/10' },
+                { title: 'Achieved', end: challengeStats.achieved, icon: Trophy, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+                { title: 'Achievement Rate', end: challengeStats.achievementRate, icon: Percent, color: 'text-foreground/80', bg: 'bg-secondary', suffix: '%' },
+              ].map(card => (
+                <StaggerItem key={card.title}>
+                  <Card className="border-border">
+                    <CardContent className="p-4">
+                      {competeLoading ? (
+                        <div className="h-12 rounded shimmer" />
+                      ) : (
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground">{card.title}</p>
+                            <CountUp end={card.end} suffix={card.suffix} className="text-xl font-bold text-foreground mt-0.5 block" />
+                          </div>
+                          <div className={`p-2 rounded-lg ${card.bg}`}>
+                            <card.icon size={18} className={card.color} />
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </StaggerItem>
+              ))}
+            </StaggerContainer>
+
+            {competeLoading ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {[1, 2].map(i => <div key={i} className="h-72 rounded-lg shimmer" />)}
+              </div>
+            ) : challenges.length === 0 ? (
+              <Card className="border-border">
+                <CardContent className="py-16 text-center">
+                  <Target size={32} className="mx-auto text-muted-foreground mb-3" />
+                  <p className="text-muted-foreground">No challenges yet.</p>
+                  {canCreate && (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Head to <button onClick={() => setBoardTab('create')} className="text-primary hover:underline">Create New</button> to set one up.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {challenges.map(challenge => {
+                  const participants = challengeParticipants.get(challenge.id) || [];
+                  const pct = challenge.goal_value > 0
+                    ? Math.min(100, (challenge.current_value / challenge.goal_value) * 100)
+                    : 0;
+                  const MetricIcon = competeMetricIcon(challenge.metric);
+                  return (
+                    <Card key={challenge.id} className="border-border">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <CardTitle className="text-base font-semibold text-foreground">{challenge.title}</CardTitle>
+                            {challenge.description && <p className="text-xs text-muted-foreground mt-1">{challenge.description}</p>}
+                          </div>
+                          {competeStatusBadge(challenge.status)}
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2 flex-wrap">
+                          <span className="flex items-center gap-1"><MetricIcon size={12} />{competeMetricLabel(challenge.metric)}</span>
+                          <span className="flex items-center gap-1"><Calendar size={12} />{competeDateRange(challenge.start_date, challenge.end_date)}</span>
+                          <span className="uppercase tracking-wide text-[10px] text-muted-foreground">
+                            {challenge.challenge_type === 'org_wide' ? 'Org-Wide' : 'Agency-Specific'}
+                          </span>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="pt-0">
+                        <div className="flex items-center gap-5">
+                          <RadialGauge value={pct} size={100} strokeWidth={8} thresholds={[50, 90]} />
+                          <div className="flex-1 min-w-0 space-y-2">
+                            <div>
+                              <p className="text-xs text-muted-foreground">Progress</p>
+                              <p className="font-data text-sm text-foreground">
+                                {competeFmtValue(challenge.current_value, challenge.metric)} / {competeFmtValue(challenge.goal_value, challenge.metric)}
+                              </p>
+                            </div>
+                            {challenge.status === 'completed' && (
+                              challenge.is_achieved ? (
+                                <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
+                                  <CheckCircle2 size={11} className="mr-1" /> Achieved
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-red-500/15 text-red-400 border-red-500/30">
+                                  <XCircle size={11} className="mr-1" /> Missed
+                                </Badge>
+                              )
+                            )}
+                          </div>
+                        </div>
+                        {participants.length > 0 && (
+                          <div className="mt-4 pt-3 border-t border-border/30">
+                            <p className="text-xs font-medium text-muted-foreground mb-2">Top Contributors</p>
+                            <div className="space-y-1.5">
+                              {participants.slice(0, 5).map((p, i) => (
+                                <div key={p.id} className="flex items-center justify-between text-xs">
+                                  <span className="flex items-center gap-1.5 text-foreground/80 truncate">
+                                    <span className="text-muted-foreground font-data w-4">{i + 1}.</span>
+                                    {p.display_name}
+                                  </span>
+                                  <span className="font-data text-muted-foreground">{competeFmtValue(p.contribution, challenge.metric)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Create New tab ── */}
+        {boardTab === 'create' && canCreate && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Create Battle */}
+            <Card className="border-border">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
+                  <Swords size={18} className="text-primary" /> Create Battle
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleCreateBattle} className="space-y-4">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Title *</label>
+                    <Input required placeholder="Q3 Policy Sprint" value={battleTitle} onChange={e => setBattleTitle(e.target.value)} className="bg-card" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Description</label>
+                    <Textarea placeholder="Optional context for participants" value={battleDesc} onChange={e => setBattleDesc(e.target.value)} className="bg-card" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Battle Type</label>
+                      <div className="flex gap-2">
+                        {([['agent_vs_agent', 'Agent'], ['agency_vs_agency', 'Agency']] as const).map(([val, label]) => (
+                          <button key={val} type="button" onClick={() => setBattleType(val)}
+                            className={`flex-1 px-2 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+                              battleType === val
+                                ? 'gradient-primary text-primary-foreground border-primary/30'
+                                : 'bg-secondary text-muted-foreground border-border hover:border-primary/30'
+                            }`}
+                          >{label}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Metric</label>
+                      <select value={battleMetric} onChange={e => setBattleMetric(e.target.value as GamificationMetric)}
+                        className="flex h-9 w-full items-center rounded-md border border-input bg-card px-3 text-sm text-foreground">
+                        <option value="policies">Policies Written</option>
+                        <option value="ap">Annual Premium</option>
+                        <option value="retention">Retention %</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Start Date *</label>
+                      <Input required type="date" value={battleStart} onChange={e => setBattleStart(e.target.value)} className="bg-card" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">End Date *</label>
+                      <Input required type="date" value={battleEnd} onChange={e => setBattleEnd(e.target.value)} className="bg-card" />
+                    </div>
+                  </div>
+                  <Button type="submit" disabled={battleSubmitting} className="w-full bg-primary hover:bg-primary/80 text-white">
+                    {battleSubmitting ? 'Creating\u2026' : 'Create Battle'}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+
+            {/* Create Challenge */}
+            <Card className="border-border">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
+                  <Target size={18} className="text-primary" /> Create Challenge
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleCreateChallenge} className="space-y-4">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Title *</label>
+                    <Input required placeholder="August Retention Push" value={challengeTitle} onChange={e => setChallengeTitle(e.target.value)} className="bg-card" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Description</label>
+                    <Textarea placeholder="Optional context for participants" value={challengeDesc} onChange={e => setChallengeDesc(e.target.value)} className="bg-card" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Challenge Type</label>
+                      <div className="flex gap-2">
+                        {([['org_wide', 'Org-Wide'], ['agency', 'Agency']] as const).map(([val, label]) => (
+                          <button key={val} type="button" onClick={() => setChallengeType(val)}
+                            className={`flex-1 px-2 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+                              challengeType === val
+                                ? 'gradient-primary text-primary-foreground border-primary/30'
+                                : 'bg-secondary text-muted-foreground border-border hover:border-primary/30'
+                            }`}
+                          >{label}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Metric</label>
+                      <select value={challengeMetric} onChange={e => setChallengeMetric(e.target.value as GamificationMetric)}
+                        className="flex h-9 w-full items-center rounded-md border border-input bg-card px-3 text-sm text-foreground">
+                        <option value="policies">Policies Written</option>
+                        <option value="ap">Annual Premium</option>
+                        <option value="retention">Retention %</option>
+                      </select>
+                    </div>
+                  </div>
+                  {challengeType === 'agency' && (
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Agency</label>
+                      <select
+                        value={!isOrgWide && effectiveAgencyId ? effectiveAgencyId : challengeAgencyId}
+                        onChange={e => setChallengeAgencyId(e.target.value)}
+                        disabled={!isOrgWide && !!effectiveAgencyId}
+                        className="flex h-9 w-full items-center rounded-md border border-input bg-card px-3 text-sm text-foreground disabled:opacity-60">
+                        <option value="">Select an agency\u2026</option>
+                        {scopedAgencies.map(a => (
+                          <option key={a.writing_number} value={a.writing_number}>{a.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Goal Value *</label>
+                    <Input required type="number" min="0" step="any" placeholder="e.g. 50" value={challengeGoal}
+                      onChange={e => setChallengeGoal(e.target.value)} className="bg-card font-data" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Start Date *</label>
+                      <Input required type="date" value={challengeStart} onChange={e => setChallengeStart(e.target.value)} className="bg-card" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">End Date *</label>
+                      <Input required type="date" value={challengeEnd} onChange={e => setChallengeEnd(e.target.value)} className="bg-card" />
+                    </div>
+                  </div>
+                  <Button type="submit" disabled={challengeSubmitting} className="w-full bg-primary hover:bg-primary/80 text-white">
+                    {challengeSubmitting ? 'Creating\u2026' : 'Create Challenge'}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
       </div>
     </div>
   );
