@@ -30,6 +30,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useViewAsStore } from '@/store/view-as-store';
 import type { UserRole } from '@/contexts/AuthContext';
 import { Eye, ShieldPlus, Trash2, UserPlus, CheckCircle2, AlertCircle, Users, Settings, KeyRound, Copy, RefreshCw, Search, Zap, Eye as EyeIcon, EyeOff } from 'lucide-react';
+import { CoachingThresholdsCard } from '@/components/settings/CoachingThresholdsCard';
 
 interface ProfileOption {
   id: string;
@@ -153,6 +154,7 @@ export function SettingsPage() {
 
         {isFymAdmin && <StaggerItem><FymAdminManagementCard currentUserId={user?.id ?? null} /></StaggerItem>}
         {isFymAdmin && <StaggerItem><AgencyCredentialsCard /></StaggerItem>}
+        {isFymAdmin && <StaggerItem><CoachingThresholdsCard /></StaggerItem>}
         {isFymAdmin && <StaggerItem><ViewAsCard /></StaggerItem>}
 
         {!isFymAdmin && (
