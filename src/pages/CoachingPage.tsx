@@ -132,7 +132,8 @@ async function fetchAllPaginated<T>(
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function CoachingPage() {
-  const { effectiveAgencyId, effectiveWritingNumber, isOrgWide, isAgent } = useEffectiveAuth();
+  const { effectiveAgencyId, effectiveWritingNumber, effectiveRole, isOrgWide, isAgent } = useEffectiveAuth();
+  const isManager = effectiveRole === 'manager';
   const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
   const [rows, setRows] = useState<CoachingRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -437,15 +438,20 @@ export function CoachingPage() {
         {!isAgent && (
           <div className="space-y-3">
             <div>
-              <h2 className="text-base font-semibold text-foreground">Agents Needing Coaching</h2>
+              <h2 className="text-base font-semibold text-foreground">
+                {isManager ? 'Your Team\'s Coaching Alerts' : 'Agents Needing Coaching'}
+              </h2>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Agents whose book metrics breach configured thresholds. Adjust thresholds in Settings.
+                {isManager
+                  ? 'Team members whose book metrics breach coaching thresholds. Work with your agents to improve these numbers.'
+                  : 'Agents whose book metrics breach configured thresholds. Adjust thresholds in Settings.'}
               </p>
             </div>
             <AgentCoachingTable
               agents={agentFlags}
               loading={agentFlagsLoading}
-              filterAgencyId={filterAgencyId}
+              filterAgencyId={isManager ? effectiveAgencyId : filterAgencyId}
+              viewMode={isManager ? 'manager' : 'admin'}
             />
           </div>
         )}
