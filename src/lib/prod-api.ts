@@ -466,3 +466,51 @@ export async function fetchAgentDirectory(params?: {
 }): Promise<AgentDirectoryResponse> {
   return callEdgeFunction<AgentDirectoryResponse>('agent-directory', params || {});
 }
+
+// ── coaching-flags types ──────────────────────────────────────────────────
+
+export interface AgentCoachingFlagRow {
+  writing_number: string;
+  agent_name: string | null;
+  agency_id: string;
+  agency_name: string | null;
+  total_policies: number;
+  active_policies: number;
+  terminated_policies: number;
+  at_risk_count: number;
+  active_premium: number | null;
+  annual_premium: number | null;
+  retained_90d: number;
+  eligible_90d: number;
+  retention_pct: number | null;
+  at_risk_pct: number | null;
+  terminated_pct: number | null;
+  flag_retention: boolean;
+  flag_at_risk: boolean;
+  flag_terminated: boolean;
+  needs_coaching: boolean;
+  flag_count: number;
+  threshold_retention: number;
+  threshold_at_risk: number;
+  threshold_terminated: number;
+  threshold_min_policies: number;
+}
+
+export interface CoachingFlagsResponse {
+  agents: AgentCoachingFlagRow[];
+  thresholds: {
+    retention_pct_min: number;
+    at_risk_pct_max: number;
+    terminated_pct_max: number;
+    min_eligible_policies: number;
+  };
+  total: number;
+  flagged: number;
+}
+
+export async function fetchCoachingFlags(params?: {
+  agency_id?: string;
+  agent_id?: string;
+}): Promise<CoachingFlagsResponse> {
+  return callEdgeFunction<CoachingFlagsResponse>('coaching-flags', params || {});
+}

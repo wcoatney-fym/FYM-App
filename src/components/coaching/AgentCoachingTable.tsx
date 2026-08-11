@@ -40,6 +40,8 @@ export interface AgentCoachingFlag {
 
 type SortKey = 'agent' | 'agency' | 'retention' | 'atRisk' | 'terminated' | 'premium' | 'flags';
 
+type ViewMode = 'admin' | 'manager' | 'agent';
+
 interface AgentCoachingTableProps {
   agents: AgentCoachingFlag[];
   loading: boolean;
@@ -47,6 +49,8 @@ interface AgentCoachingTableProps {
   filterAgencyId?: string | null;
   /** Show only flagged agents (default true) */
   flaggedOnly?: boolean;
+  /** Role-aware messaging context */
+  viewMode?: ViewMode;
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
@@ -55,6 +59,7 @@ export function AgentCoachingTable({
   loading,
   filterAgencyId = null,
   flaggedOnly = true,
+  viewMode = 'admin',
 }: AgentCoachingTableProps) {
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('flags');
@@ -168,20 +173,22 @@ export function AgentCoachingTable({
       <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
           {
-            title: 'Agents Flagged',
+            title: viewMode === 'manager' ? 'Team Members Flagged' : 'Agents Flagged',
             end: summary.totalFlagged,
             fmt: (n: number) => n.toLocaleString(),
-            sub: 'needing coaching intervention',
+            sub: viewMode === 'manager' ? 'on your team needing coaching' : 'needing coaching intervention',
             icon: Users,
             color: summary.totalFlagged > 0 ? 'text-red-400' : 'text-muted-foreground',
             bg: summary.totalFlagged > 0 ? 'bg-red-500/10' : 'bg-secondary',
             accent: summary.totalFlagged > 0 ? 'hsl(0 84% 60%)' : 'hsl(215 20% 55%)',
           },
           {
-            title: 'Agencies Affected',
-            end: summary.uniqueAgencies,
+            title: viewMode === 'manager' ? 'Flag Types' : 'Agencies Affected',
+            end: viewMode === 'manager'
+              ? agents.filter(a => a.needs_coaching && (!filterAgencyId || a.agency_id === filterAgencyId)).reduce((s, a) => s + a.flag_count, 0)
+              : summary.uniqueAgencies,
             fmt: (n: number) => n.toLocaleString(),
-            sub: 'with flagged agents',
+            sub: viewMode === 'manager' ? 'total threshold breaches' : 'with flagged agents',
             icon: AlertTriangle,
             color: summary.uniqueAgencies > 0 ? 'text-amber-400' : 'text-muted-foreground',
             bg: summary.uniqueAgencies > 0 ? 'bg-amber-500/10' : 'bg-secondary',
@@ -191,7 +198,7 @@ export function AgentCoachingTable({
             title: 'Premium Exposed',
             end: summary.premiumAtRisk,
             fmt: fmt$,
-            sub: 'annual premium on flagged agents',
+            sub: viewMode === 'manager' ? 'annual premium on flagged team members' : 'annual premium on flagged agents',
             icon: TrendingDown,
             color: 'text-amber-400',
             bg: 'bg-amber-500/10',
@@ -201,7 +208,7 @@ export function AgentCoachingTable({
             title: 'Avg Retention',
             end: summary.avgRetention ?? 0,
             fmt: (n: number) => summary.avgRetention === null ? '—' : `${n.toFixed(1)}%`,
-            sub: 'across flagged agents',
+            sub: viewMode === 'manager' ? 'across flagged team members' : 'across flagged agents',
             icon: Target,
             color: (summary.avgRetention ?? 100) < 90 ? 'text-red-400' : 'text-emerald-400',
             bg: (summary.avgRetention ?? 100) < 90 ? 'bg-red-500/10' : 'bg-emerald-500/10',
@@ -283,10 +290,18 @@ export function AgentCoachingTable({
             <Target size={24} className="text-emerald-400" />
           </div>
           <p className="text-sm font-medium text-foreground/70">
-            {search ? 'No agents match your search' : 'No agents currently need coaching'}
+            {search
+              ? 'No agents match your search'
+              : viewMode === 'manager'
+                ? 'No team members currently need coaching'
+                : 'No agents currently need coaching'}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            {search ? 'Try a different search term.' : 'All agents are within configured thresholds. 🎯'}
+            {search
+              ? 'Try a different search term.'
+              : viewMode === 'manager'
+                ? 'All team members are within thresholds. Nice work. 🎯'
+                : 'All agents are within configured thresholds. 🎯'}
           </p>
         </div>
       ) : (
