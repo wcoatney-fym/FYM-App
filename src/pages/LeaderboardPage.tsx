@@ -532,17 +532,27 @@ export function LeaderboardPage() {
   }, [boardTab, loadCompeteData]);
 
   // ── Compete stats ──
+  // Defensive Map access — guards against corrupted state where Map becomes plain object
+  const safeMapGet = <V,>(m: Map<string, V> | Record<string, V>, key: string): V | undefined => {
+    if (m instanceof Map) return m.get(key);
+    return (m as Record<string, V>)?.[key];
+  };
+  const safeMapValues = <V,>(m: Map<string, V> | Record<string, V>): V[] => {
+    if (m instanceof Map) return [...m.values()];
+    return Object.values(m || {});
+  };
+
   const battleStats = useMemo(() => {
     const active = battles.filter(b => b.status === 'active').length;
     const completed = battles.filter(b => b.status === 'completed').length;
     let totalParticipants = 0;
-    for (const list of battleParticipants.values()) totalParticipants += list.length;
+    for (const list of safeMapValues(battleParticipants)) totalParticipants += list.length;
     let won = 0;
     let completedForUser = 0;
     if (profile) {
       for (const b of battles) {
         if (b.status !== 'completed') continue;
-        const parts = battleParticipants.get(b.id) || [];
+        const parts = safeMapGet(battleParticipants, b.id) || [];
         const mine = parts.find(p => p.agent_id === profile.id || p.agency_id === (profile as any).agency_id);
         if (mine) {
           completedForUser += 1;
@@ -914,7 +924,7 @@ export function LeaderboardPage() {
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {battles.map(battle => {
-                  const participants = battleParticipants.get(battle.id) || [];
+                  const participants = safeMapGet(battleParticipants, battle.id) || [];
                   const maxValue = Math.max(1, ...participants.map(p => p.current_value));
                   const MetricIcon = competeMetricIcon(battle.metric);
                   const winner = participants.find(p => p.is_winner);
@@ -1024,7 +1034,7 @@ export function LeaderboardPage() {
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {challenges.map(challenge => {
-                  const participants = challengeParticipants.get(challenge.id) || [];
+                  const participants = safeMapGet(challengeParticipants, challenge.id) || [];
                   const pct = challenge.goal_value > 0
                     ? Math.min(100, (challenge.current_value / challenge.goal_value) * 100)
                     : 0;
