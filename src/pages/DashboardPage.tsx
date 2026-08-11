@@ -328,7 +328,7 @@ export function DashboardPage() {
     const agencies = filterAgencyId
       ? rawAgencies.filter((a) => a.agency_id === filterAgencyId)
       : rawAgencies;
-    return agencies
+    const sorted = agencies
       .filter((a) => a.retention_pct !== null)
       .map((a) => ({
         agency_id: a.agency_id,
@@ -338,9 +338,11 @@ export function DashboardPage() {
         at_risk_count: a.at_risk_count,
         retention_pct: a.retention_pct,
       }))
-      .sort((a, b) => (a.retention_pct ?? 100) - (b.retention_pct ?? 100))
-      .slice(0, 8);
-  }, [orgData.initialLoading, noDataAgency, filterAgencyId, rawAgencies, nameMap]);
+      .sort((a, b) => (a.retention_pct ?? 100) - (b.retention_pct ?? 100));
+    // FYM admin (org-wide): show ALL agencies for coaching visibility.
+    // Agency admins: cap at 8 (they only see their own hierarchy anyway).
+    return isOrgWide ? sorted : sorted.slice(0, 8);
+  }, [orgData.initialLoading, noDataAgency, filterAgencyId, rawAgencies, nameMap, isOrgWide]);
 
   // ── Production snapshot ──
   const snapshot = useMemo((): StatusSnapshot | null => {
