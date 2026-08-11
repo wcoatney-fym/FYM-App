@@ -59,15 +59,15 @@ const managerNav: NavItem[] = [
 
 const fymAdminNav: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/people/agencies', label: 'Agencies & Agents', icon: Building2, activePrefix: '/people' },
-  { to: '/production', label: 'Production', icon: TrendingUp, activePrefix: '/production' },
-  { to: '/quality/retention', label: 'Quality', icon: ShieldCheck, activePrefix: '/quality' },
-  { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
-  { to: '/contracting', label: 'Contracting', icon: FileText },
-  { to: '/crm-command', label: 'CRM Command', icon: Command },
-  { to: '/rosters', label: 'Rosters', icon: FileSpreadsheet },
-  { to: '/daily-pulse', label: 'Daily Pulse', icon: Activity },
   { to: '/recruiting', label: 'Recruiting', icon: Megaphone, activePrefix: '/recruiting' },
+  { to: '/contracting', label: 'Contracting', icon: FileText },
+  { to: '/daily-pulse', label: 'Daily Pulse', icon: Activity },
+  { to: '/production', label: 'Production', icon: TrendingUp, activePrefix: '/production' },
+  { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
+  { to: '/quality/retention', label: 'Quality', icon: ShieldCheck, activePrefix: '/quality' },
+  { to: '/people/agencies', label: 'Agencies & Agents', icon: Building2, activePrefix: '/people' },
+  { to: '/rosters', label: 'Rosters', icon: FileSpreadsheet },
+  { to: '/crm-command', label: 'CRM Command', icon: Command },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
