@@ -8,8 +8,41 @@
  * Uses the same Supabase project URL + anon key for auth.
  */
 
+import { supabase } from './supabase';
+
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+// ── Dashboard cache reader ─────────────────────────────────────────────
+// Reads pre-computed data from the dashboard_cache table (hourly refresh).
+// Returns null if cache miss or table doesn't exist yet.
+
+export interface DashboardCacheEntry {
+  cache_key: string;
+  payload: unknown;
+  refreshed_at: string;
+  elapsed_ms: number | null;
+}
+
+export async function readDashboardCache(
+  keys: string[]
+): Promise<Map<string, DashboardCacheEntry> | null> {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from('dashboard_cache' as any)
+      .select('cache_key, payload, refreshed_at, elapsed_ms')
+      .in('cache_key', keys);
+    if (error || !data || data.length === 0) return null;
+    const map = new Map<string, DashboardCacheEntry>();
+    for (const row of data as any[]) {
+      map.set(row.cache_key, row as DashboardCacheEntry);
+    }
+    return map;
+  } catch {
+    return null;
+  }
+}
 
 async function callEdgeFunction<T>(
   functionName: string,
