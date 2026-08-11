@@ -19,6 +19,7 @@ import {
   ArrowLeft, ArrowRight, RefreshCw, Calendar, User, Building2,
 } from 'lucide-react';
 import { fmt$, fmtDate } from '@/lib/formatUtils';
+import { AgentCoachingTable, type AgentCoachingFlag } from '@/components/coaching/AgentCoachingTable';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface CoachingRow {
@@ -144,6 +145,23 @@ export function CoachingPage() {
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
   const [filterAgentId, setFilterAgentId] = useState<string | null>(null);
 
+  // Agent coaching flags
+  const [agentFlags, setAgentFlags] = useState<AgentCoachingFlag[]>([]);
+  const [agentFlagsLoading, setAgentFlagsLoading] = useState(true);
+
+  const loadAgentFlags = useCallback(async () => {
+    if (!supabase || isAgent) { setAgentFlagsLoading(false); return; }
+    setAgentFlagsLoading(true);
+    try {
+      const data = await fetchAllPaginated<AgentCoachingFlag>('agent_coaching_flags', '*', undefined, { isOrgWide, agencyId: effectiveAgencyId, writingNumber: effectiveWritingNumber, isAgent: false });
+      setAgentFlags(data);
+    } catch (err) {
+      console.error('Agent coaching flags load error:', err);
+    } finally {
+      setAgentFlagsLoading(false);
+    }
+  }, [isOrgWide, effectiveAgencyId, effectiveWritingNumber, isAgent]);
+
   const load = useCallback(async () => {
     if (!supabase) { setLoading(false); return; }
     setLoading(true);
@@ -158,6 +176,7 @@ export function CoachingPage() {
   }, [isOrgWide, effectiveAgencyId, effectiveWritingNumber, isAgent]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadAgentFlags(); }, [loadAgentFlags]);
 
   const selectedRow = useMemo(
     () => rows.find(r => r.task_id === selectedTaskId) || null,
@@ -413,6 +432,23 @@ export function CoachingPage() {
             </StaggerItem>
           ))}
         </StaggerContainer>
+
+        {/* ── Agent Identification Section (admin/manager only) ── */}
+        {!isAgent && (
+          <div className="space-y-3">
+            <div>
+              <h2 className="text-base font-semibold text-foreground">Agents Needing Coaching</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Agents whose book metrics breach configured thresholds. Adjust thresholds in Settings.
+              </p>
+            </div>
+            <AgentCoachingTable
+              agents={agentFlags}
+              loading={agentFlagsLoading}
+              filterAgencyId={filterAgencyId}
+            />
+          </div>
+        )}
 
         {/* ── Toolbar ── */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
