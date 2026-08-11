@@ -12,6 +12,10 @@ import {
   fetchAgencyProduction,
   fetchDailyProduction,
 } from '@/lib/prod-api';
+import {
+  filterDailyByRange,
+  aggregateAgencyProduction,
+} from '@/lib/clientFilters';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { useOrgData } from '@/contexts/OrgDataCache';
@@ -166,7 +170,7 @@ export function ProductionPage() {
     };
   }, [loading, agencies]);
 
-  // Fetch date-filtered data only when user changes date range
+  // Fetch date-filtered data — client-side filtering when cache available (instant)
   useEffect(() => {
     if (!useRpc) {
       setLocalAgencies([]);
@@ -174,9 +178,44 @@ export function ProductionPage() {
       setLocalMonthly([]);
       return;
     }
-    if (!supabase) return;
     const startDate = dateRange.startDate.split('T')[0];
     const endDate = dateRange.endDate.split('T')[0];
+
+    // Org-wide + cache available → instant client-side filter
+    if (isOrgWide && orgData.dailyProduction.length > 0) {
+      const filtered = filterDailyByRange(orgData.dailyProduction, startDate, endDate);
+      const agencyStats = aggregateAgencyProduction(filtered, orgData.agencyProduction);
+      setLocalAgencies(agencyStats.map(a => ({
+        agency_id: a.agency_id,
+        agency_name: agencyNameMap.get(a.agency_id) ?? null,
+        total_policies: a.total_policies,
+        active_policies: a.active_policies,
+        terminated_policies: a.terminated_policies,
+        pending_policies: a.pending_policies,
+        active_annual_premium: a.active_annual_premium,
+        avg_annual_premium: a.avg_annual_premium,
+        policies_this_month: a.policies_this_month,
+        ap_this_month: a.ap_this_month,
+        policies_last_month: a.policies_last_month,
+        ap_last_month: a.ap_last_month,
+        at_risk_policies: a.at_risk_policies,
+        at_risk_annual_premium: a.at_risk_annual_premium,
+      })));
+      setLocalDaily(filtered.map(d => ({
+        agency_id: d.agency_id,
+        agent_id: null,
+        writing_number: null,
+        product_type: '',
+        day: d.day,
+        policies: d.policies,
+        annual_premium: d.annual_premium,
+      })));
+      setLocalMonthly([]);
+      return;
+    }
+
+    // Agency-scoped fallback → edge function calls
+    if (!supabase) return;
     const agencyParam = !isOrgWide && effectiveAgencyWritingNumber ? { agency_id: effectiveAgencyWritingNumber } : {};
     const dateParams = { ...agencyParam, start_date: startDate, end_date: endDate };
 
@@ -218,7 +257,7 @@ export function ProductionPage() {
       setDateLoading(false);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateRange, datePreset, effectiveAgencyWritingNumber, isOrgWide, agencyNameMap]);
+  }, [dateRange, datePreset, effectiveAgencyWritingNumber, isOrgWide, agencyNameMap, orgData.dailyProduction, orgData.agencyProduction]);
 
   // Filter + sort agencies
   const filteredAgencies = useMemo(() => {

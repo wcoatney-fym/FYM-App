@@ -12,6 +12,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
 import { fetchAgencyProduction, fetchAgentProduction } from '@/lib/prod-api';
+import { filterDailyByRange } from '@/lib/clientFilters';
 import { useCachedFetch } from '@/hooks/useCachedFetch';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
@@ -204,12 +205,29 @@ export function LeaderboardPage() {
     }
 
     try {
-      // Query prod DB edge function for period-filtered agency production
-      // Use tomorrow in CT as exclusive end date (safe on month boundaries)
       const { year, month, day } = ctToday();
       const tomorrow = new Date(`${year}-${pad2(month)}-${pad2(day)}T12:00:00`);
       tomorrow.setDate(tomorrow.getDate() + 1);
       const endDate = `${tomorrow.getFullYear()}-${pad2(tomorrow.getMonth() + 1)}-${pad2(tomorrow.getDate())}`;
+
+      // Client-side filter from cached daily production (instant) when available
+      if (isOrgWide && orgData.dailyProduction.length > 0) {
+        const filtered = filterDailyByRange(orgData.dailyProduction, start, endDate);
+        const agMap = new Map<string, { policies: number; ap: number }>();
+        for (const row of filtered) {
+          const existing = agMap.get(row.agency_id);
+          if (existing) {
+            existing.policies += row.policies;
+            existing.ap += row.annual_premium;
+          } else {
+            agMap.set(row.agency_id, { policies: row.policies, ap: row.annual_premium });
+          }
+        }
+        setPeriodData(agMap);
+        return;
+      }
+
+      // Fallback: edge function call
       const agencies = await fetchAgencyProduction({ start_date: start, end_date: endDate });
       const agMap = new Map<string, { policies: number; ap: number }>();
       for (const a of agencies) {
@@ -223,7 +241,7 @@ export function LeaderboardPage() {
       console.error('Period data load error:', err);
       setPeriodData(new Map());
     }
-  }, []);
+  }, [isOrgWide, orgData.dailyProduction]);
 
 
   // Derive rows from org cache + enrich with names
