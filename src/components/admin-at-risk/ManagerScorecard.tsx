@@ -1,122 +1,80 @@
 /**
- * ManagerScorecard — Admin oversight: how are managers working the at-risk pipeline?
+ * ManagerScorecard — Admin oversight of manager performance on at-risk cases.
  *
- * Shows each manager's assigned cases, activity, save rate, and open Code Reds.
- * Click a manager row to expand and see their assigned at-risk cases with current stage.
+ * Groups policies by agency (since managers work at the agency level),
+ * showing assigned cases, activity, save rate, and Code Red count.
+ * Expandable rows drill into individual cases.
+ *
+ * Note: "manager" here maps to agency-level responsibility. The assigned_to
+ * field in atrisk_tasks identifies who's working the case.
  */
 import { useState, useMemo } from 'react';
 import {
-  Users, ChevronDown, ChevronRight, ShieldAlert,
-  Activity,
+  Users, ChevronDown, ChevronRight,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import type { PipelinePolicy } from './types';
+import type { AdminAtRiskPolicy } from './types';
+import { STAGE_LABELS } from './types';
 
-interface ManagerScoreCardProps {
-  policies: PipelinePolicy[];
+interface ManagerScorecardProps {
+  policies: AdminAtRiskPolicy[];
   loading?: boolean;
 }
 
-interface ManagerRow {
-  assignedTo: string;
+interface AgencyRow {
+  agencyId: string;
   totalCases: number;
-  codeRedCount: number;
-  savedCount: number;
-  lostCount: number;
-  activeCount: number; // responded + manager_outreach + agent_outreach
-  premiumAtRisk: number;
+  inPipeline: number;
+  codeRed: number;
+  saved: number;
+  lost: number;
   saveRate: number;
-  cases: PipelinePolicy[];
-  lastActivity: string | null;
+  premiumAtRisk: number;
+  avgDaysIdle: number;
+  policies: AdminAtRiskPolicy[];
 }
 
-const STAGE_LABELS: Record<string, string> = {
-  new: 'New',
-  responded: 'Responded',
-  manager_outreach: 'Manager',
-  agent_outreach: 'Agent',
-  code_red: 'Code Red',
-  agent_saved_pending: 'Pending',
-  saved: 'Saved',
-  lost: 'Lost',
-};
+export function ManagerScorecard({ policies, loading }: ManagerScorecardProps) {
+  const [expandedAgency, setExpandedAgency] = useState<string | null>(null);
 
-function stageBadge(stage: string | null) {
-  const s = stage || 'new';
-  const label = STAGE_LABELS[s] || s;
-  const colors: Record<string, string> = {
-    new: 'bg-slate-500/10 text-slate-400',
-    responded: 'bg-sky-500/10 text-sky-400',
-    manager_outreach: 'bg-amber-500/10 text-amber-400',
-    agent_outreach: 'bg-violet-500/10 text-violet-400',
-    code_red: 'bg-red-500/10 text-red-400',
-    agent_saved_pending: 'bg-teal-500/10 text-teal-400',
-    saved: 'bg-emerald-500/10 text-emerald-400',
-    lost: 'bg-rose-500/10 text-rose-400',
-  };
-  return (
-    <span className={cn('px-1.5 py-0.5 rounded text-[10px] font-semibold', colors[s] || colors.new)}>
-      {label}
-    </span>
-  );
-}
-
-export function ManagerScorecard({ policies, loading }: ManagerScoreCardProps) {
-  const [expandedManager, setExpandedManager] = useState<string | null>(null);
-
-  const managers = useMemo(() => {
-    const map = new Map<string, PipelinePolicy[]>();
-
+  const agencies = useMemo(() => {
+    const map = new Map<string, AdminAtRiskPolicy[]>();
     for (const p of policies) {
-      // Group by assigned manager (task_assigned_to), or 'Unassigned'
-      const key = p.task_assigned_to || 'Unassigned';
-      const arr = map.get(key) || [];
-      arr.push(p);
-      map.set(key, arr);
+      const key = p.agency_id || 'unknown';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(p);
     }
 
-    const rows: ManagerRow[] = [];
-    for (const [assignedTo, cases] of map) {
-      const codeRedCount = cases.filter(c => c.days_since_draft >= 30).length;
-      const savedCount = cases.filter(c => (c.task_status || 'new') === 'saved').length;
-      const lostCount = cases.filter(c => (c.task_status || 'new') === 'lost').length;
-      const activeCount = cases.filter(c => {
-        const s = c.task_status || 'new';
-        return ['responded', 'manager_outreach', 'agent_outreach', 'code_red', 'agent_saved_pending'].includes(s);
-      }).length;
-      const premiumAtRisk = cases.reduce((s, c) => s + (Number(c.plan_premium) || 0) * 12, 0);
-      const resolved = savedCount + lostCount;
-      const saveRate = resolved > 0 ? (savedCount / resolved) * 100 : 0;
-
-      // Last activity = most recent task_created_at or updated_at
-      const dates = cases
-        .map(c => c.task_created_at)
-        .filter(Boolean)
-        .sort((a, b) => new Date(b!).getTime() - new Date(a!).getTime());
-      const lastActivity = dates[0] || null;
+    const rows: AgencyRow[] = [];
+    for (const [agencyId, pols] of map) {
+      const inPipeline = pols.filter(p => p.task_stage !== null).length;
+      const codeRed = pols.filter(p => p.task_stage === 'code_red').length;
+      const saved = pols.filter(p => p.task_stage === 'saved').length;
+      const lost = pols.filter(p => p.task_stage === 'lost').length;
+      const resolved = saved + lost;
+      const saveRate = resolved > 0 ? Math.round((saved / resolved) * 100) : 0;
+      const premiumAtRisk = pols.reduce((s, p) => s + (p.plan_premium || 0), 0);
+      const avgDaysIdle = pols.length > 0
+        ? Math.round(pols.reduce((s, p) => s + p.days_idle, 0) / pols.length)
+        : 0;
 
       rows.push({
-        assignedTo,
-        totalCases: cases.length,
-        codeRedCount,
-        savedCount,
-        lostCount,
-        activeCount,
-        premiumAtRisk,
+        agencyId,
+        totalCases: pols.length,
+        inPipeline,
+        codeRed,
+        saved,
+        lost,
         saveRate,
-        cases: cases.sort((a, b) => b.days_since_draft - a.days_since_draft),
-        lastActivity,
+        premiumAtRisk,
+        avgDaysIdle,
+        policies: pols.sort((a, b) => b.days_idle - a.days_idle),
       });
     }
 
-    // Sort: most cases first, but Unassigned always last
-    rows.sort((a, b) => {
-      if (a.assignedTo === 'Unassigned') return 1;
-      if (b.assignedTo === 'Unassigned') return -1;
-      return b.totalCases - a.totalCases;
-    });
-
+    // Sort by total cases descending
+    rows.sort((a, b) => b.totalCases - a.totalCases);
     return rows;
   }, [policies]);
 
@@ -128,175 +86,139 @@ export function ManagerScorecard({ policies, loading }: ManagerScoreCardProps) {
     );
   }
 
-  if (managers.length === 0) {
-    return (
-      <Card className="border-border">
-        <CardContent className="py-8 text-center text-muted-foreground text-sm">
-          No at-risk cases in the pipeline.
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
     <div className="space-y-4">
       {/* Section header */}
       <div className="flex items-center gap-2">
-        <div className="p-1.5 rounded-lg bg-violet-500/10">
-          <Users size={16} className="text-violet-400" />
+        <div className="p-1.5 rounded-lg bg-indigo-500/10">
+          <Users size={16} className="text-indigo-400" />
         </div>
         <div>
           <h3 className="text-sm font-bold text-foreground">Manager Scorecard</h3>
           <p className="text-[11px] text-muted-foreground">
-            Who's working the pipeline — cases, activity, save rate
+            {agencies.length} agencies with at-risk cases — expand to see details
           </p>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="border border-border rounded-xl overflow-hidden">
-        {/* Header */}
-        <div className="grid grid-cols-[1fr_80px_80px_80px_80px_90px_80px] gap-2 px-4 py-2.5 bg-muted/30 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-          <span>Manager</span>
-          <span className="text-center">Cases</span>
-          <span className="text-center">Active</span>
-          <span className="text-center">Code Red</span>
-          <span className="text-center">Save Rate</span>
-          <span className="text-right">Premium</span>
-          <span className="text-center">Last Active</span>
-        </div>
+      {agencies.length === 0 ? (
+        <Card className="border-border">
+          <CardContent className="py-8 text-center text-muted-foreground text-sm">
+            No agencies with at-risk cases.
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="border border-border rounded-xl overflow-hidden">
+          {/* Table header */}
+          <div className="grid grid-cols-8 gap-2 px-4 py-2.5 bg-muted/30 text-[10px] font-bold text-muted-foreground uppercase tracking-wider border-b border-border">
+            <div className="col-span-2">Agency</div>
+            <div className="text-center">Cases</div>
+            <div className="text-center">In Pipeline</div>
+            <div className="text-center">Code Red</div>
+            <div className="text-center">Save Rate</div>
+            <div className="text-center">Premium</div>
+            <div className="text-center">Avg Days</div>
+          </div>
 
-        {/* Rows */}
-        {managers.map(mgr => {
-          const isExpanded = expandedManager === mgr.assignedTo;
-          return (
-            <div key={mgr.assignedTo}>
-              <button
-                onClick={() => setExpandedManager(isExpanded ? null : mgr.assignedTo)}
-                className="w-full grid grid-cols-[1fr_80px_80px_80px_80px_90px_80px] gap-2 px-4 py-3 border-b border-border/50 hover:bg-muted/20 transition-colors text-left items-center"
-              >
-                {/* Manager name */}
-                <div className="flex items-center gap-2 min-w-0">
-                  {isExpanded ? (
-                    <ChevronDown size={14} className="text-muted-foreground flex-shrink-0" />
-                  ) : (
-                    <ChevronRight size={14} className="text-muted-foreground flex-shrink-0" />
-                  )}
-                  <span className={cn(
-                    'text-sm font-semibold truncate',
-                    mgr.assignedTo === 'Unassigned' ? 'text-muted-foreground italic' : 'text-foreground'
-                  )}>
-                    {mgr.assignedTo}
-                  </span>
-                </div>
+          {/* Rows */}
+          {agencies.map(agency => {
+            const isExpanded = expandedAgency === agency.agencyId;
 
-                {/* Cases */}
-                <span className="text-sm font-mono font-bold text-foreground text-center">
-                  {mgr.totalCases}
-                </span>
-
-                {/* Active */}
-                <div className="flex items-center justify-center gap-1">
-                  <Activity size={12} className="text-amber-400" />
-                  <span className="text-sm font-mono text-amber-400">{mgr.activeCount}</span>
-                </div>
-
-                {/* Code Red */}
-                <div className="flex items-center justify-center gap-1">
-                  {mgr.codeRedCount > 0 ? (
-                    <>
-                      <ShieldAlert size={12} className="text-red-400" />
-                      <span className="text-sm font-mono font-bold text-red-400">{mgr.codeRedCount}</span>
-                    </>
-                  ) : (
-                    <span className="text-sm font-mono text-muted-foreground">0</span>
-                  )}
-                </div>
-
-                {/* Save Rate */}
-                <div className="flex items-center justify-center gap-1">
-                  {mgr.savedCount + mgr.lostCount > 0 ? (
-                    <span className={cn(
-                      'text-sm font-mono font-bold',
-                      mgr.saveRate >= 70 ? 'text-emerald-400' : mgr.saveRate >= 40 ? 'text-amber-400' : 'text-red-400'
-                    )}>
-                      {mgr.saveRate.toFixed(0)}%
+            return (
+              <div key={agency.agencyId}>
+                {/* Agency row */}
+                <button
+                  onClick={() => setExpandedAgency(isExpanded ? null : agency.agencyId)}
+                  className="w-full grid grid-cols-8 gap-2 px-4 py-3 text-xs hover:bg-muted/20 transition-colors border-b border-border/50 items-center"
+                >
+                  <div className="col-span-2 flex items-center gap-2 text-left">
+                    {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    <span className="font-semibold text-foreground truncate">
+                      {agency.agencyId}
                     </span>
-                  ) : (
-                    <span className="text-[11px] text-muted-foreground">—</span>
-                  )}
-                </div>
+                  </div>
+                  <div className="text-center font-bold text-foreground">{agency.totalCases}</div>
+                  <div className="text-center text-muted-foreground">
+                    {agency.inPipeline}
+                  </div>
+                  <div className={cn('text-center font-bold', agency.codeRed > 0 ? 'text-rose-400' : 'text-muted-foreground')}>
+                    {agency.codeRed}
+                  </div>
+                  <div className={cn(
+                    'text-center font-bold',
+                    agency.saveRate >= 50 ? 'text-emerald-400' : agency.saveRate > 0 ? 'text-amber-400' : 'text-muted-foreground'
+                  )}>
+                    {agency.saveRate}%
+                  </div>
+                  <div className="text-center text-muted-foreground">
+                    ${Math.round(agency.premiumAtRisk / 1000)}K
+                  </div>
+                  <div className={cn('text-center', agency.avgDaysIdle >= 30 ? 'text-rose-400 font-bold' : 'text-muted-foreground')}>
+                    {agency.avgDaysIdle}d
+                  </div>
+                </button>
 
-                {/* Premium at risk */}
-                <span className="text-sm font-mono text-foreground text-right">
-                  ${Math.round(mgr.premiumAtRisk).toLocaleString()}
-                </span>
-
-                {/* Last active */}
-                <span className="text-[11px] text-muted-foreground text-center">
-                  {mgr.lastActivity ? formatRelative(mgr.lastActivity) : '—'}
-                </span>
-              </button>
-
-              {/* Expanded cases */}
-              {isExpanded && (
-                <div className="bg-muted/10 border-b border-border">
-                  {mgr.cases.map(c => (
-                    <div
-                      key={c.policy_number}
-                      className="grid grid-cols-[1fr_100px_80px_60px_80px] gap-2 px-8 py-2 border-b border-border/20 text-[12px] items-center last:border-b-0"
-                    >
-                      <div className="min-w-0">
-                        <span className="font-semibold text-foreground truncate block">
-                          {c.client_name || 'Unknown'}
-                        </span>
-                        <span className="text-muted-foreground text-[11px]">
-                          {c.product_type} · {c.agent_name || c.writing_number || 'No agent'}
-                        </span>
-                      </div>
-                      <div>{stageBadge(c.task_status)}</div>
-                      <span className={cn(
-                        'font-mono font-bold text-center',
-                        c.days_since_draft >= 38 ? 'text-red-400' :
-                        c.days_since_draft >= 30 ? 'text-red-400/80' :
-                        c.days_since_draft >= 14 ? 'text-amber-400' : 'text-muted-foreground'
-                      )}>
-                        {Math.max(0, 45 - c.days_since_draft)}d left
-                      </span>
-                      <span className="text-muted-foreground text-center">
-                        {c.product_type === 'HHC' ? 'HHC' : 'HI'}
-                      </span>
-                      <span className="font-mono text-foreground text-right">
-                        ${Math.round(Number(c.plan_premium) * 12).toLocaleString()}
-                      </span>
+                {/* Expanded case list */}
+                {isExpanded && (
+                  <div className="bg-muted/10 border-b border-border">
+                    <div className="grid grid-cols-7 gap-2 px-6 py-2 text-[9px] font-bold text-muted-foreground uppercase tracking-wider border-b border-border/30">
+                      <div className="col-span-2">Client / Policy</div>
+                      <div>Product</div>
+                      <div>Stage</div>
+                      <div className="text-center">Days Idle</div>
+                      <div className="text-right">Premium</div>
+                      <div>Flag</div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+                    {agency.policies.map(p => (
+                      <div
+                        key={p.policy_number}
+                        className="grid grid-cols-7 gap-2 px-6 py-2 text-[11px] border-b border-border/20 hover:bg-muted/20"
+                      >
+                        <div className="col-span-2 truncate">
+                          <span className="font-semibold text-foreground">
+                            {p.client_name || 'Unknown'}
+                          </span>
+                          <span className="text-muted-foreground ml-1.5 text-[10px]">
+                            {p.policy_number}
+                          </span>
+                        </div>
+                        <div className="text-muted-foreground">{p.product_type}</div>
+                        <div>
+                          {p.task_stage ? (
+                            <span className={cn(
+                              'inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold',
+                              p.task_stage === 'code_red' && 'bg-rose-500/20 text-rose-400',
+                              p.task_stage === 'saved' && 'bg-emerald-500/20 text-emerald-400',
+                              p.task_stage === 'lost' && 'bg-zinc-500/20 text-zinc-400',
+                              !['code_red', 'saved', 'lost'].includes(p.task_stage) && 'bg-sky-500/20 text-sky-400',
+                            )}>
+                              {STAGE_LABELS[p.task_stage] || p.task_stage}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground/50 text-[10px]">—</span>
+                          )}
+                        </div>
+                        <div className={cn(
+                          'text-center font-mono',
+                          p.days_idle >= 30 ? 'text-rose-400 font-bold' : p.days_idle >= 15 ? 'text-amber-400' : 'text-muted-foreground'
+                        )}>
+                          {p.days_idle}d
+                        </div>
+                        <div className="text-right text-muted-foreground font-mono">
+                          ${Math.round(p.plan_premium)}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">
+                          {(p.flag_type || 'at_risk').replace(/_/g, ' ')}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
-}
-
-function formatRelative(iso: string): string {
-  const now = Date.now();
-  const then = new Date(iso).getTime();
-  const diffMs = now - then;
-  const diffMin = Math.floor(diffMs / 60000);
-  const diffHr = Math.floor(diffMs / 3600000);
-  const diffDay = Math.floor(diffMs / 86400000);
-
-  if (diffMin < 1) return 'just now';
-  if (diffMin < 60) return `${diffMin}m`;
-  if (diffHr < 24) return `${diffHr}h`;
-  if (diffDay < 7) return `${diffDay}d`;
-
-  return new Date(iso).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'America/Chicago',
-  });
 }

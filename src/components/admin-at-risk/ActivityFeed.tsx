@@ -1,12 +1,10 @@
 /**
  * ActivityFeed — Timeline of recent at-risk pipeline activity.
  *
- * Shows stage changes, notes added, and resolutions across the at-risk pipeline.
- * Admins use this to see what happened recently without digging into individual cases.
- *
+ * Shows notes added on at-risk policies and pipeline stage info.
  * Data sources:
  * - manager_notes (recent notes on at-risk policies)
- * - atrisk_tasks (stage changes via updated_at)
+ * - AdminAtRiskPolicy[] (merged prod data + atrisk_tasks)
  */
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
@@ -17,10 +15,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { formatNoteTime } from '@/lib/notes-api';
-import type { PipelinePolicy } from './types';
+import type { AdminAtRiskPolicy } from './types';
+import { STAGE_LABELS } from './types';
 
 interface ActivityFeedProps {
-  policies: PipelinePolicy[];
+  policies: AdminAtRiskPolicy[];
   loading?: boolean;
 }
 
@@ -30,8 +29,8 @@ interface FeedItem {
   timestamp: string;
   policyNumber: string;
   clientName: string | null;
-  agentName: string | null;
-  agencyName: string | null;
+  agentWn: string | null;
+  agencyId: string | null;
   // Note-specific
   authorName?: string | null;
   body?: string;
@@ -41,17 +40,6 @@ interface FeedItem {
   resolution?: string | null;
 }
 
-const STAGE_LABELS: Record<string, string> = {
-  new: 'New',
-  responded: 'Responded',
-  manager_outreach: 'Manager Outreach',
-  agent_outreach: 'Agent Outreach',
-  code_red: 'Code Red',
-  agent_saved_pending: 'Pending Save',
-  saved: 'Saved',
-  lost: 'Lost',
-};
-
 export function ActivityFeed({ policies, loading }: ActivityFeedProps) {
   const [notes, setNotes] = useState<FeedItem[]>([]);
   const [notesLoading, setNotesLoading] = useState(true);
@@ -59,7 +47,7 @@ export function ActivityFeed({ policies, loading }: ActivityFeedProps) {
 
   // Build a lookup map from policies
   const policyMap = useMemo(() => {
-    const map = new Map<string, PipelinePolicy>();
+    const map = new Map<string, AdminAtRiskPolicy>();
     for (const p of policies) map.set(p.policy_number, p);
     return map;
   }, [policies]);
@@ -92,8 +80,8 @@ export function ActivityFeed({ policies, loading }: ActivityFeedProps) {
             timestamp: n.created_at,
             policyNumber: n.policy_number,
             clientName: pol?.client_name ?? null,
-            agentName: n.agent_name || pol?.agent_name || null,
-            agencyName: pol?.agency_name ?? null,
+            agentWn: n.agent_name || pol?.agent_writing_number || null,
+            agencyId: pol?.agency_id ?? null,
             authorName: n.author_name,
             body: n.body,
           };
@@ -113,23 +101,23 @@ export function ActivityFeed({ policies, loading }: ActivityFeedProps) {
   const feed = useMemo(() => {
     const items: FeedItem[] = [...notes];
 
-    // Add stage-change items for recently touched tasks
+    // Add stage-change items for policies that are in the pipeline
     for (const p of policies) {
-      if (!p.task_status || p.task_status === 'new') continue;
+      if (!p.task_stage || p.task_stage === 'new') continue;
       if (!p.task_created_at) continue;
 
       // Saved / Lost = resolution
-      if (p.task_status === 'saved' || p.task_status === 'lost') {
+      if (p.task_stage === 'saved' || p.task_stage === 'lost') {
         items.push({
           id: `resolution-${p.policy_number}`,
           type: 'resolution',
           timestamp: p.task_created_at,
           policyNumber: p.policy_number,
           clientName: p.client_name,
-          agentName: p.agent_name,
-          agencyName: p.agency_name,
-          stage: p.task_status,
-          resolution: p.task_status === 'saved' ? 'Policy saved' : 'Policy lost',
+          agentWn: p.agent_writing_number,
+          agencyId: p.agency_id,
+          stage: p.task_stage,
+          resolution: p.task_stage === 'saved' ? 'Policy saved' : 'Policy lost',
         });
       } else {
         items.push({
@@ -138,9 +126,9 @@ export function ActivityFeed({ policies, loading }: ActivityFeedProps) {
           timestamp: p.task_created_at,
           policyNumber: p.policy_number,
           clientName: p.client_name,
-          agentName: p.agent_name,
-          agencyName: p.agency_name,
-          stage: p.task_status,
+          agentWn: p.agent_writing_number,
+          agencyId: p.agency_id,
+          stage: p.task_stage,
         });
       }
     }
@@ -258,11 +246,11 @@ export function ActivityFeed({ policies, loading }: ActivityFeedProps) {
 
                 {/* Meta */}
                 <div className="flex items-center gap-2 mt-1 text-[10px] text-muted-foreground/70">
-                  {item.agentName && <span>Agent: {item.agentName}</span>}
-                  {item.agencyName && (
+                  {item.agentWn && <span>Agent: {item.agentWn}</span>}
+                  {item.agencyId && (
                     <>
                       <span>·</span>
-                      <span>{item.agencyName}</span>
+                      <span>{item.agencyId}</span>
                     </>
                   )}
                 </div>
