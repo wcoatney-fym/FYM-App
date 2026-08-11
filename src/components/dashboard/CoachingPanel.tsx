@@ -4,12 +4,16 @@
  * Extracted from DashboardPage for maintainability (Section 4 of UX audit).
  * Includes accessibility: semantic table, aria-labels, screen-reader text
  * for color-only retention indicators.
+ *
+ * FYM admin (org-wide): shows ALL agencies with search + scrollable list.
+ * Agency admin: shows only their agency's row.
  */
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { FadeIn } from '@/components/ui/animated';
 import { Link } from 'react-router-dom';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Search } from 'lucide-react';
 import { fmt$ } from '@/lib/formatUtils';
 
 interface AgencyRisk {
@@ -42,7 +46,24 @@ function retentionStatus(pct: number | null): string {
 }
 
 export function CoachingPanel({ agencies, belowTargetCount, isOrgWide }: CoachingPanelProps) {
+  const [search, setSearch] = useState('');
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return agencies;
+    const q = search.toLowerCase();
+    return agencies.filter(
+      (a) =>
+        (a.name ?? '').toLowerCase().includes(q) ||
+        a.agency_id.toLowerCase().includes(q)
+    );
+  }, [agencies, search]);
+
   if (agencies.length === 0) return null;
+
+  // Show search bar when there are more than 8 agencies (org-wide view)
+  const showSearch = isOrgWide && agencies.length > 8;
+  // Scroll when more than 10 rows visible
+  const scrollable = filtered.length > 10;
 
   return (
     <FadeIn delay={0.6}>
@@ -55,21 +76,40 @@ export function CoachingPanel({ agencies, belowTargetCount, isOrgWide }: Coachin
               </CardTitle>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {isOrgWide
-                  ? 'Lowest retention agencies — sorted worst first. Below 90% = coaching needed.'
+                  ? `${agencies.length} agencies — sorted worst first. Below 90% = coaching needed.`
                   : "Your agency's retention status. Below 90% = coaching needed."}
               </p>
             </div>
-            {belowTargetCount > 0 && (
-              <Badge className="bg-red-500/10 text-red-400 border-red-500/20 border">
-                {belowTargetCount} below target
-              </Badge>
-            )}
+            <div className="flex items-center gap-2">
+              {belowTargetCount > 0 && (
+                <Badge className="bg-red-500/10 text-red-400 border-red-500/20 border">
+                  {belowTargetCount} below target
+                </Badge>
+              )}
+            </div>
           </div>
+          {showSearch && (
+            <div className="relative mt-2">
+              <Search
+                size={14}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <input
+                type="text"
+                placeholder="Search agencies…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 rounded-md border border-border bg-secondary/30 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                aria-label="Search agencies"
+              />
+            </div>
+          )}
         </CardHeader>
         <CardContent className="p-0">
           <div className="divide-y divide-border/30" role="table" aria-label="Agency coaching data">
             <div
-              className="grid grid-cols-7 gap-2 px-4 py-2 bg-secondary/30 text-xs font-semibold text-muted-foreground font-data"
+              className="grid grid-cols-7 gap-2 px-4 py-2 bg-secondary/30 text-xs font-semibold text-muted-foreground font-data sticky top-0 z-10"
               role="row"
             >
               <span className="col-span-2" role="columnheader">Agency</span>
@@ -79,55 +119,65 @@ export function CoachingPanel({ agencies, belowTargetCount, isOrgWide }: Coachin
               <span className="text-right" role="columnheader">Retention</span>
               <span role="columnheader"><span className="sr-only">Actions</span></span>
             </div>
-            {agencies.map((a) => (
-              <div
-                key={a.agency_id}
-                className={`grid grid-cols-7 gap-2 px-4 py-2.5 text-sm items-center row-hover ${
-                  a.retention_pct !== null && a.retention_pct < 90 ? 'bg-red-500/5' : ''
-                }`}
-                role="row"
-              >
-                <span className="col-span-2 font-medium text-foreground truncate" role="cell">
-                  {a.name ?? (
-                    <span className="font-data text-xs text-muted-foreground">
-                      {a.agency_id.slice(0, 8)}…
-                    </span>
-                  )}
-                </span>
-                <span className="text-right text-muted-foreground font-data" role="cell">
-                  {a.active_policies.toLocaleString()}
-                </span>
-                <span className="text-right text-muted-foreground font-data" role="cell">
-                  {fmt$(a.active_premium)}
-                </span>
-                <span
-                  className={`text-right font-medium font-data ${
-                    a.at_risk_count > 0 ? 'text-red-400' : 'text-muted-foreground'
+            <div
+              className={scrollable ? 'max-h-[480px] overflow-y-auto' : ''}
+              role="rowgroup"
+            >
+              {filtered.length === 0 && search.trim() && (
+                <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+                  No agencies match "{search}"
+                </div>
+              )}
+              {filtered.map((a) => (
+                <div
+                  key={a.agency_id}
+                  className={`grid grid-cols-7 gap-2 px-4 py-2.5 text-sm items-center row-hover ${
+                    a.retention_pct !== null && a.retention_pct < 90 ? 'bg-red-500/5' : ''
                   }`}
-                  role="cell"
+                  role="row"
                 >
-                  {a.at_risk_count || '—'}
-                </span>
-                <span
-                  className={`text-right font-semibold font-data ${retentionColor(a.retention_pct)}`}
-                  role="cell"
-                  aria-label={a.retention_pct !== null ? `${a.retention_pct}% — ${retentionStatus(a.retention_pct)}` : 'no data'}
-                >
-                  {a.retention_pct !== null ? `${a.retention_pct}%` : '—'}
-                </span>
-                <span className="text-center" role="cell">
-                  <Link
-                    to={`/agencies/${a.agency_id}`}
-                    aria-label={`View ${a.name ?? a.agency_id} detail`}
+                  <span className="col-span-2 font-medium text-foreground truncate" role="cell">
+                    {a.name ?? (
+                      <span className="font-data text-xs text-muted-foreground">
+                        {a.agency_id.slice(0, 8)}…
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-right text-muted-foreground font-data" role="cell">
+                    {a.active_policies.toLocaleString()}
+                  </span>
+                  <span className="text-right text-muted-foreground font-data" role="cell">
+                    {fmt$(a.active_premium)}
+                  </span>
+                  <span
+                    className={`text-right font-medium font-data ${
+                      a.at_risk_count > 0 ? 'text-red-400' : 'text-muted-foreground'
+                    }`}
+                    role="cell"
                   >
-                    <ChevronRight
-                      size={14}
-                      className="text-muted-foreground hover:text-primary transition-colors"
-                    />
-                  </Link>
-                </span>
-              </div>
-            ))}
+                    {a.at_risk_count || '—'}
+                  </span>
+                  <span
+                    className={`text-right font-semibold font-data ${retentionColor(a.retention_pct)}`}
+                    role="cell"
+                    aria-label={a.retention_pct !== null ? `${a.retention_pct}% — ${retentionStatus(a.retention_pct)}` : 'no data'}
+                  >
+                    {a.retention_pct !== null ? `${a.retention_pct}%` : '—'}
+                  </span>
+                  <span className="text-center" role="cell">
+                    <Link
+                      to={`/agencies/${a.agency_id}`}
+                      aria-label={`View ${a.name ?? a.agency_id} detail`}
+                    >
+                      <ChevronRight
+                        size={14}
+                        className="text-muted-foreground hover:text-primary transition-colors"
+                      />
+                    </Link>
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </CardContent>
       </Card>
