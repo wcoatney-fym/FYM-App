@@ -325,12 +325,15 @@ export function DashboardPage() {
   // ── Bottom agencies (coaching) ──
   const bottomAgencies = useMemo((): AgencyRisk[] => {
     if (loading || noDataAgency) return [];
-    const agencies = filterAgencyId
-      ? rawAgencies.filter((a) => a.agency_id === filterAgencyId)
-      : rawAgencies;
-    // FYM admin (org-wide): show ALL agencies — including those with null
-    // retention (newer agencies with no eligible cohort yet). Use agency_name
-    // from edge function response; fall back to local nameMap only if needed.
+    // FYM admin: coaching signals ALWAYS shows ALL agencies regardless of
+    // the agency filter dropdown. The filter scopes KPIs and production,
+    // but coaching is an org-wide view — Charlie 2026-08-11.
+    // Agency admin: only their own agency.
+    const agencies = isOrgWide
+      ? rawAgencies
+      : filterAgencyId
+        ? rawAgencies.filter((a) => a.agency_id === filterAgencyId)
+        : rawAgencies;
     const mapped = agencies
       .map((a) => ({
         agency_id: a.agency_id,
@@ -554,7 +557,13 @@ export function DashboardPage() {
         {isWidgetVisible('agencies-coaching') && !loading && (
           <CoachingPanel
             agencies={bottomAgencies}
-            belowTargetCount={stats?.agencies_below_target ?? 0}
+            belowTargetCount={
+              // For FYM admin, coaching always shows all agencies — count
+              // below-target from the full list, not the filter-scoped stats.
+              isOrgWide
+                ? rawAgencies.filter((a) => a.retention_pct !== null && a.retention_pct < 90).length
+                : (stats?.agencies_below_target ?? 0)
+            }
             isOrgWide={isOrgWide}
           />
         )}
