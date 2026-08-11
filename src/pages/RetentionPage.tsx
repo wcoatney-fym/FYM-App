@@ -204,9 +204,15 @@ export function RetentionPage() {
   }, [orgCohorts, orgData.agencyCohorts, filterAgencyId, effectiveIsMonthInRange]);
 
   // Filter + sort agency table
+  // FYM admin always sees ALL agencies in the breakdown table, regardless
+  // of the agency filter selection. The filter only scopes KPI cards and
+  // the cohort chart — the breakdown table is the full roster view.
   const sortedAgencies = useMemo(() => {
     let arr = [...agencies];
-    if (filterAgencyId) arr = arr.filter(a => a.agency_id === filterAgencyId);
+    if (filterAgencyId && !showAgencyFilter) {
+      // Non-admin: scope to their own agency
+      arr = arr.filter(a => a.agency_id === filterAgencyId);
+    }
     if (agencySearch.trim()) {
       const q = agencySearch.trim().toLowerCase();
       arr = arr.filter(a => (a.agency_name || a.agency_id).toLowerCase().includes(q));
