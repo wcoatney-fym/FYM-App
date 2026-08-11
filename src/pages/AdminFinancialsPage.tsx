@@ -174,28 +174,25 @@ export function AdminFinancialsPage() {
     const blendedRetention = totalEligible > 0 ? Math.round((totalRetained / totalEligible) * 1000) / 10 : null;
     const flaggedConcentration = filteredConcentration.filter(c => c.premium_concentration_pct >= 10);
 
-    // Product-level stats from per-product cohorts (HI vs HHC)
+    // Product-level stats from edge function's product_summary (HI vs HHC)
     const latestByProduct: Record<string, { active: number; premium: number; atRisk: number; atRiskPremium: number; retention: number | null }> = {};
-    // Aggregate across per-product cohorts
-    const productAgg: Record<string, { drafted: number; retained: number; premium: number }> = {};
-    for (const c of productCohorts) {
-      const pt = c.product_type;
-      if (!productAgg[pt]) productAgg[pt] = { drafted: 0, retained: 0, premium: 0 };
-      productAgg[pt].drafted += c.drafted_first;
-      productAgg[pt].retained += c.retained;
-      productAgg[pt].premium += Number(c.active_premium) || 0;
-    }
-
-    for (const [pt, agg] of Object.entries(productAgg)) {
-      latestByProduct[pt] = {
-        active: 0, premium: agg.premium,
-        atRisk: 0, atRiskPremium: 0,
-        retention: agg.drafted > 0 ? Math.round((agg.retained / agg.drafted) * 1000) / 10 : null,
-      };
+    for (const ps of orgData.productSummary) {
+      if (ps.product_type === 'HI' || ps.product_type === 'HHC') {
+        const atRiskPremium = ps.active_policies > 0
+          ? Math.round((ps.at_risk_count / ps.active_policies) * ps.active_premium * 100) / 100
+          : 0;
+        latestByProduct[ps.product_type] = {
+          active: ps.active_policies,
+          premium: ps.active_premium,
+          atRisk: ps.at_risk_count,
+          atRiskPremium,
+          retention: ps.retention_pct,
+        };
+      }
     }
 
     return { totalPremium, totalActive, totalAtRisk, totalAtRiskPremium, blendedRetention, flaggedConcentration, latestByProduct };
-  }, [agencySummaries, concentration, productCohorts, filterAgencyId]);
+  }, [agencySummaries, concentration, orgData.productSummary, filterAgencyId]);
 
   // Chart data — last 12 cohort months from per-product cohorts
   const retentionChartData = useMemo(() => {
