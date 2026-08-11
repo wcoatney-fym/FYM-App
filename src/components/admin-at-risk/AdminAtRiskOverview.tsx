@@ -1,84 +1,117 @@
 /**
  * AdminAtRiskOverview — The admin oversight surface for the at-risk pipeline.
  *
- * Three sections:
- * 1. PipelineHealth — KPI strip + stage distribution bar
- * 2. ManagerScorecard — who's working the pipeline, expand to see their cases
- * 3. AgentFollowUpTracker — cases handed off to agents needing action
- * 4. ActivityFeed — recent stage changes, notes, resolutions
+ * Data flow (same pattern as NeedsAttentionList):
+ * 1. Fetch all at-risk policies from retention-data edge function (prod DB)
+ * 2. Fetch atrisk_tasks from FYM App Supabase (pipeline stage/assignment)
+ * 3. Merge: every at-risk policy gets its task data (or null if not in pipeline)
+ * 4. Pass merged data to all admin sections
  *
- * Data source: manager_at_risk_board view in FYM App DB (rcbzag),
- * which joins policy_cache with atrisk_tasks.
+ * Two metric layers per Charlie's direction:
+ * - "All At-Risk" = every policy from prod DB where at_risk_policy = true
+ * - "In Pipeline" = subset that has an atrisk_tasks row (being actively worked)
  */
 import { useState, useCallback, useEffect } from 'react';
 import { RefreshCw, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
+import { useCachedFetch } from '@/hooks/useCachedFetch';
+import { fetchAtRiskPolicies } from '@/lib/prod-api';
 import { PipelineHealth } from './PipelineHealth';
 import { ManagerScorecard } from './ManagerScorecard';
 import { AgentFollowUpTracker } from './AgentFollowUpTracker';
 import { ActivityFeed } from './ActivityFeed';
-import type { PipelinePolicy } from './types';
+import type { AdminAtRiskPolicy, TaskRecord } from './types';
 
 interface AdminAtRiskOverviewProps {
   filterAgencyId: string | null;
 }
 
 export function AdminAtRiskOverview({ filterAgencyId }: AdminAtRiskOverviewProps) {
-  const { effectiveAgencyId, isOrgWide, isAgent, effectiveWritingNumber } = useEffectiveAuth();
-  const [policies, setPolicies] = useState<PipelinePolicy[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const { effectiveAgencyWritingNumber, isOrgWide, isAgent, effectiveWritingNumber } = useEffectiveAuth();
+  const [policies, setPolicies] = useState<AdminAtRiskPolicy[]>([]);
+  const [merging, setMerging] = useState(false);
 
-  const fetchData = useCallback(async (isRefresh = false) => {
-    if (!supabase) return;
-    isRefresh ? setRefreshing(true) : setLoading(true);
+  // Resolve agency filter
+  const resolvedAgencyId = (filterAgencyId && !filterAgencyId.startsWith('no-data:'))
+    ? filterAgencyId
+    : (!isOrgWide && effectiveAgencyWritingNumber ? effectiveAgencyWritingNumber : undefined);
 
-    try {
-      const PAGE_SIZE = 1000;
-      const allRows: PipelinePolicy[] = [];
-      let offset = 0;
+  // Fetch at-risk policies from prod DB via edge function
+  const cacheKey = `admin-at-risk-${resolvedAgencyId || 'org'}`;
+  const { data: atRiskData, loading, refresh: refreshAtRisk } = useCachedFetch(
+    cacheKey,
+    () => fetchAtRiskPolicies(resolvedAgencyId ? { agency_id: resolvedAgencyId } : undefined),
+    { deps: [resolvedAgencyId] }
+  );
 
-      while (true) {
-        let q = supabase
-          .from('manager_at_risk_board')
-          .select('*')
-          .order('days_since_draft', { ascending: false })
-          .range(offset, offset + PAGE_SIZE - 1);
+  // Merge edge function data with atrisk_tasks from local Supabase
+  useEffect(() => {
+    if (!atRiskData) return;
+    const edgePolicies = atRiskData.data.policies;
 
-        // Scope by auth role
-        if (isAgent && effectiveWritingNumber) {
-          q = q.eq('writing_number', effectiveWritingNumber);
-        } else if (!isOrgWide && effectiveAgencyId) {
-          q = q.eq('agency_id', effectiveAgencyId);
+    (async () => {
+      setMerging(true);
+      try {
+        // Paginate atrisk_tasks to avoid silent 1K cap
+        const taskMap = new Map<string, TaskRecord>();
+        if (supabase) {
+          const PAGE = 1000;
+          let offset = 0;
+          while (true) {
+            const { data: tasks } = await supabase
+              .from('atrisk_tasks')
+              .select('policy_number, stage, status, assigned_to, assigned_by, agency_id, flag_type, due_date, created_at, priority, resolution, escalated_at')
+              .range(offset, offset + PAGE - 1);
+            if (tasks) {
+              for (const t of tasks as unknown as TaskRecord[]) {
+                taskMap.set(t.policy_number, t);
+              }
+            }
+            if (!tasks || tasks.length < PAGE) break;
+            offset += PAGE;
+          }
         }
 
-        const { data, error } = await q;
-        if (error) { console.error('Admin at-risk fetch error:', error.message); break; }
-        if (!data || data.length === 0) break;
+        // Merge
+        let merged: AdminAtRiskPolicy[] = edgePolicies.map((p) => {
+          const task = taskMap.get(p.policy_number);
+          return {
+            ...p,
+            task_stage: task?.stage ?? null,
+            task_status: task?.status ?? null,
+            task_assigned_to: task?.assigned_to ?? null,
+            task_created_at: task?.created_at ?? null,
+            task_priority: task?.priority ?? null,
+            task_resolution: task?.resolution ?? null,
+            task_escalated_at: task?.escalated_at ?? null,
+          };
+        });
 
-        allRows.push(...(data as unknown as PipelinePolicy[]));
-        if (data.length < PAGE_SIZE) break;
-        offset += PAGE_SIZE;
+        // Agent-level filter
+        if (isAgent && effectiveWritingNumber) {
+          merged = merged.filter(p => p.agent_writing_number === effectiveWritingNumber);
+        }
+
+        // Sort by urgency (days_idle descending)
+        merged.sort((a, b) => b.days_idle - a.days_idle);
+        setPolicies(merged);
+      } catch (err) {
+        console.error('AdminAtRiskOverview: merge error:', err);
+      } finally {
+        setMerging(false);
       }
+    })();
+  }, [atRiskData, isAgent, effectiveWritingNumber]);
 
-      // Apply UI-level agency filter
-      let filtered = allRows;
-      if (filterAgencyId) {
-        filtered = allRows.filter(p => p.agency_id === filterAgencyId);
-      }
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refreshAtRisk();
+    setRefreshing(false);
+  }, [refreshAtRisk]);
 
-      filtered.sort((a, b) => b.days_since_draft - a.days_since_draft);
-      setPolicies(filtered);
-    } catch (err) {
-      console.error('Admin at-risk fetch error:', err);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [effectiveAgencyId, isOrgWide, isAgent, effectiveWritingNumber, filterAgencyId]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
+  const isLoading = loading || merging;
 
   return (
     <div className="space-y-8">
@@ -91,7 +124,7 @@ export function AdminAtRiskOverview({ filterAgencyId }: AdminAtRiskOverviewProps
           </p>
         </div>
         <button
-          onClick={() => fetchData(true)}
+          onClick={handleRefresh}
           disabled={refreshing}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground border border-border rounded-lg hover:bg-muted transition-colors disabled:opacity-50"
         >
@@ -105,16 +138,16 @@ export function AdminAtRiskOverview({ filterAgencyId }: AdminAtRiskOverviewProps
       </div>
 
       {/* 1. Pipeline Health — KPIs + stage distribution */}
-      <PipelineHealth policies={policies} loading={loading} />
+      <PipelineHealth policies={policies} loading={isLoading} />
 
       {/* 2. Manager Scorecard */}
-      <ManagerScorecard policies={policies} loading={loading} />
+      <ManagerScorecard policies={policies} loading={isLoading} />
 
       {/* 3. Agent Follow-Up Tracker */}
-      <AgentFollowUpTracker policies={policies} loading={loading} />
+      <AgentFollowUpTracker policies={policies} loading={isLoading} />
 
       {/* 4. Activity Feed */}
-      <ActivityFeed policies={policies} loading={loading} />
+      <ActivityFeed policies={policies} loading={isLoading} />
     </div>
   );
 }
