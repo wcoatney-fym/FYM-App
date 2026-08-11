@@ -27,6 +27,7 @@ import {
   fetchAgencyProduction,
   fetchDailyProduction,
   fetchMonthlyProduction,
+  readDashboardCache,
   type AgencyRetentionSummary,
   type CohortEntry,
   type ProductCohortEntry,
@@ -190,6 +191,56 @@ export function OrgDataProvider({ children }: { children: ReactNode }) {
     lastFetchKey.current = fetchKey;
 
     try {
+      // ── Try server-side cache first (org-wide, all-time only) ──
+      // The dashboard_cache table is refreshed hourly by the
+      // dashboard-cache-refresh edge function. Reading it is a fast
+      // Supabase table read (~50ms) instead of 4 slow edge function
+      // calls (~5s each) that hit Max's prod DB.
+      if (isOrgWide && allTime && !Object.keys(agencyParam).length) {
+        const cache = await readDashboardCache([
+          'retention_summary',
+          'retention_cohorts',
+          'agency_production',
+          'monthly_production',
+        ]);
+
+        if (cache && cache.size >= 4) {
+          const retPayload = cache.get('retention_summary')!.payload as RetentionSummaryResponse;
+          const cohortPayload = cache.get('retention_cohorts')!.payload as {
+            data: { cohorts: CohortEntry[]; product_cohorts?: ProductCohortEntry[]; agency_cohorts?: AgencyCohortEntry[] };
+          };
+          const agencyProdPayload = cache.get('agency_production')!.payload as AgencyProduction[];
+          const monthlyProdPayload = cache.get('monthly_production')!.payload as MonthlyProduction[];
+          const cacheTimestamp = cache.get('retention_summary')!.refreshed_at;
+
+          setRetentionSummary(retPayload);
+          setRetentionAgencies(retPayload.data.agencies);
+          setProductSummary(retPayload.data.product_summary ?? []);
+          setCohorts(cohortPayload.data.cohorts);
+          setProductCohorts(cohortPayload.data.product_cohorts ?? []);
+          setAgencyCohorts(cohortPayload.data.agency_cohorts ?? []);
+          setAgencyProduction(agencyProdPayload);
+          setMonthlyProduction(monthlyProdPayload);
+          setDailyProduction([]);
+
+          writePersistedCache({
+            retentionSummary: retPayload,
+            cohorts: cohortPayload.data.cohorts,
+            productCohorts: cohortPayload.data.product_cohorts ?? [],
+            agencyProduction: agencyProdPayload,
+            monthlyProduction: monthlyProdPayload,
+          });
+
+          hasLoaded.current = true;
+          setInitialLoading(false);
+          setLastUpdated(cacheTimestamp);
+          setFetchError(null);
+          return;
+        }
+        // Cache miss — fall through to live edge function calls
+      }
+
+      // ── Live edge function calls (fallback / agency-scoped / date-filtered) ──
       const [retRes, cohortRes, prodRes, trendRes] = await Promise.all([
         fetchRetentionSummary(agencyParam),
         fetchRetentionCohorts(agencyParam),
@@ -211,7 +262,6 @@ export function OrgDataProvider({ children }: { children: ReactNode }) {
         setMonthlyProduction(trendRes as MonthlyProduction[]);
         setDailyProduction([]);
 
-        // Persist to localStorage for instant hydration on next page load
         writePersistedCache({
           retentionSummary: retRes,
           cohorts: cohortRes.data.cohorts,
