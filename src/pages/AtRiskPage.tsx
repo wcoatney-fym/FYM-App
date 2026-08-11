@@ -1,30 +1,32 @@
 /**
- * Needs Attention Page (formerly At-Risk)
+ * At-Risk Page — Role-based rendering
  *
- * Urgency-ranked at-risk policy list with tri-state action buttons
- * (Got it / Working / Done). Replaces the old bucket-view insight panel.
- *
- * Scoping:
- * - FYM admins: default to FYM-wide, can filter by agency
- * - Agency admins/managers: locked to their agency
- * - Agents: see only their own at-risk policies
+ * - FYM admins + agency admins: Admin oversight view (Pipeline Health,
+ *   Manager Scorecard, Agent Follow-Up Tracker, Activity Feed)
+ * - Managers: NeedsAttentionList (Got it / Working / Done action cards)
+ *   → managers also have the Workboard Kanban for pipeline execution
+ * - Agents: their own filtered NeedsAttentionList
  */
 import { Header } from '@/components/layout/Header';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { DataFilters } from '@/components/filters/DataFilters';
+import { AdminAtRiskOverview } from '@/components/admin-at-risk/AdminAtRiskOverview';
 import { NeedsAttentionList } from '@/components/needs-attention/NeedsAttentionList';
 
 export function AtRiskPage() {
-  const { isAgent } = useEffectiveAuth();
+  const { isAgent, effectiveRole, isOrgWide } = useEffectiveAuth();
   const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
+
+  // Admins (FYM admin + agency admin) see the oversight view
+  const isAdmin = effectiveRole === 'admin' || (isOrgWide && effectiveRole !== 'agent');
 
   return (
     <>
-      <Header title="Needs Attention" />
+      <Header title={isAdmin ? 'At-Risk Overview' : 'Needs Attention'} />
       <div className="p-6 space-y-6 max-w-screen-xl mx-auto">
 
-        {/* Filters — agency filter for FYM admins only */}
+        {/* Agency filter — admins only */}
         {!isAgent && (
           <DataFilters
             showAgencyFilter={showAgencyFilter}
@@ -34,8 +36,13 @@ export function AtRiskPage() {
           />
         )}
 
-        {/* Urgency-ranked attention list with action buttons */}
-        <NeedsAttentionList filterAgencyId={filterAgencyId} />
+        {/* Admin oversight view */}
+        {isAdmin ? (
+          <AdminAtRiskOverview filterAgencyId={filterAgencyId} />
+        ) : (
+          /* Manager / Agent card list */
+          <NeedsAttentionList filterAgencyId={filterAgencyId} />
+        )}
 
       </div>
     </>

@@ -63,7 +63,6 @@ const fymAdminNav: NavItem[] = [
   { to: '/production', label: 'Production', icon: TrendingUp, activePrefix: '/production' },
   { to: '/quality/retention', label: 'Quality', icon: ShieldCheck, activePrefix: '/quality' },
   { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
-  { to: '/workboard', label: 'Workboard', icon: ClipboardList },
   { to: '/contracting', label: 'Contracting', icon: FileText },
   { to: '/crm-command', label: 'CRM Command', icon: Command },
   { to: '/rosters', label: 'Rosters', icon: FileSpreadsheet },
