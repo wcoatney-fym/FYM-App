@@ -27,6 +27,10 @@ import {
   fetchAgencyProduction,
   type AgencyProduction,
 } from '@/lib/prod-api';
+import {
+  filterDailyByRange,
+  aggregateAgencyProduction,
+} from '@/lib/clientFilters';
 import { scopeToAgency } from '@/lib/query-helpers';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { DataFilters } from '@/components/filters/DataFilters';
@@ -190,7 +194,11 @@ export function DashboardPage() {
     });
   }, [effectiveAgencyId, isOrgWide]);
 
-  // ── Date-filtered production fetch ──
+  // ── Date-filtered production — client-side filtering (instant) ──
+  // Instead of calling edge functions on every period switch (~5s each),
+  // we filter the cached all-time daily data in memory (<1ms).
+  // Falls back to edge function calls only for agency-scoped views
+  // where the cache doesn't have per-agent granularity.
   useEffect(() => {
     if (!useRpc) {
       setLocalDailyProd([]);
@@ -198,12 +206,24 @@ export function DashboardPage() {
       setLocalAgencyProd([]);
       return;
     }
+    const startDateStr = dateRange.startDate.split('T')[0];
+    const endDateStr = dateRange.endDate.split('T')[0];
+
+    // Org-wide + cache available → instant client-side filter
+    if (isOrgWide && orgData.dailyProduction.length > 0) {
+      const filtered = filterDailyByRange(orgData.dailyProduction, startDateStr, endDateStr);
+      const agencyStats = aggregateAgencyProduction(filtered, orgData.agencyProduction);
+      setLocalDailyProd(filtered);
+      setLocalMonthlyProd([]);
+      setLocalAgencyProd(agencyStats);
+      return;
+    }
+
+    // Agency-scoped → edge function call (no cached per-agent data)
     const agencyParam =
       !isOrgWide && effectiveAgencyWritingNumber
         ? { agency_id: effectiveAgencyWritingNumber }
         : {};
-    const startDateStr = dateRange.startDate.split('T')[0];
-    const endDateStr = dateRange.endDate.split('T')[0];
     setDateLoading(true);
     const dateParams = { ...agencyParam, start_date: startDateStr, end_date: endDateStr };
     Promise.all([fetchDailyProduction(dateParams), fetchAgencyProduction(dateParams)])
@@ -218,20 +238,29 @@ export function DashboardPage() {
         setDateLoading(false);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateRange, datePreset, effectiveAgencyWritingNumber, isOrgWide]);
+  }, [dateRange, datePreset, effectiveAgencyWritingNumber, isOrgWide, orgData.dailyProduction, orgData.agencyProduction]);
 
-  // ── Previous-period fetch ──
+  // ── Previous-period — also client-side when possible ──
   useEffect(() => {
     if (!comparing || !previousRange) {
       setPrevAgencyProd([]);
       return;
     }
+    const startDateStr = previousRange.startDate.split('T')[0];
+    const endDateStr = previousRange.endDate.split('T')[0];
+
+    // Org-wide + cache available → instant
+    if (isOrgWide && orgData.dailyProduction.length > 0) {
+      const filtered = filterDailyByRange(orgData.dailyProduction, startDateStr, endDateStr);
+      setPrevAgencyProd(aggregateAgencyProduction(filtered, orgData.agencyProduction));
+      return;
+    }
+
+    // Fallback to edge function
     const agencyParam =
       !isOrgWide && effectiveAgencyWritingNumber
         ? { agency_id: effectiveAgencyWritingNumber }
         : {};
-    const startDateStr = previousRange.startDate.split('T')[0];
-    const endDateStr = previousRange.endDate.split('T')[0];
     fetchAgencyProduction({
       ...agencyParam,
       start_date: startDateStr,
@@ -240,7 +269,7 @@ export function DashboardPage() {
       .then((data) => setPrevAgencyProd(data))
       .catch((err) => console.error('Previous period fetch error:', err));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [comparing, previousRange?.startDate, previousRange?.endDate, effectiveAgencyWritingNumber, isOrgWide]);
+  }, [comparing, previousRange?.startDate, previousRange?.endDate, effectiveAgencyWritingNumber, isOrgWide, orgData.dailyProduction, orgData.agencyProduction]);
 
   // ── Detect no-data agencies ──
   const noDataAgency = filterAgencyId?.startsWith('no-data:') ?? false;
