@@ -156,6 +156,77 @@ Deno.serve(async (req) => {
       const orgEligible = agencies.reduce((s, a) => s + a.eligible_90d, 0);
       const orgRetained = agencies.reduce((s, a) => s + a.retained_90d, 0);
 
+      // Per-product summary (fast path — separate GROUP BY product_type query)
+      const productRows = await sql`
+        WITH filtered AS (
+          SELECT
+            UPPER(TRIM(cntrct_code)) AS status_code,
+            COALESCE(annual_premium, 0) AS annual_premium,
+            COALESCE(at_risk_policy, false) AS at_risk_policy,
+            app_recvd_date,
+            paid_to_date,
+            COALESCE(billing_mode, 1) AS billing_mode,
+            TRIM(plan_code) AS plan_code
+          FROM typed.unl_fym_policy_latest_load
+          WHERE ${agencyFilter === FYM_MGA_WN
+            ? sql`(TRIM(ga) = ${agencyFilter} OR ga IS NULL OR TRIM(ga) = '')`
+            : sql`TRIM(ga) = ${agencyFilter}`}
+        ),
+        with_product AS (
+          SELECT *,
+            CASE
+              WHEN status_code = 'A' THEN 'active'
+              WHEN status_code = 'T' THEN 'terminated'
+              ELSE 'pending'
+            END AS status,
+            CASE
+              WHEN UPPER(plan_code) LIKE '%HHC%' OR UPPER(plan_code) LIKE '%AHH%' THEN 'HHC'
+              ELSE 'HI'
+            END AS product_type,
+            CASE
+              WHEN paid_to_date IS NOT NULL AND app_recvd_date IS NOT NULL
+                AND paid_to_date >= app_recvd_date
+              THEN GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (paid_to_date::timestamp - app_recvd_date::timestamp)) / 86400 /
+                CASE WHEN billing_mode = 12 THEN 365
+                     WHEN billing_mode = 6 THEN 182
+                     WHEN billing_mode = 3 THEN 91
+                     ELSE 30 END))
+              ELSE 0
+            END AS draft_count,
+            CASE WHEN app_recvd_date IS NOT NULL AND app_recvd_date <= ${retCutoff}::date THEN true ELSE false END AS is_eligible
+          FROM filtered
+          WHERE CASE
+            WHEN UPPER(plan_code) LIKE '%HHC%' OR UPPER(plan_code) LIKE '%AHH%' THEN 'HHC'
+            ELSE 'HI'
+          END IN ('HI', 'HHC')
+        )
+        SELECT
+          product_type,
+          COUNT(*) FILTER (WHERE status = 'active') AS active_policies,
+          COUNT(*) FILTER (WHERE status = 'terminated') AS terminated_policies,
+          COALESCE(SUM(annual_premium / 12) FILTER (WHERE status = 'active'), 0) AS active_premium,
+          COUNT(*) FILTER (WHERE at_risk_policy = true AND status = 'active') AS at_risk_count,
+          COUNT(*) FILTER (WHERE is_eligible) AS eligible_90d,
+          COUNT(*) FILTER (WHERE is_eligible AND (draft_count >= 3 OR (billing_mode != 1 AND draft_count >= 1))) AS retained_90d
+        FROM with_product
+        GROUP BY product_type
+      `;
+
+      const productSummary = productRows.map((r: Record<string, unknown>) => {
+        const elig = Number(r.eligible_90d) || 0;
+        const ret = Number(r.retained_90d) || 0;
+        return {
+          product_type: r.product_type as string,
+          active_policies: Number(r.active_policies) || 0,
+          terminated_policies: Number(r.terminated_policies) || 0,
+          active_premium: Math.round((Number(r.active_premium) || 0) * 100) / 100,
+          at_risk_count: Number(r.at_risk_count) || 0,
+          eligible_90d: elig,
+          retained_90d: ret,
+          retention_pct: elig > 0 ? Math.round((ret / elig) * 1000) / 10 : null,
+        };
+      });
+
       const elapsedMs = Math.round(performance.now() - started);
       return jsonResponse({
         data: {
@@ -170,6 +241,7 @@ Deno.serve(async (req) => {
             retention_pct: orgEligible > 0 ? Math.round((orgRetained / orgEligible) * 1000) / 10 : null,
           },
           agencies,
+          product_summary: productSummary,
         },
         _source: "retention_direct_sql_agg",
         _elapsed_ms: elapsedMs,
@@ -220,6 +292,17 @@ Deno.serve(async (req) => {
     }
 
     const buckets = new Map<string, RetentionBucket>();
+
+    // Per-product accumulators (HI vs HHC — org-wide or agency-scoped)
+    interface ProductBucket {
+      active_policies: number;
+      terminated_policies: number;
+      active_premium: number;
+      at_risk_count: number;
+      eligible: number;
+      retained: number;
+    }
+    const productBuckets = new Map<string, ProductBucket>();
 
     // Cohort map: issue month → { eligible, retained }
     const cohortMap = new Map<string, { eligible: number; retained: number }>();
@@ -351,6 +434,27 @@ Deno.serve(async (req) => {
         if (status === "terminated") {
           bucket.terminated_policies++;
         }
+
+        // Accumulate per-product stats
+        if (!productBuckets.has(productType)) {
+          productBuckets.set(productType, {
+            active_policies: 0, terminated_policies: 0,
+            active_premium: 0, at_risk_count: 0,
+            eligible: 0, retained: 0,
+          });
+        }
+        const pb = productBuckets.get(productType)!;
+        if (status === "active") {
+          pb.active_policies++;
+          pb.active_premium += monthlyPremium;
+        }
+        if (status === "terminated") {
+          pb.terminated_policies++;
+        }
+        if (isAtRisk) {
+          pb.at_risk_count++;
+        }
+
         if (isAtRisk) {
           bucket.at_risk_count++;
           bucket.at_risk_list.push({
@@ -380,7 +484,11 @@ Deno.serve(async (req) => {
               ? draftCount >= 3
               : draftCount >= 1;
 
-            if (isRetained) bucket.retained++;
+            if (isRetained) {
+              bucket.retained++;
+              pb.retained++;
+            }
+            pb.eligible++;
 
             // Cohort tracking (org-wide + per-product + per-agency)
             if (type === "cohort" || type === "summary") {
@@ -482,6 +590,20 @@ Deno.serve(async (req) => {
         const orgEligible = summaries.reduce((s, a) => s + a.eligible_90d, 0);
         const orgRetained = summaries.reduce((s, a) => s + a.retained_90d, 0);
 
+        // Per-product summary (HI vs HHC)
+        const productSummary = Array.from(productBuckets.entries()).map(([pt, pb]) => ({
+          product_type: pt,
+          active_policies: pb.active_policies,
+          terminated_policies: pb.terminated_policies,
+          active_premium: Math.round(pb.active_premium * 100) / 100,
+          at_risk_count: pb.at_risk_count,
+          eligible_90d: pb.eligible,
+          retained_90d: pb.retained,
+          retention_pct: pb.eligible > 0
+            ? Math.round((pb.retained / pb.eligible) * 1000) / 10
+            : null,
+        }));
+
         result = {
           org_wide: {
             total_agencies: summaries.length,
@@ -494,6 +616,7 @@ Deno.serve(async (req) => {
             retention_pct: orgEligible > 0 ? Math.round((orgRetained / orgEligible) * 1000) / 10 : null,
           },
           agencies: summaries.sort((a, b) => (b.retention_pct ?? 0) - (a.retention_pct ?? 0)),
+          product_summary: productSummary,
         };
         break;
       }

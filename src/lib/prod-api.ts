@@ -261,10 +261,22 @@ export interface OrgRetentionSummary {
   retention_pct: number | null;
 }
 
+export interface ProductSummary {
+  product_type: string;
+  active_policies: number;
+  terminated_policies: number;
+  active_premium: number;
+  at_risk_count: number;
+  eligible_90d: number;
+  retained_90d: number;
+  retention_pct: number | null;
+}
+
 export interface RetentionSummaryResponse {
   data: {
     org_wide: OrgRetentionSummary;
     agencies: AgencyRetentionSummary[];
+    product_summary?: ProductSummary[];
   };
   _source: string;
   _elapsed_ms: number;

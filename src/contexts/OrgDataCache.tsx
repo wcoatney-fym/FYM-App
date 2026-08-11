@@ -34,6 +34,7 @@ import {
   type AgencyProduction,
   type DailyProduction,
   type MonthlyProduction,
+  type ProductSummary,
   type RetentionSummaryResponse,
 } from '@/lib/prod-api';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
@@ -87,6 +88,8 @@ export interface OrgDataState {
   retentionAgencies: AgencyRetentionSummary[];
   /** Full retention summary response (includes org_wide) */
   retentionSummary: RetentionSummaryResponse | null;
+  /** Per-product summary (HI vs HHC — premium, at-risk, retention) */
+  productSummary: ProductSummary[];
   /** Monthly cohort entries (org-wide combined) */
   cohorts: CohortEntry[];
   /** Per-product monthly cohort entries (HI vs HHC) */
@@ -112,6 +115,7 @@ export interface OrgDataState {
 const defaultState: OrgDataState = {
   retentionAgencies: [],
   retentionSummary: null,
+  productSummary: [],
   cohorts: [],
   productCohorts: [],
   agencyCohorts: [],
@@ -144,6 +148,9 @@ export function OrgDataProvider({ children }: { children: ReactNode }) {
   );
   const [retentionSummary, setRetentionSummary] = useState<RetentionSummaryResponse | null>(
     hasPersistedData ? persisted.current!.retentionSummary : null
+  );
+  const [productSummary, setProductSummary] = useState<ProductSummary[]>(
+    hasPersistedData ? persisted.current!.retentionSummary?.data.product_summary ?? [] : []
   );
   const [cohorts, setCohorts] = useState<CohortEntry[]>(
     hasPersistedData ? persisted.current!.cohorts : []
@@ -194,6 +201,7 @@ export function OrgDataProvider({ children }: { children: ReactNode }) {
 
       setRetentionSummary(retRes);
       setRetentionAgencies(retRes.data.agencies);
+      setProductSummary(retRes.data.product_summary ?? []);
       setCohorts(cohortRes.data.cohorts);
       setProductCohorts(cohortRes.data.product_cohorts ?? []);
       setAgencyCohorts(cohortRes.data.agency_cohorts ?? []);
@@ -238,6 +246,7 @@ export function OrgDataProvider({ children }: { children: ReactNode }) {
   const value: OrgDataState = {
     retentionAgencies,
     retentionSummary,
+    productSummary,
     cohorts,
     productCohorts,
     agencyCohorts,
