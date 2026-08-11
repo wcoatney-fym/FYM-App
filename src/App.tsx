@@ -30,6 +30,7 @@ import { RetentionPage } from '@/pages/RetentionPage';
 import { CoachingPage } from '@/pages/CoachingPage';
 import { AtRiskPage } from '@/pages/AtRiskPage';
 // GamificationPage removed — Compete content merged into LeaderboardPage
+import { DailyPulsePage } from '@/pages/DailyPulsePage';
 import { AgencyRosterPage } from '@/pages/AgencyRosterPage';
 import { PeopleGroupPage } from '@/pages/groups/PeopleGroupPage';
 import { ProductionGroupPage } from '@/pages/groups/ProductionGroupPage';
@@ -52,6 +53,7 @@ function App() {
             {/* Accessible to all roles */}
             <Route path="/" element={<DashboardPage />} />
             <Route path="/leaderboard" element={<LeaderboardPage />} />
+            <Route path="/daily-pulse" element={<DailyPulsePage />} />
             <Route path="/compete" element={<Navigate to="/leaderboard" replace />} />
             <Route path="/agents/:agentId/health" element={<RoleGuard allow={['admin', 'manager']}><AgentHealthPage /></RoleGuard>} />
             <Route path="/my-health" element={<AgentHealthPage />} />
