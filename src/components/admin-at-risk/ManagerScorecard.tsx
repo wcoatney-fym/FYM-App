@@ -7,7 +7,7 @@
 import { useState, useMemo } from 'react';
 import {
   Users, ChevronDown, ChevronRight, ShieldAlert,
-  Clock, CheckCircle2, AlertTriangle, Activity,
+  Activity,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';

@@ -11,7 +11,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   MessageSquare, ArrowRight, RefreshCw, CheckCircle2,
-  XCircle, Loader2, Clock,
+  XCircle, Clock,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
