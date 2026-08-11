@@ -1,12 +1,10 @@
 /**
  * Agency Leaderboard + Compete & Conquer
  *
- * Single page combining:
- * - Agency leaderboard (rankings, period toggles, metric toggles)
- * - Ramp Up board (new agents in last 90 days)
- * - Battles (head-to-head competitions)
- * - Challenges (time-boxed org/agency goals)
- * - Create New (battles + challenges form — admin/manager only)
+ * Compressed layout (3 tabs):
+ * - Leaderboard: top-10 period-based agent rankings (quality/production/overall)
+ * - Compete: battles + challenges in one view
+ * - Create New: admin/manager battle & challenge creation
  */
 import { useEffect, useState, useMemo, useCallback } from 'react';
 // useNavigate removed — agent drill-down TBD
@@ -29,12 +27,12 @@ import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { DataFilters } from '@/components/filters/DataFilters';
 // ExecutiveSummary + KpiSummaryTile imports removed — agency-level exec summary replaced by agent stats
 
-import { RampUpBoard, type RampUpAgent } from '@/components/leaderboard/RampUpBoard';
+// RampUpBoard removed — ramp-up folded into main leaderboard
 import type { GamificationMetric, BattleType, ChallengeType } from '@/lib/database.types';
 import {
   Trophy, TrendingUp, ShieldCheck,
-  Calendar, DollarSign, FileText, Rocket,
-  Swords, Target, Users, Percent, Crown, Plus,
+  Calendar, DollarSign, FileText,
+  Swords, Target, Users, Crown, Plus,
   CheckCircle2, XCircle, Clock,
 } from 'lucide-react';
 import { fmt$ } from '@/lib/formatUtils';
@@ -58,7 +56,7 @@ interface AgentLeaderRow {
 }
 
 // SortKey removed — top 10 leaderboard sorts by category, not user-toggled columns
-type BoardTab = 'agencies' | 'ramp_up' | 'battles' | 'challenges' | 'create';
+type BoardTab = 'leaderboard' | 'compete' | 'create';
 type LeaderPeriod = 'week' | 'month' | 'year';
 type LeaderCategory = 'overall' | 'quality' | 'production';
 
@@ -237,9 +235,7 @@ export function LeaderboardPage() {
   // Leaderboard period + category state
   const [leaderPeriod, setLeaderPeriod] = useState<LeaderPeriod>('month');
   const [leaderCategory, setLeaderCategory] = useState<LeaderCategory>('overall');
-  const [boardTab, setBoardTab] = useState<BoardTab>('agencies');
-  const [rampUpAgents, setRampUpAgents] = useState<RampUpAgent[]>([]);
-  const [rampUpLoading, setRampUpLoading] = useState(false);
+  const [boardTab, setBoardTab] = useState<BoardTab>('leaderboard');
   // searchQuery removed — top 10 leaderboard doesn't need search
 
   // ── Compete state ──
@@ -315,7 +311,7 @@ export function LeaderboardPage() {
   }, [leaderPeriod]);
 
   useEffect(() => {
-    if (boardTab !== 'agencies' || !agentLeaderAgencyId) return;
+    if (boardTab !== 'leaderboard' || !agentLeaderAgencyId) return;
     let cancelled = false;
     setAgentLoading(true);
 
@@ -377,91 +373,7 @@ export function LeaderboardPage() {
     return () => { cancelled = true; };
   }, [boardTab, agentLeaderAgencyId, leaderDateRange]);
 
-  // Load ramp-up agents (first app within last 90 days)
-  useEffect(() => {
-    if (boardTab !== 'ramp_up') return;
-    let cancelled = false;
-    setRampUpLoading(true);
-
-    const loadRampUp = async () => {
-      try {
-        const today = new Date();
-        const ninetyDaysAgo = new Date(today);
-        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-        const cutoff = `${ninetyDaysAgo.getFullYear()}-${String(ninetyDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(ninetyDaysAgo.getDate()).padStart(2, '0')}`;
-
-        // Scope to effective agency — FYM admin defaults to FYM house (202JVV00)
-        // to avoid the slow org-wide scan that times out
-        const agencyScope = isOrgWide ? (filterAgencyId || '202JVV00') : (effectiveAgencyId || undefined);
-
-        // Fetch agents — scoped by agency if applicable
-        const allAgents = await fetchAgentProduction({
-          start_date: cutoff,
-          ...(agencyScope ? { agency_id: agencyScope } : {}),
-        });
-        if (cancelled) return;
-
-        // Build agency name lookup for enrichment
-        const agencyIds = [...new Set(allAgents.map(a => a.agency_id).filter(Boolean))];
-        const agencyNameMap = new Map<string, string>();
-        if (supabase && agencyIds.length > 0) {
-          for (let i = 0; i < agencyIds.length; i += 50) {
-            const chunk = agencyIds.slice(i, i + 50);
-            const { data: agencyNames } = await (supabase as any)
-              .from('agencies')
-              .select('writing_number, name')
-              .in('writing_number', chunk);
-            if (agencyNames) {
-              for (const ag of agencyNames as any[]) {
-                if (ag.writing_number && ag.name) agencyNameMap.set(ag.writing_number, ag.name);
-              }
-            }
-          }
-        }
-        if (cancelled) return;
-
-        const rampAgents: RampUpAgent[] = [];
-
-        for (const a of allAgents) {
-          // Check if this is a ramp-up agent (earliest_issue_date within 90 days)
-          const firstDate = a.earliest_issue_date;
-          if (!firstDate || firstDate < cutoff) continue;
-
-          const daysActive = Math.floor(
-            (today.getTime() - new Date(firstDate + 'T00:00:00').getTime()) / 86400000,
-          );
-
-          const totalApps = a.active_policies + a.terminated_policies + a.pending_policies;
-          const totalAP = a.active_annual_premium;
-
-          rampAgents.push({
-            agent_id: a.agent_id,
-            agent_name: a.agent_name ?? a.agent_id,
-            agency_name: agencyNameMap.get(a.agency_id) ?? null,
-            first_app_date: firstDate,
-            days_active: daysActive,
-            total_apps: totalApps,
-            total_ap: totalAP,
-            avg_ap_per_app: totalApps > 0 ? totalAP / totalApps : 0,
-            retention_pct: a.retention_pct ?? null,
-            at_risk_count: a.at_risk_policies ?? 0,
-          });
-        }
-
-        if (!cancelled) setRampUpAgents(rampAgents);
-      } catch (err) {
-        console.error('Ramp-up load error:', err);
-        if (!cancelled) setRampUpAgents([]);
-      } finally {
-        if (!cancelled) setRampUpLoading(false);
-      }
-    };
-
-    loadRampUp();
-    return () => { cancelled = true; };
-  }, [boardTab, isOrgWide, filterAgencyId, effectiveAgencyId]);
-
-
+  // Ramp-up tab removed — new agents appear in the main leaderboard naturally
 
 
   // ── Compete data loading ──
@@ -524,9 +436,9 @@ export function LeaderboardPage() {
     }
   }, []);
 
-  // Load compete data when switching to battles/challenges/create tab
+  // Load compete data when switching to compete or create tab
   useEffect(() => {
-    if (boardTab === 'battles' || boardTab === 'challenges' || boardTab === 'create') {
+    if (boardTab === 'compete' || boardTab === 'create') {
       loadCompeteData();
     }
   }, [boardTab, loadCompeteData]);
@@ -639,9 +551,9 @@ export function LeaderboardPage() {
     }
   }
 
-  // Ramp-up agent count for badge
-  const rampUpCount = rampUpAgents.length;
   const activeBattleCount = battles.filter(b => b.status === 'active').length;
+  const activeChallengeCount = challenges.filter(c => c.status === 'active').length;
+  const activeCompeteCount = activeBattleCount + activeChallengeCount;
 
 
   // toggleSort/SortArrow removed — top 10 leaderboard sorts by category
@@ -659,13 +571,11 @@ export function LeaderboardPage() {
           />
         )}
 
-        {/* Board Tab Switcher */}
+        {/* Board Tab Switcher — compressed: Leaderboard | Compete | Create New */}
         <div className="flex items-center gap-1 bg-secondary/50 rounded-lg p-0.5 w-fit flex-wrap">
           {([
-            { key: 'agencies' as BoardTab, label: 'Agencies', icon: Trophy },
-            { key: 'ramp_up' as BoardTab, label: 'Ramp Up', icon: Rocket, badge: rampUpCount > 0 ? rampUpCount : undefined },
-            { key: 'battles' as BoardTab, label: 'Battles', icon: Swords, badge: activeBattleCount > 0 ? activeBattleCount : undefined },
-            { key: 'challenges' as BoardTab, label: 'Challenges', icon: Target },
+            { key: 'leaderboard' as BoardTab, label: 'Leaderboard', icon: Trophy },
+            { key: 'compete' as BoardTab, label: 'Compete', icon: Swords, badge: activeCompeteCount > 0 ? activeCompeteCount : undefined },
             ...(canCreate ? [{ key: 'create' as BoardTab, label: 'Create New', icon: Plus }] : []),
           ]).map(tab => (
             <button
@@ -687,13 +597,8 @@ export function LeaderboardPage() {
           ))}
         </div>
 
-        {/* Ramp Up Board */}
-        {boardTab === 'ramp_up' && (
-          <RampUpBoard agents={rampUpAgents} loading={rampUpLoading} />
-        )}
-
-        {/* Agencies Board — Top 10 Agent Leaderboard by Period + Category */}
-        {boardTab === 'agencies' && (<>
+        {/* Leaderboard — Top 10 Agent Leaderboard by Period + Category */}
+        {boardTab === 'leaderboard' && (<>
 
         {(() => {
           // Sort agents by category
@@ -867,15 +772,15 @@ export function LeaderboardPage() {
           </>;
         })()}
 
-        </>)}{/* end boardTab === 'agencies' */}
+        </>)}{/* end boardTab === 'leaderboard' */}
 
-        {/* ── Battles tab ── */}
-        {boardTab === 'battles' && (
+        {/* ── Compete tab (Battles + Challenges merged) ── */}
+        {boardTab === 'compete' && (
           <div className="space-y-6">
             <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {[
                 { title: 'Active Battles', end: battleStats.active, icon: Swords, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-                { title: 'Completed', end: battleStats.completed, icon: CheckCircle2, color: 'text-primary', bg: 'bg-cyan-500/10' },
+                { title: 'Active Challenges', end: challengeStats.active, icon: Target, color: 'text-purple-400', bg: 'bg-purple-500/10' },
                 { title: 'Total Participants', end: battleStats.totalParticipants, icon: Users, color: 'text-foreground/80', bg: 'bg-secondary' },
                 { title: 'Your Win Rate', end: battleStats.winRate, icon: Crown, color: 'text-amber-400', bg: 'bg-amber-500/10', suffix: '%' },
               ].map(card => (
@@ -905,18 +810,24 @@ export function LeaderboardPage() {
               ))}
             </StaggerContainer>
 
+            {/* Battles section */}
+            <div className="flex items-center gap-2">
+              <Swords size={16} className="text-primary" />
+              <h3 className="text-sm font-semibold text-foreground">Battles</h3>
+            </div>
+
             {competeLoading ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {[1, 2].map(i => <div key={i} className="h-64 rounded-lg shimmer" />)}
               </div>
             ) : battles.length === 0 ? (
               <Card className="border-border">
-                <CardContent className="py-16 text-center">
-                  <Swords size={32} className="mx-auto text-muted-foreground mb-3" />
-                  <p className="text-muted-foreground">No battles yet.</p>
+                <CardContent className="py-10 text-center">
+                  <Swords size={24} className="mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground">No battles yet.</p>
                   {canCreate && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Head to <button onClick={() => setBoardTab('create')} className="text-primary hover:underline">Create New</button> to start one.
+                    <p className="text-xs text-muted-foreground mt-1">
+                      <button onClick={() => setBoardTab('create')} className="text-primary hover:underline">Create one</button> to get started.
                     </p>
                   )}
                 </CardContent>
@@ -980,53 +891,24 @@ export function LeaderboardPage() {
                 })}
               </div>
             )}
-          </div>
-        )}
-
-        {/* ── Challenges tab ── */}
-        {boardTab === 'challenges' && (
-          <div className="space-y-6">
-            <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {[
-                { title: 'Active Challenges', end: challengeStats.active, icon: Target, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-                { title: 'Completed', end: challengeStats.completed, icon: CheckCircle2, color: 'text-primary', bg: 'bg-cyan-500/10' },
-                { title: 'Achieved', end: challengeStats.achieved, icon: Trophy, color: 'text-amber-400', bg: 'bg-amber-500/10' },
-                { title: 'Achievement Rate', end: challengeStats.achievementRate, icon: Percent, color: 'text-foreground/80', bg: 'bg-secondary', suffix: '%' },
-              ].map(card => (
-                <StaggerItem key={card.title}>
-                  <Card className="border-border">
-                    <CardContent className="p-4">
-                      {competeLoading ? (
-                        <div className="h-12 rounded shimmer" />
-                      ) : (
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-xs font-medium text-muted-foreground">{card.title}</p>
-                            <CountUp end={card.end} suffix={card.suffix} className="text-xl font-bold text-foreground mt-0.5 block" />
-                          </div>
-                          <div className={`p-2 rounded-lg ${card.bg}`}>
-                            <card.icon size={18} className={card.color} />
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </StaggerItem>
-              ))}
-            </StaggerContainer>
+          {/* ── Challenges section (inside Compete tab) ── */}
+            <div className="flex items-center gap-2 pt-4 border-t border-border/30">
+              <Target size={16} className="text-primary" />
+              <h3 className="text-sm font-semibold text-foreground">Challenges</h3>
+            </div>
 
             {competeLoading ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {[1, 2].map(i => <div key={i} className="h-72 rounded-lg shimmer" />)}
+                {[1, 2].map(i => <div key={i} className="h-48 rounded-lg shimmer" />)}
               </div>
             ) : challenges.length === 0 ? (
               <Card className="border-border">
-                <CardContent className="py-16 text-center">
-                  <Target size={32} className="mx-auto text-muted-foreground mb-3" />
-                  <p className="text-muted-foreground">No challenges yet.</p>
+                <CardContent className="py-10 text-center">
+                  <Target size={24} className="mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground">No challenges yet.</p>
                   {canCreate && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Head to <button onClick={() => setBoardTab('create')} className="text-primary hover:underline">Create New</button> to set one up.
+                    <p className="text-xs text-muted-foreground mt-1">
+                      <button onClick={() => setBoardTab('create')} className="text-primary hover:underline">Create one</button> to get started.
                     </p>
                   )}
                 </CardContent>
