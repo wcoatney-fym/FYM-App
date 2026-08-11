@@ -328,21 +328,22 @@ export function DashboardPage() {
     const agencies = filterAgencyId
       ? rawAgencies.filter((a) => a.agency_id === filterAgencyId)
       : rawAgencies;
-    const sorted = agencies
-      .filter((a) => a.retention_pct !== null)
+    // FYM admin (org-wide): show ALL agencies — including those with null
+    // retention (newer agencies with no eligible cohort yet). Use agency_name
+    // from edge function response; fall back to local nameMap only if needed.
+    const mapped = agencies
       .map((a) => ({
         agency_id: a.agency_id,
-        name: nameMap.get(a.agency_id) ?? null,
+        name: a.agency_name ?? nameMap.get(a.agency_id) ?? null,
         active_policies: a.active_policies,
         active_premium: a.active_premium,
         at_risk_count: a.at_risk_count,
         retention_pct: a.retention_pct,
       }))
-      .sort((a, b) => (a.retention_pct ?? 100) - (b.retention_pct ?? 100));
-    // FYM admin (org-wide): show ALL agencies for coaching visibility.
-    // Agency admins: cap at 8 (they only see their own hierarchy anyway).
-    return isOrgWide ? sorted : sorted.slice(0, 8);
-  }, [orgData.initialLoading, noDataAgency, filterAgencyId, rawAgencies, nameMap, isOrgWide]);
+      .sort((a, b) => (a.retention_pct ?? -1) - (b.retention_pct ?? -1));
+    // FYM admin: all agencies. Agency admin: cap at 8.
+    return isOrgWide ? mapped : mapped.filter((a) => a.retention_pct !== null).slice(0, 8);
+  }, [loading, noDataAgency, filterAgencyId, rawAgencies, nameMap, isOrgWide]);
 
   // ── Production snapshot ──
   const snapshot = useMemo((): StatusSnapshot | null => {
