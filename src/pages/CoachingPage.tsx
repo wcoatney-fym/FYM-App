@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { fmt$, fmtDate } from '@/lib/formatUtils';
 import { AgentCoachingTable, type AgentCoachingFlag } from '@/components/coaching/AgentCoachingTable';
+import { fetchCoachingFlags } from '@/lib/prod-api';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface CoachingRow {
@@ -151,11 +152,19 @@ export function CoachingPage() {
   const [agentFlagsLoading, setAgentFlagsLoading] = useState(true);
 
   const loadAgentFlags = useCallback(async () => {
-    if (!supabase || isAgent) { setAgentFlagsLoading(false); return; }
     setAgentFlagsLoading(true);
     try {
-      const data = await fetchAllPaginated<AgentCoachingFlag>('agent_coaching_flags', '*', undefined, { isOrgWide, agencyId: effectiveAgencyId, writingNumber: effectiveWritingNumber, isAgent: false });
-      setAgentFlags(data);
+      const params: Record<string, string> = {};
+      // Scope by agency for non-org-wide users
+      if (!isOrgWide && effectiveAgencyId) {
+        params.agency_id = effectiveAgencyId;
+      }
+      // Scope by agent for agent view
+      if (isAgent && effectiveWritingNumber) {
+        params.agent_id = effectiveWritingNumber;
+      }
+      const resp = await fetchCoachingFlags(params);
+      setAgentFlags(resp.agents as AgentCoachingFlag[]);
     } catch (err) {
       console.error('Agent coaching flags load error:', err);
     } finally {
