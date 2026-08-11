@@ -1,9 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Header } from '@/components/layout/Header';
-import { HudFrame } from '@/components/ui/hud-frame';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
-import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { PulseKpiCards } from '@/components/daily-pulse/PulseKpiCards';
 import { ResponseTable, type CheckinResponse } from '@/components/daily-pulse/ResponseTable';
 import { RecipientManager } from '@/components/daily-pulse/RecipientManager';
@@ -37,7 +35,6 @@ function formatDateFriendly(dateStr: string): string {
 }
 
 export function DailyPulsePage() {
-  const { role } = useEffectiveAuth();
   const [tab, setTab] = useState<Tab>('today');
   const [loading, setLoading] = useState(true);
   const [responses, setResponses] = useState<CheckinResponse[]>([]);
@@ -47,7 +44,8 @@ export function DailyPulsePage() {
 
   const fetchResponses = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    if (!supabase) { setLoading(false); return; }
+    const { data, error } = await (supabase as any)
       .from('checkin_responses')
       .select('*, checkin_recipients!inner(first_name, last_name, phone)')
       .eq('check_in_date', selectedDate)
@@ -76,7 +74,8 @@ export function DailyPulsePage() {
   }, [selectedDate]);
 
   const fetchRecipients = useCallback(async () => {
-    const { data } = await supabase
+    if (!supabase) return;
+    const { data } = await (supabase as any)
       .from('checkin_recipients')
       .select('*')
       .order('last_name', { ascending: true });
@@ -84,7 +83,8 @@ export function DailyPulsePage() {
   }, []);
 
   const fetchManagers = useCallback(async () => {
-    const { data } = await supabase
+    if (!supabase) return;
+    const { data } = await (supabase as any)
       .from('checkin_managers')
       .select('*')
       .order('name', { ascending: true });
@@ -135,10 +135,7 @@ export function DailyPulsePage() {
 
   return (
     <div className="space-y-6">
-      <Header
-        title="Daily Pulse"
-        subtitle="Agent check-in responses and engagement tracking"
-      />
+      <Header title="Daily Pulse" />
 
       {/* Tab bar + controls */}
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -208,22 +205,18 @@ export function DailyPulsePage() {
 
       {/* Content */}
       {tab === 'today' && (
-        <HudFrame label="CHECK-IN PULSE">
-          <div className="space-y-6">
-            <PulseKpiCards stats={stats} loading={loading} />
-            <ResponseTable responses={responses} loading={loading} />
-          </div>
-        </HudFrame>
+        <div className="space-y-6">
+          <PulseKpiCards stats={stats} loading={loading} />
+          <ResponseTable responses={responses} loading={loading} />
+        </div>
       )}
 
       {tab === 'recipients' && (
-        <HudFrame label="RECIPIENT MANAGEMENT">
-          <RecipientManager
-            recipients={recipients}
-            managers={managers}
-            onRefresh={refreshAll}
-          />
-        </HudFrame>
+        <RecipientManager
+          recipients={recipients}
+          managers={managers}
+          onRefresh={refreshAll}
+        />
       )}
     </div>
   );

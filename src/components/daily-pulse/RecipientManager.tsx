@@ -68,22 +68,26 @@ export function RecipientManager({ recipients, managers, onRefresh }: RecipientM
   });
 
   const toggleRecipient = useCallback(async (id: string, active: boolean) => {
-    await supabase.from('checkin_recipients').update({ active: !active }).eq('id', id);
+    if (!supabase) return;
+    await (supabase as any).from('checkin_recipients').update({ active: !active }).eq('id', id);
     onRefresh();
   }, [onRefresh]);
 
   const removeRecipient = useCallback(async (id: string) => {
-    await supabase.from('checkin_recipients').delete().eq('id', id);
+    if (!supabase) return;
+    await (supabase as any).from('checkin_recipients').delete().eq('id', id);
     onRefresh();
   }, [onRefresh]);
 
   const toggleManager = useCallback(async (id: string, active: boolean) => {
-    await supabase.from('checkin_managers').update({ active: !active }).eq('id', id);
+    if (!supabase) return;
+    await (supabase as any).from('checkin_managers').update({ active: !active }).eq('id', id);
     onRefresh();
   }, [onRefresh]);
 
   const removeManager = useCallback(async (id: string) => {
-    await supabase.from('checkin_managers').delete().eq('id', id);
+    if (!supabase) return;
+    await (supabase as any).from('checkin_managers').delete().eq('id', id);
     onRefresh();
   }, [onRefresh]);
 
@@ -91,7 +95,8 @@ export function RecipientManager({ recipients, managers, onRefresh }: RecipientM
     if (!newManagerName.trim() || !newManagerPhone.trim()) return;
     setSaving(true);
     const phone = normalizePhone(newManagerPhone);
-    await supabase.from('checkin_managers').insert({
+    if (!supabase) return;
+    await (supabase as any).from('checkin_managers').insert({
       name: newManagerName.trim(),
       phone,
     });
