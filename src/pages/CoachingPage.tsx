@@ -21,6 +21,7 @@ import {
 import { fmt$, fmtDate } from '@/lib/formatUtils';
 import { AgentCoachingTable, type AgentCoachingFlag } from '@/components/coaching/AgentCoachingTable';
 import { fetchCoachingFlags } from '@/lib/prod-api';
+import { AgentCoachingStatus } from '@/components/coaching/AgentCoachingStatus';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface CoachingRow {
@@ -171,6 +172,12 @@ export function CoachingPage() {
       setAgentFlagsLoading(false);
     }
   }, [isOrgWide, effectiveAgencyId, effectiveWritingNumber, isAgent]);
+
+  // For agent view: find their own coaching flag data
+  const ownAgentFlag = useMemo(() => {
+    if (!isAgent || !effectiveWritingNumber) return null;
+    return agentFlags.find(f => f.writing_number === effectiveWritingNumber) ?? null;
+  }, [isAgent, effectiveWritingNumber, agentFlags]);
 
   const load = useCallback(async () => {
     if (!supabase) { setLoading(false); return; }
@@ -442,6 +449,22 @@ export function CoachingPage() {
             </StaggerItem>
           ))}
         </StaggerContainer>
+
+        {/* ── Agent Personal Coaching Status (agent view only) ── */}
+        {isAgent && (
+          <div className="space-y-3">
+            <div>
+              <h2 className="text-base font-semibold text-foreground">Your Coaching Status</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                How your book health compares to team quality thresholds.
+              </p>
+            </div>
+            <AgentCoachingStatus
+              agentData={ownAgentFlag}
+              loading={agentFlagsLoading}
+            />
+          </div>
+        )}
 
         {/* ── Agent Identification Section (admin/manager only) ── */}
         {!isAgent && (

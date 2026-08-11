@@ -24,7 +24,7 @@ import {
   jsonResponse,
   corsResponse,
 } from "../_shared/prod-db.ts";
-import { loadRosterMap } from "../_shared/roster-map.ts";
+
 import { createClient } from "npm:@supabase/supabase-js@2.39.3";
 
 Deno.serve(async (req) => {
@@ -38,10 +38,10 @@ Deno.serve(async (req) => {
 
   try {
     // 1. Load thresholds from FYM App Supabase
-    const appUrl = Deno.env.get("APP_SUPABASE_URL");
-    const appKey = Deno.env.get("APP_SUPABASE_SERVICE_KEY") || Deno.env.get("APP_SUPABASE_ANON_KEY");
+    const appUrl = Deno.env.get("APP_SUPABASE_URL") || Deno.env.get("SUPABASE_URL") || "";
+    const appKey = Deno.env.get("APP_SUPABASE_SERVICE_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
     if (!appUrl || !appKey) {
-      return jsonResponse({ error: "Missing APP_SUPABASE_URL or APP_SUPABASE_SERVICE_KEY" }, 500);
+      return jsonResponse({ error: "Missing APP_SUPABASE_URL/SUPABASE_URL or APP_SUPABASE_SERVICE_KEY/SUPABASE_SERVICE_ROLE_KEY" }, 500);
     }
 
     const appClient = createClient(appUrl, appKey);
@@ -62,20 +62,27 @@ Deno.serve(async (req) => {
       min_eligible_policies: Number(thresholdRow?.min_eligible_policies ?? 5),
     };
 
-    // 2. Load roster map for agency name resolution
-    const rosterMap = await loadRosterMap();
+    // 2. Load agency names from the FYM App DB for display
+    const { data: agencyRows } = await appClient
+      .from("agencies")
+      .select("writing_number, name")
+      .not("writing_number", "is", null);
+
+    const agencyNameMap = new Map<string, string>();
+    for (const a of agencyRows || []) {
+      if (a.writing_number) agencyNameMap.set(a.writing_number.trim(), a.name || "");
+    }
 
     // 3. Query Max's prod DB for per-agent stats
     sql = createProdConnection();
 
+    // Filters reference CTE aliases from the `base` CTE
     const agencyWhere = agencyFilter
-      ? agencyFilter === FYM_MGA_WN
-        ? sql`AND (TRIM(ga) = ${agencyFilter} OR ga IS NULL OR TRIM(ga) = '')`
-        : sql`AND TRIM(ga) = ${agencyFilter}`
+      ? sql`AND agency_wn = ${agencyFilter}`
       : sql``;
 
     const agentWhere = agentFilter
-      ? sql`AND TRIM(wa) = ${agentFilter}`
+      ? sql`AND writing_number = ${agentFilter}`
       : sql``;
 
     const now = new Date();
@@ -88,24 +95,45 @@ Deno.serve(async (req) => {
     const oneMonthAgoStr = oneMonthAgo.toISOString().slice(0, 10);
 
     const rows = await sql`
-      WITH agent_agg AS (
+      WITH base AS (
         SELECT
           TRIM(wa) AS writing_number,
-          MAX(TRIM(wa_name)) AS agent_name,
+          TRIM(wa_name) AS wa_name,
           COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}) AS agency_wn,
+          UPPER(TRIM(cntrct_code)) AS status_code,
+          COALESCE(annual_premium, 0) AS annual_premium,
+          COALESCE(at_risk_policy, false) AS at_risk_flag,
+          issue_date,
+          paid_to_date,
+          COALESCE(billing_mode::text, '1') AS billing_mode
+        FROM typed.unl_fym_policy_latest_load
+        WHERE TRIM(wa) IS NOT NULL
+          AND TRIM(wa) != ''
+      ),
+      filtered AS (
+        SELECT * FROM base
+        WHERE 1=1
+          ${agencyWhere}
+          ${agentWhere}
+      ),
+      agent_agg AS (
+        SELECT
+          writing_number,
+          MAX(wa_name) AS agent_name,
+          agency_wn,
           COUNT(*) AS total_policies,
-          COUNT(*) FILTER (WHERE UPPER(TRIM(cntrct_code)) = 'A') AS active_policies,
-          COUNT(*) FILTER (WHERE UPPER(TRIM(cntrct_code)) = 'T') AS terminated_policies,
-          COUNT(*) FILTER (WHERE UPPER(TRIM(cntrct_code)) = 'A' AND COALESCE(at_risk_policy, false) = true) AS at_risk_count,
-          ROUND(SUM(COALESCE(annual_premium, 0) / 12.0) FILTER (WHERE UPPER(TRIM(cntrct_code)) = 'A'), 0) AS active_premium,
-          ROUND(SUM(COALESCE(annual_premium, 0)) FILTER (WHERE UPPER(TRIM(cntrct_code)) = 'A'), 0) AS annual_premium,
+          COUNT(*) FILTER (WHERE status_code = 'A') AS active_policies,
+          COUNT(*) FILTER (WHERE status_code = 'T') AS terminated_policies,
+          COUNT(*) FILTER (WHERE status_code = 'A' AND at_risk_flag = true) AS at_risk_count,
+          ROUND(SUM(annual_premium / 12.0) FILTER (WHERE status_code = 'A')::numeric, 0) AS active_premium,
+          ROUND(SUM(annual_premium) FILTER (WHERE status_code = 'A')::numeric, 0) AS annual_premium,
           -- 90-day retention: same formula as quality-metrics-direct
           COUNT(*) FILTER (
             WHERE issue_date <= ${threeMonthsAgoStr}::date
               AND (
-                (COALESCE(billing_mode::text, '1') = '1'
+                (billing_mode = '1'
                   AND paid_to_date >= issue_date + INTERVAL '3 months')
-                OR (COALESCE(billing_mode::text, '1') != '1'
+                OR (billing_mode != '1'
                   AND paid_to_date >= issue_date + INTERVAL '1 month')
               )
           ) AS retained_90d,
@@ -113,12 +141,8 @@ Deno.serve(async (req) => {
             WHERE issue_date <= ${threeMonthsAgoStr}::date
               AND paid_to_date >= issue_date + INTERVAL '1 month'
           ) AS eligible_90d
-        FROM typed.unl_fym_policy_latest_load
-        WHERE TRIM(wa) IS NOT NULL
-          AND TRIM(wa) != ''
-          ${agencyWhere}
-          ${agentWhere}
-        GROUP BY TRIM(wa), COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN})
+        FROM filtered
+        GROUP BY writing_number, agency_wn
       )
       SELECT * FROM agent_agg
       ORDER BY annual_premium DESC NULLS LAST
@@ -129,9 +153,8 @@ Deno.serve(async (req) => {
       const writingNumber = r.writing_number;
       const agentName = r.agent_name ? toTitleCase(r.agent_name) : null;
       const agencyWn = r.agency_wn;
-      const agencyEntry = rosterMap.get(agencyWn);
-      const agencyName = agencyEntry?.name
-        ? toTitleCase(agencyEntry.name)
+      const agencyName = agencyNameMap.has(agencyWn)
+        ? agencyNameMap.get(agencyWn)!
         : agencyWn;
 
       const totalPolicies = Number(r.total_policies);
