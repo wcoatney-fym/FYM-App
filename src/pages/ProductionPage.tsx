@@ -408,37 +408,65 @@ export function ProductionPage() {
   // Whether to show agent-level breakdown vs agency-level
   const showAgentBreakdown = !!breakdownAgencyId;
 
-  // CSV export
+  // CSV export — exports whichever table is currently displayed
   const handleExport = () => {
-    const activeAgencies = sortedAgencies.filter(a => a.active_policies > 0);
-    if (activeAgencies.length === 0) return;
-    const headers = ['Agency', 'Total Policies', 'Active', 'Pending', 'Terminated', 'Active AP', 'Avg AP', 'MTD Policies', 'MTD AP', 'Last Mo Policies', 'At Risk', 'At-Risk AP'];
     const escCsv = (val: string | number | null | undefined): string => {
       if (val === null || val === undefined) return '';
       const s = String(val);
       if (s.includes(',') || s.includes('"') || s.includes('\n')) return '"' + s.replace(/"/g, '""') + '"';
       return s;
     };
-    const csvRows = activeAgencies.map(a => [
-      escCsv(a.agency_name ?? a.agency_id),
-      a.total_policies,
-      a.active_policies,
-      a.pending_policies,
-      a.terminated_policies,
-      Math.round(Number(a.active_annual_premium)),
-      Math.round(Number(a.avg_annual_premium)),
-      a.policies_this_month,
-      Math.round(Number(a.ap_this_month)),
-      a.policies_last_month,
-      a.at_risk_policies,
-      Math.round(Number(a.at_risk_annual_premium || 0)),
-    ]);
+
+    let headers: string[];
+    let csvRows: (string | number)[][];
+    let filename: string;
+
+    if (showAgentBreakdown) {
+      // Agent breakdown view
+      if (sortedAgentBreakdown.length === 0) return;
+      headers = ['Agent', 'Total', 'Active', 'Pending', 'Terminated', 'Active AP', 'Avg AP', 'MTD Policies', 'MTD AP', 'At Risk', 'Retention'];
+      csvRows = sortedAgentBreakdown.map(a => [
+        escCsv(a.agent_name ?? a.agent_id),
+        a.total_policies,
+        a.active_policies,
+        a.pending_policies,
+        a.terminated_policies,
+        Math.round(a.active_annual_premium),
+        Math.round(a.avg_annual_premium),
+        a.policies_this_month,
+        Math.round(Number(a.ap_this_month)),
+        a.at_risk_policies,
+        a.retention_pct !== null && a.retention_pct !== undefined ? `${a.retention_pct}%` : '',
+      ]);
+      filename = `fym-agent-breakdown-${new Date().toISOString().slice(0, 10)}.csv`;
+    } else {
+      // Agency breakdown view
+      const activeAgencies = sortedAgencies.filter(a => a.active_policies > 0);
+      if (activeAgencies.length === 0) return;
+      headers = ['Agency', 'Total Policies', 'Active', 'Pending', 'Terminated', 'Active AP', 'Avg AP', 'MTD Policies', 'MTD AP', 'Last Mo Policies', 'At Risk', 'At-Risk AP'];
+      csvRows = activeAgencies.map(a => [
+        escCsv(a.agency_name ?? a.agency_id),
+        a.total_policies,
+        a.active_policies,
+        a.pending_policies,
+        a.terminated_policies,
+        Math.round(Number(a.active_annual_premium)),
+        Math.round(Number(a.avg_annual_premium)),
+        a.policies_this_month,
+        Math.round(Number(a.ap_this_month)),
+        a.policies_last_month,
+        a.at_risk_policies,
+        Math.round(Number(a.at_risk_annual_premium || 0)),
+      ]);
+      filename = `fym-production-${new Date().toISOString().slice(0, 10)}.csv`;
+    }
+
     const csv = [headers.join(','), ...csvRows.map(r => r.join(','))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `fym-production-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = filename;
     link.click();
     URL.revokeObjectURL(url);
   };
