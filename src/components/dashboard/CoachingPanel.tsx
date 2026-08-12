@@ -78,7 +78,7 @@ export function CoachingPanel({ agencies, belowTargetCount, isOrgWide }: Coachin
           a.agency_id.toLowerCase().includes(q)
       );
     }
-    // Sort
+    // Sort — nulls always sink to the bottom regardless of direction
     const dir = sortAsc ? 1 : -1;
     return [...arr].sort((a, b) => {
       switch (sortKey) {
@@ -86,7 +86,13 @@ export function CoachingPanel({ agencies, belowTargetCount, isOrgWide }: Coachin
         case 'active': return dir * (a.active_policies - b.active_policies);
         case 'premium': return dir * (a.active_premium - b.active_premium);
         case 'atRisk': return dir * (a.at_risk_count - b.at_risk_count);
-        case 'retention': return dir * ((a.retention_pct ?? -1) - (b.retention_pct ?? -1));
+        case 'retention': {
+          // Null retention = no data → always last
+          if (a.retention_pct === null && b.retention_pct === null) return 0;
+          if (a.retention_pct === null) return 1;
+          if (b.retention_pct === null) return -1;
+          return dir * (a.retention_pct - b.retention_pct);
+        }
         default: return 0;
       }
     });
