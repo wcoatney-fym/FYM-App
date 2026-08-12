@@ -28,9 +28,10 @@ import { supabaseConfigured } from '@/lib/supabase';
 import { createClient } from '@supabase/supabase-js';
 import { useCachedMultiFetch } from '@/hooks/useCachedFetch';
 import type { Campaign, CampaignStatus, DailySpend, RecruitingDateFilter } from '@/lib/recruiting/types';
-import { MOCK_CAMPAIGNS, MOCK_DAILY_SPEND } from '@/lib/recruiting/mock-data';
 
-// ── Supabase client (same as recruiting api.ts) ────────────────────────────
+// Untyped client for recruiting tables (not in Database types).
+// Auth session is shared via localStorage with the main typed client,
+// so RLS policies for authenticated users apply to reads AND writes.
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const sb = supabaseUrl && supabaseAnonKey
@@ -110,27 +111,23 @@ function mapDailySpend(row: DbDailySpend): DailySpend {
 
 // ── Fetchers (all campaigns, no feed_recruiting filter) ────────────────────
 async function fetchAllCampaigns(): Promise<AdSpendCampaign[]> {
-  if (!supabaseConfigured || !sb) {
-    return MOCK_CAMPAIGNS.map(c => ({ ...c, feed_recruiting: c.name.toLowerCase().includes('recruit') }));
-  }
+  if (!supabaseConfigured || !sb) return [];
   const { data, error } = await sb
     .from('recruiting_campaigns')
     .select('*')
     .order('synced_at', { ascending: false });
-  if (error || !data?.length) {
-    return MOCK_CAMPAIGNS.map(c => ({ ...c, feed_recruiting: c.name.toLowerCase().includes('recruit') }));
-  }
+  if (error || !data?.length) return [];
   return (data as DbCampaign[]).map(mapCampaign);
 }
 
 async function fetchAllDailySpend(filter?: RecruitingDateFilter): Promise<DailySpend[]> {
-  if (!supabaseConfigured || !sb) return MOCK_DAILY_SPEND;
+  if (!supabaseConfigured || !sb) return [];
   let query = sb.from('recruiting_daily_spend').select('*').order('date', { ascending: true });
   if (filter) {
     query = query.gte('date', filter.startDate.slice(0, 10)).lt('date', filter.endDate.slice(0, 10));
   }
   const { data, error } = await query;
-  if (error || !data?.length) return MOCK_DAILY_SPEND;
+  if (error || !data?.length) return [];
   return (data as DbDailySpend[]).map(mapDailySpend);
 }
 
@@ -200,7 +197,7 @@ export function AdSpendTab() {
   }, { deps: [datePreset, dateRange.startDate, dateRange.endDate, refreshKey] });
 
   const campaigns: AdSpendCampaign[] = useMemo(() => {
-    const raw = multiData?.campaigns ?? MOCK_CAMPAIGNS.map(c => ({ ...c, feed_recruiting: c.name.toLowerCase().includes('recruit') }));
+    const raw = multiData?.campaigns ?? [];
     // Apply local overrides for optimistic UI
     return raw.map(c => ({
       ...c,
@@ -208,7 +205,7 @@ export function AdSpendTab() {
     }));
   }, [multiData?.campaigns, localOverrides]);
 
-  const dailySpend = multiData?.dailySpend ?? MOCK_DAILY_SPEND;
+  const dailySpend = multiData?.dailySpend ?? [];
 
   // ── KPIs (all campaigns, no filter) ────────────────────────────────────
   const kpis = useMemo(() => {

@@ -14,10 +14,7 @@ import {
 } from 'recharts';
 import { TimePeriodSelector } from '@/components/filters/TimePeriodSelector';
 import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
-import {
-  MOCK_CAMPAIGNS, MOCK_CAMPAIGN_PERFORMANCE,
-  MOCK_ROI_BY_AGENCY, MOCK_ROI_BY_AGENT,
-} from '@/lib/recruiting';
+
 import {
   fetchCampaigns, fetchCampaignPerformance, fetchRecruitingFunnel,
   fetchStageTimings, fetchRoiByAgency, fetchRoiByAgent,
@@ -111,7 +108,7 @@ function StageTimingSection({ timings }: { timings: StageTiming[] }) {
 
 // ── Performance View ───────────────────────────────────────────────────────
 function PerformanceView({ dateFilter, campaigns }: { dateFilter: RecruitingDateFilter; campaigns: Campaign[] }) {
-  const effectiveCampaigns = campaigns.length > 0 ? campaigns : MOCK_CAMPAIGNS;
+  const effectiveCampaigns = campaigns.length > 0 ? campaigns : [];
   const [selectedCampaign, setSelectedCampaign] = useState(effectiveCampaigns[0]?.id ?? '');
 
   const cacheKey = `recruiting-perf-${selectedCampaign}-${dateFilter.startDate.slice(0, 10)}-${dateFilter.endDate.slice(0, 10)}`;
@@ -122,7 +119,7 @@ function PerformanceView({ dateFilter, campaigns }: { dateFilter: RecruitingDate
     timings: () => fetchStageTimings(dateFilter),
   }, { deps: [selectedCampaign, dateFilter.startDate, dateFilter.endDate] });
 
-  const perf = multiData?.perf ?? MOCK_CAMPAIGN_PERFORMANCE[0];
+  const perf = multiData?.perf ?? null;
   const funnel = multiData?.funnel ?? { leads: 0, attendees: 0, hired: 0, contracting: 0, rts: 0, producing: 0, lost: 0 };
   const timings = multiData?.timings ?? [];
 
@@ -236,8 +233,8 @@ function RoiView() {
   const { data: agencyData } = useCachedFetch('recruiting-roi-agency', fetchRoiByAgency);
   const { data: agentData } = useCachedFetch('recruiting-roi-agent', fetchRoiByAgent);
 
-  const effectiveAgencyData = agencyData ?? MOCK_ROI_BY_AGENCY;
-  const effectiveAgentData = agentData ?? MOCK_ROI_BY_AGENT;
+  const effectiveAgencyData = agencyData ?? [];
+  const effectiveAgentData = agentData ?? [];
 
   const agencyChartData = useMemo(() =>
     effectiveAgencyData.map(a => ({
@@ -392,11 +389,13 @@ export function RecruitingAnalyticsTab() {
         <TimePeriodSelector preset={datePreset} dateRange={dateRange} onChange={handleDateChange} />
       </div>
 
-      {/* Mock data banner */}
-      <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs">
-        <Activity size={14} />
-        <span>Displaying sample data — connect Meta Ads API to see live analytics</span>
-      </div>
+      {/* Empty state */}
+      {(!campaigns || campaigns.length === 0) && (
+        <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-muted/10 border border-border/30 text-muted-foreground text-xs">
+          <Activity size={14} />
+          <span>No campaigns flagged for recruiting — toggle Feed Recruiting in CRM Ops → Ad Spend to select campaigns</span>
+        </div>
+      )}
 
       {view === 'performance' ? <PerformanceView dateFilter={dateFilter} campaigns={campaigns ?? []} /> : <RoiView />}
     </div>

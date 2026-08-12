@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { TimePeriodSelector } from '@/components/filters/TimePeriodSelector';
 import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
-import { MOCK_RECRUITING_LEADS, MOCK_CAMPAIGNS } from '@/lib/recruiting';
+
 import { fetchRecruitingLeads, fetchCampaigns } from '@/lib/recruiting';
 import type {
   RecruitingLead, RecruitingDateFilter,
@@ -207,8 +207,8 @@ export function RecruitingLeadsTab() {
     campaigns: () => fetchCampaigns(),
   }, { deps: [datePreset, dateRange.startDate, dateRange.endDate] });
 
-  const allLeads = multiData?.leads ?? MOCK_RECRUITING_LEADS;
-  const campaigns = multiData?.campaigns ?? MOCK_CAMPAIGNS;
+  const allLeads = multiData?.leads ?? [];
+  const campaigns = multiData?.campaigns ?? [];
 
   const filtered = useMemo(() => {
     let result = allLeads;
