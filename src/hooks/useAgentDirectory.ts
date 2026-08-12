@@ -199,6 +199,17 @@ export function useAgentDirectory(): UseAgentDirectoryReturn {
         setRosterAgents(rosterResults);
       }
 
+      // ── Build name-based roster lookup for Tier 2 fallback merge ───
+      // When a prod agent's WN isn't in the roster, try matching by
+      // normalized name + agency so we can pull phone/email from roster.
+      const rosterByNameAgency = new Map<string, number>(); // key → rosterResults index
+      for (let i = 0; i < rosterResults.length; i++) {
+        const r = rosterResults[i];
+        if (!r.first_name && !r.last_name) continue;
+        const key = `${r.first_name.trim().toLowerCase()}|${r.last_name.trim().toLowerCase()}|${r.agency_id || ''}`;
+        rosterByNameAgency.set(key, i);
+      }
+
       // ── Build FYM agency writing number set for Tier 2 scoping ────
       // The Database subtab is scoped to FYM agents only. Agents from
       // non-FYM agencies belong on the Agents page, not here.
@@ -244,6 +255,28 @@ export function useAgentDirectory(): UseAgentDirectoryReturn {
 
           // Edge fn already title-cases names, but parse first/last
           const nameParts = parseProdName(a.agent_name);
+
+          // ── Name-based fallback: try matching to a roster entry by name + agency ──
+          // This lets prod agents inherit phone/email/NPN from the roster even when
+          // the roster entry lacks a UNL writing number (so the WN match above missed).
+          const nameKey = `${nameParts.first.trim().toLowerCase()}|${nameParts.last.trim().toLowerCase()}|${agencyEntry?.id || ''}`;
+          const rosterIdx = rosterByNameAgency.get(nameKey);
+          if (rosterIdx !== undefined) {
+            const rosterAgent = rosterResults[rosterIdx];
+            // Merge production metrics into the roster entry
+            rosterAgent.total_policies = a.total_policies;
+            rosterAgent.active_policies = a.active_policies;
+            rosterAgent.terminated_policies = a.terminated_policies;
+            rosterAgent.at_risk_policies = a.at_risk_policies;
+            rosterAgent.total_annual_premium = a.total_annual_premium;
+            rosterAgent.active_annual_premium = a.active_annual_premium;
+            // Also set the writing number on the roster entry so it shows carrier tags
+            if (a.writing_number && !rosterAgent.writing_number) {
+              rosterAgent.writing_number = a.writing_number;
+              rosterWns.add(a.writing_number); // prevent dupe prod entry
+            }
+            continue;
+          }
 
           prodResults.push({
             id: `prod-${a.writing_number}`,

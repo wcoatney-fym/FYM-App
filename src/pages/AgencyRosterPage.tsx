@@ -17,6 +17,7 @@ import {
   Users,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { parseCSV } from '@/lib/contracting/csvParser';
 import {
   normalizeRosterRows,
@@ -87,6 +88,8 @@ export function AgencyRosterPage() {
   const [agentPolicies, setAgentPolicies] = useState<PolicyRow[]>([]);
   const [loadingPolicies, setLoadingPolicies] = useState(false);
 
+  const { isFymAdmin } = useEffectiveAuth();
+
   // Load agencies on mount
   useEffect(() => {
     loadAgencies();
@@ -108,7 +111,13 @@ export function AgencyRosterPage() {
       .from('agencies')
       .select('id, name')
       .order('name');
-    setAgencies(data || []);
+    const list = data || [];
+    setAgencies(list);
+    // Auto-select FYM for FYM admins
+    if (isFymAdmin && !selectedAgencyId) {
+      const fym = list.find((a) => a.name === 'FYM');
+      if (fym) setSelectedAgencyId(fym.id);
+    }
     setLoading(false);
   };
 
