@@ -210,12 +210,23 @@ export function useAgentDirectory(): UseAgentDirectoryReturn {
         rosterByNameAgency.set(key, i);
       }
 
-      // ── Build FYM agency writing number set for Tier 2 scoping ────
-      // The Database subtab is scoped to FYM agents only. Agents from
-      // non-FYM agencies belong on the Agents page, not here.
-      const fymAgencyWns = new Set<string>();
+      // ── Build agency writing-number prefix → agency lookup ────────
+      // FYM is the top-level entity so its agents have empty `ga` in the
+      // prod DB → `agency_wn: null` from the edge function. We resolve
+      // these by matching the first 6 chars of the agent's writing number
+      // (e.g. "202JVV05" → prefix "202JVV") to an agency whose writing
+      // number starts the same way ("202JVV00").
+      const agencyWnSet = new Set<string>();
+      const agencyByWnPrefix = new Map<string, AgencyRow>(); // 6-char prefix → agency
       for (const a of agencyMap.values()) {
-        if (a.writing_number?.trim()) fymAgencyWns.add(a.writing_number.trim());
+        const wn = a.writing_number?.trim();
+        if (wn) {
+          agencyWnSet.add(wn);
+          // Use first 6 chars as the prefix (e.g. "202JVV")
+          if (wn.length >= 6) {
+            agencyByWnPrefix.set(wn.substring(0, 6), a);
+          }
+        }
       }
 
       // ── Tier 2: Load prod-DB agents (all pages) ───────────────────
@@ -244,12 +255,24 @@ export function useAgentDirectory(): UseAgentDirectoryReturn {
             continue;
           }
 
-          // Skip agents from non-FYM agencies
-          if (!a.agency_wn || !fymAgencyWns.has(a.agency_wn)) continue;
+          // Resolve agency: use agency_wn from prod DB, or fall back to
+          // writing-number prefix for top-level entities like FYM whose
+          // agents have empty ga columns.
+          let resolvedAgencyWn = a.agency_wn || null;
+          if (!resolvedAgencyWn && a.writing_number?.length >= 6) {
+            const prefix = a.writing_number.substring(0, 6);
+            const prefixAgency = agencyByWnPrefix.get(prefix);
+            if (prefixAgency?.writing_number) {
+              resolvedAgencyWn = prefixAgency.writing_number;
+            }
+          }
+
+          // Skip agents from agencies we don't track
+          if (!resolvedAgencyWn || !agencyWnSet.has(resolvedAgencyWn)) continue;
 
           // Resolve agency name — prefer edge fn's agency_name, fall back to local agencies table
           const agencyEntry = Array.from(agencyMap.values()).find(
-            (ag) => ag.writing_number === a.agency_wn
+            (ag) => ag.writing_number === resolvedAgencyWn
           );
           const agencyName = agencyEntry?.name || a.agency_name || null;
 
@@ -289,7 +312,7 @@ export function useAgentDirectory(): UseAgentDirectoryReturn {
             npn: null,
             agency_id: agencyEntry?.id || null,
             agency_name: agencyName,
-            agency_wn: a.agency_wn,
+            agency_wn: resolvedAgencyWn,
             source: 'prod',
             is_manager: false,
             total_policies: a.total_policies,
