@@ -62,11 +62,12 @@ function App() {
             <Route path="/my-team" element={<RoleGuard allow={['admin', 'manager']}><ManagerTeamPage /></RoleGuard>} />
             <Route path="/settings" element={<SettingsPage />} />
 
-            {/* ── People group (Agencies & Agents) ── */}
+            {/* ── People group (Agencies, Agents & Rosters) ── */}
             <Route path="/people" element={<RoleGuard allow={['admin', 'manager']}><PeopleGroupPage /></RoleGuard>}>
               <Route index element={<Navigate to="/people/agencies" replace />} />
               <Route path="agencies" element={<AgenciesPage />} />
               <Route path="agents" element={<AgentsPage />} />
+              <Route path="rosters" element={<AgencyRosterPage />} />
               <Route path="onboarding" element={<Navigate to="/contracting?tab=onboarding" replace />} />
               <Route path="onboarding/new" element={<Navigate to="/contracting?tab=onboarding" replace />} />
               <Route path="onboarding/:slug" element={<Navigate to="/contracting?tab=onboarding" replace />} />
@@ -104,7 +105,7 @@ function App() {
               <Route path="leads" element={<RecruitingLeadsTab />} />
               <Route path="analytics" element={<RecruitingAnalyticsTab />} />
             </Route>
-            <Route path="/rosters" element={<RoleGuard allow={['admin', 'manager']}><AgencyRosterPage /></RoleGuard>} />
+            <Route path="/rosters" element={<Navigate to="/people/rosters" replace />} />
             <Route path="/daily-pulse" element={<RoleGuard allow={['admin', 'manager']}><DailyPulsePage /></RoleGuard>} />
 
             {/* ── Legacy redirects — preserve old bookmarks ── */}
