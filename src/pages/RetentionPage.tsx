@@ -118,7 +118,11 @@ export function RetentionPage() {
       prior_3mo_pct: a.prior_3mo_pct ?? null,
     }));
 
-    // Enrich with agency names from rcbzag
+    // Enrich with agency names from rcbzag and filter out individual agents.
+    // The edge function returns ALL writing numbers (agencies + individual
+    // agents). Only rows whose writing_number exists in the `agencies` table
+    // are real agencies — the rest are individual agent writing numbers
+    // (e.g. "202JVV43...") that should not appear in the breakdown.
     if (supabase && allAgencies.length > 0) {
       (supabase as any)
         .from('agencies')
@@ -129,11 +133,15 @@ export function RetentionPage() {
             for (const a of nameData as any[]) {
               if (a.writing_number) nameMap.set(a.writing_number, a.name);
             }
-            allAgencies.forEach(a => {
+            // Keep only rows that matched a known agency writing number
+            const filtered = allAgencies.filter(a => nameMap.has(a.agency_id));
+            filtered.forEach(a => {
               a.agency_name = nameMap.get(a.agency_id) ?? null;
             });
+            setAgencies(filtered);
+          } else {
+            setAgencies(allAgencies);
           }
-          setAgencies([...allAgencies]);
         });
     } else {
       setAgencies(allAgencies);
