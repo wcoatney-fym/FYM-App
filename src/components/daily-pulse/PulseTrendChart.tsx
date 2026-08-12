@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { HudFrame } from '@/components/ui/hud-frame';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Legend, ReferenceLine,
+  ResponsiveContainer, Legend,
 } from 'recharts';
 import {
   TrendingUp, TrendingDown, Minus, Users, FileText,
