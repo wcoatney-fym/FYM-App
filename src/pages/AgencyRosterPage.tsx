@@ -24,7 +24,7 @@ import {
   generateTemplateCSV,
   type RosterValidationError,
 } from '@/lib/roster-normalizer';
-import { fetchAgencyRosterData } from '@/lib/prod-api';
+import { fetchAgencyRosterData, type RosterAgentData } from '@/lib/prod-api';
 import { fmt$ } from '@/lib/formatUtils';
 
 /* ── Types ──────────────────────────────────────────────────────────── */
@@ -132,15 +132,72 @@ export function AgencyRosterPage() {
         .eq('agency_id', agencyId)
         .eq('status', 'active')
         .order('uploaded_at', { ascending: false }),
-      supabase
-        .from('roster_agent_summary')
-        .select('*')
-        .eq('agency_id', agencyId)
-        .eq('status', 'active'),
+      (async () => {
+        // Paginate agency_rosters (Supabase default cap is 1000)
+        const PAGE = 1000;
+        let offset = 0;
+        let all: any[] = [];
+        while (true) {
+          const { data } = await supabase
+            .from('agency_rosters')
+            .select('*')
+            .eq('agency_id', agencyId)
+            .eq('status', 'active')
+            .range(offset, offset + PAGE - 1);
+          const rows = data || [];
+          all = all.concat(rows);
+          if (rows.length < PAGE) break;
+          offset += PAGE;
+        }
+        return { data: all };
+      })(),
     ]);
 
     setUploads((uploadsRes.data as RosterUpload[] | null) || []);
-    setAgents((agentsRes.data as RosterAgent[] | null) || []);
+
+    // Enrich roster agents with production metrics from prod DB
+    const rosterRows = (agentsRes.data || []) as RosterAgent[];
+    const wns = rosterRows
+      .map((r) => r.unl_writing_number)
+      .filter((w): w is string => !!w);
+
+    if (wns.length > 0) {
+      try {
+        const prodRes = await fetchAgencyRosterData({ writing_numbers: wns.join(',') });
+        const prodMap = new Map<string, RosterAgentData>();
+        for (const agent of prodRes.data) {
+          prodMap.set(agent.writing_number, agent);
+        }
+        for (const row of rosterRows) {
+          const metrics = row.unl_writing_number ? prodMap.get(row.unl_writing_number) : undefined;
+          row.total_policies = metrics?.total_policies ?? 0;
+          row.active_policies = metrics?.active_policies ?? 0;
+          row.at_risk_policies = metrics?.at_risk_policies ?? 0;
+          row.total_annual_premium = metrics?.total_annual_premium ?? 0;
+          row.active_annual_premium = metrics?.active_annual_premium ?? 0;
+        }
+      } catch (err) {
+        console.error('Failed to enrich roster with prod data:', err);
+        // Still show roster — just without production metrics
+        for (const row of rosterRows) {
+          row.total_policies = 0;
+          row.active_policies = 0;
+          row.at_risk_policies = 0;
+          row.total_annual_premium = 0;
+          row.active_annual_premium = 0;
+        }
+      }
+    } else {
+      for (const row of rosterRows) {
+        row.total_policies = 0;
+        row.active_policies = 0;
+        row.at_risk_policies = 0;
+        row.total_annual_premium = 0;
+        row.active_annual_premium = 0;
+      }
+    }
+
+    setAgents(rosterRows);
     setLoading(false);
     setPage(0);
     setSearchTerm('');
