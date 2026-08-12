@@ -136,10 +136,12 @@ export function useAgentDirectory(): UseAgentDirectoryReturn {
 
       if (supabase) {
         // Load agencies first
-        const { data: agencyData } = await supabase
+        const { data: agencyData, error: agencyError } = await supabase
           .from('agencies')
           .select('id, name, writing_number')
           .order('name');
+
+        console.log('[AgentDir] agencies loaded:', agencyData?.length ?? 0, 'error:', agencyError?.message ?? 'none');
 
         for (const a of (agencyData || []) as AgencyRow[]) {
           agencyMap.set(a.id, a);
@@ -151,16 +153,28 @@ export function useAgentDirectory(): UseAgentDirectoryReturn {
         let allRoster: RosterRow[] = [];
 
         while (true) {
-          const { data } = await supabase
+          const { data, error: rosterError } = await supabase
             .from('agency_rosters')
             .select('id, agency_id, first_name, last_name, email, phone, agent_npn, unl_writing_number, gtl_writing_number, ahl_writing_number, heartland_writing_number, manhattan_writing_number, is_manager, status')
             .eq('status', 'active')
             .range(offset, offset + PAGE - 1);
 
+          if (rosterError) {
+            console.error('[AgentDir] roster query error at offset', offset, rosterError.message);
+          }
           const rows = (data || []) as RosterRow[];
           allRoster = allRoster.concat(rows);
           if (rows.length < PAGE) break;
           offset += PAGE;
+        }
+
+        // Diagnostic: log roster load summary
+        const rosterWithPhone = allRoster.filter(r => r.phone).length;
+        const rosterWithEmail = allRoster.filter(r => r.email).length;
+        console.log(`[AgentDir] roster loaded: ${allRoster.length} rows, ${rosterWithPhone} with phone, ${rosterWithEmail} with email`);
+        if (allRoster.length > 0) {
+          const sample = allRoster[0];
+          console.log('[AgentDir] roster sample:', { first_name: sample.first_name, last_name: sample.last_name, phone: sample.phone, email: sample.email });
         }
 
         for (const r of allRoster) {
