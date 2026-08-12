@@ -26,7 +26,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const RECRUITING_LOCATION_ID = "e7yV92T56bkUoGqsge8K";
 const GHL_API_BASE = "https://services.leadconnectorhq.com";
-const RATE_LIMIT_DELAY_MS = 200; // Stay under GHL's 100 req/10s
+const RATE_LIMIT_DELAY_MS = 100; // ~10 req/s, within GHL's 100 req/10s limit
 
 // Attendance tags (case-insensitive matching)
 // Actual GHL tags observed: "hosp ind | opp call | attended", "opps call | attended | self reported"
@@ -176,7 +176,7 @@ async function fetchAllContacts(token: string): Promise<GhlContact[]> {
   const contacts: GhlContact[] = [];
   let startAfterId: string | undefined;
   let page = 0;
-  const limit = 100;
+  const limit = 100; // GHL max per page
 
   while (true) {
     page++;
@@ -219,7 +219,7 @@ async function fetchOpportunities(token: string, pipelineId: string): Promise<Gh
   const opportunities: GhlOpportunity[] = [];
   let startAfterId: string | undefined;
   let page = 0;
-  const limit = 100;
+  const limit = 100; // GHL max per page
 
   while (true) {
     page++;
@@ -394,8 +394,8 @@ async function syncRecruitingData(token: string, appUrl: string, appServiceKey: 
     });
   }
 
-  // 5. Upsert in batches
-  const BATCH_SIZE = 50;
+  // 5. Upsert in batches (larger batches = fewer round trips)
+  const BATCH_SIZE = 200;
   let upserted = 0;
 
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
