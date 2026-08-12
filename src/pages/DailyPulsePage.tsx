@@ -5,9 +5,10 @@ import { supabase } from '@/lib/supabase';
 import { PulseKpiCards } from '@/components/daily-pulse/PulseKpiCards';
 import { ResponseTable, type CheckinResponse } from '@/components/daily-pulse/ResponseTable';
 import { RecipientManager } from '@/components/daily-pulse/RecipientManager';
-import { RefreshCw, Calendar, Settings2, BarChart3 } from 'lucide-react';
+import { RefreshCw, Calendar, Settings2, BarChart3, TrendingUp } from 'lucide-react';
+import { PulseTrendChart } from '@/components/daily-pulse/PulseTrendChart';
 
-type Tab = 'today' | 'recipients';
+type Tab = 'today' | 'trends' | 'recipients';
 
 function getTodayEST(): string {
   const now = new Date();
@@ -151,6 +152,16 @@ export function DailyPulsePage() {
             <BarChart3 className="w-3.5 h-3.5" /> Responses
           </button>
           <button
+            onClick={() => setTab('trends')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors ${
+              tab === 'trends'
+                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <TrendingUp className="w-3.5 h-3.5" /> Trends
+          </button>
+          <button
             onClick={() => setTab('recipients')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors ${
               tab === 'recipients'
@@ -162,7 +173,7 @@ export function DailyPulsePage() {
           </button>
         </div>
         <div className="flex items-center gap-2">
-          {tab === 'today' && (
+          {(tab === 'today') && (
             <>
               <div className="flex items-center gap-1.5 text-xs text-zinc-400">
                 <Calendar className="w-3.5 h-3.5" />
@@ -209,6 +220,10 @@ export function DailyPulsePage() {
           <PulseKpiCards stats={stats} loading={loading} />
           <ResponseTable responses={responses} loading={loading} />
         </div>
+      )}
+
+      {tab === 'trends' && (
+        <PulseTrendChart />
       )}
 
       {tab === 'recipients' && (
