@@ -23,12 +23,7 @@ import type {
   CampaignStatus, RecruitingDateFilter,
   RecruitingLead, RecruitingFunnel, StageTiming,
 } from './types';
-import {
-  MOCK_CAMPAIGNS, MOCK_LEADS, MOCK_DAILY_SPEND, MOCK_KPIS,
-  MOCK_CAMPAIGN_PERFORMANCE, MOCK_ROI_BY_AGENCY, MOCK_ROI_BY_AGENT,
-  MOCK_RECRUITING_LEADS, MOCK_STAGE_TIMINGS,
-} from './mock-data';
-import { isInRange } from '../dateUtils';
+
 
 // ── DB row types ───────────────────────────────────────────────────────────
 
@@ -210,17 +205,6 @@ export function invalidateRecruitingCampaignCache(): void {
   _recruitingIdsCache = null;
 }
 
-// ── Date filter helpers ────────────────────────────────────────────────────
-
-function filterByDateRange<T>(items: T[], dateKey: keyof T, filter?: RecruitingDateFilter): T[] {
-  if (!filter) return items;
-  return items.filter(item => {
-    const dateVal = item[dateKey];
-    if (typeof dateVal !== 'string') return false;
-    return isInRange(dateVal, { startDate: filter.startDate, endDate: filter.endDate, label: '' });
-  });
-}
-
 // ── Campaign fetchers ──────────────────────────────────────────────────────
 
 /**
@@ -228,7 +212,7 @@ function filterByDateRange<T>(items: T[], dateKey: keyof T, filter?: RecruitingD
  * The Recruiting tab only sees campaigns selected in CRM Ops Ad Spend.
  */
 export async function fetchCampaigns(): Promise<Campaign[]> {
-  if (!supabaseConfigured || !recruitingSb) return MOCK_CAMPAIGNS;
+  if (!supabaseConfigured || !recruitingSb) return [];
 
   const { data, error } = await recruitingSb
     .from('recruiting_campaigns')
@@ -237,42 +221,23 @@ export async function fetchCampaigns(): Promise<Campaign[]> {
     .order('synced_at', { ascending: false });
 
   if (error || !data?.length) {
-    console.warn('[Recruiting] Campaign fetch failed or empty, falling back to mock:', error?.message);
-    return MOCK_CAMPAIGNS;
+    if (error) console.warn('[Recruiting] Campaign fetch failed:', error.message);
+    return [];
   }
 
   return (data as DbCampaign[]).map(mapCampaign);
 }
 
+const EMPTY_KPIS: RecruitingKpis = {
+  totalSpend: 0, totalLeads: 0, cpl: 0, cpa: 0,
+  contactRate: 0, closeRatio: 0, placedPolicies: 0, activeAdSets: 0,
+  spendDelta: 0, leadsDelta: 0, cplDelta: 0, cpaDelta: 0,
+  totalRecruits: 0, attendeeRate: 0, hireRate: 0, rtsRate: 0,
+  avgDaysToRts: 0, avgDaysToFirstSale: 0,
+};
+
 export async function fetchRecruitingKpis(filter?: RecruitingDateFilter): Promise<RecruitingKpis> {
-  if (!supabaseConfigured || !recruitingSb) {
-    // For mock data, simulate date filtering
-    const mockLeads = filter
-      ? MOCK_RECRUITING_LEADS.filter(l => isInRange(l.leadAt, { startDate: filter.startDate, endDate: filter.endDate, label: '' }))
-      : MOCK_RECRUITING_LEADS;
-    const mockSpend = filter
-      ? MOCK_DAILY_SPEND.filter(d => isInRange(d.date, { startDate: filter.startDate, endDate: filter.endDate, label: '' }))
-      : MOCK_DAILY_SPEND;
-
-    const totalSpend = mockSpend.reduce((s, d) => s + d.spend, 0);
-    const totalLeads = mockSpend.reduce((s, d) => s + d.leads, 0);
-    const attendees = mockLeads.filter(l => l.attendeeAt).length;
-    const hired = mockLeads.filter(l => l.hiredAt).length;
-    const rts = mockLeads.filter(l => l.rtsAt).length;
-
-    return {
-      ...MOCK_KPIS,
-      totalSpend: Math.round(totalSpend),
-      totalLeads,
-      cpl: totalLeads > 0 ? Math.round(totalSpend / totalLeads * 100) / 100 : 0,
-      totalRecruits: mockLeads.length,
-      attendeeRate: mockLeads.length > 0 ? attendees / mockLeads.length : 0,
-      hireRate: attendees > 0 ? hired / attendees : 0,
-      rtsRate: hired > 0 ? rts / hired : 0,
-      avgDaysToRts: MOCK_KPIS.avgDaysToRts,
-      avgDaysToFirstSale: MOCK_KPIS.avgDaysToFirstSale,
-    };
-  }
+  if (!supabaseConfigured || !recruitingSb) return EMPTY_KPIS;
 
   // Get campaign IDs flagged for recruiting
   const recruitingCampaignIds = await getRecruitingCampaignIds();
@@ -342,11 +307,7 @@ export async function fetchRecruitingKpis(filter?: RecruitingDateFilter): Promis
 }
 
 export async function fetchDailySpendData(campaignId?: string, filter?: RecruitingDateFilter): Promise<DailySpend[]> {
-  if (!supabaseConfigured || !recruitingSb) {
-    let data = MOCK_DAILY_SPEND;
-    if (filter) data = filterByDateRange(data, 'date', filter);
-    return data;
-  }
+  if (!supabaseConfigured || !recruitingSb) return [];
 
   // Scope to recruiting campaigns unless a specific campaign is requested
   const recruitingCampaignIds = campaignId ? [campaignId] : await getRecruitingCampaignIds();
@@ -367,11 +328,7 @@ export async function fetchDailySpendData(campaignId?: string, filter?: Recruiti
   }
 
   const { data, error } = await query;
-  if (error || !data?.length) {
-    let fallback = MOCK_DAILY_SPEND;
-    if (filter) fallback = filterByDateRange(fallback, 'date', filter);
-    return fallback;
-  }
+  if (error || !data?.length) return [];
   return (data as DbDailySpend[]).map(mapDailySpend);
 }
 
@@ -399,11 +356,7 @@ export async function fetchAdSets(campaignId?: string): Promise<AdSet[]> {
 // ── Recruiting Pipeline fetchers ───────────────────────────────────────────
 
 export async function fetchRecruitingLeads(filter?: RecruitingDateFilter): Promise<RecruitingLead[]> {
-  if (!supabaseConfigured || !recruitingSb) {
-    let data = MOCK_RECRUITING_LEADS;
-    if (filter) data = filterByDateRange(data, 'leadAt', filter);
-    return data;
-  }
+  if (!supabaseConfigured || !recruitingSb) return [];
 
   // Scope to recruiting campaigns
   const recruitingCampaignIds = await getRecruitingCampaignIds();
@@ -422,23 +375,16 @@ export async function fetchRecruitingLeads(filter?: RecruitingDateFilter): Promi
   }
 
   const { data, error } = await query;
-  if (error || !data?.length) {
-    let fallback = MOCK_RECRUITING_LEADS;
-    if (filter) fallback = filterByDateRange(fallback, 'leadAt', filter);
-    return fallback;
-  }
+  if (error || !data?.length) return [];
 
   return (data as (DbRecruitingLead & { recruiting_campaigns?: { name: string } })[])
     .map(row => mapRecruitingLead(row, row.recruiting_campaigns?.name ?? undefined));
 }
 
+const EMPTY_FUNNEL: RecruitingFunnel = { leads: 0, attendees: 0, hired: 0, contracting: 0, rts: 0, producing: 0, lost: 0 };
+
 export async function fetchRecruitingFunnel(filter?: RecruitingDateFilter): Promise<RecruitingFunnel> {
-  if (!supabaseConfigured || !recruitingSb) {
-    const leads = filter
-      ? filterByDateRange(MOCK_RECRUITING_LEADS, 'leadAt', filter)
-      : MOCK_RECRUITING_LEADS;
-    return computeFunnelFromLeads(leads);
-  }
+  if (!supabaseConfigured || !recruitingSb) return EMPTY_FUNNEL;
 
   // Scope to recruiting campaigns
   const recruitingCampaignIds = await getRecruitingCampaignIds();
@@ -454,12 +400,7 @@ export async function fetchRecruitingFunnel(filter?: RecruitingDateFilter): Prom
   }
 
   const { data, error } = await query;
-  if (error || !data?.length) {
-    const leads = filter
-      ? filterByDateRange(MOCK_RECRUITING_LEADS, 'leadAt', filter)
-      : MOCK_RECRUITING_LEADS;
-    return computeFunnelFromLeads(leads);
-  }
+  if (error || !data?.length) return EMPTY_FUNNEL;
 
   const rows = data as Pick<DbRecruitingLead, 'stage' | 'attendee_at' | 'hired_at' | 'contracting_at' | 'rts_at' | 'producing_at'>[];
   return {
@@ -474,13 +415,7 @@ export async function fetchRecruitingFunnel(filter?: RecruitingDateFilter): Prom
 }
 
 export async function fetchStageTimings(filter?: RecruitingDateFilter): Promise<StageTiming[]> {
-  if (!supabaseConfigured || !recruitingSb) {
-    // Compute from mock data
-    const leads = filter
-      ? filterByDateRange(MOCK_RECRUITING_LEADS, 'leadAt', filter)
-      : MOCK_RECRUITING_LEADS;
-    return computeTimingsFromLeads(leads);
-  }
+  if (!supabaseConfigured || !recruitingSb) return [];
 
   // Scope to recruiting campaigns
   const recruitingCampaignIds = await getRecruitingCampaignIds();
@@ -496,7 +431,7 @@ export async function fetchStageTimings(filter?: RecruitingDateFilter): Promise<
   }
 
   const { data, error } = await query;
-  if (error || !data?.length) return MOCK_STAGE_TIMINGS;
+  if (error || !data?.length) return [];
 
   const rows = data as Pick<DbRecruitingLead, 'lead_at' | 'attendee_at' | 'hired_at' | 'contracting_at' | 'rts_at' | 'producing_at'>[];
   return computeTimingsFromRows(rows);
@@ -505,16 +440,7 @@ export async function fetchStageTimings(filter?: RecruitingDateFilter): Promise<
 // ── Campaign Performance (for Analytics tab) ───────────────────────────────
 
 export async function fetchCampaignPerformance(campaignId: string, filter?: RecruitingDateFilter): Promise<CampaignPerformance | null> {
-  if (!supabaseConfigured || !recruitingSb) {
-    const perf = MOCK_CAMPAIGN_PERFORMANCE.find(p => p.campaignId === campaignId) ?? MOCK_CAMPAIGN_PERFORMANCE[0];
-    if (filter) {
-      return {
-        ...perf,
-        dailyData: filterByDateRange(perf.dailyData, 'date', filter),
-      };
-    }
-    return perf;
-  }
+  if (!supabaseConfigured || !recruitingSb) return null;
 
   const dailyData = await fetchDailySpendData(campaignId, filter);
   const adSets = await fetchAdSets(campaignId);
@@ -559,31 +485,22 @@ export async function fetchCampaignPerformance(campaignId: string, filter?: Recr
 
 // ROI — still requires NPN-based join to production data (future)
 export async function fetchRoiByAgency(): Promise<RoiByAgency[]> {
-  return MOCK_ROI_BY_AGENCY;
+  // TODO: implement live query when NPN-based join to production data is ready
+  return [];
 }
 
 export async function fetchRoiByAgent(): Promise<RoiByAgent[]> {
-  return MOCK_ROI_BY_AGENT;
+  // TODO: implement live query when NPN-based join to production data is ready
+  return [];
 }
 
 // Insurance leads — original type, still used by LeadsTab
 export async function fetchLeads(): Promise<Lead[]> {
-  return MOCK_LEADS;
+  // TODO: implement live query
+  return [];
 }
 
 // ── Compute helpers ────────────────────────────────────────────────────────
-
-function computeFunnelFromLeads(leads: RecruitingLead[]): RecruitingFunnel {
-  return {
-    leads: leads.length,
-    attendees: leads.filter(l => l.attendeeAt || ['attendee','hired','contracting','rts','producing'].includes(l.stage)).length,
-    hired: leads.filter(l => l.hiredAt || ['hired','contracting','rts','producing'].includes(l.stage)).length,
-    contracting: leads.filter(l => l.contractingAt || ['contracting','rts','producing'].includes(l.stage)).length,
-    rts: leads.filter(l => l.rtsAt || ['rts','producing'].includes(l.stage)).length,
-    producing: leads.filter(l => l.producingAt || l.stage === 'producing').length,
-    lost: leads.filter(l => l.stage === 'lost').length,
-  };
-}
 
 function daysBetween(a: string, b: string): number {
   return (new Date(b).getTime() - new Date(a).getTime()) / 86400000;
@@ -594,31 +511,6 @@ function median(arr: number[]): number {
   const sorted = [...arr].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-}
-
-function computeTimingsFromLeads(leads: RecruitingLead[]): StageTiming[] {
-  const transitions: { stage: RecruitingLead['stage']; label: string; from: keyof RecruitingLead; to: keyof RecruitingLead }[] = [
-    { stage: 'lead', label: 'Lead → Attendee', from: 'leadAt', to: 'attendeeAt' },
-    { stage: 'attendee', label: 'Attendee → Hired', from: 'attendeeAt', to: 'hiredAt' },
-    { stage: 'hired', label: 'Hired → Contracting', from: 'hiredAt', to: 'contractingAt' },
-    { stage: 'contracting', label: 'Contracting → RTS', from: 'contractingAt', to: 'rtsAt' },
-    { stage: 'rts', label: 'RTS → First Sale', from: 'rtsAt', to: 'producingAt' },
-  ];
-
-  return transitions.map(t => {
-    const durations = leads
-      .filter(l => l[t.from] && l[t.to])
-      .map(l => daysBetween(l[t.from] as string, l[t.to] as string))
-      .filter(d => d >= 0);
-
-    return {
-      stage: t.stage,
-      label: t.label,
-      avgDays: durations.length > 0 ? Math.round(durations.reduce((s, d) => s + d, 0) / durations.length * 10) / 10 : 0,
-      medianDays: Math.round(median(durations) * 10) / 10,
-      count: durations.length,
-    };
-  });
 }
 
 function computeTimingsFromRows(rows: Pick<DbRecruitingLead, 'lead_at' | 'attendee_at' | 'hired_at' | 'contracting_at' | 'rts_at' | 'producing_at'>[]): StageTiming[] {

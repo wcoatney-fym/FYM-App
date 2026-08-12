@@ -14,7 +14,7 @@ import {
 } from 'recharts';
 import { TimePeriodSelector } from '@/components/filters/TimePeriodSelector';
 import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
-import { MOCK_KPIS, MOCK_DAILY_SPEND, MOCK_CAMPAIGNS } from '@/lib/recruiting';
+
 import {
   fetchRecruitingKpis, fetchDailySpendData, fetchCampaigns,
   fetchRecruitingFunnel, fetchStageTimings,
@@ -178,9 +178,15 @@ export function RecruitingDashboardTab() {
     timings: () => fetchStageTimings(dateFilter),
   }, { deps: [datePreset, dateRange.startDate, dateRange.endDate] });
 
-  const kpis = multiData?.kpis ?? MOCK_KPIS;
-  const dailySpend = multiData?.dailySpend ?? MOCK_DAILY_SPEND;
-  const campaigns = multiData?.campaigns ?? MOCK_CAMPAIGNS;
+  const kpis = multiData?.kpis ?? {
+    totalSpend: 0, totalLeads: 0, cpl: 0, cpa: 0,
+    contactRate: 0, closeRatio: 0, placedPolicies: 0, activeAdSets: 0,
+    spendDelta: 0, leadsDelta: 0, cplDelta: 0, cpaDelta: 0,
+    totalRecruits: 0, attendeeRate: 0, hireRate: 0, rtsRate: 0,
+    avgDaysToRts: 0, avgDaysToFirstSale: 0,
+  };
+  const dailySpend = multiData?.dailySpend ?? [];
+  const campaigns = multiData?.campaigns ?? [];
   const funnel = multiData?.funnel ?? { leads: 0, attendees: 0, hired: 0, contracting: 0, rts: 0, producing: 0, lost: 0 };
   const timings = multiData?.timings ?? [];
 
@@ -212,8 +218,6 @@ export function RecruitingDashboardTab() {
       dateLabel: new Date(d.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     })), [dailySpend]);
 
-  const isLive = Boolean(multiData?.kpis && kpis.totalSpend > 0);
-
   function handleDateChange(range: DateRange, preset: DatePreset) {
     setDateRange(range);
     setDatePreset(preset);
@@ -227,20 +231,20 @@ export function RecruitingDashboardTab() {
         <TimePeriodSelector preset={datePreset} dateRange={dateRange} onChange={handleDateChange} />
       </div>
 
-      {/* Data source banner */}
-      {!isLive && (
-        <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs">
+      {/* Empty state */}
+      {campaigns.length === 0 && (
+        <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-muted/10 border border-border/30 text-muted-foreground text-xs">
           <Activity size={14} />
-          <span>Displaying sample data — connect Meta Ads API to see live campaign metrics</span>
+          <span>No campaigns flagged for recruiting — toggle Feed Recruiting in CRM Ops → Ad Spend to select campaigns</span>
         </div>
       )}
 
       {/* Ad Spend KPIs */}
       <StaggerContainer className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StaggerItem><KpiCard label="Total Spend" value={kpis.totalSpend} prefix="$" icon={DollarSign} delta={isLive ? kpis.spendDelta : undefined} /></StaggerItem>
-        <StaggerItem><KpiCard label="Total Leads" value={kpis.totalLeads} icon={Users} delta={isLive ? kpis.leadsDelta : undefined} /></StaggerItem>
-        <StaggerItem><KpiCard label="CPL" value={kpis.cpl} prefix="$" icon={Target} delta={isLive ? kpis.cplDelta : undefined} /></StaggerItem>
-        <StaggerItem><KpiCard label="CPA" value={kpis.cpa} prefix="$" icon={BarChart3} delta={isLive ? kpis.cpaDelta : undefined} /></StaggerItem>
+        <StaggerItem><KpiCard label="Total Spend" value={kpis.totalSpend} prefix="$" icon={DollarSign} delta={kpis.spendDelta || undefined} /></StaggerItem>
+        <StaggerItem><KpiCard label="Total Leads" value={kpis.totalLeads} icon={Users} delta={kpis.leadsDelta || undefined} /></StaggerItem>
+        <StaggerItem><KpiCard label="CPL" value={kpis.cpl} prefix="$" icon={Target} delta={kpis.cplDelta || undefined} /></StaggerItem>
+        <StaggerItem><KpiCard label="CPA" value={kpis.cpa} prefix="$" icon={BarChart3} delta={kpis.cpaDelta || undefined} /></StaggerItem>
       </StaggerContainer>
 
       {/* Pipeline KPIs */}
