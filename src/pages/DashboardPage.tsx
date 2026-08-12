@@ -375,7 +375,13 @@ export function DashboardPage() {
         at_risk_count: a.at_risk_count,
         retention_pct: a.retention_pct,
       }))
-      .sort((a, b) => (a.retention_pct ?? -1) - (b.retention_pct ?? -1));
+      .sort((a, b) => {
+        // Null retention = no data → always last
+        if (a.retention_pct === null && b.retention_pct === null) return 0;
+        if (a.retention_pct === null) return 1;
+        if (b.retention_pct === null) return -1;
+        return a.retention_pct - b.retention_pct;
+      });
     // FYM admin: all agencies. Agency admin: cap at 8.
     return isOrgWide ? mapped : mapped.filter((a) => a.retention_pct !== null).slice(0, 8);
   }, [loading, noDataAgency, filterAgencyId, rawAgencies, nameMap, isOrgWide]);

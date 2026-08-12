@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { FadeIn } from '@/components/ui/animated';
 import { Link } from 'react-router-dom';
-import { ChevronRight, Search } from 'lucide-react';
+import { ChevronRight, Search, ArrowUp, ArrowDown } from 'lucide-react';
 import { fmt$ } from '@/lib/formatUtils';
 
 interface AgencyRisk {
@@ -45,18 +45,58 @@ function retentionStatus(pct: number | null): string {
   return 'critical';
 }
 
+type SortKey = 'name' | 'active' | 'premium' | 'atRisk' | 'retention';
+
 export function CoachingPanel({ agencies, belowTargetCount, isOrgWide }: CoachingPanelProps) {
   const [search, setSearch] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey>('retention');
+  const [sortAsc, setSortAsc] = useState(true); // true = worst-first for retention (ascending %)
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortAsc(!sortAsc);
+    } else {
+      setSortKey(key);
+      setSortAsc(key === 'name' || key === 'retention'); // name alpha asc, retention worst-first (asc)
+    }
+  }
+
+  function SortIndicator({ active, asc }: { active: boolean; asc: boolean }) {
+    if (!active) return null;
+    return asc
+      ? <ArrowUp size={11} className="inline ml-0.5 text-primary" />
+      : <ArrowDown size={11} className="inline ml-0.5 text-primary" />;
+  }
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return agencies;
-    const q = search.toLowerCase();
-    return agencies.filter(
-      (a) =>
-        (a.name ?? '').toLowerCase().includes(q) ||
-        a.agency_id.toLowerCase().includes(q)
-    );
-  }, [agencies, search]);
+    let arr = agencies;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      arr = arr.filter(
+        (a) =>
+          (a.name ?? '').toLowerCase().includes(q) ||
+          a.agency_id.toLowerCase().includes(q)
+      );
+    }
+    // Sort — nulls always sink to the bottom regardless of direction
+    const dir = sortAsc ? 1 : -1;
+    return [...arr].sort((a, b) => {
+      switch (sortKey) {
+        case 'name': return dir * (a.name ?? a.agency_id).localeCompare(b.name ?? b.agency_id);
+        case 'active': return dir * (a.active_policies - b.active_policies);
+        case 'premium': return dir * (a.active_premium - b.active_premium);
+        case 'atRisk': return dir * (a.at_risk_count - b.at_risk_count);
+        case 'retention': {
+          // Null retention = no data → always last
+          if (a.retention_pct === null && b.retention_pct === null) return 0;
+          if (a.retention_pct === null) return 1;
+          if (b.retention_pct === null) return -1;
+          return dir * (a.retention_pct - b.retention_pct);
+        }
+        default: return 0;
+      }
+    });
+  }, [agencies, search, sortKey, sortAsc]);
 
   if (agencies.length === 0) return null;
 
@@ -112,11 +152,21 @@ export function CoachingPanel({ agencies, belowTargetCount, isOrgWide }: Coachin
               className="grid grid-cols-7 gap-2 px-4 py-2 bg-secondary/30 text-xs font-semibold text-muted-foreground font-data sticky top-0 z-10"
               role="row"
             >
-              <span className="col-span-2" role="columnheader">Agency</span>
-              <span className="text-right" role="columnheader">Active</span>
-              <span className="text-right" role="columnheader">Premium/mo</span>
-              <span className="text-right" role="columnheader">At-Risk</span>
-              <span className="text-right" role="columnheader">Retention</span>
+              <button className="col-span-2 text-left hover:text-foreground transition-colors" role="columnheader" onClick={() => handleSort('name')}>
+                Agency<SortIndicator active={sortKey === 'name'} asc={sortAsc} />
+              </button>
+              <button className="text-right hover:text-foreground transition-colors" role="columnheader" onClick={() => handleSort('active')}>
+                Active<SortIndicator active={sortKey === 'active'} asc={sortAsc} />
+              </button>
+              <button className="text-right hover:text-foreground transition-colors" role="columnheader" onClick={() => handleSort('premium')}>
+                Premium/mo<SortIndicator active={sortKey === 'premium'} asc={sortAsc} />
+              </button>
+              <button className="text-right hover:text-foreground transition-colors" role="columnheader" onClick={() => handleSort('atRisk')}>
+                At-Risk<SortIndicator active={sortKey === 'atRisk'} asc={sortAsc} />
+              </button>
+              <button className="text-right hover:text-foreground transition-colors" role="columnheader" onClick={() => handleSort('retention')}>
+                Retention<SortIndicator active={sortKey === 'retention'} asc={sortAsc} />
+              </button>
               <span role="columnheader"><span className="sr-only">Actions</span></span>
             </div>
             <div
