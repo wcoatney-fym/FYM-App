@@ -17,6 +17,11 @@ const TWILIO_FROM = "+13466342716";
 const supabaseUrl = Deno.env.get("APP_SUPABASE_URL")!;
 const supabaseKey = Deno.env.get("APP_SUPABASE_SERVICE_KEY")!;
 
+const FALLBACK_REPLY =
+  "Hey! This number is for FYM's daily check-in survey only. " +
+  "For questions or support, reach out to Bianca Bill at bbill@teamfym.com — " +
+  "she'll get you to the right person.";
+
 function normalizePhone(raw: string): string {
   const digits = raw.replace(/\D/g, "");
   if (digits.length === 10) return `+1${digits}`;
@@ -101,6 +106,14 @@ serve(async (req) => {
       .eq("active", true)
       .single();
 
+    if (manager && body.toLowerCase() !== "more") {
+      // Manager texted something other than MORE — send fallback
+      await sendSms(incomingPhone, FALLBACK_REPLY);
+      return new Response("<Response></Response>", {
+        headers: { "Content-Type": "text/xml", ...corsHeaders },
+      });
+    }
+
     if (manager && body.toLowerCase() === "more") {
       // Send detailed breakdown
       const { data: responses } = await sb
@@ -164,8 +177,9 @@ serve(async (req) => {
       .single();
 
     if (!recipient) {
-      // Unknown sender — could be a manager saying something other than MORE, or unknown number
+      // Unknown sender — send fallback redirect
       console.log(`Unknown sender: ${incomingPhone}`);
+      await sendSms(incomingPhone, FALLBACK_REPLY);
       return new Response("<Response></Response>", {
         headers: { "Content-Type": "text/xml", ...corsHeaders },
       });
@@ -204,8 +218,13 @@ serve(async (req) => {
     const state = response.conversation_state;
 
     if (state === "complete" || state === "declined") {
-      // Already done for today
-      await sendSms(incomingPhone, "You've already completed today's check-in. See you tomorrow! 💪");
+      // Already done for today — include Bianca's contact info
+      await sendSms(
+        incomingPhone,
+        "You've already completed today's check-in. See you tomorrow! 💪\n\n" +
+          "Need help with something? Reach out to Bianca Bill at bbill@teamfym.com — " +
+          "she'll get you to the right person."
+      );
       return new Response("<Response></Response>", {
         headers: { "Content-Type": "text/xml", ...corsHeaders },
       });
