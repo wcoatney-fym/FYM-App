@@ -81,7 +81,7 @@ export function PulseKpiCards({ stats, loading }: PulseKpiCardsProps) {
                 <span className="text-xs text-zinc-400 uppercase tracking-wider">{c.label}</span>
               </div>
               <div className={`text-2xl font-bold font-mono ${c.color}`}>
-                <CountUp end={c.value} duration={600} />
+                <CountUp end={c.value} duration={0.6} />
                 {c.suffix || ''}
               </div>
               <div className="text-xs text-zinc-500 mt-1">{c.sub}</div>
