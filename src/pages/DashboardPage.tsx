@@ -364,6 +364,9 @@ export function DashboardPage() {
         ? rawAgencies.filter((a) => a.agency_id === filterAgencyId)
         : rawAgencies;
     const mapped = agencies
+      // Exclude individual agents with their own writing numbers —
+      // only show entries that match a real agency in the agencies table.
+      .filter((a) => nameMap.has(a.agency_id))
       .map((a) => ({
         agency_id: a.agency_id,
         name: a.agency_name ?? nameMap.get(a.agency_id) ?? null,
@@ -589,8 +592,9 @@ export function DashboardPage() {
             belowTargetCount={
               // For FYM admin, coaching always shows all agencies — count
               // below-target from the full list, not the filter-scoped stats.
+              // Filter against agencies table (nameMap) to exclude individual agents.
               isOrgWide
-                ? rawAgencies.filter((a) => a.retention_pct !== null && a.retention_pct < 90).length
+                ? rawAgencies.filter((a) => nameMap.has(a.agency_id) && a.retention_pct !== null && a.retention_pct < 90).length
                 : (stats?.agencies_below_target ?? 0)
             }
             isOrgWide={isOrgWide}
