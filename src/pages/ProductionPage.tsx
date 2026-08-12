@@ -31,6 +31,7 @@ import { toast } from 'sonner';
 import { fmt$, fmtNum } from '@/lib/formatUtils';
 import {
   TrendingUp, DollarSign, FileText, Building2, Search, Download,
+  ArrowUp, ArrowDown,
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -88,7 +89,13 @@ export function ProductionPage() {
   const [localMonthly, setLocalMonthly] = useState<RawMonthlyRow[]>([]);
   const [localDaily, setLocalDaily] = useState<DailyRow[]>([]);
   const [dateLoading, setDateLoading] = useState(false);
-  const [sortBy, setSortBy] = useState<'ap' | 'policies' | 'growth'>('ap');
+  // Column-header sort state (replaces fixed button group)
+  type AgencySortKey = 'name' | 'total' | 'active' | 'pending' | 'terminated' | 'activeAp' | 'avgAp' | 'mtdPolicies' | 'mtdAp' | 'vsLastMo' | 'atRisk' | 'atRiskAp';
+  type AgentSortKey = 'name' | 'total' | 'active' | 'pending' | 'terminated' | 'activeAp' | 'avgAp' | 'mtdPolicies' | 'mtdAp' | 'atRisk' | 'retention';
+  const [agencySortKey, setAgencySortKey] = useState<AgencySortKey>('activeAp');
+  const [agencySortAsc, setAgencySortAsc] = useState(false);
+  const [agentSortKey, setAgentSortKey] = useState<AgentSortKey>('activeAp');
+  const [agentSortAsc, setAgentSortAsc] = useState(false);
   const [search, setSearch] = useState('');
   const [agentBreakdown, setAgentBreakdown] = useState<AgentProduction[]>([]);
   const [agentBreakdownLoading, setAgentBreakdownLoading] = useState(false);
@@ -372,19 +379,60 @@ export function ProductionPage() {
     );
   }, [filteredAgencies, search]);
 
+  // Sort handler for agency columns
+  function handleAgencySort(key: AgencySortKey) {
+    if (agencySortKey === key) {
+      setAgencySortAsc(!agencySortAsc);
+    } else {
+      setAgencySortKey(key);
+      setAgencySortAsc(key === 'name'); // name defaults ascending, numbers descending
+    }
+  }
+
+  // Sort handler for agent columns
+  function handleAgentSort(key: AgentSortKey) {
+    if (agentSortKey === key) {
+      setAgentSortAsc(!agentSortAsc);
+    } else {
+      setAgentSortKey(key);
+      setAgentSortAsc(key === 'name');
+    }
+  }
+
+  // Sort indicator component
+  function SortIndicator({ active, asc }: { active: boolean; asc: boolean }) {
+    if (!active) return null;
+    return asc
+      ? <ArrowUp size={12} className="inline ml-0.5 text-primary" />
+      : <ArrowDown size={12} className="inline ml-0.5 text-primary" />;
+  }
+
   const sortedAgencies = useMemo(() => {
     const arr = [...searchedAgencies];
-    switch (sortBy) {
-      case 'ap': return arr.sort((a, b) => Number(b.active_annual_premium) - Number(a.active_annual_premium));
-      case 'policies': return arr.sort((a, b) => b.policies_this_month - a.policies_this_month);
-      case 'growth': return arr.sort((a, b) => {
-        const gA = a.policies_last_month > 0 ? (a.policies_this_month - a.policies_last_month) / a.policies_last_month : a.policies_this_month > 0 ? 1 : 0;
-        const gB = b.policies_last_month > 0 ? (b.policies_this_month - b.policies_last_month) / b.policies_last_month : b.policies_this_month > 0 ? 1 : 0;
-        return gB - gA;
-      });
-      default: return arr;
-    }
-  }, [searchedAgencies, sortBy]);
+    const dir = agencySortAsc ? 1 : -1;
+    arr.sort((a, b) => {
+      switch (agencySortKey) {
+        case 'name': return dir * (a.agency_name ?? a.agency_id).localeCompare(b.agency_name ?? b.agency_id);
+        case 'total': return dir * (a.total_policies - b.total_policies);
+        case 'active': return dir * (a.active_policies - b.active_policies);
+        case 'pending': return dir * (a.pending_policies - b.pending_policies);
+        case 'terminated': return dir * (a.terminated_policies - b.terminated_policies);
+        case 'activeAp': return dir * (Number(a.active_annual_premium) - Number(b.active_annual_premium));
+        case 'avgAp': return dir * (Number(a.avg_annual_premium) - Number(b.avg_annual_premium));
+        case 'mtdPolicies': return dir * (a.policies_this_month - b.policies_this_month);
+        case 'mtdAp': return dir * (Number(a.ap_this_month) - Number(b.ap_this_month));
+        case 'vsLastMo': {
+          const gA = a.policies_last_month > 0 ? (a.policies_this_month - a.policies_last_month) / a.policies_last_month : a.policies_this_month > 0 ? 1 : 0;
+          const gB = b.policies_last_month > 0 ? (b.policies_this_month - b.policies_last_month) / b.policies_last_month : b.policies_this_month > 0 ? 1 : 0;
+          return dir * (gA - gB);
+        }
+        case 'atRisk': return dir * (a.at_risk_policies - b.at_risk_policies);
+        case 'atRiskAp': return dir * (Number(a.at_risk_annual_premium || 0) - Number(b.at_risk_annual_premium || 0));
+        default: return 0;
+      }
+    });
+    return arr;
+  }, [searchedAgencies, agencySortKey, agencySortAsc]);
 
   // Agent breakdown — filtered + sorted
   const sortedAgentBreakdown = useMemo(() => {
@@ -396,14 +444,25 @@ export function ProductionPage() {
         (a.agent_name ?? a.agent_id).toLowerCase().includes(q)
       );
     }
-    // Sort
-    switch (sortBy) {
-      case 'ap': return arr.sort((a, b) => b.active_annual_premium - a.active_annual_premium);
-      case 'policies': return arr.sort((a, b) => b.policies_this_month - a.policies_this_month);
-      case 'growth': return arr.sort((a, b) => b.active_policies - a.active_policies);
-      default: return arr;
-    }
-  }, [agentBreakdown, search, sortBy]);
+    const dir = agentSortAsc ? 1 : -1;
+    arr.sort((a, b) => {
+      switch (agentSortKey) {
+        case 'name': return dir * (a.agent_name ?? a.agent_id).localeCompare(b.agent_name ?? b.agent_id);
+        case 'total': return dir * (a.total_policies - b.total_policies);
+        case 'active': return dir * (a.active_policies - b.active_policies);
+        case 'pending': return dir * (a.pending_policies - b.pending_policies);
+        case 'terminated': return dir * (a.terminated_policies - b.terminated_policies);
+        case 'activeAp': return dir * (a.active_annual_premium - b.active_annual_premium);
+        case 'avgAp': return dir * (a.avg_annual_premium - b.avg_annual_premium);
+        case 'mtdPolicies': return dir * (a.policies_this_month - b.policies_this_month);
+        case 'mtdAp': return dir * (Number(a.ap_this_month) - Number(b.ap_this_month));
+        case 'atRisk': return dir * (a.at_risk_policies - b.at_risk_policies);
+        case 'retention': return dir * ((a.retention_pct ?? -1) - (b.retention_pct ?? -1));
+        default: return 0;
+      }
+    });
+    return arr;
+  }, [agentBreakdown, search, agentSortKey, agentSortAsc]);
 
   // Whether to show agent-level breakdown vs agency-level
   const showAgentBreakdown = !!breakdownAgencyId;
@@ -669,25 +728,6 @@ export function ProductionPage() {
                   aria-label={showAgentBreakdown ? 'Search agents' : 'Search agencies'}
                 />
               </div>
-              <div className="flex gap-1">
-                {[
-                  { key: 'ap' as const, label: 'By AP' },
-                  { key: 'policies' as const, label: 'By Volume' },
-                  { key: 'growth' as const, label: 'By Growth' },
-                ].map(btn => (
-                  <button
-                    key={btn.key}
-                    onClick={() => setSortBy(btn.key)}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                      sortBy === btn.key
-                        ? 'gradient-primary text-primary-foreground'
-                        : 'bg-secondary text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    {btn.label}
-                  </button>
-                ))}
-              </div>
               <button
                 onClick={handleExport}
                 className="p-1.5 rounded-md bg-secondary text-muted-foreground hover:text-foreground transition-colors"
@@ -704,17 +744,61 @@ export function ProductionPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-background">
-                    <TableHead className="font-semibold text-xs text-muted-foreground min-w-[180px]">Agent</TableHead>
-                    <TableHead className="font-semibold text-xs text-muted-foreground text-right">Total</TableHead>
-                    <TableHead className="font-semibold text-xs text-muted-foreground text-right">Active</TableHead>
-                    <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden md:table-cell">Pending</TableHead>
-                    <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden lg:table-cell">Terminated</TableHead>
-                    <TableHead className="font-semibold text-xs text-muted-foreground text-right">Active AP</TableHead>
-                    <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden lg:table-cell">Avg AP</TableHead>
-                    <TableHead className="font-semibold text-xs text-muted-foreground text-right">MTD Policies</TableHead>
-                    <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden md:table-cell">MTD AP</TableHead>
-                    <TableHead className="font-semibold text-xs text-muted-foreground text-right">At Risk</TableHead>
-                    <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden lg:table-cell">Retention</TableHead>
+                    <TableHead className="min-w-[180px]">
+                      <button onClick={() => handleAgentSort('name')} className="font-semibold text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        Agent<SortIndicator active={agentSortKey === 'name'} asc={agentSortAsc} />
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <button onClick={() => handleAgentSort('total')} className="font-semibold text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        Total<SortIndicator active={agentSortKey === 'total'} asc={agentSortAsc} />
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <button onClick={() => handleAgentSort('active')} className="font-semibold text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        Active<SortIndicator active={agentSortKey === 'active'} asc={agentSortAsc} />
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right hidden md:table-cell">
+                      <button onClick={() => handleAgentSort('pending')} className="font-semibold text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        Pending<SortIndicator active={agentSortKey === 'pending'} asc={agentSortAsc} />
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right hidden lg:table-cell">
+                      <button onClick={() => handleAgentSort('terminated')} className="font-semibold text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        Terminated<SortIndicator active={agentSortKey === 'terminated'} asc={agentSortAsc} />
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <button onClick={() => handleAgentSort('activeAp')} className="font-semibold text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        Active AP<SortIndicator active={agentSortKey === 'activeAp'} asc={agentSortAsc} />
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right hidden lg:table-cell">
+                      <button onClick={() => handleAgentSort('avgAp')} className="font-semibold text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        Avg AP<SortIndicator active={agentSortKey === 'avgAp'} asc={agentSortAsc} />
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <button onClick={() => handleAgentSort('mtdPolicies')} className="font-semibold text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        MTD Policies<SortIndicator active={agentSortKey === 'mtdPolicies'} asc={agentSortAsc} />
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right hidden md:table-cell">
+                      <button onClick={() => handleAgentSort('mtdAp')} className="font-semibold text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        MTD AP<SortIndicator active={agentSortKey === 'mtdAp'} asc={agentSortAsc} />
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <button onClick={() => handleAgentSort('atRisk')} className="font-semibold text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        At Risk<SortIndicator active={agentSortKey === 'atRisk'} asc={agentSortAsc} />
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right hidden lg:table-cell">
+                      <button onClick={() => handleAgentSort('retention')} className="font-semibold text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        Retention<SortIndicator active={agentSortKey === 'retention'} asc={agentSortAsc} />
+                      </button>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -776,18 +860,66 @@ export function ProductionPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-background">
-                    <TableHead className="font-semibold text-xs text-muted-foreground min-w-[180px]">Agency</TableHead>
-                    <TableHead className="font-semibold text-xs text-muted-foreground text-right">Total</TableHead>
-                    <TableHead className="font-semibold text-xs text-muted-foreground text-right">Active</TableHead>
-                    <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden md:table-cell">Pending</TableHead>
-                    <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden lg:table-cell">Terminated</TableHead>
-                    <TableHead className="font-semibold text-xs text-muted-foreground text-right">Active AP</TableHead>
-                    <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden lg:table-cell">Avg AP</TableHead>
-                    <TableHead className="font-semibold text-xs text-muted-foreground text-right">MTD Policies</TableHead>
-                    <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden md:table-cell">MTD AP</TableHead>
-                    <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden sm:table-cell">vs Last Mo</TableHead>
-                    <TableHead className="font-semibold text-xs text-muted-foreground text-right">At Risk</TableHead>
-                    <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden lg:table-cell">At-Risk AP</TableHead>
+                    <TableHead className="min-w-[180px]">
+                      <button onClick={() => handleAgencySort('name')} className="font-semibold text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        Agency<SortIndicator active={agencySortKey === 'name'} asc={agencySortAsc} />
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <button onClick={() => handleAgencySort('total')} className="font-semibold text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        Total<SortIndicator active={agencySortKey === 'total'} asc={agencySortAsc} />
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <button onClick={() => handleAgencySort('active')} className="font-semibold text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        Active<SortIndicator active={agencySortKey === 'active'} asc={agencySortAsc} />
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right hidden md:table-cell">
+                      <button onClick={() => handleAgencySort('pending')} className="font-semibold text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        Pending<SortIndicator active={agencySortKey === 'pending'} asc={agencySortAsc} />
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right hidden lg:table-cell">
+                      <button onClick={() => handleAgencySort('terminated')} className="font-semibold text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        Terminated<SortIndicator active={agencySortKey === 'terminated'} asc={agencySortAsc} />
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <button onClick={() => handleAgencySort('activeAp')} className="font-semibold text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        Active AP<SortIndicator active={agencySortKey === 'activeAp'} asc={agencySortAsc} />
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right hidden lg:table-cell">
+                      <button onClick={() => handleAgencySort('avgAp')} className="font-semibold text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        Avg AP<SortIndicator active={agencySortKey === 'avgAp'} asc={agencySortAsc} />
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <button onClick={() => handleAgencySort('mtdPolicies')} className="font-semibold text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        MTD Policies<SortIndicator active={agencySortKey === 'mtdPolicies'} asc={agencySortAsc} />
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right hidden md:table-cell">
+                      <button onClick={() => handleAgencySort('mtdAp')} className="font-semibold text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        MTD AP<SortIndicator active={agencySortKey === 'mtdAp'} asc={agencySortAsc} />
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right hidden sm:table-cell">
+                      <button onClick={() => handleAgencySort('vsLastMo')} className="font-semibold text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        vs Last Mo<SortIndicator active={agencySortKey === 'vsLastMo'} asc={agencySortAsc} />
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right">
+                      <button onClick={() => handleAgencySort('atRisk')} className="font-semibold text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        At Risk<SortIndicator active={agencySortKey === 'atRisk'} asc={agencySortAsc} />
+                      </button>
+                    </TableHead>
+                    <TableHead className="text-right hidden lg:table-cell">
+                      <button onClick={() => handleAgencySort('atRiskAp')} className="font-semibold text-xs text-muted-foreground hover:text-foreground transition-colors">
+                        At-Risk AP<SortIndicator active={agencySortKey === 'atRiskAp'} asc={agencySortAsc} />
+                      </button>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
