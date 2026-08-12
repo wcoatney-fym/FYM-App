@@ -239,16 +239,15 @@ const EMPTY_KPIS: RecruitingKpis = {
 export async function fetchRecruitingKpis(filter?: RecruitingDateFilter): Promise<RecruitingKpis> {
   if (!supabaseConfigured || !recruitingSb) return EMPTY_KPIS;
 
-  // Get campaign IDs flagged for recruiting
+  // Get campaign IDs flagged for recruiting — if none are flagged, return empty
   const recruitingCampaignIds = await getRecruitingCampaignIds();
+  if (recruitingCampaignIds.length === 0) return EMPTY_KPIS;
 
   // Live: aggregate from daily_spend + recruiting_leads (scoped to recruiting campaigns)
   let spendQuery = recruitingSb
     .from('recruiting_daily_spend')
-    .select('spend, leads');
-  if (recruitingCampaignIds.length > 0) {
-    spendQuery = spendQuery.in('campaign_id', recruitingCampaignIds);
-  }
+    .select('spend, leads')
+    .in('campaign_id', recruitingCampaignIds);
   if (filter) {
     spendQuery = spendQuery
       .gte('date', filter.startDate.slice(0, 10))
@@ -258,10 +257,8 @@ export async function fetchRecruitingKpis(filter?: RecruitingDateFilter): Promis
   const totalSpend = (spendRows ?? []).reduce((s: number, r: { spend: number }) => s + Number(r.spend), 0);
   const totalLeads = (spendRows ?? []).reduce((s: number, r: { leads: number }) => s + Number(r.leads), 0);
 
-  let leadsQuery = recruitingSb.from('recruiting_leads').select('*');
-  if (recruitingCampaignIds.length > 0) {
-    leadsQuery = leadsQuery.in('campaign_id', recruitingCampaignIds);
-  }
+  let leadsQuery = recruitingSb.from('recruiting_leads').select('*')
+    .in('campaign_id', recruitingCampaignIds);
   if (filter) {
     leadsQuery = leadsQuery
       .gte('lead_at', filter.startDate)
@@ -311,16 +308,13 @@ export async function fetchDailySpendData(campaignId?: string, filter?: Recruiti
 
   // Scope to recruiting campaigns unless a specific campaign is requested
   const recruitingCampaignIds = campaignId ? [campaignId] : await getRecruitingCampaignIds();
+  if (recruitingCampaignIds.length === 0) return [];
 
   let query = recruitingSb
     .from('recruiting_daily_spend')
     .select('*')
-    .order('date', { ascending: true });
-  if (campaignId) {
-    query = query.eq('campaign_id', campaignId);
-  } else if (recruitingCampaignIds.length > 0) {
-    query = query.in('campaign_id', recruitingCampaignIds);
-  }
+    .order('date', { ascending: true })
+    .in('campaign_id', recruitingCampaignIds);
   if (filter) {
     query = query
       .gte('date', filter.startDate.slice(0, 10))
@@ -337,16 +331,13 @@ export async function fetchAdSets(campaignId?: string): Promise<AdSet[]> {
 
   // Scope to recruiting campaigns unless a specific campaign is requested
   const recruitingCampaignIds = campaignId ? [campaignId] : await getRecruitingCampaignIds();
+  if (recruitingCampaignIds.length === 0) return [];
 
   let query = recruitingSb
     .from('recruiting_ad_sets')
     .select('*')
-    .order('total_spend', { ascending: false });
-  if (campaignId) {
-    query = query.eq('campaign_id', campaignId);
-  } else if (recruitingCampaignIds.length > 0) {
-    query = query.in('campaign_id', recruitingCampaignIds);
-  }
+    .order('total_spend', { ascending: false })
+    .in('campaign_id', recruitingCampaignIds);
 
   const { data, error } = await query;
   if (error || !data?.length) return [];
@@ -358,16 +349,15 @@ export async function fetchAdSets(campaignId?: string): Promise<AdSet[]> {
 export async function fetchRecruitingLeads(filter?: RecruitingDateFilter): Promise<RecruitingLead[]> {
   if (!supabaseConfigured || !recruitingSb) return [];
 
-  // Scope to recruiting campaigns
+  // Scope to recruiting campaigns — if none flagged, return empty
   const recruitingCampaignIds = await getRecruitingCampaignIds();
+  if (recruitingCampaignIds.length === 0) return [];
 
   let query = recruitingSb
     .from('recruiting_leads')
     .select('*, recruiting_campaigns(name)')
-    .order('lead_at', { ascending: false });
-  if (recruitingCampaignIds.length > 0) {
-    query = query.in('campaign_id', recruitingCampaignIds);
-  }
+    .order('lead_at', { ascending: false })
+    .in('campaign_id', recruitingCampaignIds);
   if (filter) {
     query = query
       .gte('lead_at', filter.startDate)
@@ -386,13 +376,12 @@ const EMPTY_FUNNEL: RecruitingFunnel = { leads: 0, attendees: 0, hired: 0, contr
 export async function fetchRecruitingFunnel(filter?: RecruitingDateFilter): Promise<RecruitingFunnel> {
   if (!supabaseConfigured || !recruitingSb) return EMPTY_FUNNEL;
 
-  // Scope to recruiting campaigns
+  // Scope to recruiting campaigns — if none flagged, return empty
   const recruitingCampaignIds = await getRecruitingCampaignIds();
+  if (recruitingCampaignIds.length === 0) return EMPTY_FUNNEL;
 
-  let query = recruitingSb.from('recruiting_leads').select('stage, attendee_at, hired_at, contracting_at, rts_at, producing_at, campaign_id');
-  if (recruitingCampaignIds.length > 0) {
-    query = query.in('campaign_id', recruitingCampaignIds);
-  }
+  let query = recruitingSb.from('recruiting_leads').select('stage, attendee_at, hired_at, contracting_at, rts_at, producing_at, campaign_id')
+    .in('campaign_id', recruitingCampaignIds);
   if (filter) {
     query = query
       .gte('lead_at', filter.startDate)
@@ -419,11 +408,10 @@ export async function fetchStageTimings(filter?: RecruitingDateFilter): Promise<
 
   // Scope to recruiting campaigns
   const recruitingCampaignIds = await getRecruitingCampaignIds();
+  if (recruitingCampaignIds.length === 0) return [];
 
-  let query = recruitingSb.from('recruiting_leads').select('lead_at, attendee_at, hired_at, contracting_at, rts_at, producing_at, campaign_id');
-  if (recruitingCampaignIds.length > 0) {
-    query = query.in('campaign_id', recruitingCampaignIds);
-  }
+  let query = recruitingSb.from('recruiting_leads').select('lead_at, attendee_at, hired_at, contracting_at, rts_at, producing_at, campaign_id')
+    .in('campaign_id', recruitingCampaignIds);
   if (filter) {
     query = query
       .gte('lead_at', filter.startDate)
