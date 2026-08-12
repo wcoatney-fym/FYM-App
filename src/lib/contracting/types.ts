@@ -417,7 +417,7 @@ export type AgencyIntakeSubmission = {
 };
 
 /** HIP carriers list */
-export const HIP_CARRIERS = ['UNL', 'GTL'] as const;
+export const HIP_CARRIERS = ['UNL', 'GTL', 'AHL', 'Heartland', 'Manhattan'] as const;
 
 /** US States list for address forms */
 export const US_STATES = [

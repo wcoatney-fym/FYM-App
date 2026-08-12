@@ -21,6 +21,9 @@ interface HipWritingWebhookData {
   agency: string;
   unlWritingNumber: string;
   gtlWritingNumber: string;
+  ahlWritingNumber: string;
+  heartlandWritingNumber: string;
+  manhattanWritingNumber: string;
 }
 
 export const fireHipWritingWebhook = async (data: HipWritingWebhookData): Promise<void> => {

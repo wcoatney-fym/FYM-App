@@ -175,6 +175,15 @@ export function LobAssignment({
                 gtlWritingNumber: carriers['GTL']?.selected
                   ? carriers['GTL'].writingNumber.trim()
                   : '',
+                ahlWritingNumber: carriers['AHL']?.selected
+                  ? carriers['AHL'].writingNumber.trim()
+                  : '',
+                heartlandWritingNumber: carriers['Heartland']?.selected
+                  ? carriers['Heartland'].writingNumber.trim()
+                  : '',
+                manhattanWritingNumber: carriers['Manhattan']?.selected
+                  ? carriers['Manhattan'].writingNumber.trim()
+                  : '',
               });
             }
           }
