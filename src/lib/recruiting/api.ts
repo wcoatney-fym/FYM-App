@@ -48,6 +48,7 @@ interface DbCampaign {
   cpl: number | null;
   ctr: number | null;
   cpc: number | null;
+  feed_recruiting: boolean;
   synced_at: string;
 }
 
@@ -183,6 +184,32 @@ function mapRecruitingLead(row: DbRecruitingLead, campaignName?: string): Recrui
   };
 }
 
+// ── Recruiting campaign ID cache ───────────────────────────────────────────
+// Fetches IDs of campaigns flagged as feed_recruiting=true.
+// Cached for 30s to avoid repeated queries within the same page load.
+let _recruitingIdsCache: { ids: string[]; ts: number } | null = null;
+const CACHE_TTL = 30_000; // 30 seconds
+
+async function getRecruitingCampaignIds(): Promise<string[]> {
+  if (_recruitingIdsCache && Date.now() - _recruitingIdsCache.ts < CACHE_TTL) {
+    return _recruitingIdsCache.ids;
+  }
+  if (!recruitingSb) return [];
+  const { data, error } = await recruitingSb
+    .from('recruiting_campaigns')
+    .select('id')
+    .eq('feed_recruiting', true);
+  if (error || !data) return [];
+  const ids = data.map((r: { id: string }) => r.id);
+  _recruitingIdsCache = { ids, ts: Date.now() };
+  return ids;
+}
+
+/** Invalidate the recruiting campaign ID cache (call after toggling feed_recruiting). */
+export function invalidateRecruitingCampaignCache(): void {
+  _recruitingIdsCache = null;
+}
+
 // ── Date filter helpers ────────────────────────────────────────────────────
 
 function filterByDateRange<T>(items: T[], dateKey: keyof T, filter?: RecruitingDateFilter): T[] {
@@ -196,12 +223,17 @@ function filterByDateRange<T>(items: T[], dateKey: keyof T, filter?: RecruitingD
 
 // ── Campaign fetchers ──────────────────────────────────────────────────────
 
+/**
+ * Fetch campaigns flagged as feed_recruiting=true.
+ * The Recruiting tab only sees campaigns selected in CRM Ops Ad Spend.
+ */
 export async function fetchCampaigns(): Promise<Campaign[]> {
   if (!supabaseConfigured || !recruitingSb) return MOCK_CAMPAIGNS;
 
   const { data, error } = await recruitingSb
     .from('recruiting_campaigns')
     .select('*')
+    .eq('feed_recruiting', true)
     .order('synced_at', { ascending: false });
 
   if (error || !data?.length) {
@@ -242,10 +274,16 @@ export async function fetchRecruitingKpis(filter?: RecruitingDateFilter): Promis
     };
   }
 
-  // Live: aggregate from daily_spend + recruiting_leads
+  // Get campaign IDs flagged for recruiting
+  const recruitingCampaignIds = await getRecruitingCampaignIds();
+
+  // Live: aggregate from daily_spend + recruiting_leads (scoped to recruiting campaigns)
   let spendQuery = recruitingSb
     .from('recruiting_daily_spend')
     .select('spend, leads');
+  if (recruitingCampaignIds.length > 0) {
+    spendQuery = spendQuery.in('campaign_id', recruitingCampaignIds);
+  }
   if (filter) {
     spendQuery = spendQuery
       .gte('date', filter.startDate.slice(0, 10))
@@ -256,6 +294,9 @@ export async function fetchRecruitingKpis(filter?: RecruitingDateFilter): Promis
   const totalLeads = (spendRows ?? []).reduce((s: number, r: { leads: number }) => s + Number(r.leads), 0);
 
   let leadsQuery = recruitingSb.from('recruiting_leads').select('*');
+  if (recruitingCampaignIds.length > 0) {
+    leadsQuery = leadsQuery.in('campaign_id', recruitingCampaignIds);
+  }
   if (filter) {
     leadsQuery = leadsQuery
       .gte('lead_at', filter.startDate)
@@ -307,11 +348,18 @@ export async function fetchDailySpendData(campaignId?: string, filter?: Recruiti
     return data;
   }
 
+  // Scope to recruiting campaigns unless a specific campaign is requested
+  const recruitingCampaignIds = campaignId ? [campaignId] : await getRecruitingCampaignIds();
+
   let query = recruitingSb
     .from('recruiting_daily_spend')
     .select('*')
     .order('date', { ascending: true });
-  if (campaignId) query = query.eq('campaign_id', campaignId);
+  if (campaignId) {
+    query = query.eq('campaign_id', campaignId);
+  } else if (recruitingCampaignIds.length > 0) {
+    query = query.in('campaign_id', recruitingCampaignIds);
+  }
   if (filter) {
     query = query
       .gte('date', filter.startDate.slice(0, 10))
@@ -330,11 +378,18 @@ export async function fetchDailySpendData(campaignId?: string, filter?: Recruiti
 export async function fetchAdSets(campaignId?: string): Promise<AdSet[]> {
   if (!supabaseConfigured || !recruitingSb) return [];
 
+  // Scope to recruiting campaigns unless a specific campaign is requested
+  const recruitingCampaignIds = campaignId ? [campaignId] : await getRecruitingCampaignIds();
+
   let query = recruitingSb
     .from('recruiting_ad_sets')
     .select('*')
     .order('total_spend', { ascending: false });
-  if (campaignId) query = query.eq('campaign_id', campaignId);
+  if (campaignId) {
+    query = query.eq('campaign_id', campaignId);
+  } else if (recruitingCampaignIds.length > 0) {
+    query = query.in('campaign_id', recruitingCampaignIds);
+  }
 
   const { data, error } = await query;
   if (error || !data?.length) return [];
@@ -350,10 +405,16 @@ export async function fetchRecruitingLeads(filter?: RecruitingDateFilter): Promi
     return data;
   }
 
+  // Scope to recruiting campaigns
+  const recruitingCampaignIds = await getRecruitingCampaignIds();
+
   let query = recruitingSb
     .from('recruiting_leads')
     .select('*, recruiting_campaigns(name)')
     .order('lead_at', { ascending: false });
+  if (recruitingCampaignIds.length > 0) {
+    query = query.in('campaign_id', recruitingCampaignIds);
+  }
   if (filter) {
     query = query
       .gte('lead_at', filter.startDate)
@@ -379,7 +440,13 @@ export async function fetchRecruitingFunnel(filter?: RecruitingDateFilter): Prom
     return computeFunnelFromLeads(leads);
   }
 
-  let query = recruitingSb.from('recruiting_leads').select('stage, attendee_at, hired_at, contracting_at, rts_at, producing_at');
+  // Scope to recruiting campaigns
+  const recruitingCampaignIds = await getRecruitingCampaignIds();
+
+  let query = recruitingSb.from('recruiting_leads').select('stage, attendee_at, hired_at, contracting_at, rts_at, producing_at, campaign_id');
+  if (recruitingCampaignIds.length > 0) {
+    query = query.in('campaign_id', recruitingCampaignIds);
+  }
   if (filter) {
     query = query
       .gte('lead_at', filter.startDate)
@@ -415,7 +482,13 @@ export async function fetchStageTimings(filter?: RecruitingDateFilter): Promise<
     return computeTimingsFromLeads(leads);
   }
 
-  let query = recruitingSb.from('recruiting_leads').select('lead_at, attendee_at, hired_at, contracting_at, rts_at, producing_at');
+  // Scope to recruiting campaigns
+  const recruitingCampaignIds = await getRecruitingCampaignIds();
+
+  let query = recruitingSb.from('recruiting_leads').select('lead_at, attendee_at, hired_at, contracting_at, rts_at, producing_at, campaign_id');
+  if (recruitingCampaignIds.length > 0) {
+    query = query.in('campaign_id', recruitingCampaignIds);
+  }
   if (filter) {
     query = query
       .gte('lead_at', filter.startDate)
@@ -450,6 +523,7 @@ export async function fetchCampaignPerformance(campaignId: string, filter?: Recr
     .from('recruiting_campaigns')
     .select('name')
     .eq('id', campaignId)
+    .eq('feed_recruiting', true)
     .single();
 
   // Get funnel from recruiting_leads for this campaign
