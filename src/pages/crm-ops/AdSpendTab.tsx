@@ -16,7 +16,7 @@ import { HudFrame } from '@/components/ui/hud-frame';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import {
   DollarSign, Users, Target, BarChart3, Activity,
-  TrendingUp, TrendingDown, Megaphone, Loader2,
+  Megaphone, Loader2,
 } from 'lucide-react';
 import {
   Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -28,7 +28,7 @@ import { supabaseConfigured } from '@/lib/supabase';
 import { createClient } from '@supabase/supabase-js';
 import { useCachedMultiFetch } from '@/hooks/useCachedFetch';
 import type { Campaign, CampaignStatus, DailySpend, RecruitingDateFilter } from '@/lib/recruiting/types';
-import { MOCK_CAMPAIGNS, MOCK_DAILY_SPEND, MOCK_KPIS } from '@/lib/recruiting/mock-data';
+import { MOCK_CAMPAIGNS, MOCK_DAILY_SPEND } from '@/lib/recruiting/mock-data';
 
 // ── Supabase client (same as recruiting api.ts) ────────────────────────────
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
@@ -194,7 +194,7 @@ export function AdSpendTab() {
 
   const cacheKey = `adspend-all-${datePreset}-${dateRange.startDate.slice(0, 10)}-${refreshKey}`;
 
-  const { data: multiData, isLoading } = useCachedMultiFetch(cacheKey, {
+  const { data: multiData, loading } = useCachedMultiFetch(cacheKey, {
     campaigns: () => fetchAllCampaigns(),
     dailySpend: () => fetchAllDailySpend(dateFilter),
   }, { deps: [datePreset, dateRange.startDate, dateRange.endDate, refreshKey] });
@@ -360,7 +360,7 @@ export function AdSpendTab() {
       <HudFrame>
         <Card className="bg-card/60 border-border/30 overflow-hidden">
           <CardContent className="p-0">
-            {isLoading ? (
+            {loading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-5 h-5 animate-spin text-muted-foreground mr-2" />
                 <span className="text-sm text-muted-foreground">Loading campaigns…</span>
