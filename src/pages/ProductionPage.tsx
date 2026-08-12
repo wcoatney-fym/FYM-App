@@ -273,6 +273,9 @@ export function ProductionPage() {
   const breakdownAgencyId = filterAgencyId || (!isOrgWide ? effectiveAgencyWritingNumber : null);
 
   // Load agent-level breakdown when viewing a specific agency
+  // Passes the selected date range so the edge function only returns
+  // policies issued within that window. Agents with zero total_policies
+  // in the period are excluded from the table.
   useEffect(() => {
     if (!breakdownAgencyId) {
       setAgentBreakdown([]);
@@ -281,9 +284,20 @@ export function ProductionPage() {
     let cancelled = false;
     setAgentBreakdownLoading(true);
 
-    fetchAgentProduction({ agency_id: breakdownAgencyId })
+    const params: Parameters<typeof fetchAgentProduction>[0] = {
+      agency_id: breakdownAgencyId,
+    };
+    if (useRpc) {
+      params.start_date = dateRange.startDate.split('T')[0];
+      params.end_date = dateRange.endDate.split('T')[0];
+    }
+
+    fetchAgentProduction(params)
       .then(agents => {
-        if (!cancelled) setAgentBreakdown(agents);
+        if (!cancelled) {
+          // Only include agents who had production during the selected period
+          setAgentBreakdown(agents.filter(a => a.total_policies > 0));
+        }
       })
       .catch(err => {
         console.error('Agent breakdown load error:', err);
@@ -294,7 +308,7 @@ export function ProductionPage() {
       });
 
     return () => { cancelled = true; };
-  }, [breakdownAgencyId]);
+  }, [breakdownAgencyId, dateRange, useRpc]);
 
   // Compute adaptive granularity based on selected date range
   const granularity = useMemo(() => getGranularity(dateRange), [dateRange]);
