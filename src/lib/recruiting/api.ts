@@ -53,7 +53,8 @@ export async function fetchGhlLiveCounts(filter?: RecruitingDateFilter): Promise
       body.endDate = filter.endDate;
     }
 
-    const res = await fetch(`${supabaseUrl}/functions/v1/recruiting-ghl-sync?action=counts`, {
+    const baseUrl = supabaseUrl.replace(/\/$/, '');
+    const res = await fetch(`${baseUrl}/functions/v1/recruiting-ghl-sync?action=counts`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${supabaseAnonKey}`,
