@@ -44,7 +44,7 @@ const HIRED_STAGE_NAMES = [
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, x-cron-auth",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, apikey, x-cron-auth, x-client-info",
 };
 
 function sleep(ms: number): Promise<void> {
