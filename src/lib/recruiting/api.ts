@@ -17,6 +17,72 @@ const recruitingSb = supabaseUrl && supabaseAnonKey
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
 
+// ── GHL Live Counts (from recruiting-ghl-sync edge function) ───────────────
+
+interface GhlLiveCounts {
+  leads: number;
+  attendees: number;
+  hired: number;
+  pipeline: string;
+  hiredBreakdown: Record<string, number>;
+  dateFilter: { startDate: string; endDate: string } | null;
+  durationMs: number;
+  source: string;
+  cachedAt: string;
+}
+
+let _ghlCountsCache: { data: GhlLiveCounts; ts: number } | null = null;
+const GHL_COUNTS_TTL = 60_000; // Cache for 60s
+
+/**
+ * Fetch live recruiting pipeline counts from GHL via edge function.
+ * Returns leads, attendees, hired counts from the GHL recruiting sub-account.
+ */
+export async function fetchGhlLiveCounts(filter?: RecruitingDateFilter): Promise<GhlLiveCounts | null> {
+  if (!supabaseUrl || !supabaseAnonKey) return null;
+
+  // Check cache (only for unfiltered requests)
+  if (!filter && _ghlCountsCache && Date.now() - _ghlCountsCache.ts < GHL_COUNTS_TTL) {
+    return _ghlCountsCache.data;
+  }
+
+  try {
+    const body: Record<string, string> = { action: 'counts' };
+    if (filter) {
+      body.startDate = filter.startDate;
+      body.endDate = filter.endDate;
+    }
+
+    const res = await fetch(`${supabaseUrl}/functions/v1/recruiting-ghl-sync?action=counts`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${supabaseAnonKey}`,
+        apikey: supabaseAnonKey,
+        'x-cron-auth': 'dashboard',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      console.warn('[Recruiting] GHL counts fetch failed:', res.status);
+      return null;
+    }
+
+    const data: GhlLiveCounts = await res.json();
+
+    // Cache unfiltered results
+    if (!filter) {
+      _ghlCountsCache = { data, ts: Date.now() };
+    }
+
+    return data;
+  } catch (err) {
+    console.warn('[Recruiting] GHL counts error:', err);
+    return null;
+  }
+}
+
 import type {
   Campaign, Lead, DailySpend, CampaignPerformance,
   AdSet, RoiByAgency, RoiByAgent, RecruitingKpis,
@@ -239,47 +305,35 @@ const EMPTY_KPIS: RecruitingKpis = {
 export async function fetchRecruitingKpis(filter?: RecruitingDateFilter): Promise<RecruitingKpis> {
   if (!supabaseConfigured || !recruitingSb) return EMPTY_KPIS;
 
-  // Get campaign IDs flagged for recruiting — if none are flagged, return empty
+  // Get campaign IDs flagged for recruiting — if none are flagged, use empty for spend
   const recruitingCampaignIds = await getRecruitingCampaignIds();
-  if (recruitingCampaignIds.length === 0) return EMPTY_KPIS;
 
-  // Live: aggregate from daily_spend + recruiting_leads (scoped to recruiting campaigns)
-  let spendQuery = recruitingSb
-    .from('recruiting_daily_spend')
-    .select('spend, leads')
-    .in('campaign_id', recruitingCampaignIds);
-  if (filter) {
-    spendQuery = spendQuery
-      .gte('date', filter.startDate.slice(0, 10))
-      .lt('date', filter.endDate.slice(0, 10));
+  // Fetch ad spend data (from recruiting_daily_spend)
+  let totalSpend = 0;
+  let totalLeads = 0;
+  if (recruitingCampaignIds.length > 0) {
+    let spendQuery = recruitingSb
+      .from('recruiting_daily_spend')
+      .select('spend, leads')
+      .in('campaign_id', recruitingCampaignIds);
+    if (filter) {
+      spendQuery = spendQuery
+        .gte('date', filter.startDate.slice(0, 10))
+        .lt('date', filter.endDate.slice(0, 10));
+    }
+    const { data: spendRows } = await spendQuery;
+    totalSpend = (spendRows ?? []).reduce((s: number, r: { spend: number }) => s + Number(r.spend), 0);
+    totalLeads = (spendRows ?? []).reduce((s: number, r: { leads: number }) => s + Number(r.leads), 0);
   }
-  const { data: spendRows } = await spendQuery;
-  const totalSpend = (spendRows ?? []).reduce((s: number, r: { spend: number }) => s + Number(r.spend), 0);
-  const totalLeads = (spendRows ?? []).reduce((s: number, r: { leads: number }) => s + Number(r.leads), 0);
 
-  let leadsQuery = recruitingSb.from('recruiting_leads').select('*')
-    .in('campaign_id', recruitingCampaignIds);
-  if (filter) {
-    leadsQuery = leadsQuery
-      .gte('lead_at', filter.startDate)
-      .lt('lead_at', filter.endDate);
-  }
-  const { data: leadsRows } = await leadsQuery;
-  const leads = (leadsRows ?? []) as DbRecruitingLead[];
-  const attendees = leads.filter(l => l.attendee_at).length;
-  const hired = leads.filter(l => l.hired_at).length;
-  const rts = leads.filter(l => l.rts_at).length;
-  const producing = leads.filter(l => l.producing_at).length;
-
-  // Avg days calculations
-  const rtsLeads = leads.filter(l => l.rts_at && l.lead_at);
-  const avgDaysToRts = rtsLeads.length > 0
-    ? rtsLeads.reduce((s, l) => s + (new Date(l.rts_at!).getTime() - new Date(l.lead_at).getTime()) / 86400000, 0) / rtsLeads.length
-    : 0;
-  const prodLeads = leads.filter(l => l.producing_at && l.lead_at);
-  const avgDaysToFirstSale = prodLeads.length > 0
-    ? prodLeads.reduce((s, l) => s + (new Date(l.producing_at!).getTime() - new Date(l.lead_at).getTime()) / 86400000, 0) / prodLeads.length
-    : 0;
+  // Fetch live GHL pipeline counts (from edge function)
+  const ghlCounts = await fetchGhlLiveCounts(filter);
+  const pipelineLeads = ghlCounts?.leads ?? 0;
+  const attendees = ghlCounts?.attendees ?? 0;
+  const hired = ghlCounts?.hired ?? 0;
+  // RTS and Producing not yet tracked in GHL pipeline — will come with Phase 2
+  const rts = 0;
+  const producing = 0;
 
   return {
     totalSpend,
@@ -294,12 +348,12 @@ export async function fetchRecruitingKpis(filter?: RecruitingDateFilter): Promis
     leadsDelta: 0,
     cplDelta: 0,
     cpaDelta: 0,
-    totalRecruits: leads.filter(l => l.stage !== 'lost').length,
-    attendeeRate: leads.length > 0 ? attendees / leads.length : 0,
+    totalRecruits: pipelineLeads,
+    attendeeRate: pipelineLeads > 0 ? attendees / pipelineLeads : 0,
     hireRate: attendees > 0 ? hired / attendees : 0,
     rtsRate: hired > 0 ? rts / hired : 0,
-    avgDaysToRts: Math.round(avgDaysToRts * 10) / 10,
-    avgDaysToFirstSale: Math.round(avgDaysToFirstSale * 10) / 10,
+    avgDaysToRts: 0, // Not yet tracked in GHL
+    avgDaysToFirstSale: 0, // Not yet tracked in GHL
   };
 }
 
@@ -374,14 +428,29 @@ export async function fetchRecruitingLeads(filter?: RecruitingDateFilter): Promi
 const EMPTY_FUNNEL: RecruitingFunnel = { leads: 0, attendees: 0, hired: 0, contracting: 0, rts: 0, producing: 0, lost: 0 };
 
 export async function fetchRecruitingFunnel(filter?: RecruitingDateFilter): Promise<RecruitingFunnel> {
+  // Use live GHL counts for the funnel — no DB dependency needed
+  const ghlCounts = await fetchGhlLiveCounts(filter);
+  if (ghlCounts) {
+    return {
+      leads: ghlCounts.leads,
+      attendees: ghlCounts.attendees,
+      hired: ghlCounts.hired,
+      contracting: 0, // Not yet tracked in GHL pipeline
+      rts: 0,
+      producing: 0,
+      lost: 0,
+    };
+  }
+
+  // Fallback: read from recruiting_leads table if edge function unavailable
   if (!supabaseConfigured || !recruitingSb) return EMPTY_FUNNEL;
 
-  // Scope to recruiting campaigns — if none flagged, return empty
   const recruitingCampaignIds = await getRecruitingCampaignIds();
-  if (recruitingCampaignIds.length === 0) return EMPTY_FUNNEL;
 
-  let query = recruitingSb.from('recruiting_leads').select('stage, attendee_at, hired_at, contracting_at, rts_at, producing_at, campaign_id')
-    .in('campaign_id', recruitingCampaignIds);
+  let query = recruitingSb.from('recruiting_leads').select('stage, attendee_at, hired_at, contracting_at, rts_at, producing_at, campaign_id');
+  if (recruitingCampaignIds.length > 0) {
+    query = query.in('campaign_id', recruitingCampaignIds);
+  }
   if (filter) {
     query = query
       .gte('lead_at', filter.startDate)
