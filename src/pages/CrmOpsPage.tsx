@@ -26,6 +26,7 @@ import {
   FlaskConical,
   Database,
   Loader2,
+  DollarSign,
 } from 'lucide-react';
 import {
   ensurePortalAuth,
@@ -43,6 +44,7 @@ import { RosterTab } from './crm-ops/RosterTab';
 import { ContactImportTab } from './crm-ops/ContactImportTab';
 import { TemplateManagementTab } from './crm-ops/TemplateManagementTab';
 import { TestingTab } from './crm-ops/TestingTab';
+import { AdSpendTab } from './crm-ops/AdSpendTab';
 
 type CrmView =
   | 'dashboard'
@@ -51,6 +53,7 @@ type CrmView =
   | 'work-queue'
   | 'agencies'
   | 'roster'
+  | 'ad-spend'
   | 'contact-import'
   | 'templates'
   | 'testing';
@@ -147,6 +150,10 @@ export function CrmOpsPage() {
                 <BookUser className="w-3.5 h-3.5" />
                 Rosters
               </TabsTrigger>
+              <TabsTrigger value="ad-spend" className="gap-1.5">
+                <DollarSign className="w-3.5 h-3.5" />
+                Ad Spend
+              </TabsTrigger>
 
               {/* Separator */}
               <div className="w-px h-6 bg-border mx-1 self-center" />
@@ -224,6 +231,10 @@ export function CrmOpsPage() {
 
           <TabsContent value="roster">
             <RosterTab key={`roster-${refreshKey}`} />
+          </TabsContent>
+
+          <TabsContent value="ad-spend">
+            <AdSpendTab key={`ad-spend-${refreshKey}`} />
           </TabsContent>
 
           <TabsContent value="contact-import">
