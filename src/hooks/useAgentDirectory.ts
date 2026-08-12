@@ -332,6 +332,45 @@ export function useAgentDirectory(): UseAgentDirectoryReturn {
         page++;
       }
 
+      // ── Final pass: enrich prod agents with roster contact info ─────
+      // Belt-and-suspenders: any prod agent whose WN or name matches a
+      // roster entry inherits phone/email/NPN. This catches cases where
+      // the WN match above merged metrics INTO the roster entry but the
+      // agent ended up in prodResults via a different code path.
+      const rosterContactByWn = new Map<string, { phone: string | null; email: string | null; npn: string | null }>();
+      const rosterContactByName = new Map<string, { phone: string | null; email: string | null; npn: string | null }>();
+      for (const r of rosterResults) {
+        const contact = { phone: r.phone, email: r.email, npn: r.npn };
+        if (r.writing_number) rosterContactByWn.set(r.writing_number, contact);
+        const nk = `${r.first_name.trim().toLowerCase()}|${r.last_name.trim().toLowerCase()}|${r.agency_id || ''}`;
+        if (r.first_name || r.last_name) rosterContactByName.set(nk, contact);
+      }
+      for (const p of prodResults) {
+        if (p.phone && p.email) continue; // already has contact info
+        const byWn = p.writing_number ? rosterContactByWn.get(p.writing_number) : undefined;
+        const byName = rosterContactByName.get(
+          `${p.first_name.trim().toLowerCase()}|${p.last_name.trim().toLowerCase()}|${p.agency_id || ''}`
+        );
+        const contact = byWn || byName;
+        if (contact) {
+          if (!p.phone && contact.phone) p.phone = contact.phone;
+          if (!p.email && contact.email) p.email = contact.email;
+          if (!p.npn && contact.npn) p.npn = contact.npn;
+        }
+      }
+      // Also enrich roster agents that may have been created without contact
+      // (e.g. from a CSV import that predated the CRM Ops enrichment)
+      for (const r of rosterResults) {
+        if (r.phone && r.email) continue;
+        const nk = `${r.first_name.trim().toLowerCase()}|${r.last_name.trim().toLowerCase()}|${r.agency_id || ''}`;
+        const contact = rosterContactByName.get(nk);
+        if (contact) {
+          if (!r.phone && contact.phone) r.phone = contact.phone;
+          if (!r.email && contact.email) r.email = contact.email;
+          if (!r.npn && contact.npn) r.npn = contact.npn;
+        }
+      }
+
       setProdAgents(prodResults);
       // Update roster agents with production metrics (mutated in place above)
       setRosterAgents([...rosterResults]);
