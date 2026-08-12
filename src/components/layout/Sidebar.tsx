@@ -66,7 +66,6 @@ const fymAdminNav: NavItem[] = [
   { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { to: '/quality/retention', label: 'Quality', icon: ShieldCheck, activePrefix: '/quality' },
   { to: '/people/agencies', label: 'Agencies & Agents', icon: Building2, activePrefix: '/people' },
-  { to: '/rosters', label: 'Rosters', icon: FileSpreadsheet },
   { to: '/crm-command', label: 'CRM Command', icon: Command },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
