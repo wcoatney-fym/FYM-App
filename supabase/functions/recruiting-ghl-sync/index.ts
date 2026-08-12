@@ -441,13 +441,13 @@ Deno.serve(async (req) => {
 
   // Load config
   const trackerUrl = Deno.env.get("TRACKER_SUPABASE_URL");
-  // Use service key to bypass RLS on ghl_location_tokens (which has policy: false)
-  const trackerKey = Deno.env.get("TRACKER_SUPABASE_SERVICE_KEY") || Deno.env.get("TRACKER_SUPABASE_KEY");
+  // RLS policy added on ghl_location_tokens to allow reads with publishable key
+  const trackerKey = Deno.env.get("TRACKER_SUPABASE_KEY");
   const appUrl = Deno.env.get("SUPABASE_URL") || Deno.env.get("APP_SUPABASE_URL");
   const appServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("APP_SUPABASE_SERVICE_KEY");
 
   if (!trackerUrl || !trackerKey) {
-    console.error("[recruiting-ghl-sync] Missing TRACKER_SUPABASE_URL or TRACKER_SUPABASE_SERVICE_KEY");
+    console.error("[recruiting-ghl-sync] Missing TRACKER_SUPABASE_URL or TRACKER_SUPABASE_KEY");
     return jsonResponse({ error: "Missing tracker config" }, 500);
   }
   if (!appUrl || !appServiceKey) {
