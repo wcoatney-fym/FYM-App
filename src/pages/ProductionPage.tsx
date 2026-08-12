@@ -10,7 +10,9 @@ import { HudFrame } from '@/components/ui/hud-frame';
 import { supabase } from '@/lib/supabase';
 import {
   fetchAgencyProduction,
+  fetchAgentProduction,
   fetchDailyProduction,
+  type AgentProduction,
 } from '@/lib/prod-api';
 import {
   filterDailyByRange,
@@ -88,6 +90,8 @@ export function ProductionPage() {
   const [dateLoading, setDateLoading] = useState(false);
   const [sortBy, setSortBy] = useState<'ap' | 'policies' | 'growth'>('ap');
   const [search, setSearch] = useState('');
+  const [agentBreakdown, setAgentBreakdown] = useState<AgentProduction[]>([]);
+  const [agentBreakdownLoading, setAgentBreakdownLoading] = useState(false);
   const [filterAgentId, setFilterAgentId] = useState<string | null>(null);
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
@@ -265,6 +269,33 @@ export function ProductionPage() {
     return agencies.filter(a => a.agency_id === filterAgencyId);
   }, [agencies, filterAgencyId]);
 
+  // Determine effective agency scope for agent breakdown
+  const breakdownAgencyId = filterAgencyId || (!isOrgWide ? effectiveAgencyWritingNumber : null);
+
+  // Load agent-level breakdown when viewing a specific agency
+  useEffect(() => {
+    if (!breakdownAgencyId) {
+      setAgentBreakdown([]);
+      return;
+    }
+    let cancelled = false;
+    setAgentBreakdownLoading(true);
+
+    fetchAgentProduction({ agency_id: breakdownAgencyId })
+      .then(agents => {
+        if (!cancelled) setAgentBreakdown(agents);
+      })
+      .catch(err => {
+        console.error('Agent breakdown load error:', err);
+        if (!cancelled) setAgentBreakdown([]);
+      })
+      .finally(() => {
+        if (!cancelled) setAgentBreakdownLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [breakdownAgencyId]);
+
   // Compute adaptive granularity based on selected date range
   const granularity = useMemo(() => getGranularity(dateRange), [dateRange]);
 
@@ -340,6 +371,28 @@ export function ProductionPage() {
       default: return arr;
     }
   }, [searchedAgencies, sortBy]);
+
+  // Agent breakdown — filtered + sorted
+  const sortedAgentBreakdown = useMemo(() => {
+    let arr = [...agentBreakdown];
+    // Search filter
+    if (search) {
+      const q = search.toLowerCase();
+      arr = arr.filter(a =>
+        (a.agent_name ?? a.agent_id).toLowerCase().includes(q)
+      );
+    }
+    // Sort
+    switch (sortBy) {
+      case 'ap': return arr.sort((a, b) => b.active_annual_premium - a.active_annual_premium);
+      case 'policies': return arr.sort((a, b) => b.policies_this_month - a.policies_this_month);
+      case 'growth': return arr.sort((a, b) => b.active_policies - a.active_policies);
+      default: return arr;
+    }
+  }, [agentBreakdown, search, sortBy]);
+
+  // Whether to show agent-level breakdown vs agency-level
+  const showAgentBreakdown = !!breakdownAgencyId;
 
   // CSV export
   const handleExport = () => {
@@ -585,19 +638,21 @@ export function ProductionPage() {
           </CardContent>
         </Card>
 
-        {/* Agency Breakdown Table */}
+        {/* Agency/Agent Breakdown Table */}
         <Card className="border-border">
           <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <CardTitle className="text-base text-foreground">Agency Breakdown</CardTitle>
+            <CardTitle className="text-base text-foreground">
+              {showAgentBreakdown ? 'Agent Breakdown' : 'Agency Breakdown'}
+            </CardTitle>
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <div className="relative flex-1 sm:flex-initial sm:w-56">
                 <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search agencies…"
+                  placeholder={showAgentBreakdown ? 'Search agents…' : 'Search agencies…'}
                   className="pl-8 h-8 text-xs"
-                  aria-label="Search agencies"
+                  aria-label={showAgentBreakdown ? 'Search agents' : 'Search agencies'}
                 />
               </div>
               <div className="flex gap-1">
@@ -630,78 +685,152 @@ export function ProductionPage() {
             </div>
           </CardHeader>
           <CardContent className="p-0 overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-background">
-                  <TableHead className="font-semibold text-xs text-muted-foreground min-w-[180px]">Agency</TableHead>
-                  <TableHead className="font-semibold text-xs text-muted-foreground text-right">Total</TableHead>
-                  <TableHead className="font-semibold text-xs text-muted-foreground text-right">Active</TableHead>
-                  <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden md:table-cell">Pending</TableHead>
-                  <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden lg:table-cell">Terminated</TableHead>
-                  <TableHead className="font-semibold text-xs text-muted-foreground text-right">Active AP</TableHead>
-                  <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden lg:table-cell">Avg AP</TableHead>
-                  <TableHead className="font-semibold text-xs text-muted-foreground text-right">MTD Policies</TableHead>
-                  <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden md:table-cell">MTD AP</TableHead>
-                  <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden sm:table-cell">vs Last Mo</TableHead>
-                  <TableHead className="font-semibold text-xs text-muted-foreground text-right">At Risk</TableHead>
-                  <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden lg:table-cell">At-Risk AP</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedAgencies.filter(a => a.active_policies > 0 || a.policies_this_month > 0).map(agency => {
-                  return (
-                    <TableRow key={agency.agency_id} className="cursor-pointer group hover:bg-background transition-colors">
-                      <TableCell className="py-3">
-                        <Link
-                          to={`/production/${agency.agency_id}`}
-                          className="font-medium text-foreground truncate block max-w-[200px] group-hover:text-primary transition-colors"
-                        >
-                          {agency.agency_name || agency.agency_id}
-                        </Link>
-                      </TableCell>
-                      <TableCell className="text-right text-muted-foreground font-data text-sm">
-                        {fmtNum(agency.total_policies)}
-                      </TableCell>
-                      <TableCell className="text-right font-data text-sm">
-                        <span className="text-emerald-400 font-medium">{fmtNum(agency.active_policies)}</span>
-                      </TableCell>
-                      <TableCell className="text-right text-amber-400 font-data text-sm hidden md:table-cell">
-                        {agency.pending_policies > 0 ? fmtNum(agency.pending_policies) : '—'}
-                      </TableCell>
-                      <TableCell className="text-right text-muted-foreground font-data text-sm hidden lg:table-cell">
-                        {agency.terminated_policies > 0 ? fmtNum(agency.terminated_policies) : '—'}
-                      </TableCell>
-                      <TableCell className="text-right text-foreground/80 font-medium font-data text-sm">
-                        {fmt$(Number(agency.active_annual_premium))}
-                      </TableCell>
-                      <TableCell className="text-right text-muted-foreground font-data text-sm hidden lg:table-cell">
-                        {fmt$(Number(agency.avg_annual_premium))}
-                      </TableCell>
-                      <TableCell className="text-right text-foreground font-data font-medium text-sm">
-                        {fmtNum(agency.policies_this_month)}
-                      </TableCell>
-                      <TableCell className="text-right text-foreground/80 font-data text-sm hidden md:table-cell">
-                        {fmt$(Number(agency.ap_this_month))}
-                      </TableCell>
-                      <TableCell className="text-right hidden sm:table-cell">
-                        <DeltaBadge
-                          current={agency.policies_this_month}
-                          previous={agency.policies_last_month}
-                        />
-                      </TableCell>
-                      <TableCell className={`text-right font-data text-sm ${
-                        agency.at_risk_policies > 0 ? 'text-red-400 font-medium' : 'text-muted-foreground'
-                      }`}>
-                        {agency.at_risk_policies > 0 ? fmtNum(agency.at_risk_policies) : '—'}
-                      </TableCell>
-                      <TableCell className={`text-right font-data text-sm hidden lg:table-cell ${
-                        agency.at_risk_policies > 0 ? 'text-red-400/80' : 'text-muted-foreground'
-                      }`}>
-                        {agency.at_risk_policies > 0 ? fmt$(Number(agency.at_risk_annual_premium || 0)) : '—'}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+            {showAgentBreakdown ? (
+              /* ── Agent-level breakdown table ── */
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-background">
+                    <TableHead className="font-semibold text-xs text-muted-foreground min-w-[180px]">Agent</TableHead>
+                    <TableHead className="font-semibold text-xs text-muted-foreground text-right">Total</TableHead>
+                    <TableHead className="font-semibold text-xs text-muted-foreground text-right">Active</TableHead>
+                    <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden md:table-cell">Pending</TableHead>
+                    <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden lg:table-cell">Terminated</TableHead>
+                    <TableHead className="font-semibold text-xs text-muted-foreground text-right">Active AP</TableHead>
+                    <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden lg:table-cell">Avg AP</TableHead>
+                    <TableHead className="font-semibold text-xs text-muted-foreground text-right">MTD Policies</TableHead>
+                    <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden md:table-cell">MTD AP</TableHead>
+                    <TableHead className="font-semibold text-xs text-muted-foreground text-right">At Risk</TableHead>
+                    <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden lg:table-cell">Retention</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {agentBreakdownLoading ? (
+                    <TableRow><TableCell colSpan={11} className="py-8 text-center"><div className="h-6 w-48 mx-auto rounded shimmer" /></TableCell></TableRow>
+                  ) : sortedAgentBreakdown.length === 0 ? (
+                    <TableRow><TableCell colSpan={11} className="py-8 text-center text-muted-foreground text-sm">No agents found</TableCell></TableRow>
+                  ) : (
+                    sortedAgentBreakdown.map(agent => (
+                      <TableRow key={agent.agent_id} className="hover:bg-background transition-colors">
+                        <TableCell className="py-3">
+                          <span className="font-medium text-foreground truncate block max-w-[200px]">
+                            {agent.agent_name || agent.agent_id}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground font-data text-sm">
+                          {fmtNum(agent.total_policies)}
+                        </TableCell>
+                        <TableCell className="text-right font-data text-sm">
+                          <span className="text-emerald-400 font-medium">{fmtNum(agent.active_policies)}</span>
+                        </TableCell>
+                        <TableCell className="text-right text-amber-400 font-data text-sm hidden md:table-cell">
+                          {agent.pending_policies > 0 ? fmtNum(agent.pending_policies) : '—'}
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground font-data text-sm hidden lg:table-cell">
+                          {agent.terminated_policies > 0 ? fmtNum(agent.terminated_policies) : '—'}
+                        </TableCell>
+                        <TableCell className="text-right text-foreground/80 font-medium font-data text-sm">
+                          {fmt$(agent.active_annual_premium)}
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground font-data text-sm hidden lg:table-cell">
+                          {fmt$(agent.avg_annual_premium)}
+                        </TableCell>
+                        <TableCell className="text-right text-foreground font-data font-medium text-sm">
+                          {fmtNum(agent.policies_this_month)}
+                        </TableCell>
+                        <TableCell className="text-right text-foreground/80 font-data text-sm hidden md:table-cell">
+                          {fmt$(agent.ap_this_month)}
+                        </TableCell>
+                        <TableCell className={`text-right font-data text-sm ${
+                          agent.at_risk_policies > 0 ? 'text-red-400 font-medium' : 'text-muted-foreground'
+                        }`}>
+                          {agent.at_risk_policies > 0 ? fmtNum(agent.at_risk_policies) : '—'}
+                        </TableCell>
+                        <TableCell className="text-right font-data text-sm hidden lg:table-cell">
+                          {agent.retention_pct !== null ? (
+                            <span className={agent.retention_pct >= 90 ? 'text-emerald-400' : agent.retention_pct >= 70 ? 'text-amber-400' : 'text-red-400'}>
+                              {agent.retention_pct}%
+                            </span>
+                          ) : '—'}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            ) : (
+              /* ── Agency-level breakdown table (org-wide, no agency selected) ── */
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-background">
+                    <TableHead className="font-semibold text-xs text-muted-foreground min-w-[180px]">Agency</TableHead>
+                    <TableHead className="font-semibold text-xs text-muted-foreground text-right">Total</TableHead>
+                    <TableHead className="font-semibold text-xs text-muted-foreground text-right">Active</TableHead>
+                    <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden md:table-cell">Pending</TableHead>
+                    <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden lg:table-cell">Terminated</TableHead>
+                    <TableHead className="font-semibold text-xs text-muted-foreground text-right">Active AP</TableHead>
+                    <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden lg:table-cell">Avg AP</TableHead>
+                    <TableHead className="font-semibold text-xs text-muted-foreground text-right">MTD Policies</TableHead>
+                    <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden md:table-cell">MTD AP</TableHead>
+                    <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden sm:table-cell">vs Last Mo</TableHead>
+                    <TableHead className="font-semibold text-xs text-muted-foreground text-right">At Risk</TableHead>
+                    <TableHead className="font-semibold text-xs text-muted-foreground text-right hidden lg:table-cell">At-Risk AP</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sortedAgencies.filter(a => a.active_policies > 0 || a.policies_this_month > 0).map(agency => {
+                    return (
+                      <TableRow key={agency.agency_id} className="cursor-pointer group hover:bg-background transition-colors">
+                        <TableCell className="py-3">
+                          <Link
+                            to={`/production/${agency.agency_id}`}
+                            className="font-medium text-foreground truncate block max-w-[200px] group-hover:text-primary transition-colors"
+                          >
+                            {agency.agency_name || agency.agency_id}
+                          </Link>
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground font-data text-sm">
+                          {fmtNum(agency.total_policies)}
+                        </TableCell>
+                        <TableCell className="text-right font-data text-sm">
+                          <span className="text-emerald-400 font-medium">{fmtNum(agency.active_policies)}</span>
+                        </TableCell>
+                        <TableCell className="text-right text-amber-400 font-data text-sm hidden md:table-cell">
+                          {agency.pending_policies > 0 ? fmtNum(agency.pending_policies) : '—'}
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground font-data text-sm hidden lg:table-cell">
+                          {agency.terminated_policies > 0 ? fmtNum(agency.terminated_policies) : '—'}
+                        </TableCell>
+                        <TableCell className="text-right text-foreground/80 font-medium font-data text-sm">
+                          {fmt$(Number(agency.active_annual_premium))}
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground font-data text-sm hidden lg:table-cell">
+                          {fmt$(Number(agency.avg_annual_premium))}
+                        </TableCell>
+                        <TableCell className="text-right text-foreground font-data font-medium text-sm">
+                          {fmtNum(agency.policies_this_month)}
+                        </TableCell>
+                        <TableCell className="text-right text-foreground/80 font-data text-sm hidden md:table-cell">
+                          {fmt$(Number(agency.ap_this_month))}
+                        </TableCell>
+                        <TableCell className="text-right hidden sm:table-cell">
+                          <DeltaBadge
+                            current={agency.policies_this_month}
+                            previous={agency.policies_last_month}
+                          />
+                        </TableCell>
+                        <TableCell className={`text-right font-data text-sm ${
+                          agency.at_risk_policies > 0 ? 'text-red-400 font-medium' : 'text-muted-foreground'
+                        }`}>
+                          {agency.at_risk_policies > 0 ? fmtNum(agency.at_risk_policies) : '—'}
+                        </TableCell>
+                        <TableCell className={`text-right font-data text-sm hidden lg:table-cell ${
+                          agency.at_risk_policies > 0 ? 'text-red-400/80' : 'text-muted-foreground'
+                        }`}>
+                          {agency.at_risk_policies > 0 ? fmt$(Number(agency.at_risk_annual_premium || 0)) : '—'}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 {sortedAgencies.filter(a => a.active_policies > 0 || a.policies_this_month > 0).length === 0 && (
                   <TableRow>
                     <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
@@ -711,6 +840,7 @@ export function ProductionPage() {
                 )}
               </TableBody>
             </Table>
+            )}
           </CardContent>
         </Card>
       </div>
