@@ -98,17 +98,42 @@ FROM recruiting_stage_transitions
 WHERE condition != 'auto_lost'
 GROUP BY stage, date_trunc('day', occurred_at), date_trunc('month', occurred_at);
 
--- RPC: server-side pipeline counts (avoids Supabase JS client 1K row cap)
+-- RPC: cumulative pipeline counts (avoids Supabase JS client 1K row cap)
+-- Each stage counts everyone who reached that level OR beyond.
+-- e.g. "attendees" includes attended + hired + contracting + rts + producing
 CREATE OR REPLACE FUNCTION get_pipeline_counts(
   start_date timestamptz DEFAULT '2026-02-01T00:00:00.000Z',
   end_date   timestamptz DEFAULT NULL
 ) RETURNS TABLE(stage text, contact_count bigint)
 LANGUAGE sql STABLE AS $$
-  SELECT stage, COUNT(DISTINCT ghl_contact_id) as contact_count
-  FROM recruiting_stage_transitions
-  WHERE condition != 'auto_lost'
-    AND occurred_at >= start_date
-    AND (end_date IS NULL OR occurred_at <= end_date)
-  GROUP BY stage
-  ORDER BY stage;
+  WITH stage_contacts AS (
+    SELECT DISTINCT ghl_contact_id, stage
+    FROM recruiting_stage_transitions
+    WHERE condition != 'auto_lost'
+      AND occurred_at >= start_date
+      AND (end_date IS NULL OR occurred_at <= end_date)
+  ),
+  highest_stage AS (
+    SELECT ghl_contact_id,
+      CASE
+        WHEN bool_or(stage = 'producing')   THEN 6
+        WHEN bool_or(stage = 'rts')         THEN 5
+        WHEN bool_or(stage = 'contracting') THEN 4
+        WHEN bool_or(stage = 'hired')       THEN 3
+        WHEN bool_or(stage = 'attendee')    THEN 2
+        WHEN bool_or(stage = 'lead')        THEN 1
+        ELSE 0
+      END AS max_stage
+    FROM stage_contacts
+    GROUP BY ghl_contact_id
+  )
+  SELECT s.stage, COUNT(*) as contact_count
+  FROM (
+    VALUES ('lead', 1), ('attendee', 2), ('hired', 3),
+           ('contracting', 4), ('rts', 5), ('producing', 6)
+  ) AS s(stage, ord)
+  CROSS JOIN highest_stage h
+  WHERE h.max_stage >= s.ord
+  GROUP BY s.stage, s.ord
+  ORDER BY s.ord;
 $$;
