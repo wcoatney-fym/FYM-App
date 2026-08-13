@@ -156,7 +156,8 @@ export function agentDisplayName(
   return fallback ?? 'Unknown';
 }
 
-export function formatPhoneDisplay(raw: string): string {
+export function formatPhoneDisplay(raw: string | null | undefined): string {
+  if (!raw) return '—';
   const digits = raw.replace(/\D/g, '');
   const local =
     digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;

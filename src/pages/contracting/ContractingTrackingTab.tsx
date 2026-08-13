@@ -155,8 +155,8 @@ export function ContractingTrackingTab() {
       list = list.filter(
         (a) =>
           `${a.first_name} ${a.last_name}`.toLowerCase().includes(q) ||
-          a.email.toLowerCase().includes(q) ||
-          a.phone.includes(q) ||
+          a.email?.toLowerCase().includes(q) ||
+          (a.phone ?? '').includes(q) ||
           a.security_code.includes(q)
       );
     }
