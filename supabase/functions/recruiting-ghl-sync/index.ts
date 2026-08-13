@@ -397,21 +397,36 @@ async function handleCounts(
     };
   }
 
-  // Fallback: GHL API counts (not date-accurate for attendees)
-  const [leads, attendeeCounts, hiredData] = await Promise.all([
+  // Fallback: GHL API counts (not date-accurate for attendees/leads)
+  // IMPORTANT: GHL can only filter contacts by dateAdded (creation date),
+  // NOT by when a tag was applied. So date-filtered tag counts are unreliable.
+  // When stage log has no data, return ALL-TIME counts from GHL as the fallback.
+  // Date-accurate counting only works once the stage log is seeded via sync.
+  const [leads, leadsAllTime, attendeeCounts, attendeeCountsAllTime, hiredData] = await Promise.all([
     countContactsCreated(token, startDate, endDate),
+    // Also fetch all-time count as fallback when date-filtered returns 0
+    (startDate || endDate) ? countContactsCreated(token) : Promise.resolve(0),
     Promise.all(
       ATTENDEE_TAGS.map((tag) =>
         countContactsByTag(token, tag, startDate, endDate)
       )
     ),
+    // Also fetch all-time attendee counts as fallback
+    (startDate || endDate)
+      ? Promise.all(ATTENDEE_TAGS.map((tag) => countContactsByTag(token, tag)))
+      : Promise.resolve([0]),
     countHiredOpportunities(token),
   ]);
 
-  const attendees = Math.max(...attendeeCounts, 0);
+  const attendeesFiltered = Math.max(...attendeeCounts, 0);
+  const attendeesAllTime = Math.max(...attendeeCountsAllTime, 0);
+  // Use date-filtered if it returned results, otherwise fall back to all-time
+  const attendees = attendeesFiltered > 0 ? attendeesFiltered : attendeesAllTime;
+  // Same for leads — use date-filtered if >0, else all-time
+  const finalLeads = leads > 0 ? leads : leadsAllTime;
 
   return {
-    leads,
+    leads: finalLeads,
     attendees,
     hired: hiredData.hired,
     pipeline: hiredData.pipelineName,
