@@ -290,8 +290,11 @@ async function handleSync(
   for (const c of contacts) {
     const name = contactName(c);
     const createdAt = c.dateAdded || now;
-    const isAttendee = hasAnyTag(c, ATTENDEE_TAGS);
-    const isHired = hasAnyTag(c, HIRED_TAGS);
+    const hasAttendedTag = hasAnyTag(c, ATTENDEE_TAGS);
+    const hasHiredTag = hasAnyTag(c, HIRED_TAGS);
+    // Hired implies attended — you can't be hired without attending
+    const isAttendee = hasAttendedTag || hasHiredTag;
+    const isHired = hasHiredTag;
 
     // Highest current stage
     let stage = "lead";
@@ -331,6 +334,7 @@ async function handleSync(
     }
 
     // ── Attendee transition: occurred_at = NOW (when we first detect the tag) ──
+    // Hired implies attended — log attendee transition for hired contacts too
     if (isAttendee) {
       const attKey = `${c.id}|attendee|sync`;
       if (!existingSet.has(attKey)) {
@@ -339,8 +343,12 @@ async function handleSync(
           stage: "attendee",
           condition: "sync",
           previous_stage: "lead",
-          metadata: { tag: matchedTag(c, ATTENDEE_TAGS), source: "recruiting_sub" },
-          occurred_at: now, // Detected this sync cycle
+          metadata: {
+            tag: matchedTag(c, ATTENDEE_TAGS) || "implied_by_hired",
+            source: "recruiting_sub",
+            implied: hasHiredTag && !hasAttendedTag,
+          },
+          occurred_at: now,
         });
         existingSet.add(attKey);
         stats.recruiting.newTransitions++;
