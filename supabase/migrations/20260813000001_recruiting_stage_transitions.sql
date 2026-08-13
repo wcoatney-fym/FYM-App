@@ -80,6 +80,13 @@ BEGIN
   END IF;
 END $$;
 
+-- Unique constraint on ghl_contact_id for upsert support
+CREATE UNIQUE INDEX IF NOT EXISTS recruiting_leads_ghl_contact_id_key
+  ON recruiting_leads (ghl_contact_id);
+
+-- Make lead_at nullable (contracting-only contacts may not have a lead date)
+ALTER TABLE recruiting_leads ALTER COLUMN lead_at DROP NOT NULL;
+
 -- View: date-filtered pipeline counts from the stage transition log
 CREATE OR REPLACE VIEW recruiting_pipeline_by_period AS
 SELECT
@@ -88,5 +95,20 @@ SELECT
   date_trunc('month', occurred_at) AS month,
   count(DISTINCT ghl_contact_id) AS contact_count
 FROM recruiting_stage_transitions
-WHERE condition != 'auto_lost'  -- don't count auto-lost transitions as stage entries
+WHERE condition != 'auto_lost'
 GROUP BY stage, date_trunc('day', occurred_at), date_trunc('month', occurred_at);
+
+-- RPC: server-side pipeline counts (avoids Supabase JS client 1K row cap)
+CREATE OR REPLACE FUNCTION get_pipeline_counts(
+  start_date timestamptz DEFAULT '2026-02-01T00:00:00.000Z',
+  end_date   timestamptz DEFAULT NULL
+) RETURNS TABLE(stage text, contact_count bigint)
+LANGUAGE sql STABLE AS $$
+  SELECT stage, COUNT(DISTINCT ghl_contact_id) as contact_count
+  FROM recruiting_stage_transitions
+  WHERE condition != 'auto_lost'
+    AND occurred_at >= start_date
+    AND (end_date IS NULL OR occurred_at <= end_date)
+  GROUP BY stage
+  ORDER BY stage;
+$$;
