@@ -17,6 +17,7 @@ import { CcAgencyHealthTab } from './crm-command/CcAgencyHealthTab';
 import { CcTeamTab } from './crm-command/CcTeamTab';
 import { CrmOpsPage } from './CrmOpsPage';
 import { CcSettingsTab } from './crm-command/CcSettingsTab';
+import { CcBackfillTab } from './crm-command/CcBackfillTab';
 
 type CrmCommandTab =
   | 'dashboard'
@@ -28,6 +29,7 @@ type CrmCommandTab =
   | 'tyler'
   | 'team'
   | 'crm-ops'
+  | 'backfill'
   | 'settings';
 
 const tabs: { id: CrmCommandTab; label: string; icon: React.ElementType }[] = [
@@ -40,6 +42,7 @@ const tabs: { id: CrmCommandTab; label: string; icon: React.ElementType }[] = [
   { id: 'tyler', label: 'Tyler Board', icon: Target },
   { id: 'team', label: 'Team & Roles', icon: Users },
   { id: 'crm-ops', label: 'CRM Ops', icon: Headphones },
+  { id: 'backfill', label: 'FYM APP Backfill', icon: Database },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
@@ -91,6 +94,7 @@ export function CrmCommandPage() {
         {activeTab === 'tyler' && <CcAgencyHealthTab />}
         {activeTab === 'team' && <CcTeamTab />}
         {activeTab === 'crm-ops' && <CrmOpsPage />}
+        {activeTab === 'backfill' && <CcBackfillTab />}
         {activeTab === 'settings' && <CcSettingsTab />}
       </div>
     </div>
