@@ -652,6 +652,87 @@ async function handleCheckLost(appUrl: string, appServiceKey: string) {
   return { flagged, thresholdDays, durationMs: Date.now() - st };
 }
 
+// ── Backfill handler ──────────────────────────────────────────────────────
+interface BackfillTransition {
+  ghl_contact_id: string;
+  stage: string;
+  previous_stage?: string | null;
+  occurred_at: string;
+  condition: string;
+  metadata: Record<string, unknown>;
+}
+
+async function handleBackfill(
+  appUrl: string,
+  appServiceKey: string,
+  body: { transitions?: BackfillTransition[]; clear_existing?: boolean }
+) {
+  const st = Date.now();
+  const appDb = createClient(appUrl, appServiceKey);
+  const transitions = body.transitions || [];
+
+  if (transitions.length === 0) {
+    return { error: "No transitions provided", inserted: 0 };
+  }
+  if (transitions.length > 2000) {
+    return { error: "Max 2000 transitions per call", inserted: 0 };
+  }
+
+  // Optionally clear existing backfill transitions first
+  if (body.clear_existing) {
+    const { error: delErr } = await appDb
+      .from("recruiting_stage_transitions")
+      .delete()
+      .eq("condition", "backfill");
+    if (delErr) {
+      console.error("[backfill] clear error:", delErr.message);
+      return { error: `Clear failed: ${delErr.message}` };
+    }
+    console.log("[backfill] cleared existing backfill transitions");
+  }
+
+  // Insert in batches of 200
+  let inserted = 0;
+  let errors = 0;
+  const BATCH = 200;
+
+  for (let i = 0; i < transitions.length; i += BATCH) {
+    const batch = transitions.slice(i, i + BATCH).map((t) => ({
+      ghl_contact_id: t.ghl_contact_id,
+      stage: t.stage,
+      previous_stage: t.previous_stage || null,
+      occurred_at: t.occurred_at,
+      condition: t.condition || "backfill",
+      metadata: t.metadata || {},
+    }));
+
+    const { error: insErr } = await appDb
+      .from("recruiting_stage_transitions")
+      .insert(batch);
+
+    if (insErr) {
+      console.error(`[backfill] batch ${i / BATCH} error:`, insErr.message);
+      errors++;
+    } else {
+      inserted += batch.length;
+    }
+  }
+
+  // Log the backfill
+  await appDb.from("recruiting_backfill_log").insert({
+    title: `CSV Import (${new Date().toISOString().slice(0, 10)})`,
+    description: `Inserted ${inserted} transitions, ${errors} batch errors`,
+    rows_affected: inserted,
+    ran_at: new Date().toISOString(),
+  });
+
+  return {
+    inserted,
+    errors,
+    durationMs: Date.now() - st,
+  };
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // HTTP HANDLER
 // ══════════════════════════════════════════════════════════════════════════
@@ -671,9 +752,11 @@ Deno.serve(async (req) => {
   let action = url.searchParams.get("action") || "counts";
   let startDate: string | undefined;
   let endDate: string | undefined;
+  // deno-lint-ignore no-explicit-any
+  let body: any = {};
 
   try {
-    const body = await req.json().catch(() => ({}));
+    body = await req.json().catch(() => ({}));
     action = body.action || action;
     startDate = body.startDate;
     endDate = body.endDate;
@@ -707,6 +790,11 @@ Deno.serve(async (req) => {
     }
 
     return jsonResponse(await handleSync(recruitingToken, contractingApiKey, appUrl, appServiceKey));
+  }
+
+  if (action === "backfill") {
+    if (!appUrl || !appServiceKey) return jsonResponse({ error: "Missing app config" }, 500);
+    return jsonResponse(await handleBackfill(appUrl, appServiceKey, body));
   }
 
   return jsonResponse({ error: `Unknown action: ${action}` }, 400);
