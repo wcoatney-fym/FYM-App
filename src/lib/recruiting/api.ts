@@ -224,31 +224,7 @@ function mapDailySpend(row: DbDailySpend): DailySpend {
   };
 }
 
-function mapRecruitingLead(row: DbRecruitingLead, campaignName?: string): RecruitingLead {
-  return {
-    id: row.id,
-    name: row.name,
-    email: row.email,
-    phone: row.phone,
-    stage: row.stage as RecruitingLead['stage'],
-    campaignId: row.campaign_id,
-    campaignName: campaignName ?? null,
-    adSetId: row.ad_set_id,
-    adSetName: null,
-    npn: row.npn,
-    writingNumber: row.writing_number,
-    leadAt: row.lead_at,
-    attendeeAt: row.attendee_at,
-    hiredAt: row.hired_at,
-    contractingAt: row.contracting_at,
-    rtsAt: row.rts_at,
-    producingAt: row.producing_at,
-    lostAt: row.lost_at,
-    lostStage: row.lost_stage as RecruitingLead['lostStage'],
-    lostReason: row.lost_reason,
-    notes: row.notes,
-  };
-}
+// mapRecruitingLead removed — fetchRecruitingLeads now uses mapRpcLead via get_recruiting_leads RPC
 
 // ── Recruiting campaign ID cache ───────────────────────────────────────────
 // Fetches IDs of campaigns flagged as feed_recruiting=true.
@@ -405,41 +381,90 @@ export async function fetchAdSets(campaignId?: string): Promise<AdSet[]> {
   return (data as DbAdSet[]).map(mapAdSet);
 }
 
+// ── RPC row type (from get_recruiting_leads) ──────────────────────────────
+
+interface RpcRecruitingLead {
+  ghl_contact_id: string;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  npn: string | null;
+  writing_number: string | null;
+  current_stage: string;
+  lead_at: string | null;
+  attendee_at: string | null;
+  hired_at: string | null;
+  contracting_at: string | null;
+  rts_at: string | null;
+  producing_at: string | null;
+  lost_at: string | null;
+  days_in_stage: number | null;
+}
+
+function mapRpcLead(row: RpcRecruitingLead): RecruitingLead {
+  return {
+    id: row.ghl_contact_id,
+    name: row.name ?? row.email ?? row.ghl_contact_id,
+    email: row.email,
+    phone: row.phone,
+    stage: (row.current_stage ?? 'lead') as RecruitingLead['stage'],
+    campaignId: null,
+    campaignName: null,
+    adSetId: null,
+    adSetName: null,
+    npn: row.npn,
+    writingNumber: row.writing_number,
+    leadAt: row.lead_at ?? row.attendee_at ?? row.hired_at ?? row.contracting_at ?? row.rts_at ?? row.producing_at ?? '',
+    attendeeAt: row.attendee_at,
+    hiredAt: row.hired_at,
+    contractingAt: row.contracting_at,
+    rtsAt: row.rts_at,
+    producingAt: row.producing_at,
+    lostAt: row.lost_at,
+    lostStage: null,
+    lostReason: null,
+    notes: null,
+  };
+}
+
 // ── Recruiting Pipeline fetchers ───────────────────────────────────────────
 
+/**
+ * Fetch recruiting leads derived from recruiting_stage_transitions (source of truth).
+ * Uses get_recruiting_leads RPC which joins recruiting_leads for contact info
+ * and falls back to transition metadata for backfill-only contacts.
+ *
+ * Replaces the old approach of reading directly from recruiting_leads table.
+ */
 export async function fetchRecruitingLeads(filter?: RecruitingDateFilter): Promise<RecruitingLead[]> {
   if (!supabaseConfigured || !recruitingSb) return [];
 
-  // Fetch ALL recruiting leads — GHL-synced leads have no campaign_id,
-  // so we cannot gate on recruiting campaign IDs here.
-  // Campaign join is left-joined so leads without a campaign still appear.
-  let query = recruitingSb
-    .from('recruiting_leads')
-    .select('*, recruiting_campaigns(name)')
-    .order('lead_at', { ascending: false, nullsFirst: false });
-  if (filter) {
-    query = query
-      .gte('lead_at', filter.startDate)
-      .lt('lead_at', filter.endDate);
+  const params: Record<string, string> = {
+    start_date: filter?.startDate ?? '2026-02-01T00:00:00.000Z',
+  };
+  if (filter?.endDate) {
+    params.end_date = filter.endDate;
   }
 
-  // Paginate — table can exceed 1K rows (currently 1,364)
+  // Paginate — RPC can return >1K rows (currently ~1,500)
   const PAGE_SIZE = 1000;
-  const allRows: (DbRecruitingLead & { recruiting_campaigns?: { name: string } })[] = [];
+  const allRows: RpcRecruitingLead[] = [];
   let offset = 0;
   while (true) {
-    const { data, error } = await query.range(offset, offset + PAGE_SIZE - 1);
+    const { data, error } = await recruitingSb
+      .rpc('get_recruiting_leads', params)
+      .range(offset, offset + PAGE_SIZE - 1);
     if (error) {
-      console.warn('[Recruiting] Leads fetch error:', error.message);
+      console.warn('[Recruiting] Leads RPC error:', error.message);
       break;
     }
     if (!data || data.length === 0) break;
-    allRows.push(...(data as (DbRecruitingLead & { recruiting_campaigns?: { name: string } })[]));
+    allRows.push(...(data as RpcRecruitingLead[]));
     if (data.length < PAGE_SIZE) break;
     offset += PAGE_SIZE;
   }
 
-  return allRows.map(row => mapRecruitingLead(row, row.recruiting_campaigns?.name ?? undefined));
+  return allRows.map(mapRpcLead);
 }
 
 const EMPTY_FUNNEL: RecruitingFunnel = { leads: 0, attendees: 0, hired: 0, contracting: 0, rts: 0, producing: 0, lost: 0 };
@@ -459,56 +484,84 @@ export async function fetchRecruitingFunnel(filter?: RecruitingDateFilter): Prom
     };
   }
 
-  // Fallback: read from recruiting_leads table if edge function unavailable
+  // Fallback: derive funnel from recruiting_stage_transitions via RPC
   if (!supabaseConfigured || !recruitingSb) return EMPTY_FUNNEL;
 
-  const recruitingCampaignIds = await getRecruitingCampaignIds();
-
-  let query = recruitingSb.from('recruiting_leads').select('stage, attendee_at, hired_at, contracting_at, rts_at, producing_at, campaign_id');
-  if (recruitingCampaignIds.length > 0) {
-    query = query.in('campaign_id', recruitingCampaignIds);
-  }
-  if (filter) {
-    query = query
-      .gte('lead_at', filter.startDate)
-      .lt('lead_at', filter.endDate);
+  const params: Record<string, string> = {
+    start_date: filter?.startDate ?? '2026-02-01T00:00:00.000Z',
+  };
+  if (filter?.endDate) {
+    params.end_date = filter.endDate;
   }
 
-  const { data, error } = await query;
-  if (error || !data?.length) return EMPTY_FUNNEL;
+  const PAGE_SIZE = 1000;
+  const allRows: RpcRecruitingLead[] = [];
+  let offset = 0;
+  while (true) {
+    const { data, error } = await recruitingSb
+      .rpc('get_recruiting_leads', params)
+      .range(offset, offset + PAGE_SIZE - 1);
+    if (error) break;
+    if (!data || data.length === 0) break;
+    allRows.push(...(data as RpcRecruitingLead[]));
+    if (data.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+  }
 
-  const rows = data as Pick<DbRecruitingLead, 'stage' | 'attendee_at' | 'hired_at' | 'contracting_at' | 'rts_at' | 'producing_at'>[];
+  if (allRows.length === 0) return EMPTY_FUNNEL;
+
   return {
-    leads: rows.length,
-    attendees: rows.filter(r => r.stage !== 'lost' && (r.attendee_at || ['attendee','hired','contracting','rts','producing'].includes(r.stage))).length,
-    hired: rows.filter(r => r.stage !== 'lost' && (r.hired_at || ['hired','contracting','rts','producing'].includes(r.stage))).length,
-    contracting: rows.filter(r => r.stage !== 'lost' && (r.contracting_at || ['contracting','rts','producing'].includes(r.stage))).length,
-    rts: rows.filter(r => r.stage !== 'lost' && (r.rts_at || ['rts','producing'].includes(r.stage))).length,
-    producing: rows.filter(r => r.producing_at || r.stage === 'producing').length,
-    lost: rows.filter(r => r.stage === 'lost').length,
+    leads: allRows.length,
+    attendees: allRows.filter(r => r.attendee_at || ['attendee','hired','contracting','rts','producing'].includes(r.current_stage)).length,
+    hired: allRows.filter(r => r.hired_at || ['hired','contracting','rts','producing'].includes(r.current_stage)).length,
+    contracting: allRows.filter(r => r.contracting_at || ['contracting','rts','producing'].includes(r.current_stage)).length,
+    rts: allRows.filter(r => r.rts_at || ['rts','producing'].includes(r.current_stage)).length,
+    producing: allRows.filter(r => r.producing_at || r.current_stage === 'producing').length,
+    lost: 0, // Lost contacts excluded from RPC by default
   };
 }
 
 export async function fetchStageTimings(filter?: RecruitingDateFilter): Promise<StageTiming[]> {
   if (!supabaseConfigured || !recruitingSb) return [];
 
-  // Scope to recruiting campaigns
-  const recruitingCampaignIds = await getRecruitingCampaignIds();
-  if (recruitingCampaignIds.length === 0) return [];
-
-  let query = recruitingSb.from('recruiting_leads').select('lead_at, attendee_at, hired_at, contracting_at, rts_at, producing_at, campaign_id')
-    .in('campaign_id', recruitingCampaignIds);
-  if (filter) {
-    query = query
-      .gte('lead_at', filter.startDate)
-      .lt('lead_at', filter.endDate);
+  // Derive timings from recruiting_stage_transitions via RPC (same source as Leads tab)
+  const params: Record<string, string> = {
+    start_date: filter?.startDate ?? '2026-02-01T00:00:00.000Z',
+  };
+  if (filter?.endDate) {
+    params.end_date = filter.endDate;
   }
 
-  const { data, error } = await query;
-  if (error || !data?.length) return [];
+  // Paginate to get all leads with their stage timestamps
+  const PAGE_SIZE = 1000;
+  const allRows: RpcRecruitingLead[] = [];
+  let offset = 0;
+  while (true) {
+    const { data, error } = await recruitingSb
+      .rpc('get_recruiting_leads', params)
+      .range(offset, offset + PAGE_SIZE - 1);
+    if (error) {
+      console.warn('[Recruiting] Timings RPC error:', error.message);
+      break;
+    }
+    if (!data || data.length === 0) break;
+    allRows.push(...(data as RpcRecruitingLead[]));
+    if (data.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+  }
 
-  const rows = data as Pick<DbRecruitingLead, 'lead_at' | 'attendee_at' | 'hired_at' | 'contracting_at' | 'rts_at' | 'producing_at'>[];
-  return computeTimingsFromRows(rows);
+  if (allRows.length === 0) return [];
+
+  // Map RPC rows to the shape computeTimingsFromRows expects
+  const rows = allRows.map(r => ({
+    lead_at: r.lead_at ?? '',
+    attendee_at: r.attendee_at,
+    hired_at: r.hired_at,
+    contracting_at: r.contracting_at,
+    rts_at: r.rts_at,
+    producing_at: r.producing_at,
+  }));
+  return computeTimingsFromRows(rows as Pick<DbRecruitingLead, 'lead_at' | 'attendee_at' | 'hired_at' | 'contracting_at' | 'rts_at' | 'producing_at'>[]);
 }
 
 // ── Campaign Performance (for Analytics tab) ───────────────────────────────
