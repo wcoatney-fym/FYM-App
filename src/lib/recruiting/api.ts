@@ -410,26 +410,36 @@ export async function fetchAdSets(campaignId?: string): Promise<AdSet[]> {
 export async function fetchRecruitingLeads(filter?: RecruitingDateFilter): Promise<RecruitingLead[]> {
   if (!supabaseConfigured || !recruitingSb) return [];
 
-  // Scope to recruiting campaigns — if none flagged, return empty
-  const recruitingCampaignIds = await getRecruitingCampaignIds();
-  if (recruitingCampaignIds.length === 0) return [];
-
+  // Fetch ALL recruiting leads — GHL-synced leads have no campaign_id,
+  // so we cannot gate on recruiting campaign IDs here.
+  // Campaign join is left-joined so leads without a campaign still appear.
   let query = recruitingSb
     .from('recruiting_leads')
     .select('*, recruiting_campaigns(name)')
-    .order('lead_at', { ascending: false })
-    .in('campaign_id', recruitingCampaignIds);
+    .order('lead_at', { ascending: false, nullsFirst: false });
   if (filter) {
     query = query
       .gte('lead_at', filter.startDate)
       .lt('lead_at', filter.endDate);
   }
 
-  const { data, error } = await query;
-  if (error || !data?.length) return [];
+  // Paginate — table can exceed 1K rows (currently 1,364)
+  const PAGE_SIZE = 1000;
+  const allRows: (DbRecruitingLead & { recruiting_campaigns?: { name: string } })[] = [];
+  let offset = 0;
+  while (true) {
+    const { data, error } = await query.range(offset, offset + PAGE_SIZE - 1);
+    if (error) {
+      console.warn('[Recruiting] Leads fetch error:', error.message);
+      break;
+    }
+    if (!data || data.length === 0) break;
+    allRows.push(...(data as (DbRecruitingLead & { recruiting_campaigns?: { name: string } })[]));
+    if (data.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+  }
 
-  return (data as (DbRecruitingLead & { recruiting_campaigns?: { name: string } })[])
-    .map(row => mapRecruitingLead(row, row.recruiting_campaigns?.name ?? undefined));
+  return allRows.map(row => mapRecruitingLead(row, row.recruiting_campaigns?.name ?? undefined));
 }
 
 const EMPTY_FUNNEL: RecruitingFunnel = { leads: 0, attendees: 0, hired: 0, contracting: 0, rts: 0, producing: 0, lost: 0 };
