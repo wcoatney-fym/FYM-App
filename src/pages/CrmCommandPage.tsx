@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, ScrollText, KanbanSquare, GitBranch,
-  Workflow, BarChart3, Target, Users, Headphones, Settings
+  Workflow, BarChart3, Target, Users, Headphones, Settings, Database
 } from 'lucide-react';
 
 // Tab components

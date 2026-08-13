@@ -338,7 +338,6 @@ export async function fetchRecruitingKpis(filter?: RecruitingDateFilter): Promis
   // Attendees = from stage log (date-accurate) or GHL tag fallback
   const attendees = ghlCounts?.attendees ?? 0;
   const hired = ghlCounts?.hired ?? 0;
-  const contracting = ghlCounts?.contracting ?? 0;
   const rts = ghlCounts?.rts ?? 0;
   const producing = ghlCounts?.producing ?? 0;
 

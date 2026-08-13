@@ -9,7 +9,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   Users, UserCheck, Briefcase, FileText, ShieldCheck,
-  TrendingUp, AlertTriangle, Clock, Search, Calendar,
+  TrendingUp, AlertTriangle, Clock, Search,
   RefreshCw, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
