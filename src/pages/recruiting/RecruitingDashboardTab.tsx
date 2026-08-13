@@ -296,7 +296,10 @@ export function RecruitingDashboardTab() {
                   <Tooltip
                     contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
                     labelStyle={{ color: 'hsl(var(--foreground))' }}
-                    formatter={(value: number, name: string) => [name === 'spend' ? `$${value.toFixed(2)}` : value, name === 'spend' ? 'Spend' : 'Leads']}
+                    formatter={(value: number, name: string) => {
+                      const isSpend = name.toLowerCase() === 'spend';
+                      return [isSpend ? `$${value.toFixed(2)}` : value, isSpend ? 'Spend' : 'Leads'];
+                    }}
                   />
                   <Legend />
                   <Bar yAxisId="leads" dataKey="leads" name="Leads" fill="hsl(199,89%,48%)" opacity={0.4} radius={[4, 4, 0, 0]} />
