@@ -35,6 +35,7 @@
  */
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { createProdConnection } from "../_shared/prod-db.ts";
 
 // ── Constants ─────────────────────────────────────────────────────────────
 const RECRUITING_LOCATION_ID = "e7yV92T56bkUoGqsge8K";
@@ -486,6 +487,108 @@ async function handleSync(
       });
     }
   } // end RTS stage loop
+
+  // ── 2c. PRODUCING — match recruiting leads against Max's production DB ──
+  console.log(`[sync] Checking Max's DB for producing agents...`);
+  stats.producing = { matched: 0, newTransitions: 0 };
+  let prodSql: ReturnType<typeof createProdConnection> | null = null;
+  try {
+    prodSql = createProdConnection();
+    // Get agents with production since Feb 1 — first app_recvd_date per wa_name
+    const prodRows = await prodSql`
+      SELECT wa_name, MIN(app_recvd_date)::text as first_app_date
+      FROM typed.unl_fym_policy_latest_load
+      WHERE app_recvd_date >= '2026-02-01'
+        AND wa_name IS NOT NULL AND wa_name != ''
+      GROUP BY wa_name
+      UNION
+      SELECT wa_name, MIN(app_recvd_date)::text as first_app_date
+      FROM typed.gtl_fym_policy_latest_load
+      WHERE app_recvd_date >= '2026-02-01'
+        AND wa_name IS NOT NULL AND wa_name != ''
+      GROUP BY wa_name
+    `;
+    // Build lookup by normalized name (MAX DB is uppercase)
+    const prodLookup = new Map<string, { name: string; firstAppDate: string }>();
+    for (const row of prodRows) {
+      const nname = (row.wa_name || "").toUpperCase().trim()
+        .replace(/\(.*?\)/g, "").replace(/\s+/g, " ").trim();
+      if (!nname) continue;
+      const existing = prodLookup.get(nname);
+      if (!existing || row.first_app_date < existing.firstAppDate) {
+        prodLookup.set(nname, { name: row.wa_name, firstAppDate: row.first_app_date });
+      }
+      // Also index by swapped first/last for 2-part names
+      const parts = nname.split(" ");
+      if (parts.length === 2) {
+        const swapped = `${parts[1]} ${parts[0]}`;
+        if (!prodLookup.has(swapped) || row.first_app_date < (prodLookup.get(swapped)?.firstAppDate || "")) {
+          prodLookup.set(swapped, { name: row.wa_name, firstAppDate: row.first_app_date });
+        }
+      }
+    }
+    console.log(`[sync] Production agents loaded: ${prodLookup.size}`);
+
+    // Get all recruiting leads from DB
+    const { data: allLeads } = await appDb
+      .from("recruiting_leads")
+      .select("ghl_contact_id, name, email, stage");
+
+    if (allLeads) {
+      for (const lead of allLeads) {
+        const rawName = (lead.name || "").trim();
+        let nname = rawName.toUpperCase()
+          .split(" | ")[0].trim()
+          .replace(/\(.*?\)/g, "").replace(/\s+/g, " ").trim();
+        // Remove common suffixes
+        for (const sfx of [" JR", " SR", " II", " III", " IV"]) {
+          if (nname.endsWith(sfx)) nname = nname.slice(0, -sfx.length).trim();
+        }
+        const prod = prodLookup.get(nname);
+        if (!prod) continue;
+
+        stats.producing.matched++;
+
+        const key = `${lead.ghl_contact_id}|producing|sync`;
+        if (!existingSet.has(key)) {
+          transitionsToInsert.push({
+            ghl_contact_id: lead.ghl_contact_id,
+            stage: "producing",
+            condition: "sync",
+            previous_stage: "rts",
+            metadata: {
+              source: "max_db_match",
+              prod_name: prod.name,
+              first_app_date: prod.firstAppDate,
+            },
+            occurred_at: prod.firstAppDate + "T00:00:00Z",
+          });
+          existingSet.add(key);
+          stats.producing.newTransitions++;
+        }
+
+        // Update lead stage if they've graduated
+        if (lead.stage !== "producing") {
+          leadsToUpsert.push({
+            ghl_contact_id: lead.ghl_contact_id,
+            name: rawName,
+            email: lead.email || null,
+            phone: null,
+            stage: "producing",
+            updated_at: now,
+          });
+        }
+      }
+    }
+    console.log(`[sync] Producing: ${stats.producing.matched} matched, ${stats.producing.newTransitions} new transitions`);
+  } catch (prodErr) {
+    console.error(`[sync] Producing check error (non-fatal): ${(prodErr as Error).message}`);
+    stats.errors.push(`producing: ${(prodErr as Error).message}`);
+  } finally {
+    if (prodSql) {
+      try { await prodSql.end(); } catch { /* ignore */ }
+    }
+  }
 
   // ── 3. BATCH UPSERT leads ─────────────────────────────────────────────
   console.log(`[sync] Upserting ${leadsToUpsert.length} leads...`);
