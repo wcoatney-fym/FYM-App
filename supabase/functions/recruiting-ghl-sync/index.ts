@@ -51,6 +51,8 @@ const CONTRACTING_STAGE_ID = "e5086dba-8459-4be3-aed6-1e8c1bd70423";
 const RTS_STAGE_ID = "6cc9d0c5-52c3-49e5-b2ac-82f5d4848d5d";
 
 // Tag signals — ALL tag-based, from recruiting sub contacts
+// Lead gate: only contacts with this tag are counted as recruiting leads
+const LEAD_TAG = "hosp ind | agent lead";
 const ATTENDEE_TAGS = ["opps call | attended"];
 const HIRED_TAGS = ["robbys hip | broker", "robbys hip | career"];
 
@@ -262,14 +264,19 @@ async function handleSync(
 
   stats.recruiting.totalContacts = allContacts.length;
 
-  // Filter to Feb 1+ only
+  // Filter: Feb 1+ AND must have the "hosp ind | agent lead" tag to count as a lead
   const contacts = allContacts.filter((c) => {
     const added = c.dateAdded ? new Date(c.dateAdded) : null;
-    return added && added >= new Date(DATA_CUTOFF);
+    if (!added || added < new Date(DATA_CUTOFF)) return false;
+    // Only contacts tagged as agent leads enter the recruiting funnel
+    const tags = (c.tags || []).map((t) => t.toLowerCase().trim());
+    return tags.includes(LEAD_TAG.toLowerCase());
   });
 
   stats.recruiting.afterCutoff = contacts.length;
-  console.log(`[sync] ${allContacts.length} total, ${contacts.length} after Feb 1 cutoff`);
+  console.log(
+    `[sync] ${allContacts.length} total, ${contacts.length} with "${LEAD_TAG}" tag after Feb 1 cutoff`
+  );
 
   // Get existing transitions to avoid duplicates
   // Key = "contactId|stage|condition" — we only insert a transition once per stage per contact
