@@ -224,31 +224,7 @@ function mapDailySpend(row: DbDailySpend): DailySpend {
   };
 }
 
-function mapRecruitingLead(row: DbRecruitingLead, campaignName?: string): RecruitingLead {
-  return {
-    id: row.id,
-    name: row.name,
-    email: row.email,
-    phone: row.phone,
-    stage: row.stage as RecruitingLead['stage'],
-    campaignId: row.campaign_id,
-    campaignName: campaignName ?? null,
-    adSetId: row.ad_set_id,
-    adSetName: null,
-    npn: row.npn,
-    writingNumber: row.writing_number,
-    leadAt: row.lead_at,
-    attendeeAt: row.attendee_at,
-    hiredAt: row.hired_at,
-    contractingAt: row.contracting_at,
-    rtsAt: row.rts_at,
-    producingAt: row.producing_at,
-    lostAt: row.lost_at,
-    lostStage: row.lost_stage as RecruitingLead['lostStage'],
-    lostReason: row.lost_reason,
-    notes: row.notes,
-  };
-}
+// mapRecruitingLead removed — fetchRecruitingLeads now uses mapRpcLead via get_recruiting_leads RPC
 
 // ── Recruiting campaign ID cache ───────────────────────────────────────────
 // Fetches IDs of campaigns flagged as feed_recruiting=true.
