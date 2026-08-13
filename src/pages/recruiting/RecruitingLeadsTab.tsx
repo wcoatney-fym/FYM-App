@@ -343,7 +343,9 @@ export function RecruitingLeadsTab() {
                           )}
                         </td>
                         <td className="px-4 py-3 text-right text-muted-foreground text-xs">
-                          {new Date(lead.leadAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          {lead.leadAt
+                            ? new Date(lead.leadAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                            : '—'}
                         </td>
                       </tr>
                     );
