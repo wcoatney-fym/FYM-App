@@ -48,7 +48,14 @@ const DATA_CUTOFF = "2026-02-01T00:00:00.000Z";
 // Contracting pipeline: "New Agents Pipeline"
 const CONTRACTING_PIPELINE_ID = "8h8F2lAFHXUkEJgZa2KD";
 const CONTRACTING_STAGE_ID = "e5086dba-8459-4be3-aed6-1e8c1bd70423";
-const RTS_STAGE_ID = "6cc9d0c5-52c3-49e5-b2ac-82f5d4848d5d";
+// RTS stages — expanded list per Charlie (2026-08-13)
+const RTS_STAGE_IDS: Record<string, string> = {
+  "6cc9d0c5-52c3-49e5-b2ac-82f5d4848d5d": "RTS Status (Tracey)",
+  "93015fe2-aa22-48d1-b540-d1034509535a": "Hip Broker READY",
+  "8f9b45ac-321a-4eeb-b207-4f46a56fe991": "Hip Career READY",
+  "ccc320f2-9ad9-44c4-aeb4-f645f3b924c8": "Actively Selling",
+  "03561146-d2f4-4729-8697-4566c1aa17de": "Active Brokers",
+};
 
 // Tag signals — ALL tag-based, from recruiting sub contacts
 // Lead gate: only contacts with this tag are counted as recruiting leads
@@ -430,52 +437,55 @@ async function handleSync(
     });
   }
 
-  // 2b. RTS Status (Tracey)
-  const rtsOpps = await searchOpportunitiesAtStage(
-    contractingApiKey,
-    CONTRACTING_PIPELINE_ID,
-    RTS_STAGE_ID,
-    CONTRACTING_LOCATION_ID
-  );
+  // 2b. RTS stages — expanded list (5 stages)
+  for (const [rtsStageId, rtsStageName] of Object.entries(RTS_STAGE_IDS)) {
+    const rtsOpps = await searchOpportunitiesAtStage(
+      contractingApiKey,
+      CONTRACTING_PIPELINE_ID,
+      rtsStageId,
+      CONTRACTING_LOCATION_ID
+    );
 
-  for (const opp of rtsOpps) {
-    const contactId = opp.contact?.id || opp.id;
-    const dateAdded = opp.createdAt || opp.dateAdded || opp.lastStageChangeAt || now;
+    for (const opp of rtsOpps) {
+      const contactId = opp.contact?.id || opp.id;
+      const dateAdded = opp.createdAt || opp.dateAdded || opp.lastStageChangeAt || now;
 
-    if (new Date(dateAdded) < new Date(DATA_CUTOFF)) continue;
+      if (new Date(dateAdded) < new Date(DATA_CUTOFF)) continue;
 
-    stats.contracting.rts++;
+      stats.contracting.rts++;
 
-    const key = `${contactId}|rts|sync`;
-    if (!existingSet.has(key)) {
-      transitionsToInsert.push({
+      const key = `${contactId}|rts|sync`;
+      if (!existingSet.has(key)) {
+        transitionsToInsert.push({
+          ghl_contact_id: contactId,
+          stage: "rts",
+          condition: "sync",
+          previous_stage: "contracting",
+          metadata: {
+            source: "contracting_sub",
+            pipeline: "New Agents Pipeline",
+            stage_name: rtsStageName,
+            ghl_stage_id: rtsStageId,
+            opp_id: opp.id,
+            opp_name: opp.name,
+          },
+          occurred_at: opp.lastStageChangeAt || dateAdded,
+        });
+        existingSet.add(key);
+        stats.contracting.newTransitions++;
+      }
+
+      leadsToUpsert.push({
         ghl_contact_id: contactId,
+        name: opp.contact?.name || opp.name || "Unknown",
+        email: opp.contact?.email || null,
+        phone: opp.contact?.phone || null,
         stage: "rts",
-        condition: "sync",
-        previous_stage: "contracting",
-        metadata: {
-          source: "contracting_sub",
-          pipeline: "New Agents Pipeline",
-          stage_name: "RTS Status (Tracey)",
-          opp_id: opp.id,
-          opp_name: opp.name,
-        },
-        occurred_at: opp.lastStageChangeAt || dateAdded,
+        rts_at: opp.lastStageChangeAt || dateAdded,
+        updated_at: now,
       });
-      existingSet.add(key);
-      stats.contracting.newTransitions++;
     }
-
-    leadsToUpsert.push({
-      ghl_contact_id: contactId,
-      name: opp.contact?.name || opp.name || "Unknown",
-      email: opp.contact?.email || null,
-      phone: opp.contact?.phone || null,
-      stage: "rts",
-      rts_at: opp.lastStageChangeAt || dateAdded,
-      updated_at: now,
-    });
-  }
+  } // end RTS stage loop
 
   // ── 3. BATCH UPSERT leads ─────────────────────────────────────────────
   console.log(`[sync] Upserting ${leadsToUpsert.length} leads...`);
