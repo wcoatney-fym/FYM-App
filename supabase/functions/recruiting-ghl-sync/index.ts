@@ -1,51 +1,58 @@
 /**
- * recruiting-ghl-sync — GHL Recruiting Data API
+ * recruiting-ghl-sync — Recruiting Pipeline Sync & Query Engine
  *
- * Three modes:
- *   POST ?action=counts     — Live KPI counts from GHL API (date-filtered)
- *   POST ?action=sync       — Sync tagged contacts into recruiting_leads + stage transitions
+ * Architecture: LOCAL-FIRST. All KPI reads come from recruiting_stage_transitions.
+ * A 3-hour cron populates the log; page loads never hit GHL.
+ *
+ * Actions:
+ *   POST ?action=sync       — Incremental sync (called by cron every 3h)
+ *   POST ?action=counts     — Read pipeline counts from local stage log (fast, no GHL)
  *   POST ?action=check-lost — Evaluate Lost threshold and auto-flag stale contacts
  *
- * "counts" mode:
- *   - Leads: contacts created in GHL within date range (dateAdded filter)
- *   - Attendees: contacts with attendee tag, date-filtered via stage_transitions log
- *     (GHL doesn't track when a tag was applied, so we maintain our own log)
- *   - Hired: opportunities at Hired stages in the Agent Recruiting pipeline
- *   - When stage_transitions log has data for the period, uses that for date-accurate counts
- *   - Falls back to GHL API counts when no log data exists
+ * Sync pulls from TWO GHL sub-accounts:
+ *   1. Recruiting sub (e7yV92T56bkUoGqsge8K) — contacts created, attended/hired TAGS
+ *   2. Contracting sub (pE2DOS2bdVB3AYlMcQ1a) — pipeline stages (contracting + RTS)
  *
- * "sync" mode: Syncs tagged contacts and records stage transitions with timestamps.
- *   Every contact gets a stage transition logged so date filtering works.
+ * Tag signals (recruiting sub):
+ *   - Attended: "opps call | attended"
+ *   - Hired:    "robbys hip | broker" OR "robbys hip | career"
  *
- * "check-lost" mode: Reads recruiting_lost_settings threshold, finds contacts
- *   that have been at the same stage for longer than the threshold, and auto-flags
- *   them as Lost with re-entry support.
+ * Pipeline signals (contracting sub):
+ *   - Contracting: "IN CONTRACTING PROCESS" stage
+ *   - RTS:         "RTS Status (Tracey)" stage
  *
- * Token source: ghl_location_tokens in tracker DB (lryxx)
- * Auth: x-cron-auth header or Authorization: Bearer <service_role_key>
+ * Transition dating:
+ *   - Lead: occurred_at = contact dateAdded (when they entered the system)
+ *   - Attendee/Hired: occurred_at = sync timestamp when tag is FIRST DETECTED
+ *     (GHL doesn't expose tag-applied dates, so we log when we see it)
+ *   - Contracting/RTS: occurred_at = lastStageChangeAt from the opportunity
+ *
+ * Hard cutoff: Feb 1, 2026 — all contacts before this date are ignored.
+ *
+ * Token sources:
+ *   - Recruiting: OAuth token in ghl_location_tokens (tracker DB lryxx), refreshed every 6h
+ *   - Contracting: GHL_CONTRACTING_API env var (v2 API key)
  */
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+// ── Constants ─────────────────────────────────────────────────────────────
 const RECRUITING_LOCATION_ID = "e7yV92T56bkUoGqsge8K";
+const CONTRACTING_LOCATION_ID = "pE2DOS2bdVB3AYlMcQ1a";
 const GHL_API_BASE = "https://services.leadconnectorhq.com";
-const RATE_LIMIT_DELAY_MS = 100;
+const RATE_LIMIT_DELAY_MS = 120;
 
-// Tags for stage identification
-const LEAD_TAG = "hosp ind | agent lead";
-const ATTENDEE_TAGS = [
-  "opps call | attended",
-  "hosp ind | opp call | attended",
-  "opps call | attended | self reported",
-];
+// Hard cutoff — Medicare pivot Feb 1 2026
+const DATA_CUTOFF = "2026-02-01T00:00:00.000Z";
 
-// Hired stage names in the "Agent Recruiting" pipeline
-const HIRED_STAGE_NAMES = [
-  "hip | career | hired",
-  "hip | broker | hired",
-  "hip | hired (auto send intake)",
-  "hired",
-];
+// Contracting pipeline: "New Agents Pipeline"
+const CONTRACTING_PIPELINE_ID = "8h8F2lAFHXUkEJgZa2KD";
+const CONTRACTING_STAGE_ID = "e5086dba-8459-4be3-aed6-1e8c1bd70423";
+const RTS_STAGE_ID = "6cc9d0c5-52c3-49e5-b2ac-82f5d4848d5d";
+
+// Tag signals — ALL tag-based, from recruiting sub contacts
+const ATTENDEE_TAGS = ["opps call | attended"];
+const HIRED_TAGS = ["robbys hip | broker", "robbys hip | career"];
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -55,7 +62,7 @@ const corsHeaders = {
 };
 
 function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 function jsonResponse(data: unknown, status = 200) {
@@ -65,8 +72,8 @@ function jsonResponse(data: unknown, status = 200) {
   });
 }
 
-// ── Get GHL access token ──────────────────────────────────────────────────
-async function getGhlToken(
+// ── Get recruiting OAuth token (from tracker DB) ──────────────────────────
+async function getRecruitingToken(
   trackerUrl: string,
   trackerKey: string
 ): Promise<string | null> {
@@ -78,396 +85,41 @@ async function getGhlToken(
     .single();
 
   if (error || !data) {
-    console.error(
-      `[recruiting-ghl-sync] Token fetch error: ${error?.message || "no data"}`
-    );
+    console.error(`[sync] Recruiting token error: ${error?.message || "no data"}`);
     return null;
   }
   if (new Date(data.expires_at) < new Date()) {
-    console.error(
-      `[recruiting-ghl-sync] Token expired at ${data.expires_at}`
-    );
+    console.error(`[sync] Recruiting token expired at ${data.expires_at}`);
     return null;
   }
   return data.access_token;
 }
 
-// ── GHL search: count contacts created in date range ──────────────────────
-async function countContactsCreated(
+// ── GHL v2: search contacts (paginated, no filters — GHL doesn't support date filters) ─
+interface GhlContact {
+  id: string;
+  contactName?: string;
+  name?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  tags?: string[];
+  dateAdded?: string;
+  dateUpdated?: string;
+}
+
+async function fetchAllContacts(
   token: string,
-  startDate?: string,
-  endDate?: string
-): Promise<number> {
-  const filters: Array<{
-    field: string;
-    operator: string;
-    value: string;
-  }> = [];
-
-  // Date range filter on dateAdded (when the contact was created)
-  if (startDate) {
-    filters.push({
-      field: "dateAdded",
-      operator: "GTE",
-      value: new Date(startDate).toISOString(),
-    });
-  }
-  if (endDate) {
-    filters.push({
-      field: "dateAdded",
-      operator: "LTE",
-      value: new Date(endDate).toISOString(),
-    });
-  }
-
-  // If no date filter, get all contacts count
-  const body: Record<string, unknown> = {
-    locationId: RECRUITING_LOCATION_ID,
-    page: 1,
-    pageLimit: 1, // We only need the total count
-  };
-  if (filters.length > 0) {
-    body.filters = filters;
-  }
-
-  const res = await fetch(`${GHL_API_BASE}/contacts/search`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Version: "2021-07-28",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) {
-    console.error(
-      `[recruiting-ghl-sync] Contact count search failed: ${res.status}`
-    );
-    return 0;
-  }
-
-  const data = await res.json();
-  return data.total || 0;
-}
-
-// ── GHL search: count contacts by tag ─────────────────────────────────────
-async function countContactsByTag(
-  token: string,
-  tag: string,
-  startDate?: string,
-  endDate?: string
-): Promise<number> {
-  const filters: Array<{
-    field: string;
-    operator: string;
-    value: string;
-  }> = [{ field: "tags", operator: "contains", value: tag }];
-  if (startDate) {
-    filters.push({
-      field: "dateAdded",
-      operator: "GTE",
-      value: new Date(startDate).toISOString(),
-    });
-  }
-  if (endDate) {
-    filters.push({
-      field: "dateAdded",
-      operator: "LTE",
-      value: new Date(endDate).toISOString(),
-    });
-  }
-
-  const res = await fetch(`${GHL_API_BASE}/contacts/search`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Version: "2021-07-28",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      locationId: RECRUITING_LOCATION_ID,
-      filters,
-      page: 1,
-      pageLimit: 1,
-    }),
-  });
-
-  if (!res.ok) {
-    console.error(
-      `[recruiting-ghl-sync] Search failed for tag "${tag}": ${res.status}`
-    );
-    return 0;
-  }
-
-  const data = await res.json();
-  return data.total || 0;
-}
-
-// ── GHL: count opportunities at specific stages ───────────────────────────
-async function countHiredOpportunities(
-  token: string
-): Promise<{
-  hired: number;
-  pipelineName: string;
-  stageBreakdown: Record<string, number>;
-}> {
-  const pipRes = await fetch(
-    `${GHL_API_BASE}/opportunities/pipelines?locationId=${RECRUITING_LOCATION_ID}`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Version: "2021-07-28",
-        Accept: "application/json",
-      },
-    }
-  );
-  if (!pipRes.ok) return { hired: 0, pipelineName: "", stageBreakdown: {} };
-
-  const pipData = await pipRes.json();
-  const pipeline = (pipData.pipelines || []).find(
-    (p: { name: string }) =>
-      p.name.toLowerCase().includes("agent recruiting")
-  );
-  if (!pipeline)
-    return { hired: 0, pipelineName: "", stageBreakdown: {} };
-
-  const hiredStageIds = pipeline.stages
-    .filter((s: { name: string }) =>
-      HIRED_STAGE_NAMES.includes(s.name.toLowerCase())
-    )
-    .map((s: { id: string }) => s.id);
-
-  if (hiredStageIds.length === 0)
-    return { hired: 0, pipelineName: pipeline.name, stageBreakdown: {} };
-
-  let totalHired = 0;
-  const stageBreakdown: Record<string, number> = {};
-
-  for (const stageId of hiredStageIds) {
-    const stageName =
-      pipeline.stages.find((s: { id: string }) => s.id === stageId)?.name ||
-      "Unknown";
-
-    const res = await fetch(
-      `${GHL_API_BASE}/opportunities/search?location_id=${RECRUITING_LOCATION_ID}&pipeline_id=${pipeline.id}&pipeline_stage_id=${stageId}&limit=1`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Version: "2021-07-28",
-          Accept: "application/json",
-        },
-      }
-    );
-
-    if (res.ok) {
-      const data = await res.json();
-      const count = data.meta?.total || data.opportunities?.length || 0;
-      totalHired += count;
-      if (count > 0) stageBreakdown[stageName] = count;
-    }
-
-    await sleep(RATE_LIMIT_DELAY_MS);
-  }
-
-  return { hired: totalHired, pipelineName: pipeline.name, stageBreakdown };
-}
-
-// ── Get date-filtered counts from stage transition log ────────────────────
-async function getLogBasedCounts(
-  appDb: ReturnType<typeof createClient>,
-  startDate?: string,
-  endDate?: string
-): Promise<{
-  hasData: boolean;
-  leads: number;
-  attendees: number;
-  hired: number;
-  contracting: number;
-  rts: number;
-  producing: number;
-  lost: number;
-} | null> {
-  // Check if we have any transition log data
-  const { count } = await appDb
-    .from("recruiting_stage_transitions")
-    .select("id", { count: "exact", head: true });
-
-  if (!count || count === 0) return null;
-
-  // Build query with date filter
-  let query = appDb
-    .from("recruiting_stage_transitions")
-    .select("stage, ghl_contact_id")
-    .neq("condition", "auto_lost"); // Don't count auto-lost as entries
-
-  if (startDate) {
-    query = query.gte("occurred_at", new Date(startDate).toISOString());
-  }
-  if (endDate) {
-    query = query.lte("occurred_at", new Date(endDate).toISOString());
-  }
-
-  const { data, error } = await query;
-  if (error) {
-    console.error(
-      `[recruiting-ghl-sync] Log query error: ${error.message}`
-    );
-    return null;
-  }
-  if (!data || data.length === 0) {
-    return {
-      hasData: true,
-      leads: 0,
-      attendees: 0,
-      hired: 0,
-      contracting: 0,
-      rts: 0,
-      producing: 0,
-      lost: 0,
-    };
-  }
-
-  // Count unique contacts per stage
-  const stageSets: Record<string, Set<string>> = {
-    lead: new Set(),
-    attendee: new Set(),
-    hired: new Set(),
-    contracting: new Set(),
-    rts: new Set(),
-    producing: new Set(),
-    lost: new Set(),
-  };
-
-  for (const row of data) {
-    const stage = row.stage as string;
-    const contactId = row.ghl_contact_id as string;
-    if (stageSets[stage]) {
-      stageSets[stage].add(contactId);
-    }
-  }
-
-  return {
-    hasData: true,
-    leads: stageSets.lead.size,
-    attendees: stageSets.attendee.size,
-    hired: stageSets.hired.size,
-    contracting: stageSets.contracting.size,
-    rts: stageSets.rts.size,
-    producing: stageSets.producing.size,
-    lost: stageSets.lost.size,
-  };
-}
-
-// ── Action: counts ────────────────────────────────────────────────────────
-async function handleCounts(
-  token: string,
-  startDate?: string,
-  endDate?: string,
-  appUrl?: string,
-  appServiceKey?: string
-) {
-  const startTime = Date.now();
-
-  // Try log-based counts first (date-accurate)
-  let logCounts: Awaited<ReturnType<typeof getLogBasedCounts>> = null;
-  if (appUrl && appServiceKey) {
-    const appDb = createClient(appUrl, appServiceKey);
-    logCounts = await getLogBasedCounts(appDb, startDate, endDate);
-  }
-
-  if (logCounts?.hasData) {
-    // Use log-based counts — these are date-accurate
-    // Still fetch leads from GHL (contacts created) for the lead count
-    const leads = await countContactsCreated(token, startDate, endDate);
-
-    return {
-      leads,
-      attendees: logCounts.attendees,
-      hired: logCounts.hired,
-      contracting: logCounts.contracting,
-      rts: logCounts.rts,
-      producing: logCounts.producing,
-      lost: logCounts.lost,
-      dateFilter:
-        startDate && endDate ? { startDate, endDate } : null,
-      durationMs: Date.now() - startTime,
-      source: "stage_log+ghl",
-      cachedAt: new Date().toISOString(),
-    };
-  }
-
-  // Fallback: GHL API counts (not date-accurate for attendees/leads)
-  // IMPORTANT: GHL can only filter contacts by dateAdded (creation date),
-  // NOT by when a tag was applied. So date-filtered tag counts are unreliable.
-  // When stage log has no data, return ALL-TIME counts from GHL as the fallback.
-  // Date-accurate counting only works once the stage log is seeded via sync.
-  const [leads, leadsAllTime, attendeeCounts, attendeeCountsAllTime, hiredData] = await Promise.all([
-    countContactsCreated(token, startDate, endDate),
-    // Also fetch all-time count as fallback when date-filtered returns 0
-    (startDate || endDate) ? countContactsCreated(token) : Promise.resolve(0),
-    Promise.all(
-      ATTENDEE_TAGS.map((tag) =>
-        countContactsByTag(token, tag, startDate, endDate)
-      )
-    ),
-    // Also fetch all-time attendee counts as fallback
-    (startDate || endDate)
-      ? Promise.all(ATTENDEE_TAGS.map((tag) => countContactsByTag(token, tag)))
-      : Promise.resolve([0]),
-    countHiredOpportunities(token),
-  ]);
-
-  const attendeesFiltered = Math.max(...attendeeCounts, 0);
-  const attendeesAllTime = Math.max(...attendeeCountsAllTime, 0);
-  // Use date-filtered if it returned results, otherwise fall back to all-time
-  const attendees = attendeesFiltered > 0 ? attendeesFiltered : attendeesAllTime;
-  // Same for leads — use date-filtered if >0, else all-time
-  const finalLeads = leads > 0 ? leads : leadsAllTime;
-
-  return {
-    leads: finalLeads,
-    attendees,
-    hired: hiredData.hired,
-    pipeline: hiredData.pipelineName,
-    hiredBreakdown: hiredData.stageBreakdown,
-    contracting: 0,
-    rts: 0,
-    producing: 0,
-    lost: 0,
-    dateFilter:
-      startDate && endDate ? { startDate, endDate } : null,
-    durationMs: Date.now() - startTime,
-    source: "ghl_live",
-    cachedAt: new Date().toISOString(),
-  };
-}
-
-// ── Action: sync (seed recruiting_leads + log transitions) ────────────────
-async function handleSync(
-  token: string,
-  appUrl: string,
-  appServiceKey: string
-) {
-  const appDb = createClient(appUrl, appServiceKey);
-  const startTime = Date.now();
-
-  // Fetch all contacts in the recruiting location using search endpoint
-  const contacts: Array<{
-    id: string;
-    contactName?: string;
-    name?: string;
-    firstName?: string;
-    lastName?: string;
-    email?: string;
-    phone?: string;
-    tags?: string[];
-    dateAdded?: string;
-  }> = [];
+  locationId: string,
+  maxPages = 50
+): Promise<{ contacts: GhlContact[]; total: number }> {
+  const contacts: GhlContact[] = [];
   let page = 1;
   const pageLimit = 100;
+  let total = 0;
 
-  while (true) {
+  while (page <= maxPages) {
     const res = await fetch(`${GHL_API_BASE}/contacts/search`, {
       method: "POST",
       headers: {
@@ -475,334 +127,531 @@ async function handleSync(
         Version: "2021-07-28",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        locationId: RECRUITING_LOCATION_ID,
-        filters: [
-          { field: "tags", operator: "contains", value: LEAD_TAG },
-        ],
-        page,
-        pageLimit,
-      }),
+      body: JSON.stringify({ locationId, page, pageLimit }),
     });
 
     if (!res.ok) {
-      console.error(
-        `[recruiting-ghl-sync] Search page ${page} failed: ${res.status}`
-      );
+      console.error(`[sync] Search page ${page} failed: ${res.status}`);
       break;
     }
 
     const data = await res.json();
+    total = data.total || 0;
     const batch = data.contacts || [];
     contacts.push(...batch);
-    console.log(
-      `[recruiting-ghl-sync] Sync page ${page}: ${contacts.length}/${data.total || "?"}`
-    );
 
-    if (
-      batch.length < pageLimit ||
-      contacts.length >= (data.total || Infinity)
-    )
-      break;
+    if (batch.length < pageLimit || contacts.length >= total) break;
     page++;
     await sleep(RATE_LIMIT_DELAY_MS);
   }
 
-  // Build upsert rows + stage transitions
-  const now = new Date().toISOString();
-  let attendeeCount = 0;
-  const transitions: Array<{
-    ghl_contact_id: string;
-    stage: string;
-    condition: string;
-    previous_stage: string | null;
-    metadata: Record<string, unknown>;
-    occurred_at: string;
-  }> = [];
+  return { contacts, total };
+}
 
-  const rows = contacts.map((c) => {
-    const name =
-      c.contactName ||
-      c.name ||
-      [c.firstName, c.lastName].filter(Boolean).join(" ") ||
-      "Unknown";
-    const tags = (c.tags || []).map((t: string) => t.toLowerCase());
-    const isAttendee = tags.some((t: string) =>
-      ATTENDEE_TAGS.map((at) => at.toLowerCase()).includes(t)
+// ── GHL v2: search opportunities at a pipeline stage ──────────────────────
+interface GhlOpportunity {
+  id: string;
+  name: string;
+  contact?: { id?: string; name?: string; email?: string; phone?: string };
+  pipelineStageId?: string;
+  status?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  lastStageChangeAt?: string;
+  dateAdded?: string;
+}
+
+async function searchOpportunitiesAtStage(
+  apiKey: string,
+  pipelineId: string,
+  stageId: string,
+  locationId: string
+): Promise<GhlOpportunity[]> {
+  const opportunities: GhlOpportunity[] = [];
+  let startAfter = "";
+  let pageCount = 0;
+  const maxPages = 50;
+
+  while (pageCount < maxPages) {
+    const params = new URLSearchParams({
+      location_id: locationId,
+      pipeline_id: pipelineId,
+      pipeline_stage_id: stageId,
+      limit: "100",
+    });
+    if (startAfter) params.set("startAfter", startAfter);
+    if (startAfter === "" && pageCount > 0) break;
+
+    const res = await fetch(
+      `${GHL_API_BASE}/opportunities/search?${params.toString()}`,
+      {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          Version: "2021-07-28",
+          Accept: "application/json",
+        },
+      }
     );
 
+    if (!res.ok) {
+      console.error(`[sync] Opp search stage ${stageId} page ${pageCount}: ${res.status}`);
+      break;
+    }
+
+    const data = await res.json();
+    const batch: GhlOpportunity[] = data.opportunities || [];
+    opportunities.push(...batch);
+
+    const meta = data.meta || {};
+    startAfter = meta.startAfter || meta.nextPageUrl || "";
+    if (batch.length < 100 || !startAfter) break;
+
+    pageCount++;
+    await sleep(RATE_LIMIT_DELAY_MS);
+  }
+
+  return opportunities;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function contactName(c: GhlContact): string {
+  return (
+    c.contactName ||
+    c.name ||
+    [c.firstName, c.lastName].filter(Boolean).join(" ") ||
+    "Unknown"
+  );
+}
+
+function hasAnyTag(contact: GhlContact, tags: string[]): boolean {
+  const cTags = (contact.tags || []).map((t) => t.toLowerCase().trim());
+  return tags.some((t) => cTags.includes(t.toLowerCase().trim()));
+}
+
+function matchedTag(contact: GhlContact, tags: string[]): string | null {
+  const cTags = (contact.tags || []).map((t) => t.toLowerCase().trim());
+  for (const t of tags) {
+    if (cTags.includes(t.toLowerCase().trim())) return t;
+  }
+  return null;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ACTION: SYNC — 3-hour cron populates local stage_transitions
+// ══════════════════════════════════════════════════════════════════════════
+async function handleSync(
+  recruitingToken: string,
+  contractingApiKey: string,
+  appUrl: string,
+  appServiceKey: string
+) {
+  const appDb = createClient(appUrl, appServiceKey);
+  const startTime = Date.now();
+  const now = new Date().toISOString();
+  const stats = {
+    recruiting: { totalContacts: 0, afterCutoff: 0, leads: 0, attendees: 0, hired: 0, newTransitions: 0 },
+    contracting: { contracting: 0, rts: 0, newTransitions: 0 },
+    errors: [] as string[],
+  };
+
+  // ── 1. RECRUITING SUB: fetch ALL contacts, filter Feb 1+ locally ──────
+  console.log("[sync] Fetching all recruiting contacts...");
+
+  const { contacts: allContacts, total: ghlTotal } =
+    await fetchAllContacts(recruitingToken, RECRUITING_LOCATION_ID, 50);
+
+  stats.recruiting.totalContacts = allContacts.length;
+
+  // Filter to Feb 1+ only
+  const contacts = allContacts.filter((c) => {
+    const added = c.dateAdded ? new Date(c.dateAdded) : null;
+    return added && added >= new Date(DATA_CUTOFF);
+  });
+
+  stats.recruiting.afterCutoff = contacts.length;
+  console.log(`[sync] ${allContacts.length} total, ${contacts.length} after Feb 1 cutoff`);
+
+  // Get existing transitions to avoid duplicates
+  // Key = "contactId|stage|condition" — we only insert a transition once per stage per contact
+  const { data: existingTransitions } = await appDb
+    .from("recruiting_stage_transitions")
+    .select("ghl_contact_id, stage, condition");
+
+  const existingSet = new Set(
+    (existingTransitions || []).map(
+      (t: { ghl_contact_id: string; stage: string; condition: string }) =>
+        `${t.ghl_contact_id}|${t.stage}|${t.condition}`
+    )
+  );
+
+  const leadsToUpsert: Array<Record<string, unknown>> = [];
+  const transitionsToInsert: Array<Record<string, unknown>> = [];
+
+  for (const c of contacts) {
+    const name = contactName(c);
+    const createdAt = c.dateAdded || now;
+    const isAttendee = hasAnyTag(c, ATTENDEE_TAGS);
+    const isHired = hasAnyTag(c, HIRED_TAGS);
+
+    // Highest current stage
     let stage = "lead";
-    if (isAttendee) {
-      stage = "attendee";
-      attendeeCount++;
-    }
+    if (isHired) stage = "hired";
+    else if (isAttendee) stage = "attendee";
 
-    // Log the lead transition
-    transitions.push({
-      ghl_contact_id: c.id,
-      stage: "lead",
-      condition: "backfill",
-      previous_stage: null,
-      metadata: { tag: LEAD_TAG, source: "ghl_sync" },
-      occurred_at: c.dateAdded || now,
-    });
+    stats.recruiting.leads++;
+    if (isAttendee) stats.recruiting.attendees++;
+    if (isHired) stats.recruiting.hired++;
 
-    // Log the attendee transition if applicable
-    if (isAttendee) {
-      const attendeeTag = tags.find((t: string) =>
-        ATTENDEE_TAGS.map((at) => at.toLowerCase()).includes(t)
-      );
-      transitions.push({
-        ghl_contact_id: c.id,
-        stage: "attendee",
-        condition: "backfill",
-        previous_stage: "lead",
-        metadata: {
-          tag: attendeeTag || "opps call | attended",
-          source: "ghl_sync",
-        },
-        occurred_at: c.dateAdded || now, // Best approximation — actual tag-apply date unknown
-      });
-    }
-
-    return {
+    // Build lead upsert
+    leadsToUpsert.push({
       ghl_contact_id: c.id,
       name,
       email: c.email || null,
       phone: c.phone || null,
       stage,
-      lead_at: c.dateAdded || now,
-      attendee_at: isAttendee ? (c.dateAdded || now) : null,
+      lead_at: createdAt,
+      attendee_at: isAttendee ? createdAt : null, // Will be overwritten with real date on future syncs
+      hired_at: isHired ? createdAt : null,
       updated_at: now,
-    };
-  });
+    });
 
-  // Upsert leads in batches
-  const BATCH_SIZE = 100;
-  let upserted = 0;
-  const errors: string[] = [];
-
-  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-    const batch = rows.slice(i, i + BATCH_SIZE);
-    const { error } = await appDb
-      .from("recruiting_leads")
-      .upsert(batch, {
-        onConflict: "ghl_contact_id",
-        ignoreDuplicates: false,
+    // ── Lead transition: occurred_at = dateAdded (when contact was created) ──
+    const leadKey = `${c.id}|lead|sync`;
+    if (!existingSet.has(leadKey)) {
+      transitionsToInsert.push({
+        ghl_contact_id: c.id,
+        stage: "lead",
+        condition: "sync",
+        previous_stage: null,
+        metadata: { source: "recruiting_sub", dateAdded: createdAt },
+        occurred_at: createdAt,
       });
-
-    if (error) {
-      console.error(
-        `[recruiting-ghl-sync] Upsert batch error: ${error.message}`
-      );
-      errors.push(error.message);
-    } else {
-      upserted += batch.length;
+      existingSet.add(leadKey);
+      stats.recruiting.newTransitions++;
     }
-  }
 
-  // Insert stage transitions (skip if already exists for this contact+stage combo)
-  let transitionsInserted = 0;
-  for (let i = 0; i < transitions.length; i += BATCH_SIZE) {
-    const batch = transitions.slice(i, i + BATCH_SIZE);
+    // ── Attendee transition: occurred_at = NOW (when we first detect the tag) ──
+    if (isAttendee) {
+      const attKey = `${c.id}|attendee|sync`;
+      if (!existingSet.has(attKey)) {
+        transitionsToInsert.push({
+          ghl_contact_id: c.id,
+          stage: "attendee",
+          condition: "sync",
+          previous_stage: "lead",
+          metadata: { tag: matchedTag(c, ATTENDEE_TAGS), source: "recruiting_sub" },
+          occurred_at: now, // Detected this sync cycle
+        });
+        existingSet.add(attKey);
+        stats.recruiting.newTransitions++;
+      }
+    }
 
-    // For backfill, we use upsert-like logic: check existing first
-    for (const t of batch) {
-      const { data: existing } = await appDb
-        .from("recruiting_stage_transitions")
-        .select("id")
-        .eq("ghl_contact_id", t.ghl_contact_id)
-        .eq("stage", t.stage)
-        .eq("condition", "backfill")
-        .limit(1);
-
-      if (!existing || existing.length === 0) {
-        const { error: insertErr } = await appDb
-          .from("recruiting_stage_transitions")
-          .insert(t);
-
-        if (insertErr) {
-          console.error(
-            `[recruiting-ghl-sync] Transition insert error: ${insertErr.message}`
-          );
-        } else {
-          transitionsInserted++;
-        }
+    // ── Hired transition: occurred_at = NOW (when we first detect the tag) ──
+    if (isHired) {
+      const hiredKey = `${c.id}|hired|sync`;
+      if (!existingSet.has(hiredKey)) {
+        transitionsToInsert.push({
+          ghl_contact_id: c.id,
+          stage: "hired",
+          condition: "sync",
+          previous_stage: isAttendee ? "attendee" : "lead",
+          metadata: { tag: matchedTag(c, HIRED_TAGS), source: "recruiting_sub" },
+          occurred_at: now, // Detected this sync cycle
+        });
+        existingSet.add(hiredKey);
+        stats.recruiting.newTransitions++;
       }
     }
   }
 
-  // Log the backfill operation
-  await appDb.from("recruiting_backfill_log").insert({
-    title: "GHL Contact Sync — Stage Transition Backfill",
-    description: `Synced ${contacts.length} tagged contacts from GHL recruiting sub-account. Logged ${transitionsInserted} stage transitions for date-filtered pipeline counts.`,
-    backfill_type: "stage_sync",
-    status: errors.length > 0 ? "failed" : "completed",
-    stats: {
-      contacts_fetched: contacts.length,
-      leads_upserted: upserted,
-      attendees_found: attendeeCount,
-      transitions_inserted: transitionsInserted,
-      errors: errors.length,
-    },
-    started_at: new Date(startTime).toISOString(),
-    completed_at: now,
-  });
+  // ── 2. CONTRACTING SUB: pipeline stages ───────────────────────────────
+  console.log("[sync] Fetching contracting pipeline stages...");
 
-  return {
-    contactsFetched: contacts.length,
-    leadsUpserted: upserted,
-    attendeesFound: attendeeCount,
-    transitionsInserted,
-    errors,
+  // 2a. IN CONTRACTING PROCESS
+  const contractingOpps = await searchOpportunitiesAtStage(
+    contractingApiKey,
+    CONTRACTING_PIPELINE_ID,
+    CONTRACTING_STAGE_ID,
+    CONTRACTING_LOCATION_ID
+  );
+
+  for (const opp of contractingOpps) {
+    const contactId = opp.contact?.id || opp.id;
+    const dateAdded = opp.createdAt || opp.dateAdded || opp.lastStageChangeAt || now;
+
+    if (new Date(dateAdded) < new Date(DATA_CUTOFF)) continue;
+
+    stats.contracting.contracting++;
+
+    const key = `${contactId}|contracting|sync`;
+    if (!existingSet.has(key)) {
+      transitionsToInsert.push({
+        ghl_contact_id: contactId,
+        stage: "contracting",
+        condition: "sync",
+        previous_stage: "hired",
+        metadata: {
+          source: "contracting_sub",
+          pipeline: "New Agents Pipeline",
+          stage_name: "IN CONTRACTING PROCESS",
+          opp_id: opp.id,
+          opp_name: opp.name,
+        },
+        occurred_at: opp.lastStageChangeAt || dateAdded,
+      });
+      existingSet.add(key);
+      stats.contracting.newTransitions++;
+    }
+
+    leadsToUpsert.push({
+      ghl_contact_id: contactId,
+      name: opp.contact?.name || opp.name || "Unknown",
+      email: opp.contact?.email || null,
+      phone: opp.contact?.phone || null,
+      stage: "contracting",
+      contracting_at: opp.lastStageChangeAt || dateAdded,
+      updated_at: now,
+    });
+  }
+
+  // 2b. RTS Status (Tracey)
+  const rtsOpps = await searchOpportunitiesAtStage(
+    contractingApiKey,
+    CONTRACTING_PIPELINE_ID,
+    RTS_STAGE_ID,
+    CONTRACTING_LOCATION_ID
+  );
+
+  for (const opp of rtsOpps) {
+    const contactId = opp.contact?.id || opp.id;
+    const dateAdded = opp.createdAt || opp.dateAdded || opp.lastStageChangeAt || now;
+
+    if (new Date(dateAdded) < new Date(DATA_CUTOFF)) continue;
+
+    stats.contracting.rts++;
+
+    const key = `${contactId}|rts|sync`;
+    if (!existingSet.has(key)) {
+      transitionsToInsert.push({
+        ghl_contact_id: contactId,
+        stage: "rts",
+        condition: "sync",
+        previous_stage: "contracting",
+        metadata: {
+          source: "contracting_sub",
+          pipeline: "New Agents Pipeline",
+          stage_name: "RTS Status (Tracey)",
+          opp_id: opp.id,
+          opp_name: opp.name,
+        },
+        occurred_at: opp.lastStageChangeAt || dateAdded,
+      });
+      existingSet.add(key);
+      stats.contracting.newTransitions++;
+    }
+
+    leadsToUpsert.push({
+      ghl_contact_id: contactId,
+      name: opp.contact?.name || opp.name || "Unknown",
+      email: opp.contact?.email || null,
+      phone: opp.contact?.phone || null,
+      stage: "rts",
+      rts_at: opp.lastStageChangeAt || dateAdded,
+      updated_at: now,
+    });
+  }
+
+  // ── 3. BATCH UPSERT leads ─────────────────────────────────────────────
+  console.log(`[sync] Upserting ${leadsToUpsert.length} leads...`);
+  const BATCH = 200;
+  let leadsUpserted = 0;
+
+  for (let i = 0; i < leadsToUpsert.length; i += BATCH) {
+    const batch = leadsToUpsert.slice(i, i + BATCH);
+    const { error } = await appDb
+      .from("recruiting_leads")
+      .upsert(batch, { onConflict: "ghl_contact_id", ignoreDuplicates: false });
+    if (error) {
+      console.error(`[sync] Lead upsert batch error: ${error.message}`);
+      stats.errors.push(`lead_upsert: ${error.message}`);
+    } else {
+      leadsUpserted += batch.length;
+    }
+  }
+
+  // ── 4. BATCH INSERT transitions ───────────────────────────────────────
+  console.log(`[sync] Inserting ${transitionsToInsert.length} transitions...`);
+  let transInserted = 0;
+
+  for (let i = 0; i < transitionsToInsert.length; i += BATCH) {
+    const batch = transitionsToInsert.slice(i, i + BATCH);
+    const { error } = await appDb
+      .from("recruiting_stage_transitions")
+      .insert(batch);
+    if (error) {
+      console.error(`[sync] Transition insert error: ${error.message}`);
+      stats.errors.push(`transition_insert: ${error.message}`);
+    } else {
+      transInserted += batch.length;
+    }
+  }
+
+  const result = {
+    ...stats,
+    leadsUpserted,
+    transitionsInserted: transInserted,
     durationMs: Date.now() - startTime,
     syncedAt: now,
+    dataCutoff: DATA_CUTOFF,
+  };
+
+  console.log(`[sync] Complete: ${JSON.stringify(result)}`);
+  return result;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ACTION: COUNTS — read from local stage log (NO GHL calls)
+// ══════════════════════════════════════════════════════════════════════════
+async function handleCounts(
+  appUrl: string,
+  appServiceKey: string,
+  startDate?: string,
+  endDate?: string
+) {
+  const appDb = createClient(appUrl, appServiceKey);
+  const st = Date.now();
+
+  // Enforce Feb 1 cutoff
+  const effectiveStart = startDate && new Date(startDate) > new Date(DATA_CUTOFF)
+    ? startDate
+    : DATA_CUTOFF;
+
+  // Server-side RPC — avoids Supabase JS client 1K row cap
+  const { data: rpcResult, error } = await appDb.rpc("get_pipeline_counts", {
+    start_date: effectiveStart,
+    end_date: endDate || null,
+  });
+
+  const counts: Record<string, number> = {
+    lead: 0, attendee: 0, hired: 0, contracting: 0, rts: 0, producing: 0, lost: 0,
+  };
+
+  if (error) {
+    console.error(`[counts] RPC error: ${error.message}`);
+    return {
+      ...counts, leads: 0, attendees: 0,
+      dateFilter: startDate && endDate ? { startDate, endDate } : null,
+      durationMs: Date.now() - st,
+      source: "local_log",
+      error: error.message,
+    };
+  }
+
+  for (const row of rpcResult || []) {
+    counts[row.stage] = Number(row.contact_count);
+  }
+
+  // Lost count from recruiting_leads (current state)
+  const { count: lostCount } = await appDb
+    .from("recruiting_leads")
+    .select("id", { count: "exact", head: true })
+    .eq("stage", "lost");
+
+  return {
+    leads: counts.lead,
+    attendees: counts.attendee,
+    hired: counts.hired,
+    contracting: counts.contracting,
+    rts: counts.rts,
+    producing: counts.producing,
+    lost: lostCount || counts.lost,
+    dateFilter: startDate && endDate ? { startDate, endDate } : null,
+    durationMs: Date.now() - st,
+    source: "local_log",
+    dataCutoff: DATA_CUTOFF,
+    cachedAt: new Date().toISOString(),
   };
 }
 
-// ── Action: check-lost (auto-flag stale contacts) ─────────────────────────
+// ══════════════════════════════════════════════════════════════════════════
+// ACTION: CHECK-LOST — auto-flag stale contacts
+// ══════════════════════════════════════════════════════════════════════════
 async function handleCheckLost(appUrl: string, appServiceKey: string) {
   const appDb = createClient(appUrl, appServiceKey);
-  const startTime = Date.now();
+  const st = Date.now();
 
-  // Get Lost threshold from settings
   const { data: settingsData } = await appDb
     .from("recruiting_lost_settings")
     .select("setting_key, setting_value")
     .eq("setting_key", "default_threshold_days")
     .single();
 
-  const thresholdDays = settingsData
-    ? parseInt(settingsData.setting_value, 10)
-    : 60;
+  const thresholdDays = settingsData ? parseInt(settingsData.setting_value, 10) : 60;
+  const cutoffDate = new Date(Date.now() - thresholdDays * 86400000).toISOString();
 
-  // Find contacts whose latest stage transition is older than the threshold
-  // and who are NOT already in 'lost' stage
-  const cutoffDate = new Date(
-    Date.now() - thresholdDays * 24 * 60 * 60 * 1000
-  ).toISOString();
+  // Get non-lost, non-producing leads
+  const { data: activeLeads } = await appDb
+    .from("recruiting_leads")
+    .select("id, ghl_contact_id, stage, updated_at")
+    .neq("stage", "lost")
+    .neq("stage", "producing");
 
-  // Get the latest transition for each contact
-  const { data: latestTransitions, error: queryErr } = await appDb.rpc(
-    "get_stale_recruiting_contacts",
-    { cutoff_date: cutoffDate }
-  );
+  if (!activeLeads?.length) return { flagged: 0, thresholdDays, durationMs: Date.now() - st };
 
-  if (queryErr) {
-    // RPC might not exist yet — fall back to manual query
-    console.warn(
-      `[recruiting-ghl-sync] check-lost RPC not available: ${queryErr.message}`
-    );
-
-    // Manual approach: get all non-lost leads, check their latest transition
-    const { data: activeLeads } = await appDb
-      .from("recruiting_leads")
-      .select("id, ghl_contact_id, stage, updated_at")
-      .neq("stage", "lost")
-      .neq("stage", "producing"); // Don't mark producing agents as lost
-
-    if (!activeLeads || activeLeads.length === 0) {
-      return { flagged: 0, thresholdDays, durationMs: Date.now() - startTime };
-    }
-
-    let flagged = 0;
-    for (const lead of activeLeads) {
-      // Get latest transition for this contact
-      const { data: latest } = await appDb
-        .from("recruiting_stage_transitions")
-        .select("occurred_at, stage")
-        .eq("ghl_contact_id", lead.ghl_contact_id)
-        .order("occurred_at", { ascending: false })
-        .limit(1);
-
-      const lastActivity = latest?.[0]?.occurred_at || lead.updated_at;
-      if (new Date(lastActivity) < new Date(cutoffDate)) {
-        // Flag as Lost
-        const previousStage = lead.stage;
-        await appDb
-          .from("recruiting_leads")
-          .update({
-            stage: "lost",
-            lost_at: new Date().toISOString(),
-            lost_stage: previousStage,
-            lost_reason: `Auto-flagged: ${thresholdDays}+ days at ${previousStage} stage`,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", lead.id);
-
-        // Log the transition
-        await appDb.from("recruiting_stage_transitions").insert({
-          lead_id: lead.id,
-          ghl_contact_id: lead.ghl_contact_id,
-          stage: "lost",
-          condition: "auto_lost",
-          previous_stage: previousStage,
-          metadata: {
-            threshold_days: thresholdDays,
-            last_activity: lastActivity,
-            auto_reason: `${thresholdDays}+ days at ${previousStage}`,
-          },
-          occurred_at: new Date().toISOString(),
-        });
-
-        flagged++;
-      }
-    }
-
-    return { flagged, thresholdDays, durationMs: Date.now() - startTime };
-  }
-
-  // RPC-based path (faster, when available)
   let flagged = 0;
-  for (const row of latestTransitions || []) {
-    await appDb
-      .from("recruiting_leads")
-      .update({
+  for (const lead of activeLeads) {
+    const { data: latest } = await appDb
+      .from("recruiting_stage_transitions")
+      .select("occurred_at")
+      .eq("ghl_contact_id", lead.ghl_contact_id)
+      .order("occurred_at", { ascending: false })
+      .limit(1);
+
+    const lastActivity = latest?.[0]?.occurred_at || lead.updated_at;
+    if (new Date(lastActivity) < new Date(cutoffDate)) {
+      const prevStage = lead.stage;
+      await appDb
+        .from("recruiting_leads")
+        .update({
+          stage: "lost",
+          lost_at: new Date().toISOString(),
+          lost_stage: prevStage,
+          lost_reason: `Auto-flagged: ${thresholdDays}+ days at ${prevStage}`,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", lead.id);
+
+      await appDb.from("recruiting_stage_transitions").insert({
+        ghl_contact_id: lead.ghl_contact_id,
         stage: "lost",
-        lost_at: new Date().toISOString(),
-        lost_stage: row.stage,
-        lost_reason: `Auto-flagged: ${thresholdDays}+ days at ${row.stage} stage`,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("ghl_contact_id", row.ghl_contact_id);
-
-    await appDb.from("recruiting_stage_transitions").insert({
-      ghl_contact_id: row.ghl_contact_id,
-      stage: "lost",
-      condition: "auto_lost",
-      previous_stage: row.stage,
-      metadata: {
-        threshold_days: thresholdDays,
-        last_activity: row.latest_occurred_at,
-      },
-      occurred_at: new Date().toISOString(),
-    });
-
-    flagged++;
+        condition: "auto_lost",
+        previous_stage: prevStage,
+        metadata: { threshold_days: thresholdDays, last_activity: lastActivity },
+        occurred_at: new Date().toISOString(),
+      });
+      flagged++;
+    }
   }
 
-  return { flagged, thresholdDays, durationMs: Date.now() - startTime };
+  return { flagged, thresholdDays, durationMs: Date.now() - st };
 }
 
-// ── HTTP handler ──────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════
+// HTTP HANDLER
+// ══════════════════════════════════════════════════════════════════════════
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
-    return new Response(null, { headers: corsHeaders });
-  if (req.method !== "POST")
-    return jsonResponse({ error: "Method not allowed" }, 405);
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
 
-  // Auth check
+  // Auth
   const cronAuth = req.headers.get("x-cron-auth");
   const authHeader = req.headers.get("authorization");
-  const serviceRoleKey =
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
-    Deno.env.get("APP_SUPABASE_SERVICE_KEY");
-
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("APP_SUPABASE_SERVICE_KEY");
   if (!cronAuth && authHeader !== `Bearer ${serviceRoleKey}`) {
     return jsonResponse({ error: "Unauthorized" }, 401);
   }
 
-  // Parse action and params
   const url = new URL(req.url);
   let action = url.searchParams.get("action") || "counts";
   let startDate: string | undefined;
@@ -813,60 +662,36 @@ Deno.serve(async (req) => {
     action = body.action || action;
     startDate = body.startDate;
     endDate = body.endDate;
-  } catch {
-    // query params only
-  }
+  } catch { /* query params only */ }
 
-  // Load config
   const trackerUrl = Deno.env.get("TRACKER_SUPABASE_URL");
   const trackerKey = Deno.env.get("TRACKER_SUPABASE_KEY");
-  const appUrl =
-    Deno.env.get("SUPABASE_URL") || Deno.env.get("APP_SUPABASE_URL");
-  const appServiceKey =
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
-    Deno.env.get("APP_SUPABASE_SERVICE_KEY");
-
-  if (action === "check-lost") {
-    if (!appUrl || !appServiceKey) {
-      return jsonResponse({ error: "Missing app config" }, 500);
-    }
-    const result = await handleCheckLost(appUrl, appServiceKey);
-    return jsonResponse(result);
-  }
-
-  if (!trackerUrl || !trackerKey) {
-    return jsonResponse({ error: "Missing tracker config" }, 500);
-  }
-
-  // Get GHL token
-  const ghlToken = await getGhlToken(trackerUrl, trackerKey);
-  if (!ghlToken) {
-    return jsonResponse(
-      {
-        error: "No valid GHL token for recruiting location",
-        hint: "Install the OAuth app on the recruiting sub-account",
-      },
-      503
-    );
-  }
+  const appUrl = Deno.env.get("SUPABASE_URL") || Deno.env.get("APP_SUPABASE_URL");
+  const appServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("APP_SUPABASE_SERVICE_KEY");
+  const contractingApiKey = Deno.env.get("GHL_CONTRACTING_API") || "";
 
   if (action === "counts") {
-    const result = await handleCounts(
-      ghlToken,
-      startDate,
-      endDate,
-      appUrl,
-      appServiceKey
-    );
-    return jsonResponse(result);
+    if (!appUrl || !appServiceKey) return jsonResponse({ error: "Missing app config" }, 500);
+    return jsonResponse(await handleCounts(appUrl, appServiceKey, startDate, endDate));
+  }
+
+  if (action === "check-lost") {
+    if (!appUrl || !appServiceKey) return jsonResponse({ error: "Missing app config" }, 500);
+    return jsonResponse(await handleCheckLost(appUrl, appServiceKey));
   }
 
   if (action === "sync") {
-    if (!appUrl || !appServiceKey) {
-      return jsonResponse({ error: "Missing app config" }, 500);
+    if (!trackerUrl || !trackerKey) return jsonResponse({ error: "Missing tracker config" }, 500);
+    if (!appUrl || !appServiceKey) return jsonResponse({ error: "Missing app config" }, 500);
+
+    const recruitingToken = await getRecruitingToken(trackerUrl, trackerKey);
+    if (!recruitingToken) return jsonResponse({ error: "Recruiting token unavailable" }, 500);
+
+    if (!contractingApiKey) {
+      return jsonResponse({ error: "GHL_CONTRACTING_API not set" }, 500);
     }
-    const result = await handleSync(ghlToken, appUrl, appServiceKey);
-    return jsonResponse(result);
+
+    return jsonResponse(await handleSync(recruitingToken, contractingApiKey, appUrl, appServiceKey));
   }
 
   return jsonResponse({ error: `Unknown action: ${action}` }, 400);
