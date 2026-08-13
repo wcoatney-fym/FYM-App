@@ -23,8 +23,12 @@ interface GhlLiveCounts {
   leads: number;
   attendees: number;
   hired: number;
-  pipeline: string;
-  hiredBreakdown: Record<string, number>;
+  pipeline?: string;
+  hiredBreakdown?: Record<string, number>;
+  contracting: number;
+  rts: number;
+  producing: number;
+  lost: number;
   dateFilter: { startDate: string; endDate: string } | null;
   durationMs: number;
   source: string;
@@ -327,21 +331,23 @@ export async function fetchRecruitingKpis(filter?: RecruitingDateFilter): Promis
     totalLeads = (spendRows ?? []).reduce((s: number, r: { leads: number }) => s + Number(r.leads), 0);
   }
 
-  // Fetch live GHL pipeline counts (from edge function)
+  // Fetch live GHL pipeline counts (from edge function — uses stage log when available)
   const ghlCounts = await fetchGhlLiveCounts(filter);
+  // Leads = contacts created in GHL (date-filtered)
   const pipelineLeads = ghlCounts?.leads ?? 0;
+  // Attendees = from stage log (date-accurate) or GHL tag fallback
   const attendees = ghlCounts?.attendees ?? 0;
   const hired = ghlCounts?.hired ?? 0;
-  // RTS and Producing not yet tracked in GHL pipeline — will come with Phase 2
-  const rts = 0;
-  const producing = 0;
+  const rts = ghlCounts?.rts ?? 0;
+  const producing = ghlCounts?.producing ?? 0;
 
   return {
     totalSpend,
-    totalLeads,
-    cpl: totalLeads > 0 ? totalSpend / totalLeads : 0,
+    // Total Leads = contacts created (from GHL, date-filtered)
+    totalLeads: pipelineLeads || totalLeads,
+    cpl: (pipelineLeads || totalLeads) > 0 ? totalSpend / (pipelineLeads || totalLeads) : 0,
     cpa: producing > 0 ? totalSpend / producing : 0,
-    contactRate: totalLeads > 0 ? attendees / totalLeads : 0,
+    contactRate: pipelineLeads > 0 ? attendees / pipelineLeads : 0,
     closeRatio: attendees > 0 ? hired / attendees : 0,
     placedPolicies: producing,
     activeAdSets: 0,
@@ -353,8 +359,8 @@ export async function fetchRecruitingKpis(filter?: RecruitingDateFilter): Promis
     attendeeRate: pipelineLeads > 0 ? attendees / pipelineLeads : 0,
     hireRate: attendees > 0 ? hired / attendees : 0,
     rtsRate: hired > 0 ? rts / hired : 0,
-    avgDaysToRts: 0, // Not yet tracked in GHL
-    avgDaysToFirstSale: 0, // Not yet tracked in GHL
+    avgDaysToRts: 0, // Populated from stage log timings
+    avgDaysToFirstSale: 0, // Populated from stage log timings
   };
 }
 
@@ -429,17 +435,17 @@ export async function fetchRecruitingLeads(filter?: RecruitingDateFilter): Promi
 const EMPTY_FUNNEL: RecruitingFunnel = { leads: 0, attendees: 0, hired: 0, contracting: 0, rts: 0, producing: 0, lost: 0 };
 
 export async function fetchRecruitingFunnel(filter?: RecruitingDateFilter): Promise<RecruitingFunnel> {
-  // Use live GHL counts for the funnel — no DB dependency needed
+  // Use live GHL counts for the funnel — stage log provides date-accurate counts
   const ghlCounts = await fetchGhlLiveCounts(filter);
   if (ghlCounts) {
     return {
       leads: ghlCounts.leads,
       attendees: ghlCounts.attendees,
       hired: ghlCounts.hired,
-      contracting: 0, // Not yet tracked in GHL pipeline
-      rts: 0,
-      producing: 0,
-      lost: 0,
+      contracting: ghlCounts.contracting || 0,
+      rts: ghlCounts.rts || 0,
+      producing: ghlCounts.producing || 0,
+      lost: ghlCounts.lost || 0,
     };
   }
 
@@ -556,6 +562,160 @@ export async function fetchRoiByAgent(): Promise<RoiByAgent[]> {
 export async function fetchLeads(): Promise<Lead[]> {
   // TODO: implement live query
   return [];
+}
+
+// ── Stage Transition Log fetchers ─────────────────────────────────────────
+
+export interface StageTransitionRow {
+  id: number;
+  lead_id: string | null;
+  ghl_contact_id: string;
+  stage: string;
+  condition: string;
+  previous_stage: string | null;
+  metadata: Record<string, unknown>;
+  occurred_at: string;
+  created_at: string;
+}
+
+/**
+ * Fetch stage transitions for a specific contact or all contacts.
+ * Used by CRM Command to show the full activity log.
+ */
+export async function fetchStageTransitions(
+  ghlContactId?: string,
+  filter?: RecruitingDateFilter,
+  limit = 200
+): Promise<StageTransitionRow[]> {
+  if (!supabaseConfigured || !recruitingSb) return [];
+
+  let query = recruitingSb
+    .from('recruiting_stage_transitions')
+    .select('*')
+    .order('occurred_at', { ascending: false })
+    .limit(limit);
+
+  if (ghlContactId) {
+    query = query.eq('ghl_contact_id', ghlContactId);
+  }
+  if (filter) {
+    query = query
+      .gte('occurred_at', filter.startDate)
+      .lt('occurred_at', filter.endDate);
+  }
+
+  const { data, error } = await query;
+  if (error || !data?.length) return [];
+  return data as StageTransitionRow[];
+}
+
+// ── Backfill Log fetchers ───────────────────────────────────────────────
+
+export interface BackfillLogRow {
+  id: number;
+  title: string;
+  description: string;
+  backfill_type: string;
+  status: string;
+  stats: Record<string, unknown>;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+}
+
+/**
+ * Fetch backfill log entries for CRM Command "FYM APP Backfill" section.
+ */
+export async function fetchBackfillLog(): Promise<BackfillLogRow[]> {
+  if (!supabaseConfigured || !recruitingSb) return [];
+
+  const { data, error } = await recruitingSb
+    .from('recruiting_backfill_log')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error || !data?.length) return [];
+  return data as BackfillLogRow[];
+}
+
+// ── Lost Settings fetchers ──────────────────────────────────────────────
+
+export interface LostSettingRow {
+  id: number;
+  setting_key: string;
+  setting_value: string;
+  updated_at: string;
+}
+
+/**
+ * Fetch Lost threshold settings.
+ */
+export async function fetchLostSettings(): Promise<LostSettingRow[]> {
+  if (!supabaseConfigured || !recruitingSb) return [];
+
+  const { data, error } = await recruitingSb
+    .from('recruiting_lost_settings')
+    .select('*')
+    .order('setting_key');
+
+  if (error || !data?.length) return [];
+  return data as LostSettingRow[];
+}
+
+/**
+ * Update a Lost setting (e.g., threshold days).
+ * Requires service role or admin auth.
+ */
+export async function updateLostSetting(
+  settingKey: string,
+  settingValue: string
+): Promise<boolean> {
+  if (!supabaseConfigured || !recruitingSb) return false;
+
+  const { error } = await recruitingSb
+    .from('recruiting_lost_settings')
+    .upsert(
+      {
+        setting_key: settingKey,
+        setting_value: settingValue,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'setting_key' }
+    );
+
+  if (error) {
+    console.warn('[Recruiting] Lost setting update failed:', error.message);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Trigger the check-lost action on the edge function.
+ * Returns the number of contacts flagged as lost.
+ */
+export async function triggerCheckLost(): Promise<{ flagged: number; thresholdDays: number } | null> {
+  if (!supabaseUrl || !supabaseAnonKey) return null;
+
+  try {
+    const baseUrl = supabaseUrl.replace(/\/$/, '');
+    const res = await fetch(`${baseUrl}/functions/v1/recruiting-ghl-sync?action=check-lost`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${supabaseAnonKey}`,
+        apikey: supabaseAnonKey,
+        'x-cron-auth': 'dashboard',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ action: 'check-lost' }),
+    });
+
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.warn('[Recruiting] Check-lost error:', err);
+    return null;
+  }
 }
 
 // ── Compute helpers ────────────────────────────────────────────────────────

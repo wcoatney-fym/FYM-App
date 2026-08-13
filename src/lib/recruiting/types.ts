@@ -190,3 +190,53 @@ export interface RecruitingDateFilter {
   startDate: string;  // ISO date string
   endDate: string;    // ISO date string (exclusive)
 }
+
+// ── Stage Transition Log ───────────────────────────────────────────────────
+export type TransitionCondition =
+  | 'tag_applied'    // GHL tag was applied
+  | 'pipeline_move'  // GHL pipeline stage change
+  | 'manual'         // Manual override
+  | 'backfill'       // One-time backfill
+  | 'auto_lost'      // Lost threshold triggered
+  | 're_entry';      // Re-entered pipeline after Lost
+
+export interface StageTransition {
+  id: number;
+  leadId: string | null;
+  ghlContactId: string;
+  stage: RecruitingStage;
+  condition: TransitionCondition;
+  previousStage: string | null;
+  metadata: Record<string, unknown>;
+  occurredAt: string;
+  createdAt: string;
+}
+
+// ── Backfill Log ───────────────────────────────────────────────────────────
+export type BackfillStatus = 'pending' | 'running' | 'completed' | 'failed';
+
+export interface BackfillLogEntry {
+  id: number;
+  title: string;
+  description: string;
+  backfillType: string;
+  status: BackfillStatus;
+  stats: {
+    matched?: number;
+    fuzzy?: number;
+    unmatched?: number;
+    total?: number;
+    [key: string]: unknown;
+  };
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+}
+
+// ── Lost Settings ──────────────────────────────────────────────────────────
+export interface LostSetting {
+  id: number;
+  settingKey: string;
+  settingValue: string;
+  updatedAt: string;
+}
