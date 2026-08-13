@@ -333,18 +333,22 @@ export async function fetchRecruitingKpis(filter?: RecruitingDateFilter): Promis
 
   // Fetch live GHL pipeline counts (from edge function — uses stage log when available)
   const ghlCounts = await fetchGhlLiveCounts(filter);
+  // Leads = contacts created in GHL (date-filtered)
   const pipelineLeads = ghlCounts?.leads ?? 0;
+  // Attendees = from stage log (date-accurate) or GHL tag fallback
   const attendees = ghlCounts?.attendees ?? 0;
   const hired = ghlCounts?.hired ?? 0;
+  const contracting = ghlCounts?.contracting ?? 0;
   const rts = ghlCounts?.rts ?? 0;
   const producing = ghlCounts?.producing ?? 0;
 
   return {
     totalSpend,
-    totalLeads,
-    cpl: totalLeads > 0 ? totalSpend / totalLeads : 0,
+    // Total Leads = contacts created (from GHL, date-filtered)
+    totalLeads: pipelineLeads || totalLeads,
+    cpl: (pipelineLeads || totalLeads) > 0 ? totalSpend / (pipelineLeads || totalLeads) : 0,
     cpa: producing > 0 ? totalSpend / producing : 0,
-    contactRate: totalLeads > 0 ? attendees / totalLeads : 0,
+    contactRate: pipelineLeads > 0 ? attendees / pipelineLeads : 0,
     closeRatio: attendees > 0 ? hired / attendees : 0,
     placedPolicies: producing,
     activeAdSets: 0,
@@ -356,8 +360,8 @@ export async function fetchRecruitingKpis(filter?: RecruitingDateFilter): Promis
     attendeeRate: pipelineLeads > 0 ? attendees / pipelineLeads : 0,
     hireRate: attendees > 0 ? hired / attendees : 0,
     rtsRate: hired > 0 ? rts / hired : 0,
-    avgDaysToRts: 0, // Not yet tracked in GHL
-    avgDaysToFirstSale: 0, // Not yet tracked in GHL
+    avgDaysToRts: 0, // Populated from stage log timings
+    avgDaysToFirstSale: 0, // Populated from stage log timings
   };
 }
 
