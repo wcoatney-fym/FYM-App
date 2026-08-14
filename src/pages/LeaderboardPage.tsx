@@ -267,7 +267,9 @@ export function LeaderboardPage() {
   // everyone else sees only their own agency's agents.
   const agentLeaderAgencyId = useMemo(() => {
     if (isOrgWide) return filterAgencyId || '202JVV00'; // FYM admin defaults to FYM house
-    return effectiveAgencyId || null;
+    // Managers: filterAgencyId is auto-set to their agency writing number.
+    // Prefer it over effectiveAgencyId (which is a UUID, not a writing number).
+    return filterAgencyId || effectiveAgencyId || null;
   }, [isOrgWide, filterAgencyId, effectiveAgencyId]);
 
   // Compute date range for selected leaderboard period + prior period for movement
