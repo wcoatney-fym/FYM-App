@@ -34,43 +34,8 @@ CREATE INDEX IF NOT EXISTS idx_atrisk_tasks_ghl_contact
   ON atrisk_tasks(ghl_contact_id)
   WHERE ghl_contact_id IS NOT NULL;
 
--- Update the manager_at_risk_board view to include GHL IDs
-DROP VIEW IF EXISTS public.manager_at_risk_board;
-CREATE VIEW public.manager_at_risk_board AS
-SELECT
-  pc.policy_number,
-  pc.client_name,
-  pc.agency_id,
-  COALESCE(ag.name, pc.agency_id) AS agency_name,
-  pc.agent_id,
-  p.full_name AS agent_name,
-  p.writing_number,
-  pc.product_type,
-  pc.plan_premium,
-  pc.flag_type,
-  pc.paid_to_date,
-  pc.policy_effective_date,
-  pc.draft_count,
-  pc.is_at_risk,
-  pc.synced_at,
-  CURRENT_DATE - pc.paid_to_date AS days_since_draft,
-  t.id AS task_id,
-  t.status AS task_status,
-  t.assigned_to AS task_assigned_to,
-  t.due_date AS task_due_date,
-  t.created_at AS task_created_at,
-  t.ghl_contact_id,
-  t.ghl_opportunity_id
-FROM policy_cache pc
-LEFT JOIN agencies ag ON pc.agency_id = ag.tracker_id
-LEFT JOIN profiles p ON p.id = pc.agent_id
-LEFT JOIN LATERAL (
-  SELECT id, status, assigned_to, due_date, created_at, ghl_contact_id, ghl_opportunity_id
-  FROM atrisk_tasks
-  WHERE policy_number = pc.policy_number
-  ORDER BY created_at DESC
-  LIMIT 1
-) t ON true
-WHERE pc.status = 'active'
-  AND pc.paid_to_date IS NOT NULL
-  AND pc.paid_to_date < CURRENT_DATE;
+-- NOTE: manager_at_risk_board view was dropped in migration 20260731000001
+-- (policy_cache cleanup). The workboard now reads via edge functions that
+-- query Max's prod DB directly. The GHL columns (ghl_contact_id,
+-- ghl_opportunity_id) on atrisk_tasks are joined by the edge functions
+-- at query time — no view recreation needed.

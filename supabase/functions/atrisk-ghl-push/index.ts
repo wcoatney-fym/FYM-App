@@ -14,7 +14,7 @@
  *   - status:   Check GHL connection status for an agency
  *
  * Auth: Requires FYM App authenticated session.
- * Secrets: PORTAL_SUPABASE_URL, PORTAL_SUPABASE_SERVICE_KEY (portal DB access),
+ * Secrets: CONTRACTING_SUPABASE_URL, CONTRACTING_SUPABASE_ANON_KEY (portal DB access),
  *          plus per-agency GHL API keys from agency_ghl_configs.
  */
 
@@ -61,10 +61,10 @@ function getAppClient() {
 
 /** Create Supabase client for Portal DB (akhojh) */
 function getPortalClient() {
-  const url = Deno.env.get("PORTAL_SUPABASE_URL");
-  const key = Deno.env.get("PORTAL_SUPABASE_SERVICE_KEY");
+  const url = Deno.env.get("CONTRACTING_SUPABASE_URL");
+  const key = Deno.env.get("CONTRACTING_SUPABASE_ANON_KEY");
   if (!url || !key) {
-    throw new Error("Missing PORTAL_SUPABASE_URL or PORTAL_SUPABASE_SERVICE_KEY");
+    throw new Error("Missing CONTRACTING_SUPABASE_URL or CONTRACTING_SUPABASE_ANON_KEY");
   }
   return createClient(url, key);
 }
