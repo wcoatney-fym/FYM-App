@@ -12,7 +12,7 @@
  *
  * Data: prod-data edge fn (type=agent, agency_id filter) + agent_goals table
  */
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent } from '@/components/ui/card';
@@ -27,12 +27,14 @@ import {
   type AgentProduction,
   type AtRiskPolicy,
 } from '@/lib/prod-api';
+import { portalSupabase } from '@/lib/portal-supabase';
 import { supabase } from '@/lib/supabase';
 import { useCachedMultiFetch } from '@/hooks/useCachedFetch';
 import {
   Search,
   AlertTriangle,
   Activity,
+  UserPlus,
   ChevronRight,
   ChevronUp,
   ChevronDown,
@@ -52,15 +54,47 @@ interface GoalRecord {
   year: number;
 }
 
+/** Contracting pipeline record from Portal DB */
+interface PipelineAgent {
+  id: string;
+  agent_name: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  stage: string;
+  stage_entered_at: string | null;
+  writing_numbers: Record<string, string> | null;
+}
+
 interface AgentRow extends AgentProduction {
   goal_target_ap: number | null;
   goal_pct: number | null;
   at_risk_count: number;
+  /** Contracting pipeline stage (if agent is also in the pipeline) */
+  pipeline_stage: string | null;
+  /** True if agent exists only in contracting, not yet in production */
+  pipeline_only: boolean;
 }
 
 type SortKey = 'name' | 'ap' | 'goal' | 'apps' | 'retention' | 'attention';
 type SortDir = 'asc' | 'desc';
-type PaceFilter = 'all' | 'on_track' | 'catch_up' | 'behind';
+type PaceFilter = 'all' | 'on_track' | 'catch_up' | 'behind' | 'in_pipeline';
+
+/** Human-readable labels for contracting pipeline stages */
+const STAGE_LABELS: Record<string, string> = {
+  hip_broker: 'HIP Broker',
+  hip_career: 'HIP Career',
+  iaa: 'IAA',
+  signed_iaa: 'Signed IAA',
+  bill_com: 'Bill.com',
+  in_contracting: 'Contracting',
+  rts: 'Ready to Sell',
+  crm: 'CRM Setup',
+  hip_broker_ready: 'HIP Broker Ready',
+  hip_career_ready: 'HIP Career Ready',
+  actively_selling: 'Active',
+};
 
 // ── CSV Export ─────────────────────────────────────────────────────────
 
@@ -139,7 +173,7 @@ const paceColors = {
 
 export function ManagerTeamPage() {
   const navigate = useNavigate();
-  const { effectiveAgencyWritingNumber } = useEffectiveAuth();
+  const { effectiveAgencyId, effectiveAgencyWritingNumber } = useEffectiveAuth();
 
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('ap');
@@ -182,14 +216,52 @@ export function ManagerTeamPage() {
     })();
   }, [currentMonth, currentYear, effectiveAgencyWritingNumber]);
 
-  const loading = cacheLoading;
+  // ── Contracting pipeline agents from Portal DB ──
+  const [pipelineAgents, setPipelineAgents] = useState<PipelineAgent[]>([]);
+  const [pipelineLoading, setPipelineLoading] = useState(true);
+
+  // Resolve agency UUID → display name for portal filtering
+  const [agencyDisplayName, setAgencyDisplayName] = useState<string | null>(null);
+  useEffect(() => {
+    if (!effectiveAgencyId || !supabase) return;
+    (supabase as any)
+      .from('agencies')
+      .select('name')
+      .eq('id', effectiveAgencyId)
+      .maybeSingle()
+      .then(({ data }: { data: { name: string } | null }) => {
+        setAgencyDisplayName(data?.name ?? null);
+      });
+  }, [effectiveAgencyId]);
+
+  const fetchPipeline = useCallback(async () => {
+    if (!portalSupabase) { setPipelineLoading(false); return; }
+    setPipelineLoading(true);
+    // FYM direct agents have agency = null in the portal pipeline.
+    // Other agencies match by name string.
+    let query = portalSupabase
+      .from('agent_pipeline')
+      .select('id, agent_name, first_name, last_name, email, phone, stage, stage_entered_at, writing_numbers')
+      .order('stage_entered_at', { ascending: false });
+    if (agencyDisplayName === 'FYM') {
+      query = query.is('agency', null);
+    } else if (agencyDisplayName) {
+      query = query.eq('agency', agencyDisplayName);
+    }
+    const { data: rows } = await query;
+    setPipelineAgents((rows || []) as PipelineAgent[]);
+    setPipelineLoading(false);
+  }, [agencyDisplayName]);
+
+  useEffect(() => { fetchPipeline(); }, [fetchPipeline]);
+
+  const loading = cacheLoading || pipelineLoading;
   const error = fetchError ? 'Failed to load team data. Please try again.' : null;
 
-  // Derive agents from cached data
+  // Derive agents from cached production data + contracting pipeline
   const agents = useMemo((): AgentRow[] => {
-    if (!cached) return [];
-    const agentData = cached.agentData as AgentProduction[];
-    const atRiskPolicies: AtRiskPolicy[] = (cached.atRiskResp as any)?.data?.policies || [];
+    const agentData = (cached?.agentData as AgentProduction[]) || [];
+    const atRiskPolicies: AtRiskPolicy[] = (cached?.atRiskResp as any)?.data?.policies || [];
 
     const atRiskByAgent = new Map<string, number>();
     atRiskPolicies.forEach(p => {
@@ -202,20 +274,71 @@ export function ManagerTeamPage() {
       if (g.writing_number) goalByWn.set(g.writing_number, g.target_ap);
     });
 
-    return agentData.map(a => {
+    // Build a pipeline lookup by normalized name for merge
+    const pipelineByName = new Map<string, PipelineAgent>();
+    const matchedPipelineIds = new Set<string>();
+    for (const p of pipelineAgents) {
+      const key = (p.agent_name || '').trim().toLowerCase();
+      if (key) pipelineByName.set(key, p);
+    }
+
+    // Map production agents, enriching with pipeline stage if matched
+    const rows: AgentRow[] = agentData.map(a => {
       const wn = a.writing_number || a.agent_id;
       const targetAp = goalByWn.get(wn) ?? null;
       const goalPct = targetAp && targetAp > 0
         ? (a.ap_this_month / targetAp) * 100
         : null;
+
+      // Try to match to a pipeline record by name
+      const nameKey = (a.agent_name || '').trim().toLowerCase();
+      const pipelineMatch = pipelineByName.get(nameKey);
+      if (pipelineMatch) matchedPipelineIds.add(pipelineMatch.id);
+
       return {
         ...a,
         goal_target_ap: targetAp,
         goal_pct: goalPct,
         at_risk_count: atRiskByAgent.get(wn) || 0,
+        pipeline_stage: pipelineMatch?.stage ?? null,
+        pipeline_only: false,
       };
     });
-  }, [cached, goals]);
+
+    // Add pipeline-only agents (in contracting but not yet producing)
+    for (const p of pipelineAgents) {
+      if (matchedPipelineIds.has(p.id)) continue; // already merged with a production agent
+      if (p.stage === 'terminated') continue; // skip terminated
+
+      rows.push({
+        agent_id: p.id,
+        agent_name: p.agent_name || [p.first_name, p.last_name].filter(Boolean).join(' ') || 'Unknown',
+        writing_number: (p.writing_numbers as any)?.unl || null,
+        agency_id: effectiveAgencyWritingNumber || '',
+        total_policies: 0,
+        active_policies: 0,
+        terminated_policies: 0,
+        pending_policies: 0,
+        at_risk_policies: 0,
+        active_monthly_premium: 0,
+        active_annual_premium: 0,
+        policies_this_month: 0,
+        ap_this_month: 0,
+        retained_policies: 0,
+        ever_drafted: 0,
+        avg_annual_premium: 0,
+        retention_pct: null,
+        earliest_issue_date: null,
+        goal_target_ap: null,
+        goal_pct: null,
+        at_risk_count: 0,
+        pipeline_stage: p.stage,
+        pipeline_only: true,
+      });
+    }
+
+    return rows;
+  }, [cached, goals, pipelineAgents, effectiveAgencyWritingNumber, agencyDisplayName]);
 
   // ── Derived: filter + sort ──
   const filteredAgents = useMemo(() => {
@@ -231,8 +354,10 @@ export function ManagerTeamPage() {
     }
 
     // Pace filter
-    if (paceFilter !== 'all') {
-      list = list.filter(a => getPaceStatus(a.goal_pct) === paceFilter);
+    if (paceFilter === 'in_pipeline') {
+      list = list.filter(a => a.pipeline_only);
+    } else if (paceFilter !== 'all') {
+      list = list.filter(a => !a.pipeline_only && getPaceStatus(a.goal_pct) === paceFilter);
     }
 
     // Sort
@@ -254,17 +379,19 @@ export function ManagerTeamPage() {
 
   // Summary stats
   const summary = useMemo(() => {
+    const producing = agents.filter(a => !a.pipeline_only);
+    const inPipeline = agents.filter(a => a.pipeline_only).length;
     const total = agents.length;
-    const onTrack = agents.filter(a => getPaceStatus(a.goal_pct) === 'on_track').length;
-    const catchUp = agents.filter(a => getPaceStatus(a.goal_pct) === 'catch_up').length;
-    const behind = agents.filter(a => getPaceStatus(a.goal_pct) === 'behind').length;
-    const totalAP = agents.reduce((s, a) => s + a.ap_this_month, 0);
-    const totalApps = agents.reduce((s, a) => s + a.policies_this_month, 0);
-    const totalAtRisk = agents.reduce((s, a) => s + a.at_risk_count, 0);
-    const teamGoalAP = agents.reduce((s, a) => s + (a.goal_target_ap ?? 0), 0);
-    const agentsWithGoals = agents.filter(a => a.goal_target_ap != null && a.goal_target_ap > 0).length;
+    const onTrack = producing.filter(a => getPaceStatus(a.goal_pct) === 'on_track').length;
+    const catchUp = producing.filter(a => getPaceStatus(a.goal_pct) === 'catch_up').length;
+    const behind = producing.filter(a => getPaceStatus(a.goal_pct) === 'behind').length;
+    const totalAP = producing.reduce((s, a) => s + a.ap_this_month, 0);
+    const totalApps = producing.reduce((s, a) => s + a.policies_this_month, 0);
+    const totalAtRisk = producing.reduce((s, a) => s + a.at_risk_count, 0);
+    const teamGoalAP = producing.reduce((s, a) => s + (a.goal_target_ap ?? 0), 0);
+    const agentsWithGoals = producing.filter(a => a.goal_target_ap != null && a.goal_target_ap > 0).length;
     const teamGoalPct = teamGoalAP > 0 ? (totalAP / teamGoalAP) * 100 : null;
-    return { total, onTrack, catchUp, behind, totalAP, totalApps, totalAtRisk, teamGoalAP, agentsWithGoals, teamGoalPct };
+    return { total, inPipeline, onTrack, catchUp, behind, totalAP, totalApps, totalAtRisk, teamGoalAP, agentsWithGoals, teamGoalPct };
   }, [agents]);
 
   const toggleSort = (key: SortKey) => {
@@ -330,7 +457,11 @@ export function ManagerTeamPage() {
                   <CardContent className="pt-4 pb-3">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Team Size</p>
                     <p className="text-2xl font-bold tabular-nums text-foreground mt-1">{summary.total}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">agents in your book</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {summary.inPipeline > 0
+                        ? `${summary.total - summary.inPipeline} producing · ${summary.inPipeline} in pipeline`
+                        : 'agents in your book'}
+                    </p>
                   </CardContent>
                 </Card>
               </HudFrame>
@@ -432,6 +563,14 @@ export function ManagerTeamPage() {
                 >
                   Behind · {summary.behind}
                 </button>
+                {summary.inPipeline > 0 && (
+                  <button
+                    onClick={() => setPaceFilter('in_pipeline')}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${paceFilter === 'in_pipeline' ? 'bg-violet-500/20 text-violet-400 border-violet-500/40' : 'border-border text-muted-foreground hover:border-violet-500/30'}`}
+                  >
+                    In Pipeline · {summary.inPipeline}
+                  </button>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <div className="relative w-60">
@@ -537,18 +676,30 @@ export function ManagerTeamPage() {
                                   {(agent.agent_name || 'A').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
                                 </div>
                                 <div>
-                                  <div className="flex items-center gap-1.5">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
                                     <p className="font-semibold text-sm text-foreground leading-tight">
                                       {agent.agent_name || 'Unknown'}
                                     </p>
-                                    {isNewAgent(agent) && (
+                                    {isNewAgent(agent) && !agent.pipeline_only && (
                                       <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-cyan-500/15 text-cyan-400 border border-cyan-500/25">
                                         <Sparkles className="w-2.5 h-2.5" />
                                         New
                                       </span>
                                     )}
+                                    {agent.pipeline_stage && (
+                                      <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
+                                        agent.pipeline_only
+                                          ? 'bg-violet-500/15 text-violet-400 border border-violet-500/25'
+                                          : 'bg-teal-500/15 text-teal-400 border border-teal-500/25'
+                                      }`}>
+                                        <UserPlus className="w-2.5 h-2.5" />
+                                        {STAGE_LABELS[agent.pipeline_stage] || agent.pipeline_stage}
+                                      </span>
+                                    )}
                                   </div>
-                                  <p className="text-[10px] text-muted-foreground">{wn}</p>
+                                  <p className="text-[10px] text-muted-foreground">
+                                    {agent.pipeline_only ? (agent.writing_number || 'In pipeline') : wn}
+                                  </p>
                                 </div>
                               </div>
                             </td>
