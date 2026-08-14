@@ -73,6 +73,8 @@ export const CcAgencyAccessTab: React.FC = () => {
   const [modalSaving, setModalSaving] = useState(false);
   const [modalTesting, setModalTesting] = useState(false);
   const [modalTestResult, setModalTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  // syncProgress is set during Save & Sync and displayed in the modal
+  const [syncProgress, setSyncProgress] = useState<string | null>(null);
 
   /* ── Data loading ──────────────────────────────────────────────── */
 
@@ -182,15 +184,18 @@ export const CcAgencyAccessTab: React.FC = () => {
     setTogglingId(null);
   };
 
-  /* ── Modal save (Manager Pipeline) ─────────────────────────────── */
+  /* ── Modal Save & Sync (Manager Pipeline) ───────────────────────── */
 
-  const handleModalSave = async () => {
+  const handleModalSaveAndSync = async () => {
     if (!modalAgency || !modalApiKey.trim() || !modalLocationId.trim()) return;
     setModalSaving(true);
+    setSyncProgress(null);
+    setModalTestResult(null);
 
     const cfg = configs.get(modalAgency.id);
     let savedConfig: GhlConfig | null = null;
 
+    // Step 1: Save credentials + enable toggle
     if (cfg) {
       const { data } = await supabase
         .from('agency_ghl_configs')
@@ -198,6 +203,7 @@ export const CcAgencyAccessTab: React.FC = () => {
           ghl_api_key: modalApiKey.trim(),
           ghl_location_id: modalLocationId.trim(),
           manager_pipeline_enabled: true,
+          connection_status: 'connected',
           updated_at: new Date().toISOString(),
         })
         .eq('id', cfg.id)
@@ -211,7 +217,7 @@ export const CcAgencyAccessTab: React.FC = () => {
           agency_id: modalAgency.id,
           ghl_api_key: modalApiKey.trim(),
           ghl_location_id: modalLocationId.trim(),
-          connection_status: 'disconnected',
+          connection_status: 'connected',
           manager_pipeline_enabled: true,
           production_push_enabled: false,
         })
@@ -228,8 +234,47 @@ export const CcAgencyAccessTab: React.FC = () => {
       });
     }
 
+    // Step 2: One-time import from GHL → App (atomic with save)
+    try {
+      setSyncProgress('Importing pipeline from GHL…');
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      const res = await fetch(`${supabaseUrl}/functions/v1/atrisk-ghl-push`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'import',
+          agency_id: modalAgency.id,
+          api_key: modalApiKey.trim(),
+          location_id: modalLocationId.trim(),
+        }),
+      });
+
+      const result = await res.json();
+      if (res.ok && result.success) {
+        setSyncProgress(`Imported ${result.imported || 0} of ${result.total || 0} items`);
+        setModalTestResult({
+          ok: true,
+          message: `Saved & synced — ${result.imported || 0} pipeline items imported from GHL${result.skipped ? ` (${result.skipped} skipped)` : ''}`,
+        });
+      } else {
+        setModalTestResult({
+          ok: false,
+          message: `Credentials saved but sync failed: ${result.error || 'Unknown error'}. You can retry later.`,
+        });
+      }
+    } catch {
+      setModalTestResult({
+        ok: false,
+        message: 'Credentials saved but sync failed to reach the server. You can retry later.',
+      });
+    }
+
     setModalSaving(false);
-    setModalAgency(null);
   };
 
   const handleTestConnection = async () => {
@@ -482,7 +527,15 @@ export const CcAgencyAccessTab: React.FC = () => {
                 />
               </div>
 
-              {/* Test result */}
+              {/* Sync progress */}
+              {syncProgress && !modalTestResult && (
+                <div className="flex items-center gap-2 p-3 rounded-lg text-sm bg-primary/10 text-primary">
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  {syncProgress}
+                </div>
+              )}
+
+              {/* Test / sync result */}
               {modalTestResult && (
                 <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
                   modalTestResult.ok
@@ -497,15 +550,19 @@ export const CcAgencyAccessTab: React.FC = () => {
               {/* Action buttons */}
               <div className="flex items-center gap-3 pt-2">
                 <button
-                  onClick={handleModalSave}
+                  onClick={handleModalSaveAndSync}
                   disabled={modalSaving || !modalApiKey.trim() || !modalLocationId.trim()}
-                  className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >
-                  {modalSaving ? 'Saving…' : 'Enable & Save'}
+                  {modalSaving ? (
+                    <><RefreshCw className="w-4 h-4 animate-spin" /> Saving & Syncing…</>
+                  ) : (
+                    'Save & Sync'
+                  )}
                 </button>
                 <button
                   onClick={handleTestConnection}
-                  disabled={modalTesting || !modalApiKey.trim() || !modalLocationId.trim()}
+                  disabled={modalTesting || modalSaving || !modalApiKey.trim() || !modalLocationId.trim()}
                   className="flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-primary bg-primary/10 border border-primary/20 rounded-lg hover:bg-primary/20 transition-colors disabled:opacity-50"
                 >
                   {modalTesting ? (

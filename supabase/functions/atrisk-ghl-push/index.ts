@@ -11,6 +11,7 @@
  * Actions:
  *   - push:     Push a single stage change to GHL
  *   - seed:     One-time seed of all current app pipeline state → GHL (on opt-in)
+ *   - import:   One-time pull of GHL pipeline state → App (initial sync on enable)
  *   - status:   Check GHL connection status for an agency
  *
  * Auth: Requires FYM App authenticated session.
@@ -501,6 +502,204 @@ async function handleSeed(body: any): Promise<Response> {
   });
 }
 
+// ── Import handler (one-time pull of GHL pipeline state → App) ──────────────
+
+// Reverse map: GHL stage name → app stage key
+const REVERSE_STAGE_MAP: Record<string, string> = Object.fromEntries(
+  Object.entries(STAGE_MAP).map(([k, v]) => [v.toLowerCase(), k])
+);
+
+async function handleImport(body: any): Promise<Response> {
+  const { agency_id, api_key, location_id } = body;
+  if (!agency_id) {
+    return json({ error: "Missing agency_id" }, 400);
+  }
+
+  // Use provided creds (from Save & Sync) or fall back to stored config
+  let apiKey = api_key;
+  let locationId = location_id;
+
+  if (!apiKey || !locationId) {
+    const ghlConfig = await getAgencyGhlConfig(agency_id);
+    if (!ghlConfig) {
+      return json({ error: "GHL not enabled or not connected for this agency" }, 400);
+    }
+    apiKey = ghlConfig.apiKey;
+    locationId = ghlConfig.locationId;
+  }
+
+  // Find the at-risk / manager pipeline in GHL
+  const pipeline = await getOrCreatePipeline(apiKey, locationId);
+  const pipelineId = pipeline.id;
+  const stages = pipeline.stages || [];
+
+  // Build stage ID → app stage key lookup
+  const stageIdToAppKey: Record<string, string> = {};
+  for (const s of stages) {
+    const appKey = REVERSE_STAGE_MAP[s.name.toLowerCase()];
+    if (appKey) stageIdToAppKey[s.id] = appKey;
+  }
+
+  // Fetch all opportunities from this pipeline
+  const opportunities: any[] = [];
+  let hasMore = true;
+  let startAfterId: string | undefined;
+
+  while (hasMore) {
+    const url = new URL("https://services.leadconnectorhq.com/opportunities/search");
+    const searchBody: any = {
+      locationId,
+      pipelineId,
+      limit: 100,
+    };
+    if (startAfterId) searchBody.startAfterId = startAfterId;
+
+    const res = await fetch(url.toString(), {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        Version: "2021-07-28",
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(searchBody),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      return json({ error: `GHL opportunity search failed: ${res.status} ${errText}` }, 500);
+    }
+
+    const data = await res.json();
+    const batch = data.opportunities || [];
+    opportunities.push(...batch);
+
+    if (batch.length < 100) {
+      hasMore = false;
+    } else {
+      startAfterId = batch[batch.length - 1].id;
+    }
+  }
+
+  if (opportunities.length === 0) {
+    return json({ success: true, imported: 0, message: "No opportunities found in GHL pipeline" });
+  }
+
+  const app = getAppClient();
+  let imported = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+
+  for (const opp of opportunities) {
+    try {
+      const ghlStageId = opp.pipelineStageId;
+      const appStage = stageIdToAppKey[ghlStageId];
+      if (!appStage) {
+        skipped++;
+        continue;
+      }
+
+      const contactId = opp.contactId || opp.contact?.id;
+      const oppId = opp.id;
+      const oppName = opp.name || "";
+
+      // Try to find existing task by ghl_opportunity_id
+      const { data: existingTask } = await app
+        .from("atrisk_tasks")
+        .select("id, stage")
+        .eq("ghl_opportunity_id", oppId)
+        .maybeSingle();
+
+      if (existingTask) {
+        // Update stage if different
+        if (existingTask.stage !== appStage) {
+          await app
+            .from("atrisk_tasks")
+            .update({ stage: appStage })
+            .eq("id", existingTask.id);
+
+          // Log the transition
+          await app.from("atrisk_stage_history").insert({
+            task_id: existingTask.id,
+            from_stage: existingTask.stage,
+            to_stage: appStage,
+            source: "ghl",
+          });
+        }
+        imported++;
+        continue;
+      }
+
+      // No existing task — try to match by contact to an existing task
+      if (contactId) {
+        const { data: taskByContact } = await app
+          .from("atrisk_tasks")
+          .select("id, stage")
+          .eq("ghl_contact_id", contactId)
+          .maybeSingle();
+
+        if (taskByContact) {
+          // Link the opportunity and update stage
+          await app
+            .from("atrisk_tasks")
+            .update({
+              ghl_opportunity_id: oppId,
+              stage: appStage,
+            })
+            .eq("id", taskByContact.id);
+
+          if (taskByContact.stage !== appStage) {
+            await app.from("atrisk_stage_history").insert({
+              task_id: taskByContact.id,
+              from_stage: taskByContact.stage,
+              to_stage: appStage,
+              source: "ghl",
+            });
+          }
+          imported++;
+          continue;
+        }
+      }
+
+      // No match found — create a new task from GHL data
+      const { data: newTask } = await app
+        .from("atrisk_tasks")
+        .insert({
+          agency_id,
+          stage: appStage,
+          ghl_contact_id: contactId || null,
+          ghl_opportunity_id: oppId,
+          policy_number: oppName.replace(/^At-Risk:\s*/i, "").trim() || null,
+          source: "ghl",
+        })
+        .select("id")
+        .maybeSingle();
+
+      if (newTask) {
+        await app.from("atrisk_stage_history").insert({
+          task_id: newTask.id,
+          from_stage: null,
+          to_stage: appStage,
+          source: "ghl",
+        });
+        imported++;
+      } else {
+        skipped++;
+      }
+    } catch (err: any) {
+      errors.push(`${opp.id}: ${err.message}`);
+    }
+  }
+
+  return json({
+    success: true,
+    imported,
+    skipped,
+    total: opportunities.length,
+    errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
+  });
+}
+
 // ── Main handler ─────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -517,6 +716,8 @@ Deno.serve(async (req) => {
         return await handlePush(body);
       case "seed":
         return await handleSeed(body);
+      case "import":
+        return await handleImport(body);
       case "status": {
         const config = await getAgencyGhlConfig(body.agency_id);
         return json({ enabled: !!config, config: config ? { locationId: config.locationId } : null });
