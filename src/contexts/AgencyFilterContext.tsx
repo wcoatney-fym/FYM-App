@@ -16,7 +16,7 @@ interface AgencyFilterContextValue {
 const AgencyFilterContext = createContext<AgencyFilterContextValue | null>(null);
 
 export function AgencyFilterProvider({ children }: { children: ReactNode }) {
-  const { isFymAdmin, effectiveRole, effectiveAgencyWritingNumber } = useEffectiveAuth();
+  const { isFymAdmin, isOrgWide, effectiveRole, effectiveAgencyWritingNumber } = useEffectiveAuth();
   const isManager = effectiveRole === 'manager';
 
   // Single source of truth for the selected agency across all pages.
@@ -53,15 +53,17 @@ export function AgencyFilterProvider({ children }: { children: ReactNode }) {
     setFilterAgencyId(effectiveAgencyWritingNumber);
   }, [isManager, effectiveAgencyWritingNumber]);
 
-  // Managers can't switch agencies — they see their own agency only.
-  // FYM admins get the dropdown. Everyone else sees nothing.
-  const showAgencyFilter = isFymAdmin;
-  const isAllAgencies = isFymAdmin && filterAgencyId === null;
+  // Only show the agency filter when the user is truly org-wide
+  // (FYM admin NOT in View As mode). Managers, agents, and admins
+  // using View As all get locked to their effective agency.
+  const showAgencyFilter = isOrgWide;
+  const isAllAgencies = isOrgWide && filterAgencyId === null;
 
-  // For managers: no-op setter prevents any code path from overriding the lock.
-  const safeSetFilterAgencyId = isManager
-    ? () => {} // managers are locked — ignore all set attempts
-    : setFilterAgencyId;
+  // Anyone who isn't org-wide gets a locked setter.
+  // This covers real managers, agents, AND admins using View As.
+  const safeSetFilterAgencyId = isOrgWide
+    ? setFilterAgencyId
+    : () => {}; // locked — ignore all set attempts
 
   return (
     <AgencyFilterContext.Provider
