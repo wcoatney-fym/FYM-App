@@ -168,7 +168,7 @@ export interface ProducingAgent {
   name: string;
   npn: string | null;
   writingNumber: string | null;
-  agencyName: string;
+  carriers: string[];
   activePolicies: number;
   activeAp: number;
   totalPolicies: number;

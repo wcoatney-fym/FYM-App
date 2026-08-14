@@ -463,36 +463,55 @@ async function handleSync(
   let prodSql: ReturnType<typeof createProdConnection> | null = null;
   try {
     prodSql = createProdConnection();
-    // Get agents with production since Feb 1 — first app_recvd_date per wa_name
+    // Get FYM DIRECT agents with production since Feb 1.
+    // FYM direct = blank ga (no sub-agency in the hierarchy).
+    // Also track which carriers each agent writes for (UNL/GTL).
     const prodRows = await prodSql`
-      SELECT wa_name, MIN(app_recvd_date)::text as first_app_date
+      SELECT wa_name, MIN(app_recvd_date)::text as first_app_date, 'UNL' as carrier
       FROM typed.unl_fym_policy_latest_load
       WHERE app_recvd_date >= '2026-02-01'
         AND wa_name IS NOT NULL AND wa_name != ''
+        AND (TRIM(ga) IS NULL OR TRIM(ga) = '' OR TRIM(ga) = '202JVV00')
       GROUP BY wa_name
       UNION
-      SELECT wa_name, MIN(app_recvd_date)::text as first_app_date
+      SELECT wa_name, MIN(app_recvd_date)::text as first_app_date, 'GTL' as carrier
       FROM typed.gtl_fym_policy_latest_load
       WHERE app_recvd_date >= '2026-02-01'
         AND wa_name IS NOT NULL AND wa_name != ''
+        AND (TRIM(ga) IS NULL OR TRIM(ga) = '' OR TRIM(ga) = '202JVV00')
       GROUP BY wa_name
     `;
     // Build lookup by normalized name (MAX DB is uppercase)
-    const prodLookup = new Map<string, { name: string; firstAppDate: string }>();
+    // Track carriers per agent for the ROI table
+    const prodLookup = new Map<string, { name: string; firstAppDate: string; carriers: Set<string> }>();
     for (const row of prodRows) {
       const nname = (row.wa_name || "").toUpperCase().trim()
         .replace(/\(.*?\)/g, "").replace(/\s+/g, " ").trim();
       if (!nname) continue;
+      const carrier = row.carrier as string;
       const existing = prodLookup.get(nname);
-      if (!existing || row.first_app_date < existing.firstAppDate) {
-        prodLookup.set(nname, { name: row.wa_name, firstAppDate: row.first_app_date });
+      if (existing) {
+        existing.carriers.add(carrier);
+        if (row.first_app_date < existing.firstAppDate) {
+          existing.firstAppDate = row.first_app_date;
+          existing.name = row.wa_name;
+        }
+      } else {
+        prodLookup.set(nname, { name: row.wa_name, firstAppDate: row.first_app_date, carriers: new Set([carrier]) });
       }
       // Also index by swapped first/last for 2-part names
       const parts = nname.split(" ");
       if (parts.length === 2) {
         const swapped = `${parts[1]} ${parts[0]}`;
-        if (!prodLookup.has(swapped) || row.first_app_date < (prodLookup.get(swapped)?.firstAppDate || "")) {
-          prodLookup.set(swapped, { name: row.wa_name, firstAppDate: row.first_app_date });
+        const existingSwap = prodLookup.get(swapped);
+        if (existingSwap) {
+          existingSwap.carriers.add(carrier);
+          if (row.first_app_date < existingSwap.firstAppDate) {
+            existingSwap.firstAppDate = row.first_app_date;
+            existingSwap.name = row.wa_name;
+          }
+        } else {
+          prodLookup.set(swapped, { name: row.wa_name, firstAppDate: row.first_app_date, carriers: new Set([carrier]) });
         }
       }
     }
@@ -536,6 +555,7 @@ async function handleSync(
             source: "max_db_match",
             prod_name: prod.name,
             first_app_date: prod.firstAppDate,
+            carriers: [...prod.carriers],
           },
           occurred_at: prod.firstAppDate + "T00:00:00Z",
         });
