@@ -13,8 +13,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Search,
   Building2,
-  GitBranch,
-  Zap,
   Wifi,
   WifiOff,
   AlertTriangle,
