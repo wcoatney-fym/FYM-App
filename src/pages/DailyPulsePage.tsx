@@ -48,9 +48,13 @@ export function DailyPulsePage() {
   const fetchResponses = useCallback(async () => {
     setLoading(true);
     if (!supabase) { setLoading(false); return; }
+    // Org-wide admins see all responses (left join); scoped users filter by agency (inner join)
+    const joinType = !isOrgWide && effectiveAgencyId
+      ? 'checkin_recipients!inner(first_name, last_name, phone, agency_id)'
+      : 'checkin_recipients(first_name, last_name, phone)';
     let query = (supabase as any)
       .from('checkin_responses')
-      .select('*, checkin_recipients!inner(first_name, last_name, phone, agency_id)')
+      .select(`*, ${joinType}`)
       .eq('check_in_date', selectedDate)
       .order('conversation_state', { ascending: true });
     // Scope to manager's agency (non-org-wide users)
