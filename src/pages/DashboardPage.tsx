@@ -496,6 +496,11 @@ export function DashboardPage() {
     return <Navigate to="/my-dashboard" replace />;
   }
 
+  // Managers get their own team-focused dashboard.
+  if (effectiveRole === 'manager') {
+    return <Navigate to="/manager-dashboard" replace />;
+  }
+
   return (
     <div>
       <Header title="Dashboard" />
