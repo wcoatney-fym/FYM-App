@@ -12,7 +12,7 @@
  * All data auto-scoped to the manager's agency via effectiveAgencyId.
  * Focus: policy count and quality of business, not financials.
  */
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,12 +22,15 @@ import { StaggerContainer, StaggerItem, CountUp, RadialGauge } from '@/component
 import { QualityCard } from '@/components/dashboard/QualityCard';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useOrgData } from '@/contexts/OrgDataCache';
+import { supabase } from '@/lib/supabase';
 import {
   fetchAgentProduction,
   fetchAtRiskPolicies,
+  fetchCoachingFlags,
   type AgentProduction,
   type AtRiskPolicy,
 } from '@/lib/prod-api';
+import type { AgentCoachingFlag } from '@/components/coaching/AgentCoachingTable';
 import { useCachedMultiFetch } from '@/hooks/useCachedFetch';
 import { fmtPct, retentionColor } from '@/lib/formatUtils';
 import {
@@ -40,6 +43,10 @@ import {
   Activity,
   Award,
   Clock,
+  MessageSquare,
+  Target,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -83,11 +90,12 @@ export function ManagerDashboardPage() {
   } = useEffectiveAuth();
   const orgData = useOrgData();
 
-  // ── Fetch agent production + at-risk for this agency ──
+  // ── Fetch agent production + at-risk + coaching flags for this agency ──
   const agencyWn = effectiveAgencyWritingNumber;
   const fetchers = useMemo(() => ({
     agents: () => fetchAgentProduction(agencyWn ? { agency_id: agencyWn } : {}),
     atRisk: () => fetchAtRiskPolicies(agencyWn ? { agency_id: agencyWn } : {}),
+    coaching: () => fetchCoachingFlags(agencyWn ? { agency_id: agencyWn } : {}),
   }), [agencyWn]);
 
   const { data, loading: fetchLoading } = useCachedMultiFetch(
@@ -99,7 +107,37 @@ export function ManagerDashboardPage() {
   const agents: AgentProduction[] = data?.agents ?? [];
   const atRiskData = data?.atRisk;
   const atRiskPolicies: AtRiskPolicy[] = atRiskData?.data?.policies ?? [];
+  const coachingAgents: AgentCoachingFlag[] = (data?.coaching as any)?.agents ?? [];
   const loading = fetchLoading && agents.length === 0;
+
+  // ── Daily Pulse: today's check-in responses ──
+  const [pulseResponses, setPulseResponses] = useState<PulseResponse[]>([]);
+  const [pulseLoading, setPulseLoading] = useState(true);
+
+  const fetchPulse = useCallback(async () => {
+    if (!supabase) { setPulseLoading(false); return; }
+    setPulseLoading(true);
+    const today = getTodayCT();
+    const { data: rows } = await (supabase as any)
+      .from('checkin_responses')
+      .select('id, conversation_state, is_working, has_four_plus_hours, app_goal, nudge_sent, checkin_recipients!inner(first_name, last_name)')
+      .eq('check_in_date', today)
+      .order('conversation_state', { ascending: true });
+    if (rows) {
+      setPulseResponses(rows.map((r: any) => ({
+        id: r.id,
+        name: `${r.checkin_recipients.first_name} ${r.checkin_recipients.last_name}`,
+        state: r.conversation_state,
+        isWorking: r.is_working,
+        hasFourPlusHrs: r.has_four_plus_hours,
+        appGoal: r.app_goal,
+        nudgeSent: r.nudge_sent,
+      })));
+    }
+    setPulseLoading(false);
+  }, []);
+
+  useEffect(() => { fetchPulse(); }, [fetchPulse]);
 
   // ── Derive agency-level retention from org cache ──
   const agencyRetention = useMemo(() => {
@@ -536,8 +574,227 @@ export function ManagerDashboardPage() {
           </HudFrame>
         )}
 
+        {/* ── Two-column: Coaching Flags + Daily Pulse ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          {/* Coaching Flags */}
+          <CoachingFlagsCard agents={coachingAgents} loading={loading} />
+
+          {/* Daily Pulse Summary */}
+          <DailyPulseCard responses={pulseResponses} loading={pulseLoading} />
+
+        </div>
+
       </div>
     </div>
+  );
+}
+
+// ── Types for Daily Pulse ──────────────────────────────────────────────────
+
+interface PulseResponse {
+  id: string;
+  name: string;
+  state: string;
+  isWorking: boolean | null;
+  hasFourPlusHrs: boolean | null;
+  appGoal: number | null;
+  nudgeSent: boolean;
+}
+
+function getTodayCT(): string {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Chicago',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const y = parts.find((p) => p.type === 'year')!.value;
+  const m = parts.find((p) => p.type === 'month')!.value;
+  const d = parts.find((p) => p.type === 'day')!.value;
+  return `${y}-${m}-${d}`;
+}
+
+// ── Coaching Flags Card ────────────────────────────────────────────────────
+
+function CoachingFlagsCard({ agents, loading }: { agents: AgentCoachingFlag[]; loading: boolean }) {
+  const flagged = useMemo(() => agents.filter(a => a.needs_coaching), [agents]);
+
+  return (
+    <HudFrame accentColor={flagged.length > 0 ? 'hsl(38 92% 50% / 0.3)' : 'hsl(142 71% 45% / 0.3)'}>
+      <Card className="border-border">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className={`p-2 rounded-lg ${flagged.length > 0 ? 'bg-amber-500/10' : 'bg-emerald-500/10'}`}>
+                <Target size={18} className={flagged.length > 0 ? 'text-amber-400' : 'text-emerald-400'} />
+              </div>
+              <div>
+                <CardTitle className="text-base font-semibold">Coaching Flags</CardTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {flagged.length > 0
+                    ? `${flagged.length} agent${flagged.length > 1 ? 's' : ''} below thresholds`
+                    : 'All agents on target'}
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/quality/coaching"
+              className="text-xs text-primary hover:underline flex items-center gap-1"
+            >
+              Full view <ChevronRight size={12} />
+            </Link>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map(i => <div key={i} className="h-10 rounded shimmer" />)}
+            </div>
+          ) : flagged.length === 0 ? (
+            <div className="py-4 text-center">
+              <CheckCircle size={24} className="text-emerald-400 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">No coaching flags — team is performing well</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border/30">
+              {flagged.slice(0, 5).map((agent) => (
+                <div key={agent.writing_number} className="flex items-center justify-between py-2.5 first:pt-1">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">
+                      {agent.agent_name || 'Unknown'}
+                    </p>
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                      {agent.flag_retention && (
+                        <span className="text-xs text-red-400">↓ Retention {fmtPct(agent.retention_pct)}</span>
+                      )}
+                      {agent.flag_at_risk && (
+                        <span className="text-xs text-amber-400">⚠ {agent.at_risk_count} at-risk</span>
+                      )}
+                      {agent.flag_terminated && (
+                        <span className="text-xs text-purple-400">✕ High term rate</span>
+                      )}
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="ml-2 flex-shrink-0 text-xs border-amber-500/30 text-amber-400">
+                    {agent.flag_count} flag{agent.flag_count > 1 ? 's' : ''}
+                  </Badge>
+                </div>
+              ))}
+              {flagged.length > 5 && (
+                <div className="pt-2 text-center">
+                  <Link to="/quality/coaching" className="text-xs text-primary hover:underline">
+                    +{flagged.length - 5} more →
+                  </Link>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </HudFrame>
+  );
+}
+
+// ── Daily Pulse Summary Card ───────────────────────────────────────────────
+
+function DailyPulseCard({ responses, loading }: { responses: PulseResponse[]; loading: boolean }) {
+  const stats = useMemo(() => {
+    const total = responses.length;
+    const responded = responses.filter(r => r.state === 'complete' || r.state === 'declined').length;
+    const working = responses.filter(r => r.isWorking === true).length;
+    const noResponse = responses.filter(r => !['complete', 'declined'].includes(r.state)).length;
+    const totalApps = responses.reduce((sum, r) => sum + (r.appGoal || 0), 0);
+    const responseRate = total > 0 ? Math.round((responded / total) * 100) : 0;
+    return { total, responded, working, noResponse, totalApps, responseRate };
+  }, [responses]);
+
+  // Show agents who haven't responded
+  const silent = useMemo(() =>
+    responses.filter(r => !['complete', 'declined'].includes(r.state)).slice(0, 5),
+    [responses]
+  );
+
+  return (
+    <HudFrame accentColor="hsl(200 80% 50% / 0.3)">
+      <Card className="border-border">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-lg bg-sky-500/10">
+                <MessageSquare size={18} className="text-sky-400" />
+              </div>
+              <div>
+                <CardTitle className="text-base font-semibold">Daily Pulse</CardTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">Today's check-in</p>
+              </div>
+            </div>
+            <Link
+              to="/daily-pulse"
+              className="text-xs text-primary hover:underline flex items-center gap-1"
+            >
+              Full view <ChevronRight size={12} />
+            </Link>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="space-y-3">
+              <div className="h-16 rounded shimmer" />
+              <div className="h-10 rounded shimmer" />
+            </div>
+          ) : stats.total === 0 ? (
+            <div className="py-4 text-center">
+              <MessageSquare size={24} className="text-muted-foreground/50 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">No check-ins sent today</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Quick stats */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="text-center">
+                  <p className={`text-2xl font-bold font-data ${
+                    stats.responseRate >= 80 ? 'text-emerald-400' : stats.responseRate >= 50 ? 'text-amber-400' : 'text-red-400'
+                  }`}>{stats.responseRate}%</p>
+                  <p className="text-xs text-muted-foreground">Response Rate</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold font-data text-sky-400">{stats.working}</p>
+                  <p className="text-xs text-muted-foreground">Working</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold font-data text-emerald-400">{stats.totalApps}</p>
+                  <p className="text-xs text-muted-foreground">Apps Committed</p>
+                </div>
+              </div>
+
+              {/* Silent agents */}
+              {silent.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-red-400 mb-2 flex items-center gap-1">
+                    <XCircle size={12} /> {stats.noResponse} agent{stats.noResponse > 1 ? 's' : ''} haven't responded
+                  </p>
+                  <div className="space-y-1">
+                    {silent.map(r => (
+                      <div key={r.id} className="flex items-center justify-between text-xs py-1 px-2 rounded bg-red-500/5">
+                        <span className="text-foreground">{r.name}</span>
+                        <span className="text-red-400">{r.nudgeSent ? 'Nudged' : 'No response'}</span>
+                      </div>
+                    ))}
+                    {stats.noResponse > 5 && (
+                      <Link to="/daily-pulse" className="text-xs text-primary hover:underline block text-center pt-1">
+                        +{stats.noResponse - 5} more →
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </HudFrame>
   );
 }
 
