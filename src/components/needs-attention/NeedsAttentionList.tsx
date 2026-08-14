@@ -25,6 +25,7 @@ import { fmt$ } from '@/lib/formatUtils';
 import { toast } from 'sonner';
 import { AttentionCard, type AttentionPolicy, type ActionState } from './AttentionCard';
 import { AttentionFilters, type FlagFilter, type ActionFilter } from './AttentionFilters';
+import { pushStageToGhl } from '@/lib/ghl-push';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -238,6 +239,19 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
             },
             { onConflict: 'policy_number' }
           );
+
+        // Fire-and-forget GHL push
+        pushStageToGhl({
+          policy_number: policyNumber,
+          agency_id: policy.agency_id,
+          new_stage: stage,
+          client_name: policy.client_name,
+          plan_premium: policy.plan_premium,
+          ghl_contact_id: null,
+          ghl_opportunity_id: null,
+          task_id: null,
+          source: 'app',
+        });
       }
     } catch (err) {
       console.error('Failed to update action state:', err);

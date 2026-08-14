@@ -16,6 +16,7 @@ import {
   AlertTriangle, RefreshCw, Search, Clock, DollarSign,
   ShieldAlert, Loader2,
 } from 'lucide-react';
+import { pushStageToGhl } from '@/lib/ghl-push';
 import { Card, CardContent } from '@/components/ui/card';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
@@ -44,6 +45,8 @@ export interface AtRiskPolicy {
   task_assigned_to: string | null;
   task_due_date: string | null;
   task_created_at: string | null;
+  ghl_contact_id: string | null;
+  ghl_opportunity_id: string | null;
 }
 
 // ── Pipeline stages ────────────────────────────────────────────────────────
@@ -184,14 +187,28 @@ export function AtRiskKanban({ filterAgencyId }: AtRiskKanbanProps) {
           })
           .eq('id', policy.task_id);
 
-        // Log stage transition
+        // Log stage transition with source='app'
         await (supabase as any)
           .from('atrisk_stage_history')
           .insert({
             task_id: policy.task_id,
             from_stage: current,
             to_stage: target,
+            source: 'app',
           });
+
+        // Fire-and-forget GHL push
+        pushStageToGhl({
+          policy_number: policy.policy_number,
+          agency_id: policy.agency_id,
+          new_stage: target,
+          client_name: policy.client_name,
+          plan_premium: policy.plan_premium,
+          ghl_contact_id: policy.ghl_contact_id ?? null,
+          ghl_opportunity_id: policy.ghl_opportunity_id ?? null,
+          task_id: policy.task_id,
+          source: 'app',
+        });
       } else {
         // Create new task at target stage
         const { data } = await supabase!
@@ -215,14 +232,28 @@ export function AtRiskKanban({ filterAgencyId }: AtRiskKanbanProps) {
           .single();
 
         if (data) {
-          // Log initial stage entry
+          // Log initial stage entry with source='app'
           await (supabase as any)
             .from('atrisk_stage_history')
             .insert({
               task_id: data.id,
               from_stage: null,
               to_stage: target,
+              source: 'app',
             });
+
+          // Fire-and-forget GHL push
+          pushStageToGhl({
+            policy_number: policy.policy_number,
+            agency_id: policy.agency_id,
+            new_stage: target,
+            client_name: policy.client_name,
+            plan_premium: policy.plan_premium,
+            ghl_contact_id: null,
+            ghl_opportunity_id: null,
+            task_id: data.id,
+            source: 'app',
+          });
 
           setPolicies(prev => prev.map(p =>
             p.policy_number === policy.policy_number
