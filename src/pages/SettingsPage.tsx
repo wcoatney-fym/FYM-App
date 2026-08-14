@@ -810,6 +810,10 @@ function FymAdminManagementCard({ currentUserId }: { currentUserId: string | nul
 const FYM_AGENCY_ID = '338230f2-2058-407c-9507-5aa88d6d5e14';
 const FYM_AGENCY_NAME = 'FYM';
 
+// FYM direct agent for agent-view pivot — Greg McLeod (active producer)
+const FYM_PIVOT_AGENT_WRITING_NBR = '202JVV05';
+const FYM_PIVOT_AGENT_NAME = 'Greg McLeod';
+
 type PivotView = 'admin' | 'manager' | 'agent';
 
 function ViewAsCard() {
@@ -871,6 +875,14 @@ function ViewAsCard() {
   function handlePivot(view: PivotView) {
     if (view === 'admin') {
       deactivate();
+    } else if (view === 'agent') {
+      activate({
+        role: view,
+        agencyId: FYM_AGENCY_ID,
+        agencyName: FYM_AGENCY_NAME,
+        agentId: FYM_PIVOT_AGENT_WRITING_NBR,
+        agentName: FYM_PIVOT_AGENT_NAME,
+      });
     } else {
       activate({
         role: view,
