@@ -160,9 +160,13 @@ export function ManagerDashboardPage() {
     if (!supabase) { setPulseLoading(false); return; }
     setPulseLoading(true);
     const today = getTodayCT();
+    // Scoped managers filter by agency (inner join); org-wide sees all (left join)
+    const joinType = effectiveAgencyId
+      ? 'checkin_recipients!inner(first_name, last_name, agency_id)'
+      : 'checkin_recipients(first_name, last_name, agency_id)';
     let query = (supabase as any)
       .from('checkin_responses')
-      .select('id, conversation_state, is_working, has_four_plus_hours, app_goal, nudge_sent, checkin_recipients!inner(first_name, last_name, agency_id)')
+      .select(`id, conversation_state, is_working, has_four_plus_hours, app_goal, nudge_sent, ${joinType}`)
       .eq('check_in_date', today)
       .order('conversation_state', { ascending: true });
     // Scope to manager's agency
