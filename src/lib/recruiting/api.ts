@@ -614,101 +614,53 @@ export async function fetchCampaignPerformance(campaignId: string, filter?: Recr
 // ── ROI: Producing agents matched to Max's production DB ─────────────────
 
 /**
- * Fetch producing agents with their production data from Max's DB.
- * Matches recruited agents by name (case-insensitive) via the prod-data edge function.
+ * Fetch producing agents with their production data.
+ * Reads from recruiting_agent_production table (pre-populated cache of
+ * recruited agents matched to Max's production DB by name).
+ * One row per agent — no duplicates.
  */
 export async function fetchProducingAgents(): Promise<ProducingAgent[]> {
-  if (!supabaseConfigured || !recruitingSb || !supabaseUrl || !supabaseAnonKey) return [];
+  if (!supabaseConfigured || !recruitingSb) return [];
 
-  // Step 1: Get all recruited agents from the RPC
-  const params = { start_date: '2026-02-01T00:00:00.000Z' };
-  const PAGE_SIZE = 1000;
-  const allLeads: RpcRecruitingLead[] = [];
-  let offset = 0;
-  while (true) {
-    const { data, error } = await recruitingSb
-      .rpc('get_recruiting_leads', params)
-      .range(offset, offset + PAGE_SIZE - 1);
-    if (error || !data || data.length === 0) break;
-    allLeads.push(...(data as RpcRecruitingLead[]));
-    if (data.length < PAGE_SIZE) break;
-    offset += PAGE_SIZE;
+  const { data, error } = await recruitingSb
+    .from('recruiting_agent_production')
+    .select('*')
+    .order('active_ap', { ascending: false });
+
+  if (error || !data?.length) {
+    if (error) console.warn('[Recruiting] Agent production fetch error:', error.message);
+    return [];
   }
 
-  if (allLeads.length === 0) return [];
-
-  // Step 2: Get names of recruited agents to match against Max's DB
-  const recruitedNames = allLeads
-    .map(l => l.name?.trim())
-    .filter(Boolean) as string[];
-
-  // Step 3: Call prod-data edge function with names
-  const baseUrl = supabaseUrl.replace(/\/$/, '');
-  let prodData: Array<{
-    writing_number: string;
-    agent_name: string;
-    agency_wn: string;
-    agency_name: string;
-    total_policies: number;
+  return (data as Array<{
+    recruit_name: string;
+    writing_number: string | null;
+    agency_name: string | null;
+    npn: string | null;
     active_policies: number;
     active_ap: number;
+    total_policies: number;
     total_ap: number;
     first_issue_date: string | null;
     last_issue_date: string | null;
-  }> = [];
-
-  try {
-    const res = await fetch(`${baseUrl}/functions/v1/prod-data?type=recruiting_roi`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${supabaseAnonKey}`,
-        apikey: supabaseAnonKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ names: recruitedNames }),
-    });
-    if (res.ok) {
-      const json = await res.json();
-      prodData = json.data ?? [];
-    }
-  } catch (err) {
-    console.warn('[Recruiting] Prod-data ROI fetch error:', err);
-  }
-
-  // Step 4: Match production data back to recruited agents by name
-  const prodByName = new Map<string, typeof prodData[0]>();
-  for (const p of prodData) {
-    prodByName.set(p.agent_name.toUpperCase().trim(), p);
-  }
-
-  const results: ProducingAgent[] = [];
-  for (const lead of allLeads) {
-    const nameKey = (lead.name ?? '').toUpperCase().trim();
-    const prod = prodByName.get(nameKey);
-    if (!prod) continue; // No production match
-
-    results.push({
-      name: lead.name ?? '',
-      npn: lead.npn ?? null,
-      writingNumber: prod.writing_number,
-      agencyName: prod.agency_name || prod.agency_wn,
-      activePolicies: Number(prod.active_policies) || 0,
-      activeAp: Number(prod.active_ap) || 0,
-      totalPolicies: Number(prod.total_policies) || 0,
-      totalAp: Number(prod.total_ap) || 0,
-      firstIssueDate: prod.first_issue_date,
-      lastIssueDate: prod.last_issue_date,
-      stage: (lead.current_stage ?? 'producing') as RecruitingStage,
-      leadAt: lead.lead_at ?? null,
-      hiredAt: lead.hired_at ?? null,
-      rtsAt: lead.rts_at ?? null,
-      producingAt: lead.producing_at ?? null,
-    });
-  }
-
-  // Sort by active AP descending
-  results.sort((a, b) => b.activeAp - a.activeAp);
-  return results;
+    recruit_stage: string | null;
+  }>).map(row => ({
+    name: row.recruit_name,
+    npn: row.npn,
+    writingNumber: row.writing_number,
+    agencyName: row.agency_name ?? '',
+    activePolicies: Number(row.active_policies) || 0,
+    activeAp: Number(row.active_ap) || 0,
+    totalPolicies: Number(row.total_policies) || 0,
+    totalAp: Number(row.total_ap) || 0,
+    firstIssueDate: row.first_issue_date,
+    lastIssueDate: row.last_issue_date,
+    stage: (row.recruit_stage ?? 'producing') as RecruitingStage,
+    leadAt: null,
+    hiredAt: null,
+    rtsAt: null,
+    producingAt: null,
+  }));
 }
 
 /**
