@@ -393,7 +393,7 @@ function RoiView() {
                   <tr className="border-b border-border/30 text-muted-foreground text-xs uppercase tracking-wider">
                     <th className="text-left px-4 py-3">Agent</th>
                     <th className="text-left px-3 py-3">NPN</th>
-                    <th className="text-left px-3 py-3">Agency</th>
+                    <th className="text-left px-3 py-3">Carriers</th>
                     <th className="text-right px-3 py-3">Policies</th>
                     <th className="text-right px-3 py-3">Annual Premium</th>
                     <th className="text-right px-3 py-3">First Issue</th>
@@ -408,7 +408,22 @@ function RoiView() {
                         {a.writingNumber && <p className="text-xs text-muted-foreground font-mono">{a.writingNumber}</p>}
                       </td>
                       <td className="px-3 py-3 font-mono text-xs text-muted-foreground">{a.npn ?? '—'}</td>
-                      <td className="px-3 py-3 text-xs text-muted-foreground">{a.agencyName}</td>
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-1 flex-wrap">
+                          {a.carriers.map(c => {
+                            const style = c === 'UNL'
+                              ? 'bg-cyan-500/20 text-cyan-400'
+                              : c === 'GTL'
+                                ? 'bg-violet-500/20 text-violet-400'
+                                : 'bg-gray-500/20 text-gray-400';
+                            return (
+                              <span key={c} className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide ${style}`}>
+                                {c}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </td>
                       <td className="px-3 py-3 text-right font-mono font-semibold">{a.activePolicies}</td>
                       <td className="px-3 py-3 text-right font-mono text-emerald-400 font-semibold">
                         ${a.activeAp.toLocaleString(undefined, { maximumFractionDigits: 0 })}

@@ -644,11 +644,12 @@ export async function fetchProducingAgents(): Promise<ProducingAgent[]> {
     first_issue_date: string | null;
     last_issue_date: string | null;
     recruit_stage: string | null;
+    carriers: string[] | null;
   }>).map(row => ({
     name: row.recruit_name,
     npn: row.npn,
     writingNumber: row.writing_number,
-    agencyName: row.agency_name ?? '',
+    carriers: row.carriers ?? ['UNL'],
     activePolicies: Number(row.active_policies) || 0,
     activeAp: Number(row.active_ap) || 0,
     totalPolicies: Number(row.total_policies) || 0,
