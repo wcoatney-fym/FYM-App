@@ -504,6 +504,11 @@ async function handleSync(
       .select("ghl_contact_id, name, email, stage");
 
     if (allLeads) {
+      // Track which normalized names have already been matched this sync
+      // to avoid creating duplicate producing transitions for the same
+      // person who exists in both GHL sub-accounts (different contact IDs).
+      const matchedProducingNames = new Set<string>();
+
       for (const lead of allLeads) {
         const rawName = (lead.name || "").trim();
         let nname = rawName.toUpperCase()
@@ -515,6 +520,10 @@ async function handleSync(
         }
         const prod = prodLookup.get(nname);
         if (!prod) continue;
+
+        // Skip if we've already matched this person under a different contact ID
+        if (matchedProducingNames.has(nname)) continue;
+        matchedProducingNames.add(nname);
 
         stats.producing.matched++;
 
