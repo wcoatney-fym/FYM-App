@@ -26,3 +26,7 @@ dist-ssr
 supabase/.temp/
 20260727000002_retention_cohort_views.sql
 scripts/cli-mock-upload.ts
+-e 
+# Build cache
+tsconfig.app.tsbuildinfo
+tsconfig.node.tsbuildinfo

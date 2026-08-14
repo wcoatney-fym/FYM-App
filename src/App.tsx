@@ -14,6 +14,7 @@ import { SettingsPage } from '@/pages/SettingsPage';
 import { LeaderboardPage } from '@/pages/LeaderboardPage';
 import { AgentHealthPage } from '@/pages/AgentHealthPage';
 import { AgentDashboardPage } from '@/pages/AgentDashboardPage';
+import { AgentTrainingPage } from '@/pages/AgentTrainingPage';
 import { GoalPage } from '@/pages/GoalPage';
 import { ManagerTeamPage } from '@/pages/ManagerTeamPage';
 // AdminFinancialsPage removed — content migrated to ProductionPage
@@ -59,6 +60,7 @@ function App() {
             <Route path="/my-dashboard" element={<AgentDashboardPage />} />
             <Route path="/my-production" element={<MyProductionPage />} />
             <Route path="/my-goal" element={<GoalPage />} />
+            <Route path="/training" element={<AgentTrainingPage />} />
             <Route path="/my-team" element={<RoleGuard allow={['admin', 'manager']}><ManagerTeamPage /></RoleGuard>} />
             <Route path="/settings" element={<SettingsPage />} />
 
