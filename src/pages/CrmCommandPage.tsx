@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, ScrollText, KanbanSquare, GitBranch,
-  Workflow, BarChart3, Target, Users, Headphones, Settings, Database
+  Workflow, BarChart3, Target, Users, Headphones, Settings, Database, ShieldCheck
 } from 'lucide-react';
 
 // Tab components
@@ -19,6 +19,7 @@ import { CrmOpsPage } from './CrmOpsPage';
 import { CcSettingsTab } from './crm-command/CcSettingsTab';
 import { CcBackfillTab } from './crm-command/CcBackfillTab';
 import { CcRecruitingLogTab } from './crm-command/CcRecruitingLogTab';
+import { CcAgencyAccessTab } from './crm-command/CcAgencyAccessTab';
 
 type CrmCommandTab =
   | 'dashboard'
@@ -31,6 +32,7 @@ type CrmCommandTab =
   | 'team'
   | 'crm-ops'
   | 'recruiting-log'
+  | 'agency-access'
   | 'backfill'
   | 'settings';
 
@@ -45,6 +47,7 @@ const tabs: { id: CrmCommandTab; label: string; icon: React.ElementType }[] = [
   { id: 'team', label: 'Team & Roles', icon: Users },
   { id: 'crm-ops', label: 'CRM Ops', icon: Headphones },
   { id: 'recruiting-log' as CrmCommandTab, label: 'Recruiting Log', icon: GitBranch },
+  { id: 'agency-access', label: 'Agency Access', icon: ShieldCheck },
   { id: 'backfill', label: 'FYM APP Backfill', icon: Database },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
@@ -98,6 +101,7 @@ export function CrmCommandPage() {
         {activeTab === 'team' && <CcTeamTab />}
         {activeTab === 'crm-ops' && <CrmOpsPage />}
         {activeTab === 'recruiting-log' && <CcRecruitingLogTab />}
+        {activeTab === 'agency-access' && <CcAgencyAccessTab />}
         {activeTab === 'backfill' && <CcBackfillTab />}
         {activeTab === 'settings' && <CcSettingsTab />}
       </div>

@@ -110,6 +110,8 @@ export type AgencyGhlConfig = {
   connection_status: 'connected' | 'error' | 'disconnected';
   last_sync_at: string | null;
   last_error: string | null;
+  manager_pipeline_enabled: boolean;
+  production_push_enabled: boolean;
   created_at: string;
   updated_at: string;
 };
