@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import {
   fetchStageTransitions,
   fetchGhlLiveCounts,
+  fetchRecruitingLeads,
   type StageTransitionRow,
 } from '@/lib/recruiting/api';
 import type { RecruitingDateFilter } from '@/lib/recruiting/types';
@@ -131,12 +132,29 @@ export function CcRecruitingLogTab() {
   const [sortAsc, setSortAsc] = useState(false);
   const [kpiCounts, setKpiCounts] = useState<Record<string, number>>({});
   const [kpiLoading, setKpiLoading] = useState(true);
+  const [nameMap, setNameMap] = useState<Map<string, string>>(new Map());
 
   // Get date filter from selected period
   const dateFilter = useMemo(() => {
     const opt = PERIOD_OPTIONS.find((o) => o.key === selectedPeriod);
     return opt?.getRange();
   }, [selectedPeriod]);
+
+  // Fetch contact name map (once — names don't change with date filter)
+  useEffect(() => {
+    let cancelled = false;
+    fetchRecruitingLeads().then((leads) => {
+      if (cancelled) return;
+      const map = new Map<string, string>();
+      // The RPC returns rows that have ghl_contact_id in the id field
+      // Build lookup: for each lead, map its id (which is ghl_contact_id in RPC) to name
+      for (const l of leads) {
+        if (l.id && l.name) map.set(l.id, l.name);
+      }
+      setNameMap(map);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   // Fetch transitions
   useEffect(() => {
@@ -185,15 +203,19 @@ export function CcRecruitingLogTab() {
       rows = rows.filter((r) => r.stage === stageFilter);
     }
 
-    // Search filter (contact ID or metadata)
+    // Search filter (name, contact ID, or metadata)
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      rows = rows.filter((r) =>
-        r.ghl_contact_id.toLowerCase().includes(q) ||
-        JSON.stringify(r.metadata).toLowerCase().includes(q) ||
-        r.stage.toLowerCase().includes(q) ||
-        (r.condition || '').toLowerCase().includes(q)
-      );
+      rows = rows.filter((r) => {
+        const name = nameMap.get(r.ghl_contact_id) ?? (r.metadata as Record<string, unknown>)?.name as string ?? '';
+        return (
+          name.toLowerCase().includes(q) ||
+          r.ghl_contact_id.toLowerCase().includes(q) ||
+          JSON.stringify(r.metadata).toLowerCase().includes(q) ||
+          r.stage.toLowerCase().includes(q) ||
+          (r.condition || '').toLowerCase().includes(q)
+        );
+      });
     }
 
     // Sort by occurred_at
@@ -306,7 +328,7 @@ export function CcRecruitingLogTab() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by contact ID, tag, stage..."
+            placeholder="Search by name, tag, stage..."
             className="w-full pl-8 pr-3 py-1.5 text-xs bg-card/50 border border-border/40 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
@@ -339,7 +361,7 @@ export function CcRecruitingLogTab() {
                 <th className="text-left px-3 py-2 font-medium text-muted-foreground">Stage</th>
                 <th className="text-left px-3 py-2 font-medium text-muted-foreground">From</th>
                 <th className="text-left px-3 py-2 font-medium text-muted-foreground">Event</th>
-                <th className="text-left px-3 py-2 font-medium text-muted-foreground">Contact ID</th>
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground">Name</th>
                 <th className="text-left px-3 py-2 font-medium text-muted-foreground">Details</th>
               </tr>
             </thead>
@@ -403,8 +425,10 @@ export function CcRecruitingLogTab() {
                           {t.condition}
                         </span>
                       </td>
-                      <td className="px-3 py-2 font-mono text-muted-foreground text-[10px]">
-                        {t.ghl_contact_id.slice(0, 12)}…
+                      <td className="px-3 py-2 text-foreground capitalize">
+                        {nameMap.get(t.ghl_contact_id)
+                          ?? (details as Record<string, unknown>).name as string
+                          ?? t.ghl_contact_id.slice(0, 12) + '…'}
                       </td>
                       <td className="px-3 py-2 text-muted-foreground truncate max-w-[200px]">
                         {detailStr}
