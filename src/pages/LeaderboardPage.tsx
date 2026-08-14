@@ -36,9 +36,11 @@ import {
   Trophy, TrendingUp, ShieldCheck,
   Calendar, DollarSign, FileText,
   Swords, Target, Users, Crown, Plus,
-  CheckCircle2, XCircle, Clock,
+  CheckCircle2, XCircle,
 } from 'lucide-react';
 // fmt$ moved to HeroPodium/LeaderboardTable components
+import { BattleMatchup } from '@/components/leaderboard/BattleMatchup';
+import { HallOfFame, type HallOfFameEntry } from '@/components/leaderboard/HallOfFame';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 // Removed dead code block (lines 43-56)
@@ -164,12 +166,7 @@ function competeStatusBadge(status: 'upcoming' | 'active' | 'completed') {
   return <Badge className="bg-muted text-muted-foreground border-border">Completed</Badge>;
 }
 
-function competeDaysRemaining(endDate: string): number {
-  const end = new Date(endDate + 'T23:59:59');
-  const now = new Date();
-  const diff = end.getTime() - now.getTime();
-  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
-}
+// competeDaysRemaining moved to BattleMatchup component
 
 function competeDateRange(start: string, end: string) {
   const fmt = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -794,7 +791,7 @@ export function LeaderboardPage() {
               ))}
             </StaggerContainer>
 
-            {/* Battles section */}
+            {/* Battles — ESPN-style matchup cards */}
             <div className="flex items-center gap-2">
               <Swords size={16} className="text-primary" />
               <h3 className="text-sm font-semibold text-foreground">Battles</h3>
@@ -820,61 +817,63 @@ export function LeaderboardPage() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {battles.map(battle => {
                   const participants = safeMapGet(battleParticipants, battle.id) || [];
-                  const maxValue = Math.max(1, ...participants.map(p => p.current_value));
-                  const MetricIcon = competeMetricIcon(battle.metric);
-                  const winner = participants.find(p => p.is_winner);
                   return (
-                    <Card key={battle.id} className="border-border">
-                      <CardHeader className="pb-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <CardTitle className="text-base font-semibold text-foreground">{battle.title}</CardTitle>
-                            {battle.description && <p className="text-xs text-muted-foreground mt-1">{battle.description}</p>}
-                          </div>
-                          {competeStatusBadge(battle.status)}
-                        </div>
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2">
-                          <span className="flex items-center gap-1"><MetricIcon size={12} />{competeMetricLabel(battle.metric)}</span>
-                          <span className="flex items-center gap-1"><Calendar size={12} />{competeDateRange(battle.start_date, battle.end_date)}</span>
-                          {battle.status === 'active' && (
-                            <span className="flex items-center gap-1 text-emerald-400"><Clock size={12} />{competeDaysRemaining(battle.end_date)}d left</span>
-                          )}
-                        </div>
-                      </CardHeader>
-                      <CardContent className="pt-0 space-y-3">
-                        {participants.length === 0 ? (
-                          <p className="text-xs text-muted-foreground py-4 text-center">No participants added yet.</p>
-                        ) : (
-                          participants.map(p => (
-                            <div key={p.id}>
-                              <div className="flex items-center justify-between text-xs mb-1">
-                                <span className={`font-medium truncate flex items-center gap-1.5 ${battle.status === 'completed' && p.is_winner ? 'text-amber-400' : 'text-foreground'}`}>
-                                  {battle.status === 'completed' && p.is_winner && <Trophy size={12} className="text-amber-400" />}
-                                  {p.display_name}
-                                </span>
-                                <span className="font-data text-muted-foreground">{competeFmtValue(p.current_value, battle.metric)}</span>
-                              </div>
-                              <div className="h-2 rounded-full bg-secondary/50 overflow-hidden">
-                                <div
-                                  className={`h-full rounded-full transition-all ${battle.status === 'completed' && p.is_winner ? 'bg-amber-400' : 'gradient-primary'}`}
-                                  style={{ width: `${Math.min(100, (p.current_value / maxValue) * 100)}%` }}
-                                />
-                              </div>
-                            </div>
-                          ))
-                        )}
-                        {battle.status === 'completed' && winner && (
-                          <div className="flex items-center gap-2 pt-2 border-t border-border/30 text-xs text-amber-400">
-                            <Trophy size={14} />
-                            <span className="font-semibold">{winner.display_name}</span> wins this battle
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
+                    <BattleMatchup
+                      key={battle.id}
+                      title={battle.title}
+                      description={battle.description}
+                      metric={battle.metric}
+                      status={battle.status}
+                      startDate={battle.start_date}
+                      endDate={battle.end_date}
+                      participants={participants}
+                    />
                   );
                 })}
               </div>
             )}
+
+            {/* Hall of Fame */}
+            {!competeLoading && (() => {
+              // Compute hall of fame data from completed battles
+              const winCounts = new Map<string, number>();
+              for (const b of battles) {
+                if (b.status !== 'completed') continue;
+                const parts = safeMapGet(battleParticipants, b.id) || [];
+                for (const p of parts) {
+                  if (p.is_winner) {
+                    winCounts.set(p.display_name, (winCounts.get(p.display_name) || 0) + 1);
+                  }
+                }
+              }
+              const topWinners: HallOfFameEntry[] = [...winCounts.entries()]
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 3)
+                .map(([name, wins]) => ({ displayName: name, value: wins, label: wins === 1 ? 'win' : 'wins' }));
+
+              const completedChallengeCount = new Map<string, number>();
+              for (const c of challenges) {
+                if (c.status !== 'completed') continue;
+                const parts = safeMapGet(challengeParticipants, c.id) || [];
+                for (const p of parts) {
+                  completedChallengeCount.set(p.display_name, (completedChallengeCount.get(p.display_name) || 0) + 1);
+                }
+              }
+              const topChallenger = [...completedChallengeCount.entries()]
+                .sort((a, b) => b[1] - a[1])[0] || null;
+
+              return (
+                <HallOfFame
+                  topBattleWinners={topWinners}
+                  longestStreak={null}
+                  mostChallengesCompleted={topChallenger ? {
+                    displayName: topChallenger[0],
+                    value: topChallenger[1],
+                    label: topChallenger[1] === 1 ? 'challenge' : 'challenges',
+                  } : null}
+                />
+              );
+            })()}
           {/* ── Challenges section (inside Compete tab) ── */}
             <div className="flex items-center gap-2 pt-4 border-t border-border/30">
               <Target size={16} className="text-primary" />
