@@ -18,6 +18,9 @@ import { StaggerContainer, StaggerItem, CountUp, RadialGauge } from '@/component
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
 import { fetchAgentProduction } from '@/lib/prod-api';
+import { HeroPodium, type PodiumAgent } from '@/components/leaderboard/HeroPodium';
+import { LeaderboardTable, type LeaderRow } from '@/components/leaderboard/LeaderboardTable';
+import { YourPosition } from '@/components/leaderboard/YourPosition';
 // filterDailyByRange removed — was used by agency period data
 // useCachedFetch removed — was used by agencyBattleWins
 import { useAuth } from '@/contexts/AuthContext';
@@ -35,7 +38,7 @@ import {
   Swords, Target, Users, Crown, Plus,
   CheckCircle2, XCircle, Clock,
 } from 'lucide-react';
-import { fmt$ } from '@/lib/formatUtils';
+// fmt$ moved to HeroPodium/LeaderboardTable components
 
 // ── Types ──────────────────────────────────────────────────────────────────
 // Removed dead code block (lines 43-56)
@@ -117,26 +120,7 @@ interface AgencyOption {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
-function retentionColor(pct: number | null) {
-  if (pct === null) return 'text-muted-foreground';
-  if (pct >= 90) return 'text-emerald-400';
-  if (pct >= 85) return 'text-amber-400';
-  return 'text-red-400';
-}
-
-function retentionBg(pct: number | null) {
-  if (pct === null) return 'bg-secondary';
-  if (pct >= 90) return 'bg-emerald-500/10';
-  if (pct >= 85) return 'bg-amber-500/10';
-  return 'bg-red-500/10';
-}
-
-function rankBadge(rank: number) {
-  if (rank === 1) return <span className="text-lg">🥇</span>;
-  if (rank === 2) return <span className="text-lg">🥈</span>;
-  if (rank === 3) return <span className="text-lg">🥉</span>;
-  return <span className="text-sm font-bold text-muted-foreground tabular-nums">#{rank}</span>;
-}
+// retentionColor, retentionBg, rankBadge moved to HeroPodium / LeaderboardTable components
 
 // ── Compete helpers ────────────────────────────────────────────────────────
 function competeMetricLabel(m: GamificationMetric) {
@@ -597,12 +581,12 @@ export function LeaderboardPage() {
           ))}
         </div>
 
-        {/* Leaderboard — Top 10 Agent Leaderboard by Period + Category */}
+        {/* Leaderboard — Hero Podium + Table with movement arrows */}
         {boardTab === 'leaderboard' && (<>
 
         {(() => {
           // Sort agents by category
-          const sortByCategory = (agents: AgentLeaderRow[], cat: LeaderCategory) => {
+          const sortByCategory = (agents: AgentLeaderRow[], cat: LeaderCategory): AgentLeaderRow[] => {
             const sorted = [...agents];
             switch (cat) {
               case 'quality':
@@ -621,7 +605,6 @@ export function LeaderboardPage() {
                 });
                 break;
               case 'overall': {
-                // Weighted: 50% retention rank + 30% premium rank + 20% policies rank
                 const retRanked = [...agents].sort((a, b) => (b.retention_pct ?? -1) - (a.retention_pct ?? -1));
                 const premRanked = [...agents].sort((a, b) => b.active_annual_premium - a.active_annual_premium);
                 const polRanked = [...agents].sort((a, b) => b.active_policies - a.active_policies);
@@ -637,11 +620,19 @@ export function LeaderboardPage() {
               }
             }
             sorted.forEach((r, i) => { r.rank = i + 1; });
-            return sorted.slice(0, 10);
+            return sorted;
           };
 
-          const top10 = sortByCategory(agentRows, leaderCategory);
+          const allRanked = sortByCategory(agentRows, leaderCategory);
+          const top3 = allRanked.slice(0, 3);
+          const rows4to10 = allRanked.slice(3, 10);
           const agencyLabel = agentRows[0]?.agency_name || agentLeaderAgencyId || 'Agency';
+
+          // Find current user's position (if agent role and not in top 10)
+          const myAgentId = profile?.id;
+          const myRow = myAgentId ? allRanked.find(r => r.agent_id === myAgentId) : null;
+          const showYourPosition = myRow && myRow.rank > 10 && role === 'agent';
+          const tenthPlace = allRanked[9] || null;
 
           const periodLabels: Record<LeaderPeriod, string> = {
             week: 'This Week',
@@ -653,6 +644,31 @@ export function LeaderboardPage() {
             quality: { label: 'Quality', icon: ShieldCheck },
             production: { label: 'Production', icon: TrendingUp },
           };
+
+          // Map to podium props
+          const podiumAgents: PodiumAgent[] = top3.map(a => ({
+            agent_id: a.agent_id,
+            agent_name: a.agent_name,
+            agency_name: a.agency_name,
+            active_policies: a.active_policies,
+            active_annual_premium: a.active_annual_premium,
+            retention_pct: a.retention_pct,
+            at_risk_policies: a.at_risk_policies,
+            avg_annual_premium: a.avg_annual_premium,
+          }));
+
+          // Map to table rows
+          const tableRows: LeaderRow[] = rows4to10.map(a => ({
+            agent_id: a.agent_id,
+            agent_name: a.agent_name,
+            agency_name: a.agency_name,
+            rank: a.rank,
+            active_policies: a.active_policies,
+            active_annual_premium: a.active_annual_premium,
+            retention_pct: a.retention_pct,
+            at_risk_policies: a.at_risk_policies,
+            avg_annual_premium: a.avg_annual_premium,
+          }));
 
           return <>
             {/* Header + Period selector */}
@@ -699,76 +715,44 @@ export function LeaderboardPage() {
               })}
             </div>
 
-            {/* Top 10 leaderboard */}
-            <Card className="border-border overflow-hidden">
-              <CardContent className="p-0">
-                {agentLoading ? (
-                  <div className="p-6 space-y-3">
-                    {[1, 2, 3, 4, 5].map(i => <div key={i} className="h-12 rounded shimmer" />)}
-                  </div>
-                ) : top10.length === 0 ? (
-                  <div className="py-16 text-center">
-                    <Trophy size={32} className="mx-auto text-muted-foreground mb-3 opacity-50" />
-                    <p className="text-sm font-medium text-muted-foreground">
-                      No agents produced {periodLabels[leaderPeriod].toLowerCase()}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Try a different period or check back later.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-background border-b border-border/50 text-xs font-semibold text-muted-foreground">
-                          <th className="px-4 py-2.5 text-center w-16">#</th>
-                          <th className="px-2 py-2.5 text-left">Agent</th>
-                          <th className="px-2 py-2.5 text-center whitespace-nowrap">Retention</th>
-                          <th className="px-2 py-2.5 text-right whitespace-nowrap">Policies</th>
-                          <th className="px-2 py-2.5 text-right whitespace-nowrap">Premium</th>
-                          {leaderCategory !== 'production' && (
-                            <th className="px-2 py-2.5 text-center whitespace-nowrap w-20">At-Risk</th>
-                          )}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border/30">
-                        {top10.map((r) => (
-                          <tr
-                            key={r.agent_id}
-                            className={`hover:bg-background/80 transition-colors ${
-                              r.rank === 1 ? 'bg-amber-500/10' : r.rank <= 3 ? 'bg-amber-500/5' : ''
-                            }`}
-                          >
-                            <td className="px-4 py-3 text-center">{rankBadge(r.rank)}</td>
-                            <td className="px-2 py-3">
-                              <span className="font-medium text-foreground truncate max-w-[200px] block">
-                                {r.agent_name ?? <span className="font-data text-xs text-muted-foreground">{r.agent_id.slice(0, 12)}…</span>}
-                              </span>
-                            </td>
-                            <td className="px-2 py-3 text-center">
-                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${retentionBg(r.retention_pct)} ${retentionColor(r.retention_pct)}`}>
-                                {r.retention_pct !== null ? `${r.retention_pct}%` : '—'}
-                              </span>
-                            </td>
-                            <td className="px-2 py-3 text-right text-foreground/80 font-data">
-                              {r.active_policies.toLocaleString()}
-                            </td>
-                            <td className="px-2 py-3 text-right text-foreground/80 font-data">
-                              {fmt$(r.active_annual_premium)}
-                            </td>
-                            {leaderCategory !== 'production' && (
-                              <td className={`px-2 py-3 text-center font-medium font-data ${r.at_risk_policies > 0 ? 'text-red-400' : 'text-muted-foreground'}`}>
-                                {r.at_risk_policies || '—'}
-                              </td>
-                            )}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            {/* Hero Podium — Top 3 */}
+            <HeroPodium agents={podiumAgents} loading={agentLoading} />
+
+            {/* Rows 4–10 */}
+            {!agentLoading && rows4to10.length > 0 && (
+              <LeaderboardTable
+                rows={tableRows}
+                showAvgAp={leaderCategory !== 'production'}
+                emptyMessage={`No agents produced ${periodLabels[leaderPeriod].toLowerCase()}`}
+              />
+            )}
+
+            {/* Empty state (no agents at all) */}
+            {!agentLoading && allRanked.length === 0 && (
+              <div className="rounded-xl border border-border py-16 text-center">
+                <Trophy size={32} className="mx-auto text-muted-foreground mb-3 opacity-50" />
+                <p className="text-sm font-medium text-muted-foreground">
+                  No agents produced {periodLabels[leaderPeriod].toLowerCase()}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Try a different period or check back later.
+                </p>
+              </div>
+            )}
+
+            {/* Your Position — sticky bar for agents outside top 10 */}
+            {showYourPosition && myRow && tenthPlace && (
+              <YourPosition
+                rank={myRow.rank}
+                agentName={myRow.agent_name}
+                policies={myRow.active_policies}
+                premium={myRow.active_annual_premium}
+                retentionPct={myRow.retention_pct}
+                tenthPlacePolicies={tenthPlace.active_policies}
+                tenthPlacePremium={tenthPlace.active_annual_premium}
+                category={leaderCategory}
+              />
+            )}
           </>;
         })()}
 
