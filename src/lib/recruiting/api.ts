@@ -93,6 +93,7 @@ import type {
   AdSet, RoiByAgency, RoiByAgent, RecruitingKpis,
   CampaignStatus, RecruitingDateFilter,
   RecruitingLead, RecruitingFunnel, StageTiming,
+  RecruitingStage, ProducingAgent, StageDropoff, StallEntry,
 } from './types';
 
 
@@ -610,15 +611,274 @@ export async function fetchCampaignPerformance(campaignId: string, filter?: Recr
   };
 }
 
-// ROI — still requires NPN-based join to production data (future)
+// ── ROI: Producing agents matched to Max's production DB ─────────────────
+
+/**
+ * Fetch producing agents with their production data from Max's DB.
+ * Matches recruited agents by name (case-insensitive) via the prod-data edge function.
+ */
+export async function fetchProducingAgents(): Promise<ProducingAgent[]> {
+  if (!supabaseConfigured || !recruitingSb || !supabaseUrl || !supabaseAnonKey) return [];
+
+  // Step 1: Get all recruited agents from the RPC
+  const params = { start_date: '2026-02-01T00:00:00.000Z' };
+  const PAGE_SIZE = 1000;
+  const allLeads: RpcRecruitingLead[] = [];
+  let offset = 0;
+  while (true) {
+    const { data, error } = await recruitingSb
+      .rpc('get_recruiting_leads', params)
+      .range(offset, offset + PAGE_SIZE - 1);
+    if (error || !data || data.length === 0) break;
+    allLeads.push(...(data as RpcRecruitingLead[]));
+    if (data.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+  }
+
+  if (allLeads.length === 0) return [];
+
+  // Step 2: Get names of recruited agents to match against Max's DB
+  const recruitedNames = allLeads
+    .map(l => l.name?.trim())
+    .filter(Boolean) as string[];
+
+  // Step 3: Call prod-data edge function with names
+  const baseUrl = supabaseUrl.replace(/\/$/, '');
+  let prodData: Array<{
+    writing_number: string;
+    agent_name: string;
+    agency_wn: string;
+    agency_name: string;
+    total_policies: number;
+    active_policies: number;
+    active_ap: number;
+    total_ap: number;
+    first_issue_date: string | null;
+    last_issue_date: string | null;
+  }> = [];
+
+  try {
+    const res = await fetch(`${baseUrl}/functions/v1/prod-data?type=recruiting_roi`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${supabaseAnonKey}`,
+        apikey: supabaseAnonKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ names: recruitedNames }),
+    });
+    if (res.ok) {
+      const json = await res.json();
+      prodData = json.data ?? [];
+    }
+  } catch (err) {
+    console.warn('[Recruiting] Prod-data ROI fetch error:', err);
+  }
+
+  // Step 4: Match production data back to recruited agents by name
+  const prodByName = new Map<string, typeof prodData[0]>();
+  for (const p of prodData) {
+    prodByName.set(p.agent_name.toUpperCase().trim(), p);
+  }
+
+  const results: ProducingAgent[] = [];
+  for (const lead of allLeads) {
+    const nameKey = (lead.name ?? '').toUpperCase().trim();
+    const prod = prodByName.get(nameKey);
+    if (!prod) continue; // No production match
+
+    results.push({
+      name: lead.name ?? '',
+      npn: lead.npn ?? null,
+      writingNumber: prod.writing_number,
+      agencyName: prod.agency_name || prod.agency_wn,
+      activePolicies: Number(prod.active_policies) || 0,
+      activeAp: Number(prod.active_ap) || 0,
+      totalPolicies: Number(prod.total_policies) || 0,
+      totalAp: Number(prod.total_ap) || 0,
+      firstIssueDate: prod.first_issue_date,
+      lastIssueDate: prod.last_issue_date,
+      stage: (lead.current_stage ?? 'producing') as RecruitingStage,
+      leadAt: lead.lead_at ?? null,
+      hiredAt: lead.hired_at ?? null,
+      rtsAt: lead.rts_at ?? null,
+      producingAt: lead.producing_at ?? null,
+    });
+  }
+
+  // Sort by active AP descending
+  results.sort((a, b) => b.activeAp - a.activeAp);
+  return results;
+}
+
+/**
+ * Fetch ROI summary KPIs for the recruiting program.
+ */
+export interface RecruitingRoiSummary {
+  totalSpend: number;
+  totalLeads: number;
+  totalHired: number;
+  totalProducing: number;
+  cpl: number;              // cost per lead
+  cpa: number;              // cost per acquisition (hire)
+  totalActivePolicies: number;
+  totalActiveAp: number;
+}
+
+export async function fetchRecruitingRoiSummary(): Promise<RecruitingRoiSummary> {
+  if (!supabaseConfigured || !recruitingSb) {
+    return { totalSpend: 0, totalLeads: 0, totalHired: 0, totalProducing: 0, cpl: 0, cpa: 0, totalActivePolicies: 0, totalActiveAp: 0 };
+  }
+
+  // Get total spend + leads from recruiting_daily_spend
+  const { data: spendRows } = await recruitingSb
+    .from('recruiting_daily_spend')
+    .select('spend, leads');
+  const totalSpend = (spendRows ?? []).reduce((s, r) => s + (Number(r.spend) || 0), 0);
+  const totalLeads = (spendRows ?? []).reduce((s, r) => s + (Number(r.leads) || 0), 0);
+
+  // Get hired + producing counts from GHL live counts
+  const ghlCounts = await fetchGhlLiveCounts();
+  const totalHired = ghlCounts?.hired ?? 0;
+  const totalProducing = ghlCounts?.producing ?? 0;
+
+  return {
+    totalSpend,
+    totalLeads,
+    totalHired,
+    totalProducing,
+    cpl: totalLeads > 0 ? totalSpend / totalLeads : 0,
+    cpa: totalHired > 0 ? totalSpend / totalHired : 0,
+    totalActivePolicies: 0, // Populated by component from producing agents data
+    totalActiveAp: 0,
+  };
+}
+
+// Legacy ROI interfaces — kept for backward compat
 export async function fetchRoiByAgency(): Promise<RoiByAgency[]> {
-  // TODO: implement live query when NPN-based join to production data is ready
   return [];
 }
 
 export async function fetchRoiByAgent(): Promise<RoiByAgent[]> {
-  // TODO: implement live query when NPN-based join to production data is ready
   return [];
+}
+
+// ── Conversion Analysis: drop-off + stall data ─────────────────────────
+
+/**
+ * Compute stage drop-off data from the recruiting leads RPC.
+ */
+export async function fetchStageDropoffs(filter?: RecruitingDateFilter): Promise<StageDropoff[]> {
+  if (!supabaseConfigured || !recruitingSb) return [];
+
+  const params: Record<string, string> = {
+    start_date: filter?.startDate ?? '2026-02-01T00:00:00.000Z',
+  };
+  if (filter?.endDate) params.end_date = filter.endDate;
+
+  const PAGE_SIZE = 1000;
+  const allRows: RpcRecruitingLead[] = [];
+  let offset = 0;
+  while (true) {
+    const { data, error } = await recruitingSb
+      .rpc('get_recruiting_leads', params)
+      .range(offset, offset + PAGE_SIZE - 1);
+    if (error || !data || data.length === 0) break;
+    allRows.push(...(data as RpcRecruitingLead[]));
+    if (data.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+  }
+
+  if (allRows.length === 0) return [];
+
+  const stages: { from: string; to: string; fromField: keyof RpcRecruitingLead; toField: keyof RpcRecruitingLead; fromStages: string[]; toStages: string[] }[] = [
+    { from: 'Lead', to: 'Attendee', fromField: 'lead_at', toField: 'attendee_at', fromStages: ['lead','attendee','hired','contracting','rts','producing'], toStages: ['attendee','hired','contracting','rts','producing'] },
+    { from: 'Attendee', to: 'Hired', fromField: 'attendee_at', toField: 'hired_at', fromStages: ['attendee','hired','contracting','rts','producing'], toStages: ['hired','contracting','rts','producing'] },
+    { from: 'Hired', to: 'Contracting', fromField: 'hired_at', toField: 'contracting_at', fromStages: ['hired','contracting','rts','producing'], toStages: ['contracting','rts','producing'] },
+    { from: 'Contracting', to: 'RTS', fromField: 'contracting_at', toField: 'rts_at', fromStages: ['contracting','rts','producing'], toStages: ['rts','producing'] },
+    { from: 'RTS', to: 'Producing', fromField: 'rts_at', toField: 'producing_at', fromStages: ['rts','producing'], toStages: ['producing'] },
+  ];
+
+  return stages.map(s => {
+    // Count entered = has timestamp for 'from' OR current_stage is at/past 'from'
+    const entered = allRows.filter(r => r[s.fromField] || s.fromStages.includes(r.current_stage ?? '')).length;
+    const converted = allRows.filter(r => r[s.toField] || s.toStages.includes(r.current_stage ?? '')).length;
+
+    // Compute timing for those that have both timestamps
+    const durations = allRows
+      .filter(r => r[s.fromField] && r[s.toField])
+      .map(r => daysBetween(r[s.fromField] as string, r[s.toField] as string))
+      .filter(d => d >= 0);
+
+    return {
+      from: s.from,
+      to: s.to,
+      entered,
+      converted,
+      dropped: entered - converted,
+      convRate: entered > 0 ? Math.round(converted / entered * 1000) / 10 : 0,
+      avgDays: durations.length > 0 ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length * 10) / 10 : 0,
+      medianDays: Math.round(median(durations) * 10) / 10,
+    };
+  });
+}
+
+/**
+ * Fetch recruits stalled in a stage beyond a threshold (default 30 days).
+ */
+export async function fetchStalledRecruits(thresholdDays = 30, filter?: RecruitingDateFilter): Promise<StallEntry[]> {
+  if (!supabaseConfigured || !recruitingSb) return [];
+
+  const params: Record<string, string> = {
+    start_date: filter?.startDate ?? '2026-02-01T00:00:00.000Z',
+  };
+  if (filter?.endDate) params.end_date = filter.endDate;
+
+  const PAGE_SIZE = 1000;
+  const allRows: RpcRecruitingLead[] = [];
+  let offset = 0;
+  while (true) {
+    const { data, error } = await recruitingSb
+      .rpc('get_recruiting_leads', params)
+      .range(offset, offset + PAGE_SIZE - 1);
+    if (error || !data || data.length === 0) break;
+    allRows.push(...(data as RpcRecruitingLead[]));
+    if (data.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+  }
+
+  const stageTimestampField: Record<string, keyof RpcRecruitingLead> = {
+    lead: 'lead_at',
+    attendee: 'attendee_at',
+    hired: 'hired_at',
+    contracting: 'contracting_at',
+    rts: 'rts_at',
+  };
+
+  const now = Date.now();
+  const results: StallEntry[] = [];
+
+  for (const row of allRows) {
+    const stage = (row.current_stage ?? 'lead') as RecruitingStage;
+    if (stage === 'producing' || stage === 'lost') continue;
+    const field = stageTimestampField[stage];
+    if (!field || !row[field]) continue;
+    const entered = new Date(row[field] as string).getTime();
+    const daysInStage = Math.round((now - entered) / 86400000);
+    if (daysInStage < thresholdDays) continue;
+
+    results.push({
+      name: row.name ?? '',
+      email: row.email ?? null,
+      stage,
+      daysInStage,
+      enteredStageAt: row[field] as string,
+      npn: row.npn ?? null,
+    });
+  }
+
+  results.sort((a, b) => b.daysInStage - a.daysInStage);
+  return results;
 }
 
 // Insurance leads — original type, still used by LeadsTab
