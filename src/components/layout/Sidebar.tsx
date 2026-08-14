@@ -15,7 +15,7 @@ import {
   Command,
   TrendingUp,
   HeartPulse,
-  
+  GraduationCap,
   FileSpreadsheet,
   Target,
   Megaphone,
@@ -40,6 +40,7 @@ const agentNav: NavItem[] = [
   { to: '/at-risk', label: 'Needs Attention', icon: AlertTriangle },
   { to: '/my-goal', label: 'My Goal', icon: Target },
   { to: '/my-health', label: 'Book Health', icon: ShieldCheck },
+  { to: '/training', label: 'Training', icon: GraduationCap },
   { to: '/coaching', label: 'Coaching', icon: HeartPulse },
   { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { to: '/settings', label: 'Settings', icon: Settings },
