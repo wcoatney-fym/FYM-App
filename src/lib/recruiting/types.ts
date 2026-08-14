@@ -163,6 +163,47 @@ export interface RoiByAgent {
   conversionRate: number;
 }
 
+// ── Producing Agent (ROI tab) ──────────────────────────────────────────────
+export interface ProducingAgent {
+  name: string;
+  npn: string | null;
+  writingNumber: string | null;
+  agencyName: string;
+  activePolicies: number;
+  activeAp: number;
+  totalPolicies: number;
+  totalAp: number;
+  firstIssueDate: string | null;
+  lastIssueDate: string | null;
+  // Recruiting journey info
+  stage: RecruitingStage;
+  leadAt: string | null;
+  hiredAt: string | null;
+  rtsAt: string | null;
+  producingAt: string | null;
+}
+
+// ── Conversion Analysis (Performance tab revamp) ───────────────────────────
+export interface StageDropoff {
+  from: string;
+  to: string;
+  entered: number;    // count that entered the 'from' stage
+  converted: number;  // count that made it to 'to' stage
+  dropped: number;    // entered - converted
+  convRate: number;   // converted / entered * 100
+  avgDays: number;    // avg days from → to
+  medianDays: number;
+}
+
+export interface StallEntry {
+  name: string;
+  email: string | null;
+  stage: RecruitingStage;
+  daysInStage: number;
+  enteredStageAt: string;
+  npn: string | null;
+}
+
 export interface RecruitingKpis {
   totalSpend: number;
   totalLeads: number;

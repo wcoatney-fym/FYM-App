@@ -51,6 +51,53 @@ Deno.serve(async (req) => {
   try {
     sql = createProdConnection();
 
+    // ── FAST PATH: Recruiting ROI — match recruited agents to production ──
+    // Accepts POST body with { names: string[], npns: string[] }
+    // Returns per-agent production data (policies, AP) matched by name or NPN.
+    if (type === "recruiting_roi") {
+      let names: string[] = [];
+      let npns: string[] = [];
+      try {
+        const body = await req.json();
+        names = (body.names ?? []).map((n: string) => n.trim().toUpperCase()).filter(Boolean);
+        npns = (body.npns ?? []).filter((n: string) => n && n.trim());
+      } catch { /* query-param only is fine — will return all producing */ }
+
+      // Build WHERE clause for name/NPN matching
+      const conditions: string[] = [];
+      if (names.length > 0) {
+        conditions.push(`UPPER(TRIM(wa_name)) IN (${names.map(n => `'${n.replace(/'/g, "''")}'`).join(',')})`);
+      }
+      if (npns.length > 0) {
+        // NPN isn't directly in Max's DB — we match by name only
+        // NPNs are used client-side for enrichment
+      }
+
+      const whereClause = conditions.length > 0 ? conditions.join(' OR ') : '1=1';
+
+      const rows = await sql.unsafe(`
+        SELECT
+          TRIM(wa) AS writing_number,
+          TRIM(wa_name) AS agent_name,
+          COALESCE(NULLIF(TRIM(ga), ''), '202JVV00') AS agency_wn,
+          COALESCE(TRIM(ga_name), '') AS agency_name,
+          COUNT(*) AS total_policies,
+          COUNT(CASE WHEN UPPER(TRIM(cntrct_code)) = 'A' AND term_date IS NULL THEN 1 END) AS active_policies,
+          ROUND(SUM(CASE WHEN term_date IS NULL THEN COALESCE(annual_premium, 0) ELSE 0 END)::numeric, 2) AS active_ap,
+          ROUND(SUM(COALESCE(annual_premium, 0))::numeric, 2) AS total_ap,
+          MIN(issue_date) AS first_issue_date,
+          MAX(issue_date) AS last_issue_date
+        FROM typed.unl_fym_policy_latest_load
+        WHERE (${whereClause})
+          AND TRIM(wa) IS NOT NULL AND TRIM(wa) != ''
+        GROUP BY TRIM(wa), TRIM(wa_name), COALESCE(NULLIF(TRIM(ga), ''), '202JVV00'), COALESCE(TRIM(ga_name), '')
+        ORDER BY active_ap DESC
+      `);
+
+      const elapsedMs = Math.round(performance.now() - started);
+      return jsonResponse({ data: rows, _source: "prod_direct", _elapsed_ms: elapsedMs });
+    }
+
     // ── FAST PATH: SQL-level aggregation for filtered queries ──────────
     // When filtering to a specific agency/agent, push ALL aggregation to
     // Postgres in a single query instead of streaming rows to JS.

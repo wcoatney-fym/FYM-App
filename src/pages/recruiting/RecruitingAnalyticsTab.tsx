@@ -1,348 +1,455 @@
 import { useMemo, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { HudFrame } from '@/components/ui/hud-frame';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
-import {
-  Activity, BarChart3, DollarSign, ArrowRight, Clock,
+  Activity, DollarSign, ArrowRight, Clock,
+  TrendingDown, AlertTriangle, Users, FileText,
 } from 'lucide-react';
 import {
-  Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ComposedChart, Legend, Cell,
-  BarChart,
+  Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, BarChart, Cell,
 } from 'recharts';
 import { TimePeriodSelector } from '@/components/filters/TimePeriodSelector';
 import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
 
 import {
-  fetchCampaigns, fetchCampaignPerformance, fetchRecruitingFunnel,
-  fetchStageTimings, fetchRoiByAgency, fetchRoiByAgent,
+  fetchStageDropoffs, fetchStalledRecruits, fetchStageTimings,
+  fetchProducingAgents, fetchRecruitingRoiSummary,
+  fetchRecruitingFunnel,
 } from '@/lib/recruiting';
 import type {
-  RecruitingFunnel, StageTiming, RecruitingDateFilter,
-  Campaign,
+  RecruitingDateFilter, StageDropoff, StallEntry, StageTiming,
+  ProducingAgent,
 } from '@/lib/recruiting';
-import { RECRUITING_STAGES } from '@/lib/recruiting/types';
-import { useCachedFetch, useCachedMultiFetch } from '@/hooks/useCachedFetch';
+import type { RecruitingRoiSummary } from '@/lib/recruiting/api';
+import { useCachedMultiFetch } from '@/hooks/useCachedFetch';
 
-type AnalyticsView = 'performance' | 'roi';
+type AnalyticsView = 'conversion' | 'roi';
 
-// ── Recruiting Pipeline Funnel ─────────────────────────────────────────────
-function RecruitingPipelineFunnel({ funnel }: { funnel: RecruitingFunnel }) {
-  const stages = [
-    { key: 'leads', label: 'Leads', value: funnel.leads, color: RECRUITING_STAGES[0].color },
-    { key: 'attendees', label: 'Attendees', value: funnel.attendees, color: RECRUITING_STAGES[1].color },
-    { key: 'hired', label: 'Hired', value: funnel.hired, color: RECRUITING_STAGES[2].color },
-    { key: 'contracting', label: 'Contracting', value: funnel.contracting, color: RECRUITING_STAGES[3].color },
-    { key: 'rts', label: 'RTS', value: funnel.rts, color: RECRUITING_STAGES[4].color },
-    { key: 'producing', label: 'Producing', value: funnel.producing, color: RECRUITING_STAGES[5].color },
-  ];
+// ── Conversion Waterfall Chart ─────────────────────────────────────────────
+const WATERFALL_COLORS = [
+  'hsl(199,89%,48%)', // Lead→Attendee
+  'hsl(38,92%,50%)',  // Attendee→Hired
+  'hsl(262,83%,58%)', // Hired→Contracting
+  'hsl(199,65%,55%)', // Contracting→RTS
+  'hsl(142,71%,45%)', // RTS→Producing
+];
+
+function ConversionWaterfall({ dropoffs }: { dropoffs: StageDropoff[] }) {
+  const chartData = dropoffs.map((d, i) => ({
+    name: `${d.from} → ${d.to}`,
+    convRate: d.convRate,
+    dropped: 100 - d.convRate,
+    fill: WATERFALL_COLORS[i] ?? WATERFALL_COLORS[0],
+  }));
 
   return (
-    <div className="space-y-3">
-      {stages.map((stage, i) => {
-        const pct = funnel.leads > 0 ? (stage.value / funnel.leads * 100) : 0;
-        const dropoff = i > 0 && stages[i - 1].value > 0
-          ? Math.round((1 - stage.value / stages[i - 1].value) * 100)
-          : 0;
-        const progression = i > 0 && stages[i - 1].value > 0
-          ? Math.round(stage.value / stages[i - 1].value * 100)
-          : 100;
-        return (
-          <div key={stage.key} className="space-y-1">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">{stage.label}</span>
-              <div className="flex items-center gap-2">
-                <span className="font-mono font-medium">{stage.value}</span>
-                <span className="text-xs text-muted-foreground">({pct.toFixed(1)}%)</span>
-                {i > 0 && (
-                  <span className={`text-xs ${dropoff > 50 ? 'text-red-400' : dropoff > 30 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                    {progression}% →
-                  </span>
-                )}
+    <HudFrame>
+      <Card className="bg-card/60 border-border/30">
+        <CardContent className="p-5">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-4 flex items-center gap-1.5">
+            <TrendingDown size={12} /> Stage Conversion Rates
+          </p>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} layout="vertical" barCategoryGap="20%">
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                <XAxis
+                  type="number"
+                  domain={[0, 100]}
+                  tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                  tickFormatter={v => `${v}%`}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={140}
+                  tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                />
+                <Tooltip
+                  contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
+                  formatter={(value: number) => [`${value.toFixed(1)}%`, 'Conversion']}
+                />
+                <Bar dataKey="convRate" name="Conversion %" radius={[0, 4, 4, 0]}>
+                  {chartData.map((d, i) => (
+                    <Cell key={i} fill={d.fill} opacity={0.7} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
+    </HudFrame>
+  );
+}
+
+// ── Drop-off Detail Table ──────────────────────────────────────────────────
+function DropoffTable({ dropoffs }: { dropoffs: StageDropoff[] }) {
+  return (
+    <HudFrame>
+      <Card className="bg-card/60 border-border/30 overflow-hidden">
+        <CardContent className="p-0">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border/30 text-muted-foreground text-xs uppercase tracking-wider">
+                <th className="text-left px-4 py-3">Stage Transition</th>
+                <th className="text-right px-3 py-3">Entered</th>
+                <th className="text-right px-3 py-3">Converted</th>
+                <th className="text-right px-3 py-3">Dropped</th>
+                <th className="text-right px-3 py-3">Conv %</th>
+                <th className="text-right px-3 py-3">Avg Days</th>
+                <th className="text-right px-4 py-3">Med Days</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dropoffs.map((d, i) => (
+                <tr key={i} className="border-b border-border/10 hover:bg-muted/5 transition-colors">
+                  <td className="px-4 py-3">
+                    <span className="flex items-center gap-1.5 text-foreground">
+                      {d.from} <ArrowRight size={12} className="text-muted-foreground" /> {d.to}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3 text-right font-mono">{d.entered}</td>
+                  <td className="px-3 py-3 text-right font-mono text-emerald-400">{d.converted}</td>
+                  <td className="px-3 py-3 text-right font-mono text-red-400">{d.dropped}</td>
+                  <td className="px-3 py-3 text-right">
+                    <span className={`font-mono font-semibold ${d.convRate >= 70 ? 'text-emerald-400' : d.convRate >= 40 ? 'text-amber-400' : 'text-red-400'}`}>
+                      {d.convRate.toFixed(1)}%
+                    </span>
+                  </td>
+                  <td className="px-3 py-3 text-right font-mono text-muted-foreground">
+                    {d.avgDays > 0 ? `${d.avgDays}d` : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-muted-foreground">
+                    {d.medianDays > 0 ? `${d.medianDays}d` : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
+    </HudFrame>
+  );
+}
+
+// ── Stage Velocity Cards ───────────────────────────────────────────────────
+function StageVelocity({ timings }: { timings: StageTiming[] }) {
+  return (
+    <HudFrame>
+      <Card className="bg-card/60 border-border/30">
+        <CardContent className="p-5">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-4 flex items-center gap-1.5">
+            <Clock size={12} /> Stage Velocity
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {timings.map(t => (
+              <div key={t.stage} className="bg-muted/10 rounded-lg p-3 text-center border border-border/20">
+                <p className="text-xs text-muted-foreground mb-1">{t.label}</p>
+                <p className={`text-xl font-bold font-mono ${t.avgDays > 14 ? 'text-amber-400' : t.avgDays > 0 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                  {t.avgDays > 0 ? `${t.avgDays}d` : '—'}
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  med {t.medianDays > 0 ? `${t.medianDays}d` : '—'} · n={t.count}
+                </p>
               </div>
-            </div>
-            <div className="h-2 rounded-full bg-muted/20 overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-700"
-                style={{ width: `${pct}%`, backgroundColor: stage.color }}
-              />
-            </div>
-          </div>
-        );
-      })}
-      <div className="flex items-center justify-between text-sm pt-1 border-t border-border/20">
-        <span className="text-muted-foreground">Lost</span>
-        <span className="font-mono text-red-400">{funnel.lost}</span>
-      </div>
-    </div>
-  );
-}
-
-// ── Stage Timing Cards ─────────────────────────────────────────────────────
-function StageTimingSection({ timings }: { timings: StageTiming[] }) {
-  return (
-    <div className="space-y-2">
-      <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Avg Time Per Stage</p>
-      <div className="space-y-1.5">
-        {timings.map(t => (
-          <div key={t.stage} className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground flex items-center gap-1.5">
-              <Clock size={12} />
-              {t.label}
-            </span>
-            <div className="flex items-center gap-3">
-              <span className="font-mono font-medium">{t.avgDays > 0 ? `${t.avgDays}d` : '—'}</span>
-              <span className="text-xs text-muted-foreground">
-                med {t.medianDays > 0 ? `${t.medianDays}d` : '—'}
-              </span>
-              <span className="text-xs text-muted-foreground">n={t.count}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── Performance View ───────────────────────────────────────────────────────
-function PerformanceView({ dateFilter, campaigns }: { dateFilter: RecruitingDateFilter; campaigns: Campaign[] }) {
-  const effectiveCampaigns = campaigns.length > 0 ? campaigns : [];
-  const [selectedCampaign, setSelectedCampaign] = useState(effectiveCampaigns[0]?.id ?? '');
-
-  const cacheKey = `recruiting-perf-${selectedCampaign}-${dateFilter.startDate.slice(0, 10)}-${dateFilter.endDate.slice(0, 10)}`;
-
-  const { data: multiData } = useCachedMultiFetch(cacheKey, {
-    perf: () => fetchCampaignPerformance(selectedCampaign, dateFilter),
-    funnel: () => fetchRecruitingFunnel(dateFilter),
-    timings: () => fetchStageTimings(dateFilter),
-  }, { deps: [selectedCampaign, dateFilter.startDate, dateFilter.endDate] });
-
-  const perf = multiData?.perf ?? null;
-  const funnel = multiData?.funnel ?? { leads: 0, attendees: 0, hired: 0, contracting: 0, rts: 0, producing: 0, lost: 0 };
-  const timings = multiData?.timings ?? [];
-
-  const chartData = useMemo(() =>
-    (perf?.dailyData ?? []).map(d => ({
-      ...d,
-      dateLabel: new Date(d.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    })), [perf]);
-
-  return (
-    <div className="space-y-6">
-      {/* Campaign selector */}
-      <div className="flex items-center gap-3">
-        <span className="text-sm text-muted-foreground">Campaign:</span>
-        <Select value={selectedCampaign} onValueChange={setSelectedCampaign}>
-          <SelectTrigger className="w-64 bg-card/60 border-border/30">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {effectiveCampaigns.map(c => (
-              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
             ))}
-          </SelectContent>
-        </Select>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
+    </HudFrame>
+  );
+}
 
-      {/* Daily spend + leads chart */}
+// ── Stalled Recruits Table ─────────────────────────────────────────────────
+const STALL_STAGE_COLORS: Record<string, string> = {
+  lead: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
+  attendee: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+  hired: 'bg-purple-500/15 text-purple-400 border-purple-500/30',
+  contracting: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',
+  rts: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+};
+
+function StalledTable({ stalled }: { stalled: StallEntry[] }) {
+  if (stalled.length === 0) {
+    return (
       <HudFrame>
         <Card className="bg-card/60 border-border/30">
-          <CardContent className="p-4">
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-                  <XAxis dataKey="dateLabel" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} interval={4} />
-                  <YAxis yAxisId="spend" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} tickFormatter={v => `$${v}`} />
-                  <YAxis yAxisId="leads" orientation="right" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                  <Tooltip
-                    contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
-                    formatter={(value: number, name: string) => [name === 'spend' ? `$${value.toFixed(2)}` : value, name === 'spend' ? 'Spend' : 'Leads']}
-                  />
-                  <Legend />
-                  <Bar yAxisId="leads" dataKey="leads" name="Leads" fill="hsl(199,89%,48%)" opacity={0.4} radius={[4, 4, 0, 0]} />
-                  <Line yAxisId="spend" dataKey="spend" name="Spend" stroke="hsl(142,71%,45%)" strokeWidth={2} dot={false} />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
+          <CardContent className="p-5 text-center">
+            <p className="text-sm text-muted-foreground">No recruits stalled beyond 30 days</p>
           </CardContent>
         </Card>
       </HudFrame>
+    );
+  }
 
-      {/* Funnel + Stage Timing + Ad Sets */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <HudFrame>
-          <Card className="bg-card/60 border-border/30">
-            <CardContent className="p-5">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-4 flex items-center gap-1.5">
-                <ArrowRight size={12} /> Recruiting Pipeline
-              </p>
-              <RecruitingPipelineFunnel funnel={funnel} />
-            </CardContent>
-          </Card>
-        </HudFrame>
+  return (
+    <HudFrame>
+      <Card className="bg-card/60 border-border/30 overflow-hidden">
+        <CardContent className="p-0">
+          <div className="px-4 py-3 border-b border-border/30">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold flex items-center gap-1.5">
+              <AlertTriangle size={12} className="text-amber-400" />
+              Stalled Recruits ({stalled.length}) — 30+ days in current stage
+            </p>
+          </div>
+          <div className="overflow-x-auto max-h-80 overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-card">
+                <tr className="border-b border-border/30 text-muted-foreground text-xs uppercase tracking-wider">
+                  <th className="text-left px-4 py-2">Name</th>
+                  <th className="text-center px-3 py-2">Stage</th>
+                  <th className="text-right px-3 py-2">Days Stuck</th>
+                  <th className="text-right px-4 py-2">Since</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stalled.map((s, i) => (
+                  <tr key={i} className="border-b border-border/10 hover:bg-muted/5 transition-colors">
+                    <td className="px-4 py-2">
+                      <p className="font-medium text-foreground">{s.name}</p>
+                      {s.email && <p className="text-xs text-muted-foreground">{s.email}</p>}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      <Badge variant="outline" className={STALL_STAGE_COLORS[s.stage] ?? ''}>
+                        {s.stage.charAt(0).toUpperCase() + s.stage.slice(1)}
+                      </Badge>
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <span className={`font-mono font-semibold ${s.daysInStage > 60 ? 'text-red-400' : 'text-amber-400'}`}>
+                        {s.daysInStage}d
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 text-right text-muted-foreground text-xs">
+                      {new Date(s.enteredStageAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+    </HudFrame>
+  );
+}
 
-        <HudFrame>
-          <Card className="bg-card/60 border-border/30">
-            <CardContent className="p-5">
-              <StageTimingSection timings={timings} />
-            </CardContent>
-          </Card>
-        </HudFrame>
+// ── Conversion View ────────────────────────────────────────────────────────
+function ConversionView({ dateFilter }: { dateFilter: RecruitingDateFilter }) {
+  const cacheKey = `recruiting-conversion-${dateFilter.startDate.slice(0, 10)}-${dateFilter.endDate.slice(0, 10)}`;
+
+  const { data: multiData } = useCachedMultiFetch(cacheKey, {
+    dropoffs: () => fetchStageDropoffs(dateFilter),
+    stalled: () => fetchStalledRecruits(30, dateFilter),
+    timings: () => fetchStageTimings(dateFilter),
+    funnel: () => fetchRecruitingFunnel(dateFilter),
+  }, { deps: [dateFilter.startDate, dateFilter.endDate] });
+
+  const dropoffs = multiData?.dropoffs ?? [];
+  const stalled = multiData?.stalled ?? [];
+  const timings = multiData?.timings ?? [];
+  const funnel = multiData?.funnel;
+
+  // Compute overall conversion rate (Lead → RTS)
+  const overallConv = funnel && funnel.leads > 0
+    ? ((funnel.rts / funnel.leads) * 100).toFixed(1)
+    : '—';
+
+  // Find the worst bottleneck
+  const worstDropoff = dropoffs.length > 0
+    ? dropoffs.reduce((worst, d) => d.convRate < worst.convRate ? d : worst)
+    : null;
+
+  return (
+    <div className="space-y-6">
+      {/* Summary KPI cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card className="bg-card/60 border-border/30">
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Lead → RTS Rate</p>
+            <p className="text-2xl font-bold font-mono mt-1">{overallConv}%</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/60 border-border/30">
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Biggest Bottleneck</p>
+            <p className="text-lg font-bold mt-1 text-red-400">
+              {worstDropoff ? `${worstDropoff.from} → ${worstDropoff.to}` : '—'}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {worstDropoff ? `${worstDropoff.convRate.toFixed(1)}% conversion` : ''}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/60 border-border/30">
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Recruits Stalled</p>
+            <p className={`text-2xl font-bold font-mono mt-1 ${stalled.length > 0 ? 'text-amber-400' : 'text-foreground'}`}>
+              {stalled.length}
+            </p>
+            <p className="text-xs text-muted-foreground">30+ days in stage</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/60 border-border/30">
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Total Pipeline</p>
+            <p className="text-2xl font-bold font-mono mt-1">{funnel?.leads ?? 0}</p>
+            <p className="text-xs text-muted-foreground">all-time recruits</p>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Ad Set Performance Table */}
-      {perf && perf.adSets.length > 0 && (
-        <HudFrame>
-          <Card className="bg-card/60 border-border/30 overflow-hidden">
-            <CardContent className="p-0">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border/30 text-muted-foreground text-xs uppercase tracking-wider">
-                    <th className="text-left px-4 py-3">Ad Set</th>
-                    <th className="text-right px-3 py-3">Spend</th>
-                    <th className="text-right px-3 py-3">Leads</th>
-                    <th className="text-right px-3 py-3">CPL</th>
-                    <th className="text-right px-4 py-3">CTR</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {perf.adSets.map(as => (
-                    <tr key={as.id} className="border-b border-border/10 hover:bg-muted/5 transition-colors">
-                      <td className="px-4 py-3 text-foreground">{as.name}</td>
-                      <td className="px-3 py-3 text-right font-mono">${as.spend.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                      <td className="px-3 py-3 text-right font-mono">{as.leads}</td>
-                      <td className="px-3 py-3 text-right font-mono">${as.cpl.toFixed(2)}</td>
-                      <td className="px-4 py-3 text-right font-mono">{(as.ctr * 100).toFixed(1)}%</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </CardContent>
-          </Card>
-        </HudFrame>
-      )}
+      {/* Conversion waterfall chart */}
+      <ConversionWaterfall dropoffs={dropoffs} />
+
+      {/* Drop-off detail table */}
+      <DropoffTable dropoffs={dropoffs} />
+
+      {/* Stage velocity */}
+      <StageVelocity timings={timings} />
+
+      {/* Stalled recruits */}
+      <StalledTable stalled={stalled} />
     </div>
   );
 }
 
 // ── ROI View ───────────────────────────────────────────────────────────────
 function RoiView() {
-  const { data: agencyData } = useCachedFetch('recruiting-roi-agency', fetchRoiByAgency);
-  const { data: agentData } = useCachedFetch('recruiting-roi-agent', fetchRoiByAgent);
+  const { data: multiData } = useCachedMultiFetch('recruiting-roi-live', {
+    agents: () => fetchProducingAgents(),
+    summary: () => fetchRecruitingRoiSummary(),
+  });
 
-  const effectiveAgencyData = agencyData ?? [];
-  const effectiveAgentData = agentData ?? [];
+  const producingAgents = multiData?.agents ?? [];
+  const summary = multiData?.summary ?? {
+    totalSpend: 0, totalLeads: 0, totalHired: 0, totalProducing: 0,
+    cpl: 0, cpa: 0, totalActivePolicies: 0, totalActiveAp: 0,
+  };
 
-  const agencyChartData = useMemo(() =>
-    effectiveAgencyData.map(a => ({
-      name: a.agencyName.length > 20 ? a.agencyName.slice(0, 18) + '…' : a.agencyName,
-      cpa: a.cpa,
-      placed: a.placed,
-      convRate: a.conversionRate,
-    })), [effectiveAgencyData]);
+  // Compute totals from producing agents data
+  const totalActivePolicies = producingAgents.reduce((s, a) => s + a.activePolicies, 0);
+  const totalActiveAp = producingAgents.reduce((s, a) => s + a.activeAp, 0);
 
   return (
     <div className="space-y-6">
-      {/* CPA by Agency chart */}
-      <HudFrame>
+      {/* ROI KPI cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
         <Card className="bg-card/60 border-border/30">
           <CardContent className="p-4">
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={agencyChartData} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
-                  <XAxis type="number" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} tickFormatter={v => `$${v}`} />
-                  <YAxis type="category" dataKey="name" width={160} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                  <Tooltip
-                    contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
-                    formatter={(value: number) => [`$${value.toFixed(2)}`, 'CPA']}
-                  />
-                  <Bar dataKey="cpa" name="CPA" radius={[0, 4, 4, 0]}>
-                    {agencyChartData.map((_, i) => (
-                      <Cell key={i} fill={i < 3 ? 'hsl(142,71%,45%)' : i >= agencyChartData.length - 2 ? 'hsl(0,84%,60%)' : 'hsl(199,89%,48%)'} opacity={0.7} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Total Ad Spend</p>
+            <p className="text-xl font-bold font-mono mt-1">${summary.totalSpend.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
           </CardContent>
         </Card>
-      </HudFrame>
+        <Card className="bg-card/60 border-border/30">
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">CPL</p>
+            <p className="text-xl font-bold font-mono mt-1">${summary.cpl.toFixed(2)}</p>
+            <p className="text-xs text-muted-foreground">cost per lead</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/60 border-border/30">
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">CPA</p>
+            <p className="text-xl font-bold font-mono mt-1">${summary.cpa.toFixed(2)}</p>
+            <p className="text-xs text-muted-foreground">cost per hire</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/60 border-border/30">
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Producing Agents</p>
+            <p className="text-xl font-bold font-mono mt-1">{producingAgents.length}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/60 border-border/30">
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Active Policies</p>
+            <p className="text-xl font-bold font-mono mt-1">{totalActivePolicies.toLocaleString()}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card/60 border-border/30">
+          <CardContent className="p-4">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Annual Premium</p>
+            <p className="text-xl font-bold font-mono mt-1 text-emerald-400">
+              ${totalActiveAp.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
 
-      {/* Tables side by side */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <HudFrame>
-          <Card className="bg-card/60 border-border/30 overflow-hidden">
-            <CardContent className="p-0">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border/30 text-muted-foreground text-xs uppercase tracking-wider">
-                    <th className="text-left px-4 py-3">Agency</th>
-                    <th className="text-right px-3 py-3">Spend</th>
-                    <th className="text-right px-3 py-3">Leads</th>
-                    <th className="text-right px-3 py-3">Placed</th>
-                    <th className="text-right px-3 py-3">CPA</th>
-                    <th className="text-right px-4 py-3">Conv%</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {effectiveAgencyData.map(a => (
-                    <tr key={a.agencyId} className="border-b border-border/10 hover:bg-muted/5 transition-colors">
-                      <td className="px-4 py-3 text-foreground text-xs">{a.agencyName}</td>
-                      <td className="px-3 py-3 text-right font-mono">${a.spend.toLocaleString()}</td>
-                      <td className="px-3 py-3 text-right font-mono">{a.leads}</td>
-                      <td className="px-3 py-3 text-right font-mono font-semibold">{a.placed}</td>
-                      <td className="px-3 py-3 text-right font-mono">${a.cpa.toFixed(0)}</td>
-                      <td className="px-4 py-3 text-right font-mono">{a.conversionRate}%</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </CardContent>
-          </Card>
-        </HudFrame>
-
-        <HudFrame>
-          <Card className="bg-card/60 border-border/30 overflow-hidden">
-            <CardContent className="p-0">
+      {/* Producing Agents Table */}
+      <HudFrame>
+        <Card className="bg-card/60 border-border/30 overflow-hidden">
+          <CardContent className="p-0">
+            <div className="px-4 py-3 border-b border-border/30 flex items-center justify-between">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold flex items-center gap-1.5">
+                <Users size={12} /> Producing Agents — Matched to Production
+              </p>
+              <span className="text-xs text-muted-foreground">{producingAgents.length} agents</span>
+            </div>
+            <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border/30 text-muted-foreground text-xs uppercase tracking-wider">
                     <th className="text-left px-4 py-3">Agent</th>
+                    <th className="text-left px-3 py-3">NPN</th>
                     <th className="text-left px-3 py-3">Agency</th>
-                    <th className="text-right px-3 py-3">Leads</th>
-                    <th className="text-right px-3 py-3">Placed</th>
-                    <th className="text-right px-3 py-3">CPA</th>
-                    <th className="text-right px-4 py-3">Conv%</th>
+                    <th className="text-right px-3 py-3">Policies</th>
+                    <th className="text-right px-3 py-3">Annual Premium</th>
+                    <th className="text-right px-3 py-3">First Issue</th>
+                    <th className="text-right px-4 py-3">Latest Issue</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {effectiveAgentData.map(a => (
-                    <tr key={a.agentId} className="border-b border-border/10 hover:bg-muted/5 transition-colors">
-                      <td className="px-4 py-3 text-foreground">{a.agentName}</td>
-                      <td className="px-3 py-3 text-muted-foreground text-xs">{a.agencyName}</td>
-                      <td className="px-3 py-3 text-right font-mono">{a.leads}</td>
-                      <td className="px-3 py-3 text-right font-mono font-semibold">{a.placed}</td>
-                      <td className="px-3 py-3 text-right font-mono">${a.cpa.toFixed(0)}</td>
-                      <td className="px-4 py-3 text-right font-mono">{a.conversionRate}%</td>
+                  {producingAgents.map((a, i) => (
+                    <tr key={i} className="border-b border-border/10 hover:bg-muted/5 transition-colors">
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-foreground capitalize">{a.name.toLowerCase()}</p>
+                        {a.writingNumber && <p className="text-xs text-muted-foreground font-mono">{a.writingNumber}</p>}
+                      </td>
+                      <td className="px-3 py-3 font-mono text-xs text-muted-foreground">{a.npn ?? '—'}</td>
+                      <td className="px-3 py-3 text-xs text-muted-foreground">{a.agencyName}</td>
+                      <td className="px-3 py-3 text-right font-mono font-semibold">{a.activePolicies}</td>
+                      <td className="px-3 py-3 text-right font-mono text-emerald-400 font-semibold">
+                        ${a.activeAp.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      </td>
+                      <td className="px-3 py-3 text-right text-muted-foreground text-xs">
+                        {a.firstIssueDate
+                          ? new Date(a.firstIssueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })
+                          : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-right text-muted-foreground text-xs">
+                        {a.lastIssueDate
+                          ? new Date(a.lastIssueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })
+                          : '—'}
+                      </td>
                     </tr>
                   ))}
+                  {producingAgents.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                        <div className="flex flex-col items-center gap-2">
+                          <FileText size={20} />
+                          <span>No producing agents matched yet — agents appear here when their name matches between the recruiting pipeline and Max's production DB</span>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
-            </CardContent>
-          </Card>
-        </HudFrame>
-      </div>
+            </div>
+          </CardContent>
+        </Card>
+      </HudFrame>
     </div>
   );
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────
 export function RecruitingAnalyticsTab() {
-  const [view, setView] = useState<AnalyticsView>('performance');
+  const [view, setView] = useState<AnalyticsView>('conversion');
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
 
@@ -351,8 +458,6 @@ export function RecruitingAnalyticsTab() {
     endDate: dateRange.endDate,
   }), [dateRange]);
 
-  const { data: campaigns } = useCachedFetch('recruiting-campaigns', fetchCampaigns);
-
   function handleDateChange(range: DateRange, preset: DatePreset) {
     setDateRange(range);
     setDatePreset(preset);
@@ -360,19 +465,19 @@ export function RecruitingAnalyticsTab() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header with date selector */}
+      {/* Header with view toggle + date selector */}
       <div className="flex items-center justify-between">
         {/* View toggle */}
         <div className="flex items-center gap-1 p-1 bg-card/60 border border-border/30 rounded-lg w-fit">
           <button
-            onClick={() => setView('performance')}
+            onClick={() => setView('conversion')}
             className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
-              view === 'performance'
+              view === 'conversion'
                 ? 'bg-[hsl(199,89%,48%)]/15 text-[hsl(199,89%,48%)] border border-[hsl(199,89%,48%)]/30'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            <span className="flex items-center gap-1.5"><BarChart3 size={14} /> Performance</span>
+            <span className="flex items-center gap-1.5"><Activity size={14} /> Conversion</span>
           </button>
           <button
             onClick={() => setView('roi')}
@@ -386,18 +491,12 @@ export function RecruitingAnalyticsTab() {
           </button>
         </div>
 
-        <TimePeriodSelector preset={datePreset} dateRange={dateRange} onChange={handleDateChange} />
+        {view === 'conversion' && (
+          <TimePeriodSelector preset={datePreset} dateRange={dateRange} onChange={handleDateChange} />
+        )}
       </div>
 
-      {/* Empty state */}
-      {(!campaigns || campaigns.length === 0) && (
-        <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-muted/10 border border-border/30 text-muted-foreground text-xs">
-          <Activity size={14} />
-          <span>No campaigns flagged for recruiting — toggle Feed Recruiting in CRM Ops → Ad Spend to select campaigns</span>
-        </div>
-      )}
-
-      {view === 'performance' ? <PerformanceView dateFilter={dateFilter} campaigns={campaigns ?? []} /> : <RoiView />}
+      {view === 'conversion' ? <ConversionView dateFilter={dateFilter} /> : <RoiView />}
     </div>
   );
 }
