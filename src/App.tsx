@@ -16,7 +16,7 @@ import { AgentHealthPage } from '@/pages/AgentHealthPage';
 import { AgentDashboardPage } from '@/pages/AgentDashboardPage';
 import { GoalPage } from '@/pages/GoalPage';
 import { ManagerTeamPage } from '@/pages/ManagerTeamPage';
-import { AdminFinancialsPage } from '@/pages/AdminFinancialsPage';
+// AdminFinancialsPage removed — content migrated to ProductionPage
 import { ManagerWorkboardPage } from '@/pages/ManagerWorkboardPage';
 // Onboarding pages moved into Contracting tab — see contracting/onboarding/
 import { ActivationPage } from '@/pages/ActivationPage';
@@ -79,7 +79,7 @@ function App() {
             <Route path="/production" element={<RoleGuard allow={['admin', 'manager']}><ProductionGroupPage /></RoleGuard>}>
               <Route index element={<ProductionPage />} />
               <Route path="book" element={<RoleGuard allow={['admin']}><BookOfBusinessPage /></RoleGuard>} />
-              <Route path="financials" element={<RoleGuard allow={['admin']}><AdminFinancialsPage /></RoleGuard>} />
+              {/* Financials tab removed — content migrated to Production Overview */}
             </Route>
             {/* Production drill-downs stay at existing paths */}
             <Route path="/production/:agencyId" element={<RoleGuard allow={['admin', 'manager']}><AgencyProductionPage /></RoleGuard>} />
@@ -113,7 +113,7 @@ function App() {
             <Route path="/agents" element={<Navigate to="/people/agents" replace />} />
             <Route path="/onboarding" element={<Navigate to="/contracting?tab=onboarding" replace />} />
             <Route path="/book" element={<Navigate to="/production/book" replace />} />
-            <Route path="/financials" element={<Navigate to="/production/financials" replace />} />
+            <Route path="/financials" element={<Navigate to="/production" replace />} />
             <Route path="/at-risk" element={<Navigate to="/quality/at-risk" replace />} />
             <Route path="/coaching" element={<Navigate to="/quality/coaching" replace />} />
             <Route path="/retention" element={<Navigate to="/quality/retention" replace />} />

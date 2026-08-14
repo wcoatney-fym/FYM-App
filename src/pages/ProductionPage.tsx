@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { DeltaBadge } from '@/components/ui/delta-badge';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -22,7 +23,7 @@ import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { useOrgData } from '@/contexts/OrgDataCache';
 import {
-  Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  Bar, Line, LineChart, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ComposedChart, Legend,
 } from 'recharts';
 import { DataFilters } from '@/components/filters/DataFilters';
@@ -31,7 +32,7 @@ import { toast } from 'sonner';
 import { fmt$, fmtNum } from '@/lib/formatUtils';
 import {
   TrendingUp, DollarSign, FileText, Building2, Search, Download,
-  ArrowUp, ArrowDown,
+  ArrowUp, ArrowDown, ShieldAlert, TrendingDown, AlertTriangle,
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -370,6 +371,65 @@ export function ProductionPage() {
       activeAgencies: fa.filter(a => a.active_policies > 0).length,
     };
   }, [stats, filterAgencyId, filteredAgencies]);
+
+  // ── Book Quality stats (migrated from Financials) ──────────────────────
+  const bookQualityStats = useMemo(() => {
+    const sums = filterAgencyId
+      ? orgData.retentionAgencies.filter(r => r.agency_id === filterAgencyId)
+      : orgData.retentionAgencies;
+    const totalPremium = sums.reduce((s, r) => s + r.active_premium, 0);
+    const totalActive = sums.reduce((s, r) => s + r.active_policies, 0);
+    const totalAtRisk = sums.reduce((s, r) => s + r.at_risk_count, 0);
+    const totalRetained = sums.reduce((s, r) => s + r.retained_90d, 0);
+    const totalEligible = sums.reduce((s, r) => s + r.eligible_90d, 0);
+    const blendedRetention = totalEligible > 0 ? Math.round((totalRetained / totalEligible) * 1000) / 10 : null;
+    const flaggedConcentration = orgData.retentionAgencies.filter(r => {
+      const total = orgData.retentionAgencies.reduce((s2, r2) => s2 + r2.active_premium, 0);
+      return total > 0 && (r.active_premium / total) >= 0.1;
+    });
+
+    // Product-level stats (HI vs HHC)
+    const latestByProduct: Record<string, { active: number; premium: number; retention: number | null }> = {};
+    for (const ps of orgData.productSummary) {
+      if (ps.product_type === 'HI' || ps.product_type === 'HHC') {
+        latestByProduct[ps.product_type] = {
+          active: ps.active_policies,
+          premium: ps.active_premium,
+          retention: ps.retention_pct,
+        };
+      }
+    }
+
+    return { totalPremium, totalActive, totalAtRisk, blendedRetention, flaggedConcentration: flaggedConcentration.length, latestByProduct };
+  }, [orgData.retentionAgencies, orgData.productSummary, filterAgencyId]);
+
+  // Cohort retention chart data (HI vs HHC, last 12 months)
+  const retentionChartData = useMemo(() => {
+    const productCohorts = orgData.productCohorts ?? [];
+    const months = [...new Set(productCohorts.map(c => c.month))].sort().slice(-12);
+    return months.map(month => {
+      const hi = productCohorts.find(c => c.month === month && c.product_type === 'HI');
+      const hhc = productCohorts.find(c => c.month === month && c.product_type === 'HHC');
+      return {
+        month: new Date(month).toLocaleDateString('en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' }),
+        HI: hi?.retention_pct ?? null,
+        HHC: hhc?.retention_pct ?? null,
+        target: 90,
+      };
+    });
+  }, [orgData.productCohorts]);
+
+  function retentionColor(pct: number | null) {
+    if (pct === null) return 'text-muted-foreground';
+    if (pct >= 90) return 'text-emerald-400';
+    if (pct >= 85) return 'text-amber-400';
+    return 'text-red-400';
+  }
+  function retentionBadgeClass(pct: number) {
+    if (pct >= 90) return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+    if (pct >= 85) return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+    return 'bg-red-500/10 text-red-400 border-red-500/20';
+  }
 
   const searchedAgencies = useMemo(() => {
     if (!search) return filteredAgencies;
@@ -738,6 +798,147 @@ export function ProductionPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* ── Book Quality Section (migrated from Financials) ── */}
+        {isOrgWide && (
+          <div className="space-y-4">
+            <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+              <ShieldAlert size={18} className="text-amber-400" />
+              Book Quality
+            </h2>
+
+            {/* Financial KPI strip */}
+            <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                {
+                  title: 'Active Premium',
+                  end: bookQualityStats.totalPremium,
+                  fmt: (n: number) => fmt$(n) + '/mo',
+                  sub: `${bookQualityStats.totalActive.toLocaleString()} policies`,
+                  icon: DollarSign, color: 'text-primary', bg: 'bg-cyan-500/10',
+                },
+                {
+                  title: 'At-Risk Premium',
+                  end: bookQualityStats.totalAtRisk,
+                  fmt: (n: number) => n.toLocaleString(),
+                  sub: 'policies flagged',
+                  icon: ShieldAlert,
+                  color: bookQualityStats.totalAtRisk > 0 ? 'text-red-400' : 'text-muted-foreground',
+                  bg: bookQualityStats.totalAtRisk > 0 ? 'bg-red-500/10' : 'bg-secondary',
+                },
+                {
+                  title: 'Blended Retention',
+                  end: bookQualityStats.blendedRetention ?? 0,
+                  fmt: (n: number) => bookQualityStats.blendedRetention !== null ? `${n.toFixed(1)}%` : '—',
+                  sub: '90-day, all products',
+                  icon: TrendingDown,
+                  color: bookQualityStats.blendedRetention !== null ? retentionColor(bookQualityStats.blendedRetention) : 'text-muted-foreground',
+                  bg: bookQualityStats.blendedRetention !== null && bookQualityStats.blendedRetention >= 90 ? 'bg-emerald-500/10' : 'bg-amber-500/10',
+                },
+                {
+                  title: 'Concentration Risk',
+                  end: bookQualityStats.flaggedConcentration,
+                  fmt: (n: number) => n.toString(),
+                  sub: 'agencies >10% of premium',
+                  icon: AlertTriangle,
+                  color: bookQualityStats.flaggedConcentration > 0 ? 'text-amber-400' : 'text-muted-foreground',
+                  bg: bookQualityStats.flaggedConcentration > 0 ? 'bg-amber-500/10' : 'bg-secondary',
+                },
+              ].map(card => (
+                <StaggerItem key={card.title}>
+                  <Card className="border-border">
+                    <CardContent className="p-5">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-muted-foreground">{card.title}</p>
+                          <CountUp
+                            end={card.end}
+                            format={card.fmt}
+                            className="text-2xl font-bold text-foreground mt-1 block"
+                          />
+                          <p className="text-xs text-muted-foreground mt-0.5">{card.sub}</p>
+                        </div>
+                        <div className={`p-2.5 rounded-lg ${card.bg}`}>
+                          <card.icon size={20} className={card.color} />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </StaggerItem>
+              ))}
+            </StaggerContainer>
+
+            {/* Product breakdown cards (HI vs HHC) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {Object.entries(bookQualityStats.latestByProduct)
+                .filter(([pt]) => ['HI', 'HHC'].includes(pt))
+                .sort(([, a], [, b]) => b.premium - a.premium)
+                .map(([pt, data]) => (
+                  <Card key={pt} className="border-border">
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base font-semibold text-foreground">
+                          {pt === 'HHC' ? 'Home Health Care' : 'Hospital Indemnity'}
+                        </CardTitle>
+                        {data.retention !== null && (
+                          <Badge className={`text-xs border ${retentionBadgeClass(data.retention)}`}>
+                            {data.retention}% retained
+                          </Badge>
+                        )}
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <p className="text-muted-foreground text-xs">Active premium</p>
+                          <p className="font-semibold text-foreground">{fmt$(data.premium)}<span className="font-normal text-muted-foreground">/mo</span></p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground text-xs">Retention</p>
+                          <p className={`font-semibold ${retentionColor(data.retention)}`}>
+                            {data.retention !== null ? `${data.retention}%` : '—'}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+            </div>
+
+            {/* 90-Day Retention by Cohort chart */}
+            {retentionChartData.length > 0 && (
+              <Card className="border-border">
+                <CardHeader className="pb-2">
+                  <div>
+                    <CardTitle className="text-base font-semibold text-foreground">90-Day Retention by Cohort</CardTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">Monthly cohorts · HI vs HHC · red dashed line = 90% target</p>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={retentionChartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 33% 17%)" />
+                        <XAxis dataKey="month" stroke="hsl(215 20% 55%)" fontSize={11} />
+                        <YAxis domain={[0, 105]} stroke="hsl(215 20% 55%)" fontSize={11} tickFormatter={(v: number) => `${v}%`} />
+                        <Tooltip
+                          formatter={(v: number, name: string) => [
+                            v !== null ? `${v}%` : '—',
+                            name === 'target' ? '90% Target' : name,
+                          ]}
+                          contentStyle={{ borderRadius: '8px', border: '1px solid hsl(217 33% 20%)', background: 'hsl(222 47% 9%)', color: 'hsl(210 40% 98%)', fontSize: 12 }}
+                        />
+                        <Line type="monotone" dataKey="HI" stroke="hsl(262 83% 58%)" strokeWidth={2.5} dot={{ r: 3, fill: 'hsl(262 83% 58%)' }} connectNulls />
+                        <Line type="monotone" dataKey="HHC" stroke="hsl(199 89% 48%)" strokeWidth={2.5} dot={{ r: 3, fill: 'hsl(199 89% 48%)' }} connectNulls />
+                        <Line type="monotone" dataKey="target" stroke="#ef4444" strokeDasharray="4 3" strokeWidth={1.5} dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
 
         {/* Agency/Agent Breakdown Table */}
         <Card className="border-border">
