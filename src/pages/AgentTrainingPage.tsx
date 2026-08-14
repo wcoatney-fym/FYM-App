@@ -230,10 +230,12 @@ export function AgentTrainingPage() {
     return Array.from(catMap.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [content]);
 
-  // Upcoming sessions (future only)
+  // Upcoming sessions — next 5 future events only
   const upcomingSessions = useMemo(() => {
     const now = new Date();
-    return sessions.filter(s => new Date(s.session_datetime) >= now);
+    return sessions
+      .filter(s => new Date(s.session_datetime) >= now)
+      .slice(0, 5);
   }, [sessions]);
 
   // ─── Render ────────────────────────────────────────────────────────────
