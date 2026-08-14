@@ -58,6 +58,8 @@ interface AgentLeaderRow {
   retention_pct: number | null;
   avg_annual_premium: number;
   rank: number;
+  /** Rank change vs prior period: positive = climbed, negative = dropped, 0 = unchanged, undefined = new */
+  movement?: number;
 }
 
 // SortKey removed — top 10 leaderboard sorts by category, not user-toggled columns
@@ -268,27 +270,50 @@ export function LeaderboardPage() {
     return effectiveAgencyId || null;
   }, [isOrgWide, filterAgencyId, effectiveAgencyId]);
 
-  // Compute date range for selected leaderboard period
-  const leaderDateRange = useMemo(() => {
+  // Compute date range for selected leaderboard period + prior period for movement
+  const { leaderDateRange, priorDateRange } = useMemo(() => {
     const now = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
-    const endDate = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    const fmtDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const endDate = fmtDate(now);
     let startDate: string;
+    let priorStart: string;
+    let priorEnd: string;
     switch (leaderPeriod) {
       case 'week': {
         const d = new Date(now);
-        d.setDate(d.getDate() - d.getDay()); // start of week (Sunday)
-        startDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        d.setDate(d.getDate() - d.getDay()); // start of current week (Sunday)
+        startDate = fmtDate(d);
+        // Prior week
+        const prevWeekEnd = new Date(d);
+        prevWeekEnd.setDate(prevWeekEnd.getDate() - 1); // Saturday before
+        const prevWeekStart = new Date(prevWeekEnd);
+        prevWeekStart.setDate(prevWeekStart.getDate() - 6); // Sunday before that
+        priorStart = fmtDate(prevWeekStart);
+        priorEnd = fmtDate(prevWeekEnd);
         break;
       }
-      case 'month':
+      case 'month': {
         startDate = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`;
+        // Prior month
+        const pm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        priorStart = fmtDate(pm);
+        const pmEnd = new Date(now.getFullYear(), now.getMonth(), 0); // last day of prior month
+        priorEnd = fmtDate(pmEnd);
         break;
-      case 'year':
+      }
+      case 'year': {
         startDate = `${now.getFullYear()}-01-01`;
+        // Prior year
+        priorStart = `${now.getFullYear() - 1}-01-01`;
+        priorEnd = `${now.getFullYear() - 1}-12-31`;
         break;
+      }
     }
-    return { startDate, endDate };
+    return {
+      leaderDateRange: { startDate, endDate },
+      priorDateRange: { startDate: priorStart, endDate: priorEnd },
+    };
   }, [leaderPeriod]);
 
   useEffect(() => {
@@ -298,11 +323,19 @@ export function LeaderboardPage() {
 
     (async () => {
       try {
-        const agents = await fetchAgentProduction({
-          agency_id: agentLeaderAgencyId,
-          start_date: leaderDateRange.startDate,
-          end_date: leaderDateRange.endDate,
-        });
+        // Fetch current + prior period in parallel for movement computation
+        const [agents, priorAgents] = await Promise.all([
+          fetchAgentProduction({
+            agency_id: agentLeaderAgencyId,
+            start_date: leaderDateRange.startDate,
+            end_date: leaderDateRange.endDate,
+          }),
+          fetchAgentProduction({
+            agency_id: agentLeaderAgencyId,
+            start_date: priorDateRange.startDate,
+            end_date: priorDateRange.endDate,
+          }),
+        ]);
         if (cancelled) return;
 
         // Look up agency name
@@ -317,10 +350,21 @@ export function LeaderboardPage() {
         }
         if (cancelled) return;
 
+        // Rank prior period agents (same default sort: retention desc, then premium desc)
+        const priorProducing = priorAgents.filter(a => a.total_policies > 0)
+          .sort((a, b) => {
+            const retA = a.retention_pct ?? -1;
+            const retB = b.retention_pct ?? -1;
+            if (retB !== retA) return retB - retA;
+            return b.active_annual_premium - a.active_annual_premium;
+          });
+        const priorRankMap = new Map<string, number>();
+        priorProducing.forEach((a, i) => { priorRankMap.set(a.agent_id, i + 1); });
+
         // Only include agents who actually produced in this period
         const producingAgents = agents.filter(a => a.total_policies > 0);
 
-        const ranked = producingAgents
+        const ranked: AgentLeaderRow[] = producingAgents
           .map(a => ({
             agent_id: a.agent_id,
             agent_name: a.agent_name,
@@ -341,7 +385,13 @@ export function LeaderboardPage() {
             if (retB !== retA) return retB - retA;
             return b.active_annual_premium - a.active_annual_premium;
           });
-        ranked.forEach((r, i) => { r.rank = i + 1; });
+        ranked.forEach((r, i) => {
+          r.rank = i + 1;
+          const priorRank = priorRankMap.get(r.agent_id);
+          // movement = priorRank - currentRank (positive = climbed, negative = dropped)
+          // undefined = new to the leaderboard this period
+          r.movement = priorRank !== undefined ? priorRank - r.rank : undefined;
+        });
         if (!cancelled) setAgentRows(ranked);
       } catch (err) {
         console.error('Agent leaderboard load error:', err);
@@ -352,7 +402,7 @@ export function LeaderboardPage() {
     })();
 
     return () => { cancelled = true; };
-  }, [boardTab, agentLeaderAgencyId, leaderDateRange]);
+  }, [boardTab, agentLeaderAgencyId, leaderDateRange, priorDateRange]);
 
   // Ramp-up tab removed — new agents appear in the main leaderboard naturally
 
@@ -642,7 +692,7 @@ export function LeaderboardPage() {
             production: { label: 'Production', icon: TrendingUp },
           };
 
-          // Map to podium props
+          // Map to podium props (with movement)
           const podiumAgents: PodiumAgent[] = top3.map(a => ({
             agent_id: a.agent_id,
             agent_name: a.agent_name,
@@ -652,9 +702,10 @@ export function LeaderboardPage() {
             retention_pct: a.retention_pct,
             at_risk_policies: a.at_risk_policies,
             avg_annual_premium: a.avg_annual_premium,
+            movement: a.movement,
           }));
 
-          // Map to table rows
+          // Map to table rows (with movement)
           const tableRows: LeaderRow[] = rows4to10.map(a => ({
             agent_id: a.agent_id,
             agent_name: a.agent_name,
@@ -665,6 +716,7 @@ export function LeaderboardPage() {
             retention_pct: a.retention_pct,
             at_risk_policies: a.at_risk_policies,
             avg_annual_premium: a.avg_annual_premium,
+            movement: a.movement,
           }));
 
           return <>
