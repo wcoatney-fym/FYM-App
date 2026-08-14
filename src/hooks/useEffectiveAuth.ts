@@ -40,7 +40,9 @@ export function useEffectiveAuth(): EffectiveAuth {
 
   const effectiveRole = isViewingAs ? viewAs.role : auth.role;
   const effectiveAgencyId = isViewingAs ? viewAs.agencyId : auth.agencyId;
-  const effectiveWritingNumber = auth.profile?.writing_number ?? null;
+  const effectiveWritingNumber = isViewingAs && viewAs.writingNumber
+    ? viewAs.writingNumber
+    : auth.profile?.writing_number ?? null;
   const isOrgWide = auth.isFymAdmin && !viewAs.active;
   const isAgent = effectiveRole === 'agent';
 

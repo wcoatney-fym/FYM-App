@@ -866,6 +866,7 @@ function ViewAsCard() {
       agencyName: agency.name,
       agentId: selectedRole === 'agent' ? selectedAgentId || undefined : undefined,
       agentName: selectedRole === 'agent' ? agent?.full_name ?? undefined : undefined,
+      writingNumber: selectedRole === 'agent' ? agent?.writing_number ?? undefined : undefined,
     });
   }
 
@@ -882,6 +883,7 @@ function ViewAsCard() {
         agencyName: FYM_AGENCY_NAME,
         agentId: FYM_PIVOT_AGENT_WRITING_NBR,
         agentName: FYM_PIVOT_AGENT_NAME,
+        writingNumber: FYM_PIVOT_AGENT_WRITING_NBR,
       });
     } else {
       activate({
