@@ -286,19 +286,8 @@ async function handleSync(
     `[sync] ${allContacts.length} total, ${contacts.length} with "${LEAD_TAG}" tag after Feb 1 cutoff`
   );
 
-  // Get existing transitions to avoid duplicates
-  // Key = "contactId|stage|condition" — we only insert a transition once per stage per contact
-  const { data: existingTransitions } = await appDb
-    .from("recruiting_stage_transitions")
-    .select("ghl_contact_id, stage, condition");
-
-  const existingSet = new Set(
-    (existingTransitions || []).map(
-      (t: { ghl_contact_id: string; stage: string; condition: string }) =>
-        `${t.ghl_contact_id}|${t.stage}|${t.condition}`
-    )
-  );
-
+  // DB enforces UNIQUE(ghl_contact_id, stage) — duplicates are rejected on insert.
+  // No need to pre-load existing transitions into memory.
   const leadsToUpsert: Array<Record<string, unknown>> = [];
   const transitionsToInsert: Array<Record<string, unknown>> = [];
 
@@ -334,57 +323,45 @@ async function handleSync(
     });
 
     // ── Lead transition: occurred_at = dateAdded (when contact was created) ──
-    const leadKey = `${c.id}|lead|sync`;
-    if (!existingSet.has(leadKey)) {
-      transitionsToInsert.push({
-        ghl_contact_id: c.id,
-        stage: "lead",
-        condition: "sync",
-        previous_stage: null,
-        metadata: { source: "recruiting_sub", dateAdded: createdAt },
-        occurred_at: createdAt,
-      });
-      existingSet.add(leadKey);
-      stats.recruiting.newTransitions++;
-    }
+    transitionsToInsert.push({
+      ghl_contact_id: c.id,
+      stage: "lead",
+      condition: "sync",
+      previous_stage: null,
+      metadata: { source: "recruiting_sub", dateAdded: createdAt },
+      occurred_at: createdAt,
+    });
+    stats.recruiting.newTransitions++;
 
     // ── Attendee transition: occurred_at = NOW (when we first detect the tag) ──
     // Hired implies attended — log attendee transition for hired contacts too
     if (isAttendee) {
-      const attKey = `${c.id}|attendee|sync`;
-      if (!existingSet.has(attKey)) {
-        transitionsToInsert.push({
-          ghl_contact_id: c.id,
-          stage: "attendee",
-          condition: "sync",
-          previous_stage: "lead",
-          metadata: {
-            tag: matchedTag(c, ATTENDEE_TAGS) || "implied_by_hired",
-            source: "recruiting_sub",
-            implied: hasHiredTag && !hasAttendedTag,
-          },
-          occurred_at: now,
-        });
-        existingSet.add(attKey);
-        stats.recruiting.newTransitions++;
-      }
+      transitionsToInsert.push({
+        ghl_contact_id: c.id,
+        stage: "attendee",
+        condition: "sync",
+        previous_stage: "lead",
+        metadata: {
+          tag: matchedTag(c, ATTENDEE_TAGS) || "implied_by_hired",
+          source: "recruiting_sub",
+          implied: hasHiredTag && !hasAttendedTag,
+        },
+        occurred_at: now,
+      });
+      stats.recruiting.newTransitions++;
     }
 
     // ── Hired transition: occurred_at = NOW (when we first detect the tag) ──
     if (isHired) {
-      const hiredKey = `${c.id}|hired|sync`;
-      if (!existingSet.has(hiredKey)) {
-        transitionsToInsert.push({
-          ghl_contact_id: c.id,
-          stage: "hired",
-          condition: "sync",
-          previous_stage: isAttendee ? "attendee" : "lead",
-          metadata: { tag: matchedTag(c, HIRED_TAGS), source: "recruiting_sub" },
-          occurred_at: now, // Detected this sync cycle
-        });
-        existingSet.add(hiredKey);
-        stats.recruiting.newTransitions++;
-      }
+      transitionsToInsert.push({
+        ghl_contact_id: c.id,
+        stage: "hired",
+        condition: "sync",
+        previous_stage: isAttendee ? "attendee" : "lead",
+        metadata: { tag: matchedTag(c, HIRED_TAGS), source: "recruiting_sub" },
+        occurred_at: now, // Detected this sync cycle
+      });
+      stats.recruiting.newTransitions++;
     }
   }
 
@@ -407,25 +384,21 @@ async function handleSync(
 
     stats.contracting.contracting++;
 
-    const key = `${contactId}|contracting|sync`;
-    if (!existingSet.has(key)) {
-      transitionsToInsert.push({
-        ghl_contact_id: contactId,
-        stage: "contracting",
-        condition: "sync",
-        previous_stage: "hired",
-        metadata: {
-          source: "contracting_sub",
-          pipeline: "New Agents Pipeline",
-          stage_name: "IN CONTRACTING PROCESS",
-          opp_id: opp.id,
-          opp_name: opp.name,
-        },
-        occurred_at: opp.lastStageChangeAt || dateAdded,
-      });
-      existingSet.add(key);
-      stats.contracting.newTransitions++;
-    }
+    transitionsToInsert.push({
+      ghl_contact_id: contactId,
+      stage: "contracting",
+      condition: "sync",
+      previous_stage: "hired",
+      metadata: {
+        source: "contracting_sub",
+        pipeline: "New Agents Pipeline",
+        stage_name: "IN CONTRACTING PROCESS",
+        opp_id: opp.id,
+        opp_name: opp.name,
+      },
+      occurred_at: opp.lastStageChangeAt || dateAdded,
+    });
+    stats.contracting.newTransitions++;
 
     leadsToUpsert.push({
       ghl_contact_id: contactId,
@@ -455,26 +428,22 @@ async function handleSync(
 
       stats.contracting.rts++;
 
-      const key = `${contactId}|rts|sync`;
-      if (!existingSet.has(key)) {
-        transitionsToInsert.push({
-          ghl_contact_id: contactId,
-          stage: "rts",
-          condition: "sync",
-          previous_stage: "contracting",
-          metadata: {
-            source: "contracting_sub",
-            pipeline: "New Agents Pipeline",
-            stage_name: rtsStageName,
-            ghl_stage_id: rtsStageId,
-            opp_id: opp.id,
-            opp_name: opp.name,
-          },
-          occurred_at: opp.lastStageChangeAt || dateAdded,
-        });
-        existingSet.add(key);
-        stats.contracting.newTransitions++;
-      }
+      transitionsToInsert.push({
+        ghl_contact_id: contactId,
+        stage: "rts",
+        condition: "sync",
+        previous_stage: "contracting",
+        metadata: {
+          source: "contracting_sub",
+          pipeline: "New Agents Pipeline",
+          stage_name: rtsStageName,
+          ghl_stage_id: rtsStageId,
+          opp_id: opp.id,
+          opp_name: opp.name,
+        },
+        occurred_at: opp.lastStageChangeAt || dateAdded,
+      });
+      stats.contracting.newTransitions++;
 
       leadsToUpsert.push({
         ghl_contact_id: contactId,
@@ -549,23 +518,19 @@ async function handleSync(
 
         stats.producing.matched++;
 
-        const key = `${lead.ghl_contact_id}|producing|sync`;
-        if (!existingSet.has(key)) {
-          transitionsToInsert.push({
-            ghl_contact_id: lead.ghl_contact_id,
-            stage: "producing",
-            condition: "sync",
-            previous_stage: "rts",
-            metadata: {
-              source: "max_db_match",
-              prod_name: prod.name,
-              first_app_date: prod.firstAppDate,
-            },
-            occurred_at: prod.firstAppDate + "T00:00:00Z",
-          });
-          existingSet.add(key);
-          stats.producing.newTransitions++;
-        }
+        transitionsToInsert.push({
+          ghl_contact_id: lead.ghl_contact_id,
+          stage: "producing",
+          condition: "sync",
+          previous_stage: "rts",
+          metadata: {
+            source: "max_db_match",
+            prod_name: prod.name,
+            first_app_date: prod.firstAppDate,
+          },
+          occurred_at: prod.firstAppDate + "T00:00:00Z",
+        });
+        stats.producing.newTransitions++;
 
         // Update lead stage if they've graduated
         if (lead.stage !== "producing") {
@@ -608,18 +573,22 @@ async function handleSync(
     }
   }
 
-  // ── 4. BATCH INSERT transitions ───────────────────────────────────────
-  console.log(`[sync] Inserting ${transitionsToInsert.length} transitions...`);
+  // ── 4. BATCH UPSERT transitions (DB enforces one row per agent per stage) ──
+  // UNIQUE(ghl_contact_id, stage) — duplicates are silently skipped.
+  console.log(`[sync] Upserting ${transitionsToInsert.length} transitions...`);
   let transInserted = 0;
 
   for (let i = 0; i < transitionsToInsert.length; i += BATCH) {
     const batch = transitionsToInsert.slice(i, i + BATCH);
     const { error } = await appDb
       .from("recruiting_stage_transitions")
-      .insert(batch);
+      .upsert(batch, {
+        onConflict: "ghl_contact_id,stage",
+        ignoreDuplicates: true,
+      });
     if (error) {
-      console.error(`[sync] Transition insert error: ${error.message}`);
-      stats.errors.push(`transition_insert: ${error.message}`);
+      console.error(`[sync] Transition upsert error: ${error.message}`);
+      stats.errors.push(`transition_upsert: ${error.message}`);
     } else {
       transInserted += batch.length;
     }
