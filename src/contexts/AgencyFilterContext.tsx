@@ -58,9 +58,14 @@ export function AgencyFilterProvider({ children }: { children: ReactNode }) {
   const showAgencyFilter = isFymAdmin;
   const isAllAgencies = isFymAdmin && filterAgencyId === null;
 
+  // For managers: no-op setter prevents any code path from overriding the lock.
+  const safeSetFilterAgencyId = isManager
+    ? () => {} // managers are locked — ignore all set attempts
+    : setFilterAgencyId;
+
   return (
     <AgencyFilterContext.Provider
-      value={{ filterAgencyId, setFilterAgencyId, showAgencyFilter, isAllAgencies }}
+      value={{ filterAgencyId, setFilterAgencyId: safeSetFilterAgencyId, showAgencyFilter, isAllAgencies }}
     >
       {children}
     </AgencyFilterContext.Provider>
