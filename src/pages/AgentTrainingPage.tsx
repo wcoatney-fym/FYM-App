@@ -13,7 +13,7 @@
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Header } from '@/components/layout/Header';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StaggerContainer, StaggerItem } from '@/components/ui/animated';
 import { HudFrame } from '@/components/ui/hud-frame';
@@ -70,9 +70,9 @@ const CATEGORY_COLORS: Record<string, string> = {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function AgentTrainingPage() {
-  const { user, effectiveWritingNumber, profile } = useEffectiveAuth();
+  const { user } = useEffectiveAuth();
   const agentId = user?.id ?? null;
-  const agentName = profile?.full_name ?? effectiveWritingNumber ?? 'Unknown Agent';
+
 
   // Data state
   const [content, setContent] = useState<PortalTrainingContent[]>([]);
@@ -470,8 +470,7 @@ export function AgentTrainingPage() {
                                     href={item.content_url}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    onClick={(e) => {
-                                      // Don't prevent default — let the link open
+                                    onClick={() => {
                                       recordContentView(item);
                                     }}
                                     className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 ${
@@ -581,7 +580,7 @@ export function AgentTrainingPage() {
               ) : (
                 <div className="space-y-1.5">
                   {events.slice(0, 8).map(event => {
-                    const typeInfo: Record<string, { label: string; icon: typeof Play }> = {
+                    const typeInfo: Record<string, { label: string; icon: typeof Play; }> = {
                       video_view: { label: 'Watched', icon: Video },
                       document_view: { label: 'Read', icon: FileText },
                       quiz_attempt: { label: 'Quiz', icon: Award },
