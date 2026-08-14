@@ -902,6 +902,33 @@ export interface StageTransitionRow {
 }
 
 /**
+ * Build a ghl_contact_id → name lookup from recruiting_leads.
+ * Falls back to metadata.name for any contact not in the leads table.
+ */
+export async function fetchContactNameMap(): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  if (!supabaseConfigured || !recruitingSb) return map;
+
+  // Paginate to handle > 1000 rows
+  const PAGE = 1000;
+  let offset = 0;
+  let done = false;
+  while (!done) {
+    const { data, error } = await recruitingSb
+      .from('recruiting_leads')
+      .select('ghl_contact_id, name')
+      .range(offset, offset + PAGE - 1);
+    if (error || !data?.length) { done = true; break; }
+    for (const row of data as { ghl_contact_id: string; name: string | null }[]) {
+      if (row.name) map.set(row.ghl_contact_id, row.name);
+    }
+    if (data.length < PAGE) done = true;
+    else offset += PAGE;
+  }
+  return map;
+}
+
+/**
  * Fetch stage transitions for a specific contact or all contacts.
  * Used by CRM Command to show the full activity log.
  */
