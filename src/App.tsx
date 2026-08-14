@@ -17,6 +17,7 @@ import { AgentDashboardPage } from '@/pages/AgentDashboardPage';
 import { AgentTrainingPage } from '@/pages/AgentTrainingPage';
 import { GoalPage } from '@/pages/GoalPage';
 import { ManagerTeamPage } from '@/pages/ManagerTeamPage';
+import { ManagerDashboardPage } from '@/pages/ManagerDashboardPage';
 // AdminFinancialsPage removed — content migrated to ProductionPage
 import { ManagerWorkboardPage } from '@/pages/ManagerWorkboardPage';
 // Onboarding pages moved into Contracting tab — see contracting/onboarding/
@@ -58,6 +59,7 @@ function App() {
             <Route path="/agents/:agentId/health" element={<RoleGuard allow={['admin', 'manager']}><AgentHealthPage /></RoleGuard>} />
             <Route path="/my-health" element={<AgentHealthPage />} />
             <Route path="/my-dashboard" element={<AgentDashboardPage />} />
+            <Route path="/manager-dashboard" element={<RoleGuard allow={['admin', 'manager']}><ManagerDashboardPage /></RoleGuard>} />
             <Route path="/my-production" element={<MyProductionPage />} />
             <Route path="/my-goal" element={<GoalPage />} />
             <Route path="/training" element={<AgentTrainingPage />} />
