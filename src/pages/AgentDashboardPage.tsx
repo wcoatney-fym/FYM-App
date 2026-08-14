@@ -444,9 +444,61 @@ export function AgentDashboardPage() {
                 </Card>
               </div>
 
-              {/* Quality Card */}
+              {/* Quality Card — agent-scoped */}
               <div className="lg:col-span-2">
-                <QualityCard filterAgencyId={effectiveAgencyWritingNumber} loading={false} />
+                {stats ? (
+                  <Card className="border-border">
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 rounded bg-cyan-500/10">
+                            <ShieldCheck className="w-4 h-4 text-cyan-400" />
+                          </div>
+                          <CardTitle className="text-sm font-semibold">Quality</CardTitle>
+                        </div>
+                        <Link to="/my-production" className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-0.5">
+                          View all <ChevronRight className="w-3 h-3" />
+                        </Link>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-1">Your personal quality metrics</p>
+                    </CardHeader>
+                    <CardContent className="space-y-3 pt-0">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Policies Taken</span>
+                        <span className="text-sm font-bold tabular-nums text-foreground">
+                          {stats.active_policies} of {stats.total_policies} active
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">90-Day Retention</span>
+                        <span className={`text-sm font-bold tabular-nums ${
+                          stats.retention_pct === null ? 'text-muted-foreground'
+                            : stats.retention_pct >= 90 ? 'text-emerald-400'
+                            : stats.retention_pct >= 85 ? 'text-amber-400'
+                            : 'text-red-400'
+                        }`}>
+                          {stats.retention_pct !== null ? `${stats.retention_pct}%` : '—'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">At-Risk Policies</span>
+                        <span className={`text-sm font-bold tabular-nums ${
+                          stats.at_risk_policies > 0 ? 'text-red-400' : 'text-emerald-400'
+                        }`}>
+                          {stats.at_risk_policies}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Avg Annual Premium</span>
+                        <span className="text-sm font-bold tabular-nums text-foreground">
+                          ${stats.avg_annual_premium?.toLocaleString('en-US', { maximumFractionDigits: 0 }) ?? '—'}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <QualityCard filterAgencyId={effectiveAgencyWritingNumber} loading={false} />
+                )}
               </div>
             </div>
           </StaggerItem>
