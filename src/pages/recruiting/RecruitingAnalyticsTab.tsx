@@ -20,9 +20,7 @@ import {
 } from '@/lib/recruiting';
 import type {
   RecruitingDateFilter, StageDropoff, StallEntry, StageTiming,
-  ProducingAgent,
 } from '@/lib/recruiting';
-import type { RecruitingRoiSummary } from '@/lib/recruiting/api';
 import { useCachedMultiFetch } from '@/hooks/useCachedFetch';
 
 type AnalyticsView = 'conversion' | 'roi';
