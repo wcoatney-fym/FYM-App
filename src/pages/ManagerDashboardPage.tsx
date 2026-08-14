@@ -23,6 +23,7 @@ import { QualityCard } from '@/components/dashboard/QualityCard';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useOrgData } from '@/contexts/OrgDataCache';
 import { supabase } from '@/lib/supabase';
+import { portalSupabase } from '@/lib/portal-supabase';
 import {
   fetchAgentProduction,
   fetchAtRiskPolicies,
@@ -31,6 +32,7 @@ import {
   type AtRiskPolicy,
 } from '@/lib/prod-api';
 import type { AgentCoachingFlag } from '@/components/coaching/AgentCoachingTable';
+import type { PortalPipelineRecord } from '@/lib/contracting/types';
 import { useCachedMultiFetch } from '@/hooks/useCachedFetch';
 import { fmtPct, retentionColor } from '@/lib/formatUtils';
 import {
@@ -47,6 +49,7 @@ import {
   Target,
   CheckCircle,
   XCircle,
+  UserPlus,
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -86,6 +89,7 @@ function urgencyColor(flagType: string | null): string {
 
 export function ManagerDashboardPage() {
   const {
+    effectiveAgencyId,
     effectiveAgencyWritingNumber,
   } = useEffectiveAuth();
   const orgData = useOrgData();
@@ -109,6 +113,44 @@ export function ManagerDashboardPage() {
   const atRiskPolicies: AtRiskPolicy[] = atRiskData?.data?.policies ?? [];
   const coachingAgents: AgentCoachingFlag[] = (data?.coaching as any)?.agents ?? [];
   const loading = fetchLoading && agents.length === 0;
+
+  // ── Contracting pipeline for this agency ──
+  const [pipelineRecords, setPipelineRecords] = useState<PortalPipelineRecord[]>([]);
+  const [pipelineLoading, setPipelineLoading] = useState(true);
+  const [agencyDisplayName, setAgencyDisplayName] = useState<string | null>(null);
+
+  // Resolve agency UUID → display name for portal pipeline matching
+  useEffect(() => {
+    if (!effectiveAgencyId || !supabase) return;
+    (supabase as any)
+      .from('agencies')
+      .select('name')
+      .eq('id', effectiveAgencyId)
+      .maybeSingle()
+      .then(({ data }: { data: { name: string } | null }) => {
+        setAgencyDisplayName(data?.name ?? null);
+      });
+  }, [effectiveAgencyId]);
+
+  // Fetch pipeline records from Portal DB, filtered by agency name
+  const fetchPipeline = useCallback(async () => {
+    if (!portalSupabase) { setPipelineLoading(false); return; }
+    setPipelineLoading(true);
+    let query = portalSupabase
+      .from('agent_pipeline')
+      .select('*')
+      .order('stage_entered_at', { ascending: false });
+    if (agencyDisplayName) {
+      query = query.eq('agency', agencyDisplayName);
+    }
+    const { data: rows } = await query;
+    if (rows) {
+      setPipelineRecords(rows as PortalPipelineRecord[]);
+    }
+    setPipelineLoading(false);
+  }, [agencyDisplayName]);
+
+  useEffect(() => { fetchPipeline(); }, [fetchPipeline]);
 
   // ── Daily Pulse: today's check-in responses ──
   const [pulseResponses, setPulseResponses] = useState<PulseResponse[]>([]);
@@ -585,6 +627,9 @@ export function ManagerDashboardPage() {
 
         </div>
 
+        {/* ── Contracting Pipeline ── */}
+        <ContractingPipelineCard records={pipelineRecords} loading={pipelineLoading} />
+
       </div>
     </div>
   );
@@ -790,6 +835,105 @@ function DailyPulseCard({ responses, loading }: { responses: PulseResponse[]; lo
                   </div>
                 </div>
               )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </HudFrame>
+  );
+}
+
+// ── Contracting Pipeline Card ───────────────────────────────────────────────
+
+const PIPELINE_STAGE_META: Record<string, { label: string; color: string }> = {
+  hip_broker: { label: 'HIP Broker', color: 'bg-cyan-500/20 text-cyan-400' },
+  hip_career: { label: 'HIP Career', color: 'bg-indigo-500/20 text-indigo-400' },
+  iaa: { label: 'IAA', color: 'bg-violet-500/20 text-violet-400' },
+  signed_iaa: { label: 'Signed IAA', color: 'bg-purple-500/20 text-purple-400' },
+  bill_com: { label: 'Bill.com', color: 'bg-fuchsia-500/20 text-fuchsia-400' },
+  in_contracting: { label: 'In Contracting', color: 'bg-teal-500/20 text-teal-400' },
+  rts: { label: 'RTS', color: 'bg-emerald-500/20 text-emerald-400' },
+  crm: { label: 'CRM Onboarding', color: 'bg-cyan-500/20 text-cyan-400' },
+  hip_broker_ready: { label: 'HIP Broker READY', color: 'bg-emerald-500/20 text-emerald-400' },
+  hip_career_ready: { label: 'HIP Career READY', color: 'bg-lime-500/20 text-lime-400' },
+  actively_selling: { label: 'Actively Selling', color: 'bg-amber-500/20 text-amber-400' },
+  terminated: { label: 'Terminated', color: 'bg-red-500/20 text-red-400' },
+};
+
+function ContractingPipelineCard({ records, loading }: { records: PortalPipelineRecord[]; loading: boolean }) {
+  // Group by stage, exclude terminal stages from the summary
+  const stageCounts = useMemo(() => {
+    const counts: Record<string, { count: number; agents: string[] }> = {};
+    for (const r of records) {
+      if (r.stage === 'terminated' || r.stage === 'actively_selling') continue;
+      if (!counts[r.stage]) counts[r.stage] = { count: 0, agents: [] };
+      counts[r.stage].count++;
+      if (counts[r.stage].agents.length < 3) {
+        counts[r.stage].agents.push(r.agent_name || 'Unknown');
+      }
+    }
+    return Object.entries(counts)
+      .map(([stage, { count, agents }]) => ({ stage, count, agents }))
+      .sort((a, b) => b.count - a.count);
+  }, [records]);
+
+  const activeCount = records.filter(r => r.stage !== 'terminated' && r.stage !== 'actively_selling').length;
+  const rtsCount = records.filter(r => r.stage === 'rts').length;
+
+  return (
+    <HudFrame accentColor="hsl(260 60% 50% / 0.3)">
+      <Card className="border-border">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-lg bg-violet-500/10">
+                <UserPlus size={18} className="text-violet-400" />
+              </div>
+              <div>
+                <CardTitle className="text-base font-semibold">Contracting Pipeline</CardTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {activeCount > 0
+                    ? `${activeCount} in pipeline · ${rtsCount} ready to sell`
+                    : 'No agents in pipeline'}
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/contracting"
+              className="text-xs text-primary hover:underline flex items-center gap-1"
+            >
+              Full pipeline <ChevronRight size={12} />
+            </Link>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map(i => <div key={i} className="h-10 rounded shimmer" />)}
+            </div>
+          ) : stageCounts.length === 0 ? (
+            <div className="py-4 text-center">
+              <UserPlus size={24} className="text-muted-foreground/50 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">No agents currently in contracting</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {stageCounts.map(({ stage, count, agents }) => {
+                const meta = PIPELINE_STAGE_META[stage] || { label: stage, color: 'bg-zinc-500/20 text-zinc-400' };
+                return (
+                  <div key={stage} className="flex items-center justify-between py-1.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Badge variant="outline" className={`text-xs ${meta.color} border-0 px-2 py-0.5`}>
+                        {meta.label}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground truncate">
+                        {agents.join(', ')}{count > 3 ? ` +${count - 3} more` : ''}
+                      </span>
+                    </div>
+                    <span className="text-sm font-bold font-data text-foreground ml-2">{count}</span>
+                  </div>
+                );
+              })}
             </div>
           )}
         </CardContent>
