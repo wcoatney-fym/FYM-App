@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import {
   fetchStageTransitions,
   fetchGhlLiveCounts,
+  fetchContactNameMap,
   type StageTransitionRow,
 } from '@/lib/recruiting/api';
 import type { RecruitingDateFilter } from '@/lib/recruiting/types';
@@ -131,6 +132,7 @@ export function CcRecruitingLogTab() {
   const [sortAsc, setSortAsc] = useState(false);
   const [kpiCounts, setKpiCounts] = useState<Record<string, number>>({});
   const [kpiLoading, setKpiLoading] = useState(true);
+  const [nameMap, setNameMap] = useState<Map<string, string>>(new Map());
 
   // Get date filter from selected period
   const dateFilter = useMemo(() => {
@@ -152,6 +154,11 @@ export function CcRecruitingLogTab() {
 
     return () => { cancelled = true; };
   }, [dateFilter]);
+
+  // Fetch contact name map (once on mount)
+  useEffect(() => {
+    fetchContactNameMap().then(setNameMap);
+  }, []);
 
   // Fetch KPI counts (from edge function — cumulative)
   useEffect(() => {
@@ -185,15 +192,19 @@ export function CcRecruitingLogTab() {
       rows = rows.filter((r) => r.stage === stageFilter);
     }
 
-    // Search filter (contact ID or metadata)
+    // Search filter (name, contact ID, or metadata)
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      rows = rows.filter((r) =>
-        r.ghl_contact_id.toLowerCase().includes(q) ||
-        JSON.stringify(r.metadata).toLowerCase().includes(q) ||
-        r.stage.toLowerCase().includes(q) ||
-        (r.condition || '').toLowerCase().includes(q)
-      );
+      rows = rows.filter((r) => {
+        const name = nameMap.get(r.ghl_contact_id) ?? (r.metadata as Record<string, string>)?.name ?? '';
+        return (
+          name.toLowerCase().includes(q) ||
+          r.ghl_contact_id.toLowerCase().includes(q) ||
+          JSON.stringify(r.metadata).toLowerCase().includes(q) ||
+          r.stage.toLowerCase().includes(q) ||
+          (r.condition || '').toLowerCase().includes(q)
+        );
+      });
     }
 
     // Sort by occurred_at
@@ -203,7 +214,7 @@ export function CcRecruitingLogTab() {
     });
 
     return rows;
-  }, [transitions, stageFilter, searchQuery, sortAsc]);
+  }, [transitions, stageFilter, searchQuery, sortAsc, nameMap]);
 
   // Count transitions per stage (for the log, not cumulative KPIs)
   const transitionCounts = useMemo(() => {
@@ -306,7 +317,7 @@ export function CcRecruitingLogTab() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by contact ID, tag, stage..."
+            placeholder="Search by name, tag, stage..."
             className="w-full pl-8 pr-3 py-1.5 text-xs bg-card/50 border border-border/40 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
@@ -339,7 +350,7 @@ export function CcRecruitingLogTab() {
                 <th className="text-left px-3 py-2 font-medium text-muted-foreground">Stage</th>
                 <th className="text-left px-3 py-2 font-medium text-muted-foreground">From</th>
                 <th className="text-left px-3 py-2 font-medium text-muted-foreground">Event</th>
-                <th className="text-left px-3 py-2 font-medium text-muted-foreground">Contact ID</th>
+                <th className="text-left px-3 py-2 font-medium text-muted-foreground">Name</th>
                 <th className="text-left px-3 py-2 font-medium text-muted-foreground">Details</th>
               </tr>
             </thead>
@@ -403,8 +414,8 @@ export function CcRecruitingLogTab() {
                           {t.condition}
                         </span>
                       </td>
-                      <td className="px-3 py-2 font-mono text-muted-foreground text-[10px]">
-                        {t.ghl_contact_id.slice(0, 12)}…
+                      <td className="px-3 py-2 text-muted-foreground">
+                        {nameMap.get(t.ghl_contact_id) ?? (t.metadata as Record<string, string>)?.name ?? t.ghl_contact_id.slice(0, 12) + '…'}
                       </td>
                       <td className="px-3 py-2 text-muted-foreground truncate max-w-[200px]">
                         {detailStr}
