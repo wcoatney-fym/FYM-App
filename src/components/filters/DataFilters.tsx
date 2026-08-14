@@ -97,7 +97,9 @@ export function DataFilters({
       });
   }, [selectedAgencyId, showAgentFilter, agencies]);
 
-  const hasActiveFilters = !!selectedAgencyId || !!selectedAgentId || (selectedPreset !== DEFAULT_PRESET && showTimePeriod);
+  // Only count agency/agent as "active filter" if the user can change them.
+  // Managers are auto-locked — their agency selection is not a user-applied filter.
+  const hasActiveFilters = (showAgencyFilter && !!selectedAgencyId) || !!selectedAgentId || (selectedPreset !== DEFAULT_PRESET && showTimePeriod);
 
   function handleClear() {
     onAgencyChange(null);

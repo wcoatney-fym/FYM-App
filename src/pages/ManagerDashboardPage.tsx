@@ -160,11 +160,16 @@ export function ManagerDashboardPage() {
     if (!supabase) { setPulseLoading(false); return; }
     setPulseLoading(true);
     const today = getTodayCT();
-    const { data: rows } = await (supabase as any)
+    let query = (supabase as any)
       .from('checkin_responses')
-      .select('id, conversation_state, is_working, has_four_plus_hours, app_goal, nudge_sent, checkin_recipients!inner(first_name, last_name)')
+      .select('id, conversation_state, is_working, has_four_plus_hours, app_goal, nudge_sent, checkin_recipients!inner(first_name, last_name, agency_id)')
       .eq('check_in_date', today)
       .order('conversation_state', { ascending: true });
+    // Scope to manager's agency
+    if (effectiveAgencyId) {
+      query = query.eq('checkin_recipients.agency_id', effectiveAgencyId);
+    }
+    const { data: rows } = await query;
     if (rows) {
       setPulseResponses(rows.map((r: any) => ({
         id: r.id,
