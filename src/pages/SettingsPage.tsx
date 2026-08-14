@@ -806,6 +806,12 @@ function FymAdminManagementCard({ currentUserId }: { currentUserId: string | nul
 
 // ── View As ──────────────────────────────────────────────────────────────
 
+// FYM's own agency — used for quick-pivot
+const FYM_AGENCY_ID = '338230f2-2058-407c-9507-5aa88d6d5e14';
+const FYM_AGENCY_NAME = 'FYM';
+
+type PivotView = 'admin' | 'manager' | 'agent';
+
 function ViewAsCard() {
   const { active, role, agencyName, agentName, activate, deactivate } = useViewAsStore();
 
@@ -859,6 +865,21 @@ function ViewAsCard() {
     });
   }
 
+  // Quick pivot — determine current view
+  const currentPivot: PivotView = !active ? 'admin' : (role as PivotView) ?? 'admin';
+
+  function handlePivot(view: PivotView) {
+    if (view === 'admin') {
+      deactivate();
+    } else {
+      activate({
+        role: view,
+        agencyId: FYM_AGENCY_ID,
+        agencyName: FYM_AGENCY_NAME,
+      });
+    }
+  }
+
   const canActivate =
     !!selectedAgencyId && (selectedRole !== 'agent' || !!selectedAgentId);
 
@@ -870,111 +891,148 @@ function ViewAsCard() {
           View As
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-xs text-muted-foreground">
-          Impersonate an agency admin, manager, or agent view to see exactly what
-          they see. Data scoping is enforced automatically for the duration of the
-          session.
-        </p>
-
-        {active && (
-          <div className="flex items-center justify-between bg-amber-500/10 border border-amber-500/30 rounded-md px-3 py-2">
-            <div>
-              <Badge variant="outline" className="text-amber-400 border-amber-500/40 mb-1">
-                Active
-              </Badge>
-              <p className="text-sm text-foreground">
-                Viewing as{' '}
-                <span className="font-medium">
-                  {role === 'agent'
-                    ? `Agent — ${agentName ?? 'Unknown'} @ ${agencyName}`
-                    : role === 'manager'
-                      ? `Manager — ${agencyName}`
-                      : `Agency Admin — ${agencyName}`}
-                </span>
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={deactivate}
-              className="text-black bg-amber-500 hover:bg-amber-600 h-7 px-3"
-            >
-              Exit View As
-            </Button>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="space-y-2">
-            <Label className="text-sm font-medium text-foreground/80">Role</Label>
-            <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v as UserRole)}>
-              <SelectTrigger className="bg-secondary/20">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="admin">Agency Admin</SelectItem>
-                <SelectItem value="manager">Manager</SelectItem>
-                <SelectItem value="agent">Agent</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-sm font-medium text-foreground/80">Agency</Label>
-            <Select value={selectedAgencyId} onValueChange={setSelectedAgencyId}>
-              <SelectTrigger className="bg-secondary/20">
-                <SelectValue placeholder={loadingAgencies ? 'Loading agencies…' : 'Select agency…'} />
-              </SelectTrigger>
-              <SelectContent>
-                {agencies.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>
-                    {a.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {selectedRole === 'agent' && (
-            <div className="space-y-2 sm:col-span-2">
-              <Label className="text-sm font-medium text-foreground/80">Agent</Label>
-              <Select
-                value={selectedAgentId}
-                onValueChange={setSelectedAgentId}
-                disabled={!selectedAgencyId}
+      <CardContent className="space-y-5">
+        {/* ── Quick Pivot ── */}
+        <div>
+          <p className="text-xs text-muted-foreground mb-3">
+            Quickly switch between FYM role perspectives. The app re-scopes
+            instantly — sidebar, data, and pages all update.
+          </p>
+          <div className="flex rounded-lg border border-border overflow-hidden">
+            {([
+              { key: 'admin' as PivotView, label: 'FYM Admin' },
+              { key: 'manager' as PivotView, label: 'FYM Manager' },
+              { key: 'agent' as PivotView, label: 'FYM Agent' },
+            ]).map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => handlePivot(key)}
+                className={`flex-1 py-2.5 text-sm font-medium transition-all duration-200 ${
+                  currentPivot === key
+                    ? 'bg-amber-500 text-black'
+                    : 'bg-secondary/20 text-muted-foreground hover:bg-secondary/40 hover:text-foreground'
+                }`}
               >
-                <SelectTrigger className="bg-secondary/20">
-                  <SelectValue
-                    placeholder={!selectedAgencyId ? 'Select an agency first…' : 'Select agent…'}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {selectedAgencyId && agents.length === 0 ? (
-                    <div className="flex flex-col items-center gap-1.5 py-4 px-3 text-center">
-                      <Users size={16} className="text-muted-foreground/60" />
-                      <p className="text-xs text-muted-foreground">No agents found for this agency</p>
-                    </div>
-                  ) : (
-                    agents.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>
-                        {a.full_name ?? a.writing_number ?? a.id}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
+                {label}
+              </button>
+            ))}
+          </div>
+          {active && (
+            <p className="text-xs text-amber-400/80 mt-2 flex items-center gap-1.5">
+              <Eye size={12} />
+              Viewing as {role === 'agent' ? 'Agent' : role === 'manager' ? 'Manager' : 'Agency Admin'}
+              {agencyName && agencyName !== FYM_AGENCY_NAME ? ` — ${agencyName}` : ''}
+              {agentName ? ` — ${agentName}` : ''}
+            </p>
           )}
         </div>
 
-        <Button
-          onClick={handleActivate}
-          disabled={!canActivate}
-          className="bg-amber-500 hover:bg-amber-600 text-black"
-        >
-          Activate View As
-        </Button>
+        {/* ── Agency Impersonation (for outside agencies) ── */}
+        <div className="border-t border-border/30 pt-4">
+          <p className="text-xs font-semibold text-foreground mb-1">Agency Impersonation</p>
+          <p className="text-xs text-muted-foreground mb-3">
+            View as a specific outside agency admin, manager, or agent.
+          </p>
+
+          {active && agencyName && agencyName !== FYM_AGENCY_NAME && (
+            <div className="flex items-center justify-between bg-amber-500/10 border border-amber-500/30 rounded-md px-3 py-2 mb-3">
+              <div>
+                <Badge variant="outline" className="text-amber-400 border-amber-500/40 mb-1">
+                  Active
+                </Badge>
+                <p className="text-sm text-foreground">
+                  Viewing as{' '}
+                  <span className="font-medium">
+                    {role === 'agent'
+                      ? `Agent — ${agentName ?? 'Unknown'} @ ${agencyName}`
+                      : role === 'manager'
+                        ? `Manager — ${agencyName}`
+                        : `Agency Admin — ${agencyName}`}
+                  </span>
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={deactivate}
+                className="text-black bg-amber-500 hover:bg-amber-600 h-7 px-3"
+              >
+                Exit
+              </Button>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-foreground/80">Role</Label>
+              <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v as UserRole)}>
+                <SelectTrigger className="bg-secondary/20">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Agency Admin</SelectItem>
+                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="agent">Agent</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-foreground/80">Agency</Label>
+              <Select value={selectedAgencyId} onValueChange={setSelectedAgencyId}>
+                <SelectTrigger className="bg-secondary/20">
+                  <SelectValue placeholder={loadingAgencies ? 'Loading agencies…' : 'Select agency…'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {agencies.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {selectedRole === 'agent' && (
+              <div className="space-y-2 sm:col-span-2">
+                <Label className="text-sm font-medium text-foreground/80">Agent</Label>
+                <Select
+                  value={selectedAgentId}
+                  onValueChange={setSelectedAgentId}
+                  disabled={!selectedAgencyId}
+                >
+                  <SelectTrigger className="bg-secondary/20">
+                    <SelectValue
+                      placeholder={!selectedAgencyId ? 'Select an agency first…' : 'Select agent…'}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {selectedAgencyId && agents.length === 0 ? (
+                      <div className="flex flex-col items-center gap-1.5 py-4 px-3 text-center">
+                        <Users size={16} className="text-muted-foreground/60" />
+                        <p className="text-xs text-muted-foreground">No agents found for this agency</p>
+                      </div>
+                    ) : (
+                      agents.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.full_name ?? a.writing_number ?? a.id}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+
+          <Button
+            onClick={handleActivate}
+            disabled={!canActivate}
+            className="bg-amber-500 hover:bg-amber-600 text-black mt-3"
+          >
+            Activate
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
