@@ -9,8 +9,8 @@
  */
 import { cn } from '@/lib/utils';
 import { fmt$ } from '@/lib/formatUtils';
-import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
-import { Crown, TrendingUp, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { StaggerContainer, StaggerItem } from '@/components/ui/animated';
+import { Crown, TrendingUp, AlertTriangle } from 'lucide-react';
 
 export interface PodiumAgent {
   agent_id: string;

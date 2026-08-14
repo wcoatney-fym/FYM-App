@@ -38,7 +38,7 @@ import {
   Swords, Target, Users, Crown, Plus,
   CheckCircle2, XCircle, Clock,
 } from 'lucide-react';
-import { fmt$ } from '@/lib/formatUtils';
+// fmt$ moved to HeroPodium/LeaderboardTable components
 
 // ── Types ──────────────────────────────────────────────────────────────────
 // Removed dead code block (lines 43-56)

@@ -6,7 +6,7 @@
  *   ↑3 green, ↓1 red, — neutral
  */
 import { cn } from '@/lib/utils';
-import { fmt$, fmtPct } from '@/lib/formatUtils';
+import { fmt$ } from '@/lib/formatUtils';
 import { StaggerContainer, StaggerItem } from '@/components/ui/animated';
 import { TrendingUp, TrendingDown, Minus, Trophy } from 'lucide-react';
 

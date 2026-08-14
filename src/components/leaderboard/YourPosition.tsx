@@ -7,7 +7,7 @@
  */
 import { cn } from '@/lib/utils';
 import { fmt$ } from '@/lib/formatUtils';
-import { Target, TrendingUp, ArrowUp } from 'lucide-react';
+import { ArrowUp } from 'lucide-react';
 
 interface YourPositionProps {
   rank: number;
