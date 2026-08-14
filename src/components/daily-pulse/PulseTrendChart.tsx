@@ -101,7 +101,12 @@ function ChartTooltip({ active, payload, label }: any) {
 
 const DEFAULT_PRESET: DatePreset = 'thisMonth';
 
-export function PulseTrendChart() {
+interface PulseTrendChartProps {
+  /** Optional agency UUID to scope trend data (managers) */
+  agencyId?: string | null;
+}
+
+export function PulseTrendChart({ agencyId }: PulseTrendChartProps = {}) {
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
   const [data, setData] = useState<DailyPoint[]>([]);
@@ -119,12 +124,23 @@ export function PulseTrendChart() {
     const startDate = dateRange.startDate.slice(0, 10);
     const endDate = dateRange.endDate.slice(0, 10);
 
-    const { data: rows, error } = await (supabase as any)
+    // When agencyId is provided, join through checkin_recipients to scope by agency
+    const selectCols = agencyId
+      ? 'check_in_date, is_working, app_goal, conversation_state, checkin_recipients!inner(agency_id)'
+      : 'check_in_date, is_working, app_goal, conversation_state';
+
+    let query = (supabase as any)
       .from('checkin_responses')
-      .select('check_in_date, is_working, app_goal, conversation_state')
+      .select(selectCols)
       .gte('check_in_date', startDate)
       .lt('check_in_date', endDate)
       .order('check_in_date', { ascending: true });
+
+    if (agencyId) {
+      query = query.eq('checkin_recipients.agency_id', agencyId);
+    }
+
+    const { data: rows, error } = await query;
 
     if (error || !rows) {
       console.warn('[PulseTrend] query error:', error?.message);
@@ -156,7 +172,7 @@ export function PulseTrendChart() {
 
     setData(points);
     setLoading(false);
-  }, [dateRange]);
+  }, [dateRange, agencyId]);
 
   useEffect(() => {
     fetchTrendData();

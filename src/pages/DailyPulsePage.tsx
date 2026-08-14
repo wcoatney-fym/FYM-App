@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
+import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { PulseKpiCards } from '@/components/daily-pulse/PulseKpiCards';
 import { ResponseTable, type CheckinResponse } from '@/components/daily-pulse/ResponseTable';
 import { RecipientManager } from '@/components/daily-pulse/RecipientManager';
@@ -36,6 +37,7 @@ function formatDateFriendly(dateStr: string): string {
 }
 
 export function DailyPulsePage() {
+  const { effectiveAgencyId, isOrgWide } = useEffectiveAuth();
   const [tab, setTab] = useState<Tab>('today');
   const [loading, setLoading] = useState(true);
   const [responses, setResponses] = useState<CheckinResponse[]>([]);
@@ -46,11 +48,16 @@ export function DailyPulsePage() {
   const fetchResponses = useCallback(async () => {
     setLoading(true);
     if (!supabase) { setLoading(false); return; }
-    const { data, error } = await (supabase as any)
+    let query = (supabase as any)
       .from('checkin_responses')
-      .select('*, checkin_recipients!inner(first_name, last_name, phone)')
+      .select('*, checkin_recipients!inner(first_name, last_name, phone, agency_id)')
       .eq('check_in_date', selectedDate)
       .order('conversation_state', { ascending: true });
+    // Scope to manager's agency (non-org-wide users)
+    if (!isOrgWide && effectiveAgencyId) {
+      query = query.eq('checkin_recipients.agency_id', effectiveAgencyId);
+    }
+    const { data, error } = await query;
 
     if (!error && data) {
       setResponses(
@@ -72,16 +79,21 @@ export function DailyPulsePage() {
       );
     }
     setLoading(false);
-  }, [selectedDate]);
+  }, [selectedDate, isOrgWide, effectiveAgencyId]);
 
   const fetchRecipients = useCallback(async () => {
     if (!supabase) return;
-    const { data } = await (supabase as any)
+    let query = (supabase as any)
       .from('checkin_recipients')
       .select('*')
       .order('last_name', { ascending: true });
+    // Scope to manager's agency (non-org-wide users)
+    if (!isOrgWide && effectiveAgencyId) {
+      query = query.eq('agency_id', effectiveAgencyId);
+    }
+    const { data } = await query;
     if (data) setRecipients(data);
-  }, []);
+  }, [isOrgWide, effectiveAgencyId]);
 
   const fetchManagers = useCallback(async () => {
     if (!supabase) return;
@@ -223,7 +235,7 @@ export function DailyPulsePage() {
       )}
 
       {tab === 'trends' && (
-        <PulseTrendChart />
+        <PulseTrendChart agencyId={!isOrgWide && effectiveAgencyId ? effectiveAgencyId : undefined} />
       )}
 
       {tab === 'recipients' && (
