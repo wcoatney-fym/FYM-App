@@ -20,7 +20,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { PeriodPills } from '@/components/filters/PeriodPills';
 import { usePeriodCompare } from '@/hooks/usePeriodCompare';
-import { supabase } from '@/lib/supabase';
+import {
+  fetchAgentProduction,
+  fetchBookOfBusiness,
+  fetchMonthlyProduction,
+  type MonthlyProduction,
+} from '@/lib/prod-api';
 import {
   getGranularity,
   bucketKey,
@@ -57,78 +62,106 @@ export function MyProductionPage() {
   const firstName = agentName.split(' ')[0];
 
   const loadData = useCallback(async () => {
-    if (!effectiveWritingNumber || !supabase) return;
+    if (!effectiveWritingNumber) return;
     setLoading(true);
     setError(null);
 
     const startDate = period.dateRange.startDate.split('T')[0];
     const endDate = period.dateRange.endDate.split('T')[0];
-    const useRpc = period.preset !== 'allTime';
+    const useDateFilter = period.preset !== 'allTime';
 
     try {
-      // ── Agent stats ──
-      let agentStats: AgentStats | null = null;
-      if (useRpc) {
-        const { data: rpcData } = await supabase.rpc('filtered_agent_production', {
-          start_date: startDate,
-          end_date: endDate,
-        });
-        const match = ((rpcData || []) as unknown as AgentStats[]).find(
-          r => r.agent_id === effectiveWritingNumber || r.writing_number === effectiveWritingNumber
-        );
-        agentStats = match || null;
-      } else {
-        const { data: agentData } = await supabase
-          .from('agent_production')
-          .select('*')
-          .eq('agent_id', effectiveWritingNumber!)
-          .single();
-        agentStats = agentData as unknown as AgentStats | null;
+      // ── Agent stats via edge function ──
+      const agentParams: { agent_id: string; start_date?: string; end_date?: string } = {
+        agent_id: effectiveWritingNumber,
+      };
+      if (useDateFilter) {
+        agentParams.start_date = startDate;
+        agentParams.end_date = endDate;
       }
+      const agentRows = await fetchAgentProduction(agentParams);
+      const match = agentRows.find(
+        (r) => r.agent_id === effectiveWritingNumber || r.writing_number === effectiveWritingNumber
+      );
+      const agentStats: AgentStats | null = match
+        ? {
+            agent_id: match.agent_id,
+            agent_name: match.agent_name,
+            writing_number: match.writing_number,
+            agency_id: match.agency_id,
+            agency_name: null,
+            total_policies: match.total_policies,
+            active_policies: match.active_policies,
+            terminated_policies: match.terminated_policies,
+            pending_policies: match.pending_policies,
+            at_risk_policies: match.at_risk_policies,
+            active_monthly_premium: match.active_monthly_premium,
+            active_annual_premium: match.active_annual_premium,
+            avg_annual_premium: match.avg_annual_premium,
+            policies_this_month: match.policies_this_month,
+            ap_this_month: match.ap_this_month,
+            retained_policies: match.retained_policies,
+            ever_drafted: match.ever_drafted,
+            retention_pct: match.retention_pct,
+          }
+        : null;
       setStats(agentStats);
 
-      // ── Policies — paginate ──
+      // ── Policies via book-of-business edge function ──
       const allPolicies: PolicyRow[] = [];
-      const PAGE = 1000;
-      let offset = 0;
+      const PAGE_SIZE = 500;
+      let page = 1;
       let done = false;
       while (!done) {
-        let q = supabase
-          .from('book_of_business')
-          .select('policy_number, product_type, status, monthly_premium, annual_premium, policy_effective_date, paid_to_date, draft_count, is_at_risk, flag_type, days_since_paid')
-          .eq('agent_id', effectiveWritingNumber!)
-          .order('policy_effective_date', { ascending: false })
-          .range(offset, offset + PAGE - 1);
-        if (useRpc) {
-          q = q.gte('policy_effective_date', startDate).lt('policy_effective_date', endDate);
-        }
-        const { data: policyData } = await q;
-        if (!policyData || policyData.length === 0) { done = true; break; }
-        allPolicies.push(...(policyData as unknown as PolicyRow[]));
-        if (policyData.length < PAGE) done = true;
-        else offset += PAGE;
+        const bobRes = await fetchBookOfBusiness({
+          agent_wn: effectiveWritingNumber,
+          page,
+          page_size: PAGE_SIZE,
+        });
+        const mapped = (bobRes.data || []).map((p) => ({
+          policy_number: p.policy_number,
+          product_type: p.product_type,
+          status: p.status,
+          monthly_premium: p.plan_premium ?? 0,
+          annual_premium: p.annual_premium ?? 0,
+          policy_effective_date: p.policy_effective_date,
+          paid_to_date: p.paid_to_date,
+          draft_count: p.draft_count ?? 0,
+          is_at_risk: p.is_at_risk ?? false,
+          flag_type: p.flag_type,
+          days_since_paid: null as number | null,
+        }));
+        // Date-filter client-side when a period is active
+        const filtered = useDateFilter
+          ? mapped.filter((p) => {
+              if (!p.policy_effective_date) return false;
+              return p.policy_effective_date >= startDate && p.policy_effective_date < endDate;
+            })
+          : mapped;
+        allPolicies.push(...filtered);
+        if (page >= (bobRes.pagination?.total_pages || 1)) done = true;
+        else page++;
       }
       setPolicies(allPolicies);
 
-      // ── Trend — daily from policy_cache ──
-      let trendQuery = supabase
-        .from('policy_cache')
-        .select('policy_effective_date, plan_premium, product_type')
-        .eq('agent_id', effectiveWritingNumber!)
-        .not('policy_effective_date', 'is', null);
-      if (useRpc) {
-        trendQuery = trendQuery.gte('policy_effective_date', startDate).lt('policy_effective_date', endDate);
+      // ── Trend via monthly edge function ──
+      const monthlyParams: { agent_id: string; start_date?: string; end_date?: string } = {
+        agent_id: effectiveWritingNumber,
+      };
+      if (useDateFilter) {
+        monthlyParams.start_date = startDate;
+        monthlyParams.end_date = endDate;
       }
-      const { data: cacheRows } = await trendQuery;
-
+      const monthlyRows = await fetchMonthlyProduction(monthlyParams);
       const gran = getGranularity(period.dateRange);
+      // For monthly edge fn data, bucket by month
       const byBucket = new Map<string, { policies: number; ap: number }>();
-      (cacheRows || []).forEach((r: any) => {
-        if (!r.policy_effective_date) return;
-        const key = bucketKey(r.policy_effective_date, gran);
+      monthlyRows.forEach((r: MonthlyProduction) => {
+        if (!r.month) return;
+        const key = bucketKey(r.month + '-01', gran);
         const existing = byBucket.get(key) || { policies: 0, ap: 0 };
-        existing.policies += 1;
-        existing.ap += (Number(r.plan_premium) || 0) * 12;
+        existing.policies += r.policies;
+        existing.ap += r.annual_premium;
         byBucket.set(key, existing);
       });
       setTrend(
