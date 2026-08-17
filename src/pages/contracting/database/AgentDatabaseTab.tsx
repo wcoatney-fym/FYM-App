@@ -22,6 +22,7 @@ import {
   Users,
   AlertTriangle,
   Eye,
+  CheckCircle2,
   FileText,
   ClipboardCheck,
   Database,
@@ -666,24 +667,21 @@ export function AgentDatabaseTab() {
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-                        {!agent.crm_onboarded && agent.first_name && agent.last_name && (agent.email || agent.phone) && (
+                        {agent.crm_onboarded ? (
+                          <span
+                            className="p-1.5 text-emerald-400 cursor-default"
+                            title="CRM Onboarded"
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                          </span>
+                        ) : (
                           <button
                             onClick={() => setCrmOnboardAgent(agent)}
-                            className="p-1.5 text-emerald-400 hover:bg-emerald-500/10 rounded transition-colors"
+                            className="p-1.5 text-yellow-400 hover:bg-yellow-500/10 rounded transition-colors"
                             aria-label={`CRM Onboard ${agent.full_name}`}
                             title="CRM Onboard"
                           >
                             <Users className="w-4 h-4" />
-                          </button>
-                        )}
-                        {agent.crm_onboarded && agent.intake_status !== 'terminated' && (
-                          <button
-                            onClick={() => setTerminateAgent(agent)}
-                            className="p-1.5 text-red-400/60 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
-                            aria-label={`Terminate ${agent.full_name}`}
-                            title="Terminate"
-                          >
-                            <AlertTriangle className="w-4 h-4" />
                           </button>
                         )}
                       </div>
