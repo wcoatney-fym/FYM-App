@@ -3,6 +3,7 @@
  *
  * Verifies the agent's 6-digit security code before showing the intake form.
  * Uses portalSupabase to read/write the portal DB (akhojh…).
+ * Styled for FYM App dark theme.
  */
 import { useState } from 'react';
 import { Lock } from 'lucide-react';
@@ -77,11 +78,11 @@ export function SecurityCodeGate({ onSuccess, formId }: SecurityCodeGateProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="glass-card p-8 w-full max-w-md">
         <div className="flex items-center justify-center mb-6">
-          <Lock className="w-8 h-8 text-navy-600 mr-2" />
-          <h2 className="text-2xl font-bold text-navy-600">Enter Security Code</h2>
+          <Lock className="w-8 h-8 text-primary mr-2" />
+          <h2 className="text-2xl font-bold text-foreground">Enter Security Code</h2>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -93,20 +94,20 @@ export function SecurityCodeGate({ onSuccess, formId }: SecurityCodeGateProps) {
               autoComplete="one-time-code"
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-navy-500 focus:border-transparent text-center text-2xl font-mono tracking-wider"
+              className="w-full px-4 py-3 bg-secondary border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-center text-2xl font-mono tracking-wider text-foreground placeholder:text-muted-foreground"
               maxLength={6}
               required
             />
           </div>
 
           {error && (
-            <div className="text-red-600 text-sm text-center">{error}</div>
+            <div className="text-destructive text-sm text-center">{error}</div>
           )}
 
           <button
             type="submit"
             disabled={loading || code.length !== 6}
-            className="w-full bg-navy-600 text-white py-3 px-4 rounded-md hover:bg-navy-700 transition-colors font-medium disabled:opacity-50"
+            className="w-full bg-primary text-primary-foreground py-3 px-4 rounded-lg hover:bg-primary/90 transition-colors font-medium disabled:opacity-50"
           >
             {loading ? 'Verifying...' : 'Submit'}
           </button>

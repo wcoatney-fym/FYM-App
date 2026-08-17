@@ -3,6 +3,7 @@
  *
  * Editable agent name/email/phone fields shown on intake forms.
  * Uses portalSupabase to update the portal DB (akhojh…).
+ * Styled for FYM App dark theme.
  */
 import { useState } from 'react';
 import { Pencil, Save, X } from 'lucide-react';
@@ -42,15 +43,9 @@ export function EditableAgentInfo({
 
   const isHip = variant === 'hip';
 
-  const inputReadOnly = isHip
-    ? 'w-full px-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 text-gray-600'
-    : 'w-full px-4 py-2 border border-gray-300 rounded-md bg-gray-50';
-
-  const inputEditable = isHip
-    ? 'w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-500 focus:border-transparent'
-    : 'w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-navy-500 focus:border-transparent';
-
-  const inputError = 'border-red-400 focus:ring-red-400';
+  const inputReadOnly = 'w-full px-4 py-2 bg-muted border border-border rounded-lg text-muted-foreground';
+  const inputEditable = 'w-full px-4 py-2 bg-secondary border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-foreground';
+  const inputError = 'border-destructive focus:ring-destructive';
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -140,7 +135,7 @@ export function EditableAgentInfo({
     <>
       <div className={isHip ? 'sm:col-span-2' : 'md:col-span-2'}>
         <div className="flex items-center justify-between mb-1">
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-muted-foreground">
             {isEditing
               ? 'Update your information below, then save.'
               : 'Your name, email, and phone are pre-filled from your record.'}
@@ -149,7 +144,7 @@ export function EditableAgentInfo({
             <button
               type="button"
               onClick={handleEdit}
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-navy-600 hover:text-navy-700 transition-colors"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
             >
               <Pencil className="w-3.5 h-3.5" />
               Edit
@@ -160,7 +155,7 @@ export function EditableAgentInfo({
                 type="button"
                 onClick={handleCancel}
                 disabled={saving}
-                className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"
+                className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
               >
                 <X className="w-3.5 h-3.5" />
                 Cancel
@@ -169,7 +164,7 @@ export function EditableAgentInfo({
                 type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className="inline-flex items-center gap-1 text-sm font-medium text-white bg-navy-600 hover:bg-navy-700 px-3 py-1 rounded-md transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-1 text-sm font-medium text-primary-foreground bg-primary hover:bg-primary/90 px-3 py-1 rounded-md transition-colors disabled:opacity-50"
               >
                 <Save className="w-3.5 h-3.5" />
                 {saving ? 'Saving...' : 'Save'}
@@ -178,13 +173,13 @@ export function EditableAgentInfo({
           )}
         </div>
         {errors._form && (
-          <p className="text-sm text-red-600 mb-2">{errors._form}</p>
+          <p className="text-sm text-destructive mb-2">{errors._form}</p>
         )}
       </div>
 
       {fields.map(({ key, label, type, hint }) => (
         <div key={key}>
-          <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+          <label className="block text-sm font-medium text-muted-foreground mb-1">{label}</label>
           {isEditing ? (
             <>
               <input
@@ -198,7 +193,7 @@ export function EditableAgentInfo({
                 className={`${inputEditable} ${errors[key] ? inputError : ''}`}
               />
               {errors[key] && (
-                <p className="text-xs text-red-500 mt-1">{errors[key]}</p>
+                <p className="text-xs text-destructive mt-1">{errors[key]}</p>
               )}
             </>
           ) : (
@@ -210,7 +205,7 @@ export function EditableAgentInfo({
             />
           )}
           {hint && !errors[key] && (
-            <p className="text-xs text-gray-500 mt-1">{hint}</p>
+            <p className="text-xs text-muted-foreground mt-1">{hint}</p>
           )}
         </div>
       ))}

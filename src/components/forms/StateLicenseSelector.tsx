@@ -2,6 +2,7 @@
  * StateLicenseSelector — ported from contracting-portal
  *
  * Modal for selecting active state licenses.
+ * Styled for FYM App dark theme.
  */
 import { useState } from 'react';
 import { X } from 'lucide-react';
@@ -46,12 +47,12 @@ export function StateLicenseSelector({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-          <h2 className="text-xl font-bold text-navy-600">Select Your Active State Licenses</h2>
-          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
-            <X className="w-6 h-6" />
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-card rounded-xl shadow-2xl border border-border max-w-4xl w-full max-h-[90vh] overflow-auto">
+        <div className="sticky top-0 bg-card border-b border-border px-6 py-4 flex justify-between items-center">
+          <h2 className="text-xl font-bold text-primary">Select Your Active State Licenses</h2>
+          <button onClick={onClose} className="p-1 hover:bg-secondary rounded-lg transition-colors">
+            <X className="w-6 h-6 text-muted-foreground" />
           </button>
         </div>
 
@@ -62,9 +63,9 @@ export function StateLicenseSelector({
                 type="checkbox"
                 checked={selected.length === US_STATES.length}
                 onChange={handleSelectAll}
-                className="w-4 h-4 text-navy-600 border-gray-300 rounded focus:ring-navy-500"
+                className="w-4 h-4 text-primary border-border rounded focus:ring-primary bg-secondary"
               />
-              <span className="font-medium">Select All</span>
+              <span className="font-medium text-foreground">Select All</span>
             </label>
           </div>
 
@@ -75,9 +76,9 @@ export function StateLicenseSelector({
                   type="checkbox"
                   checked={selected.includes(state)}
                   onChange={() => handleToggle(state)}
-                  className="w-4 h-4 text-navy-600 border-gray-300 rounded focus:ring-navy-500"
+                  className="w-4 h-4 text-primary border-border rounded focus:ring-primary bg-secondary"
                 />
-                <span>{state}</span>
+                <span className="text-foreground">{state}</span>
               </label>
             ))}
           </div>
@@ -85,13 +86,13 @@ export function StateLicenseSelector({
           <div className="mt-6 flex justify-end gap-3">
             <button
               onClick={onClose}
-              className="px-6 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+              className="px-6 py-2 border border-border text-muted-foreground rounded-lg hover:bg-secondary transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={handleConfirm}
-              className="px-6 py-2 bg-navy-600 text-white rounded-md hover:bg-navy-700"
+              className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium"
             >
               Confirm Selection
             </button>
