@@ -323,7 +323,7 @@ export async function fetchRecruitingKpis(filter?: RecruitingDateFilter): Promis
     // Total Leads = contacts created (from GHL, date-filtered)
     totalLeads: pipelineLeads || totalLeads,
     cpl: (pipelineLeads || totalLeads) > 0 ? totalSpend / (pipelineLeads || totalLeads) : 0,
-    cpa: producing > 0 ? totalSpend / producing : 0,
+    cpa: rts > 0 ? totalSpend / rts : 0,
     contactRate: pipelineLeads > 0 ? attendees / pipelineLeads : 0,
     closeRatio: attendees > 0 ? hired / attendees : 0,
     placedPolicies: producing,
@@ -673,7 +673,7 @@ export interface RecruitingRoiSummary {
   totalHired: number;
   totalProducing: number;
   cpl: number;              // cost per lead
-  cpa: number;              // cost per acquisition (hire)
+  cpa: number;              // cost per acquisition (RTS)
   totalActivePolicies: number;
   totalActiveAp: number;
 }
@@ -690,9 +690,10 @@ export async function fetchRecruitingRoiSummary(): Promise<RecruitingRoiSummary>
   const totalSpend = (spendRows ?? []).reduce((s, r) => s + (Number(r.spend) || 0), 0);
   const totalLeads = (spendRows ?? []).reduce((s, r) => s + (Number(r.leads) || 0), 0);
 
-  // Get hired + producing counts from GHL live counts
+  // Get pipeline counts from GHL live counts
   const ghlCounts = await fetchGhlLiveCounts();
   const totalHired = ghlCounts?.hired ?? 0;
+  const totalRts = ghlCounts?.rts ?? 0;
   const totalProducing = ghlCounts?.producing ?? 0;
 
   return {
@@ -701,7 +702,7 @@ export async function fetchRecruitingRoiSummary(): Promise<RecruitingRoiSummary>
     totalHired,
     totalProducing,
     cpl: totalLeads > 0 ? totalSpend / totalLeads : 0,
-    cpa: totalHired > 0 ? totalSpend / totalHired : 0,
+    cpa: totalRts > 0 ? totalSpend / totalRts : 0,
     totalActivePolicies: 0, // Populated by component from producing agents data
     totalActiveAp: 0,
   };

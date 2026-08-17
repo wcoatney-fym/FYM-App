@@ -5,6 +5,8 @@
  */
 
 export type DatePreset =
+  | 'past7Days'
+  | 'past14Days'
   | 'thisMonth'
   | 'lastMonth'
   | 'thisQuarter'
@@ -20,6 +22,8 @@ export interface DateRange {
 }
 
 export const DATE_PRESETS: { key: DatePreset; label: string }[] = [
+  { key: 'past7Days', label: 'Past 7 Days' },
+  { key: 'past14Days', label: 'Past 14 Days' },
   { key: 'thisMonth', label: 'This Month' },
   { key: 'lastMonth', label: 'Last Month' },
   { key: 'thisQuarter', label: 'This Quarter' },
@@ -34,6 +38,18 @@ export function getDateRange(preset: DatePreset): DateRange {
   const now = new Date();
 
   switch (preset) {
+    case 'past7Days': {
+      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      const start = new Date(end);
+      start.setDate(start.getDate() - 7);
+      return { startDate: start.toISOString(), endDate: end.toISOString(), label: 'Past 7 Days' };
+    }
+    case 'past14Days': {
+      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      const start = new Date(end);
+      start.setDate(start.getDate() - 14);
+      return { startDate: start.toISOString(), endDate: end.toISOString(), label: 'Past 14 Days' };
+    }
     case 'thisMonth': {
       const start = new Date(now.getFullYear(), now.getMonth(), 1);
       const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);

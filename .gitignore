@@ -30,3 +30,4 @@ scripts/cli-mock-upload.ts
 # Build cache
 tsconfig.app.tsbuildinfo
 tsconfig.node.tsbuildinfo
+recruiting-audit.md
