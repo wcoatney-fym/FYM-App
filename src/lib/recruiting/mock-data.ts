@@ -203,6 +203,7 @@ export const MOCK_KPIS: RecruitingKpis = {
   totalLeads: MOCK_CAMPAIGNS.reduce((s, c) => s + c.totalLeads, 0),
   cpl: Math.round(MOCK_CAMPAIGNS.reduce((s, c) => s + c.totalSpend, 0) / MOCK_CAMPAIGNS.reduce((s, c) => s + c.totalLeads, 0) * 100) / 100,
   cpa: Math.round(MOCK_CAMPAIGNS.reduce((s, c) => s + c.totalSpend, 0) / MOCK_CAMPAIGNS.reduce((s, c) => s + c.placedPolicies, 0) * 100) / 100,
+  productionCpa: Math.round(MOCK_CAMPAIGNS.reduce((s, c) => s + c.totalSpend, 0) / Math.max(MOCK_CAMPAIGNS.reduce((s, c) => s + c.placedPolicies, 0), 1) * 100) / 100,
   contactRate: 0.69,
   closeRatio: 0.215,
   placedPolicies: MOCK_CAMPAIGNS.reduce((s, c) => s + c.placedPolicies, 0),
