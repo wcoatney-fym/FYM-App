@@ -286,8 +286,33 @@ async function handleSync(
     `[sync] ${allContacts.length} total, ${contacts.length} with "${LEAD_TAG}" tag after Feb 1 cutoff`
   );
 
-  // DB enforces UNIQUE(ghl_contact_id, stage) — duplicates are rejected on insert.
-  // No need to pre-load existing transitions into memory.
+  // ── Pre-load existing transitions to avoid re-inserting duplicates ──────
+  // The UNIQUE(ghl_contact_id, stage) constraint silently skips duplicates on
+  // upsert, but ignoreDuplicates also masks genuine insert failures. Instead,
+  // we query the existing set upfront and only insert truly new transitions.
+  const existingPairs = new Set<string>();
+  {
+    const PAGE = 1000;
+    let offset = 0;
+    while (true) {
+      const { data: rows, error: exErr } = await appDb
+        .from("recruiting_stage_transitions")
+        .select("ghl_contact_id, stage")
+        .range(offset, offset + PAGE - 1);
+      if (exErr) {
+        console.error(`[sync] Pre-load transitions error: ${exErr.message}`);
+        break;
+      }
+      if (!rows || rows.length === 0) break;
+      for (const r of rows) {
+        existingPairs.add(`${r.ghl_contact_id}::${r.stage}`);
+      }
+      if (rows.length < PAGE) break;
+      offset += PAGE;
+    }
+    console.log(`[sync] Pre-loaded ${existingPairs.size} existing transitions`);
+  }
+
   const leadsToUpsert: Array<Record<string, unknown>> = [];
   const transitionsToInsert: Array<Record<string, unknown>> = [];
 
@@ -584,6 +609,14 @@ async function handleSync(
     }
   }
 
+  // ── Filter transitions: only keep genuinely new ones ──────────────────
+  const newTransitions = transitionsToInsert.filter(
+    (t) => !existingPairs.has(`${t.ghl_contact_id}::${t.stage}`)
+  );
+  console.log(
+    `[sync] ${transitionsToInsert.length} total transitions built, ${newTransitions.length} genuinely new (${transitionsToInsert.length - newTransitions.length} skipped as existing)`
+  );
+
   // ── 3. BATCH UPSERT leads ─────────────────────────────────────────────
   console.log(`[sync] Upserting ${leadsToUpsert.length} leads...`);
   const BATCH = 200;
@@ -602,22 +635,19 @@ async function handleSync(
     }
   }
 
-  // ── 4. BATCH UPSERT transitions (DB enforces one row per agent per stage) ──
-  // UNIQUE(ghl_contact_id, stage) — duplicates are silently skipped.
-  console.log(`[sync] Upserting ${transitionsToInsert.length} transitions...`);
+  // ── 4. INSERT only genuinely new transitions ──────────────────────────
+  // Pre-filtered above — no duplicates, no ignoreDuplicates needed.
+  console.log(`[sync] Inserting ${newTransitions.length} new transitions...`);
   let transInserted = 0;
 
-  for (let i = 0; i < transitionsToInsert.length; i += BATCH) {
-    const batch = transitionsToInsert.slice(i, i + BATCH);
+  for (let i = 0; i < newTransitions.length; i += BATCH) {
+    const batch = newTransitions.slice(i, i + BATCH);
     const { error } = await appDb
       .from("recruiting_stage_transitions")
-      .upsert(batch, {
-        onConflict: "ghl_contact_id,stage",
-        ignoreDuplicates: true,
-      });
+      .insert(batch);
     if (error) {
-      console.error(`[sync] Transition upsert error: ${error.message}`);
-      stats.errors.push(`transition_upsert: ${error.message}`);
+      console.error(`[sync] Transition insert error: ${error.message}`);
+      stats.errors.push(`transition_insert: ${error.message}`);
     } else {
       transInserted += batch.length;
     }
