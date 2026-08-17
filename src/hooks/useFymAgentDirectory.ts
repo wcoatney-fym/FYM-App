@@ -362,6 +362,63 @@ export function useFymAgentDirectory(): UseFymAgentDirectoryReturn {
         page++;
       }
 
+      // ── CRM Roster cross-reference ───────────────────────────────
+      // Check who already has a populated seat in the FYM CRM roster
+      // so we don't show the CRM Onboard button for them.
+      if (portalSupabase) {
+        try {
+          const { data: fymUpload } = await portalSupabase
+            .from('crm_roster_uploads')
+            .select('id')
+            .eq('agency', 'FYM')
+            .maybeSingle();
+
+          if (fymUpload) {
+            const PAGE = 1000;
+            let offset = 0;
+            const rosterEmails = new Set<string>();
+            const rosterNames = new Set<string>();
+
+            while (true) {
+              const { data: seats } = await portalSupabase
+                .from('crm_roster')
+                .select('row_data')
+                .eq('upload_id', fymUpload.id)
+                .range(offset, offset + PAGE - 1);
+
+              for (const seat of (seats || [])) {
+                const firstName = (seat.row_data['First Name'] || '').trim();
+                const lastName = (seat.row_data['Last Name'] || '').trim();
+                const email = (seat.row_data['Email'] || '').trim().toLowerCase();
+                const isCsr = seat.row_data['CSR Placeholder'] === 'true';
+
+                // Only count populated, non-CSR seats
+                if (firstName && !isCsr) {
+                  if (email) rosterEmails.add(email);
+                  rosterNames.add(`${firstName.toLowerCase()}|${lastName.toLowerCase()}`);
+                }
+              }
+
+              if ((seats || []).length < PAGE) break;
+              offset += PAGE;
+            }
+
+            // Mark agents who already have a CRM seat
+            for (const agent of allAgents) {
+              if (agent.crm_onboarded) continue; // already flagged
+              const agentEmail = (agent.email || '').trim().toLowerCase();
+              const agentNameKey = `${agent.first_name.toLowerCase()}|${agent.last_name.toLowerCase()}`;
+              if ((agentEmail && rosterEmails.has(agentEmail)) || rosterNames.has(agentNameKey)) {
+                agent.crm_onboarded = true;
+              }
+            }
+          }
+        } catch (err) {
+          console.error('CRM roster cross-reference failed:', err);
+          // Non-fatal — directory still loads, just without CRM status
+        }
+      }
+
       setAgents(allAgents);
       setTotalRoster(rosterCount);
       setTotalIntake(intakeCount);
