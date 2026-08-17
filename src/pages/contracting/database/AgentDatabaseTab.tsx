@@ -95,6 +95,7 @@ const PAGE_SIZE = 50;
 
 export function AgentDatabaseTab() {
   const {
+    agents,
     filteredAgents,
     loading,
     error,
