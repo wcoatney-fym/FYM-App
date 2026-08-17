@@ -47,6 +47,7 @@ import { HudFrame } from '@/components/ui/hud-frame';
 import { fmt$ } from '@/lib/formatUtils';
 import { CrmOnboardingModal } from './CrmOnboardingModal';
 import { TerminateAgentModal } from './TerminateAgentModal';
+import { fireCrmOnboardingWebhook } from '@/lib/contracting/webhooks';
 import type { PortalAgent, PortalIntakeRecord } from '@/lib/contracting/types';
 
 // ── Sorting ────────────────────────────────────────────────────────
