@@ -14,7 +14,14 @@ export type AgentFormType =
   | 'life-only'
   | 'field'
   | 'direct-pay'
-  | 'telesales';
+  | 'telesales'
+  | 'hip'
+  | 'hip-broker'
+  | 'hip-career'
+  | 'field-hip'
+  | 'direct-pay-hip'
+  | 'telesales-hip'
+  | 'life-only-hip';
 
 export type AgentFormStatus =
   | 'pending'
