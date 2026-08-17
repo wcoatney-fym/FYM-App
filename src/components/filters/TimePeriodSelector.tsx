@@ -11,9 +11,13 @@ interface TimePeriodSelectorProps {
   preset: DatePreset;
   dateRange: DateRange;
   onChange: (range: DateRange, preset: DatePreset) => void;
+  /** Override the default preset list (e.g., recruiting-specific presets) */
+  presets?: { key: DatePreset; label: string }[];
+  /** Whether to show the custom date range section (default: true) */
+  showCustom?: boolean;
 }
 
-export function TimePeriodSelector({ preset, dateRange, onChange }: TimePeriodSelectorProps) {
+export function TimePeriodSelector({ preset, dateRange, onChange, presets, showCustom = true }: TimePeriodSelectorProps) {
   const [open, setOpen] = useState(false);
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
@@ -69,7 +73,7 @@ export function TimePeriodSelector({ preset, dateRange, onChange }: TimePeriodSe
           <div className="fixed left-4 right-4 top-1/3 sm:absolute sm:right-0 sm:left-auto sm:top-full sm:mt-2 sm:w-60 bg-card rounded-lg border border-border shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
             {/* Preset list */}
             <div className="py-1">
-              {DATE_PRESETS.map((p) => (
+              {(presets ?? DATE_PRESETS).map((p) => (
                 <button
                   key={p.key}
                   onClick={() => handlePreset(p.key)}
@@ -85,7 +89,7 @@ export function TimePeriodSelector({ preset, dateRange, onChange }: TimePeriodSe
             </div>
 
             {/* Custom range */}
-            <div className="border-t border-border p-3">
+            {showCustom && <div className="border-t border-border p-3">
               <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                 Custom Range
               </p>
@@ -110,7 +114,7 @@ export function TimePeriodSelector({ preset, dateRange, onChange }: TimePeriodSe
                   Apply
                 </button>
               </div>
-            </div>
+            </div>}
           </div>
         </>
       )}

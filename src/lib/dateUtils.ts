@@ -7,6 +7,8 @@
 export type DatePreset =
   | 'past7Days'
   | 'past14Days'
+  | 'pastMonth'
+  | 'pastQuarter'
   | 'thisMonth'
   | 'lastMonth'
   | 'thisQuarter'
@@ -32,7 +34,18 @@ export const DATE_PRESETS: { key: DatePreset; label: string }[] = [
   { key: 'allTime', label: 'All Time' },
 ];
 
+/** Recruiting-specific presets — rolling windows only, no calendar-anchored periods */
+export const RECRUITING_DATE_PRESETS: { key: DatePreset; label: string }[] = [
+  { key: 'past7Days', label: 'Past 7 Days' },
+  { key: 'past14Days', label: 'Past 14 Days' },
+  { key: 'pastMonth', label: 'Past Month' },
+  { key: 'pastQuarter', label: 'Past Quarter' },
+  { key: 'past6Months', label: 'Past 6 Months' },
+  { key: 'pastYear', label: 'Past Year' },
+];
+
 export const DEFAULT_PRESET: DatePreset = 'thisMonth';
+export const RECRUITING_DEFAULT_PRESET: DatePreset = 'pastMonth';
 
 export function getDateRange(preset: DatePreset): DateRange {
   const now = new Date();
@@ -49,6 +62,18 @@ export function getDateRange(preset: DatePreset): DateRange {
       const start = new Date(end);
       start.setDate(start.getDate() - 14);
       return { startDate: start.toISOString(), endDate: end.toISOString(), label: 'Past 14 Days' };
+    }
+    case 'pastMonth': {
+      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      const start = new Date(end);
+      start.setMonth(start.getMonth() - 1);
+      return { startDate: start.toISOString(), endDate: end.toISOString(), label: 'Past Month' };
+    }
+    case 'pastQuarter': {
+      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      const start = new Date(end);
+      start.setMonth(start.getMonth() - 3);
+      return { startDate: start.toISOString(), endDate: end.toISOString(), label: 'Past Quarter' };
     }
     case 'thisMonth': {
       const start = new Date(now.getFullYear(), now.getMonth(), 1);
