@@ -39,13 +39,32 @@ import { QualityGroupPage } from '@/pages/groups/QualityGroupPage';
 import { RecruitingGroupPage, RecruitingDashboardTab, RecruitingLeadsTab, RecruitingAnalyticsTab } from '@/pages/recruiting';
 import { DailyPulsePage } from '@/pages/DailyPulsePage';
 import { Toaster } from 'sonner';
+import { LifeOnly } from '@/pages/forms/LifeOnly';
+import { Field as FieldForm } from '@/pages/forms/Field';
+import { DirectPay as DirectPayForm } from '@/pages/forms/DirectPay';
+import { Telesales as TelesalesForm } from '@/pages/forms/Telesales';
+import { HIP as HIPForm } from '@/pages/forms/HIP';
+import { ThankYou } from '@/pages/forms/ThankYou';
 
 function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          {/* Public */}
+          {/* Public — Intake Forms (ported from contracting-portal) */}
+          <Route path="/life" element={<LifeOnly />} />
+          <Route path="/field" element={<FieldForm />} />
+          <Route path="/direct-pay" element={<DirectPayForm />} />
+          <Route path="/telesales" element={<TelesalesForm />} />
+          <Route path="/hip" element={<HIPForm />} />
+          <Route path="/hip-career" element={<HIPForm />} />
+          <Route path="/hip-broker" element={<HIPForm />} />
+          <Route path="/field-hip" element={<HIPForm />} />
+          <Route path="/direct-pay-hip" element={<HIPForm />} />
+          <Route path="/telesales-hip" element={<HIPForm />} />
+          <Route path="/thank-you" element={<ThankYou />} />
+
+          {/* Public — Auth */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/activate/:slug" element={<ActivationPage />} />

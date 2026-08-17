@@ -69,6 +69,13 @@ const FORM_TYPES: { label: string; value: AgentFormType }[] = [
   { label: 'Field', value: 'field' },
   { label: 'Direct Pay', value: 'direct-pay' },
   { label: 'Telesales', value: 'telesales' },
+  { label: 'HIP (Legacy)', value: 'hip' },
+  { label: 'HIP Broker', value: 'hip-broker' },
+  { label: 'HIP Career', value: 'hip-career' },
+  { label: 'Field HIP', value: 'field-hip' },
+  { label: 'Direct Pay HIP', value: 'direct-pay-hip' },
+  { label: 'Telesales HIP', value: 'telesales-hip' },
+  { label: 'Life Only HIP', value: 'life-only-hip' },
 ];
 
 const AGENCIES: { label: string; value: AgencyName }[] = [
@@ -77,7 +84,7 @@ const AGENCIES: { label: string; value: AgencyName }[] = [
   { label: 'Aspire', value: 'Aspire' },
 ];
 
-const PORTAL_BASE_URL = 'https://contracting.teamfym.com';
+const PORTAL_BASE_URL = 'https://agency.teamfym.com';
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -305,14 +312,14 @@ export function ContractingIntakeTab() {
           status: 'pending',
           date_sent: new Date().toISOString(),
           expiration_date: expiration.toISOString(),
-          form_url: `${PORTAL_BASE_URL}/intake/${formData.formType}`,
+          form_url: `${PORTAL_BASE_URL}/${formData.formType}`,
         })
         .select()
         .single();
 
       if (insertErr) throw insertErr;
 
-      const generatedUrl = `${PORTAL_BASE_URL}/intake/${formData.formType}?id=${agent.id}`;
+      const generatedUrl = `${PORTAL_BASE_URL}/${formData.formType}?id=${agent.id}`;
 
       // Update the agent record with the full URL
       await portalSupabase
@@ -419,14 +426,14 @@ export function ContractingIntakeTab() {
           status: 'pending',
           date_sent: new Date().toISOString(),
           expiration_date: expiration.toISOString(),
-          form_url: `${PORTAL_BASE_URL}/intake/field`,
+          form_url: `${PORTAL_BASE_URL}/field`,
         })
         .select()
         .single();
 
       if (insertErr) throw insertErr;
 
-      const generatedUrl = `${PORTAL_BASE_URL}/intake/field?id=${agent.id}`;
+      const generatedUrl = `${PORTAL_BASE_URL}/field?id=${agent.id}`;
 
       await portalSupabase
         .from('agents')
