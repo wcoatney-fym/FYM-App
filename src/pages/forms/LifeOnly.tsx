@@ -1,8 +1,9 @@
 /**
  * LifeOnly intake form — ported from contracting-portal
  *
- * Public-facing form for Life Only agents. Uses portalSupabase
- * to read/write the portal DB (akhojh…).
+ * Public-facing form for Life Only agents. No CTM acknowledgment.
+ * Uses portalSupabase for portal DB (akhojh…).
+ * Styled for FYM App dark theme.
  */
 import { useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -17,6 +18,11 @@ import { generateHubToken } from '@/lib/contracting/hubToken';
 import { formatPhoneDisplay } from '@/lib/contracting/helpers';
 import { US_STATES } from '@/lib/contracting/types';
 import type { PortalAgent } from '@/lib/contracting/types';
+
+// Dark theme field styles
+const inputClass = 'w-full px-4 py-2 bg-secondary border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-foreground placeholder:text-muted-foreground';
+const labelClass = 'block text-sm font-medium text-muted-foreground mb-1';
+const selectClass = inputClass;
 
 export function LifeOnly() {
   const [searchParams] = useSearchParams();
@@ -44,9 +50,9 @@ export function LifeOnly() {
 
   if (!formId) {
     return (
-      <div className="min-h-screen bg-steel-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow p-8 text-center">
-          <p className="text-red-600">Invalid form URL</p>
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="glass-card p-8 text-center">
+          <p className="text-destructive">Invalid form URL</p>
         </div>
       </div>
     );
@@ -155,89 +161,89 @@ export function LifeOnly() {
   }
 
   return (
-    <div className="min-h-screen bg-steel-50 py-8 px-4">
+    <div className="min-h-screen bg-background py-8 px-4">
       <div className="max-w-4xl mx-auto">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-navy-600">FYM Financial</h1>
-          <p className="text-xs text-gray-600 mt-1">where transparency & opportunity meet</p>
-          <h2 className="text-2xl font-bold text-gray-900 mt-6">AGENT INTAKE FORM</h2>
-          <p className="text-sm text-gray-600 mt-4 max-w-2xl mx-auto">
-            Please note that you are completing this form as a Life Only agent. If you are also contracting for Medicare,
+          <h1 className="text-3xl font-bold text-primary">FYM Financial</h1>
+          <p className="text-xs text-muted-foreground mt-1">where transparency & opportunity meet</p>
+          <h2 className="text-2xl font-bold text-foreground mt-6">AGENT INTAKE FORM</h2>
+          <p className="text-sm text-muted-foreground mt-4 max-w-2xl mx-auto">
+            Please note that you are completing this form as a Life Only agent. If this is not correct,
             please request the correct intake form from your manager/recruiter. Please make sure all information is correct
             and matches your license information in NIPR.
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-8 space-y-6">
+        <form onSubmit={handleSubmit} className="glass-card p-8 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <EditableAgentInfo agent={agent} onAgentUpdate={setAgent} />
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
-              <input type="date" value={formData.dateOfBirth} onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-navy-500 focus:border-transparent" required />
+              <label className={labelClass}>Date of Birth</label>
+              <input type="date" value={formData.dateOfBirth} onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })} className={inputClass} required />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Gender <span className="text-red-500">*</span></label>
+              <label className={labelClass}>Gender <span className="text-destructive">*</span></label>
               <div className="flex items-center gap-6 h-[42px]">
                 {(['Male', 'Female'] as const).map((option) => (
                   <label key={option} className="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" name="gender" value={option} checked={formData.gender === option} onChange={(e) => setFormData({ ...formData, gender: e.target.value })} className="w-4 h-4 text-navy-600 border-gray-300 focus:ring-navy-500" />
-                    <span className="text-sm text-gray-700">{option}</span>
+                    <input type="radio" name="gender" value={option} checked={formData.gender === option} onChange={(e) => setFormData({ ...formData, gender: e.target.value })} className="w-4 h-4 text-primary border-border focus:ring-primary" />
+                    <span className="text-sm text-foreground">{option}</span>
                   </label>
                 ))}
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Social Security Number <span className="text-red-500">*</span></label>
+              <label className={labelClass}>Social Security Number <span className="text-destructive">*</span></label>
               <SSNInput value={formData.ssn} onChange={(value) => setFormData({ ...formData, ssn: value })} />
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-              <input type="text" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-navy-500 focus:border-transparent" required />
+              <label className={labelClass}>Address</label>
+              <input type="text" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className={inputClass} required />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-              <input type="text" value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-navy-500 focus:border-transparent" required />
+              <label className={labelClass}>City</label>
+              <input type="text" value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} className={inputClass} required />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
-              <select value={formData.state} onChange={(e) => setFormData({ ...formData, state: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-navy-500 focus:border-transparent" required>
+              <label className={labelClass}>State</label>
+              <select value={formData.state} onChange={(e) => setFormData({ ...formData, state: e.target.value })} className={selectClass} required>
                 <option value=""></option>
                 {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Postal Code <span className="text-red-500">*</span></label>
-              <input type="text" inputMode="numeric" value={formData.postalCode} onChange={(e) => setFormData({ ...formData, postalCode: e.target.value.replace(/\D/g, '').slice(0, 5) })} className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-navy-500 focus:border-transparent" maxLength={5} pattern="\d{5}" required />
+              <label className={labelClass}>Postal Code <span className="text-destructive">*</span></label>
+              <input type="text" inputMode="numeric" value={formData.postalCode} onChange={(e) => setFormData({ ...formData, postalCode: e.target.value.replace(/\D/g, '').slice(0, 5) })} className={inputClass} maxLength={5} pattern="\d{5}" required />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Resident License Number</label>
-              <input type="text" value={formData.residentLicenseNumber} onChange={(e) => setFormData({ ...formData, residentLicenseNumber: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-navy-500 focus:border-transparent" required />
+              <label className={labelClass}>Resident License Number</label>
+              <input type="text" value={formData.residentLicenseNumber} onChange={(e) => setFormData({ ...formData, residentLicenseNumber: e.target.value })} className={inputClass} required />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">NPN</label>
-              <input type="text" value={formData.npn} onChange={(e) => setFormData({ ...formData, npn: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-navy-500 focus:border-transparent" required />
+              <label className={labelClass}>NPN</label>
+              <input type="text" value={formData.npn} onChange={(e) => setFormData({ ...formData, npn: e.target.value })} className={inputClass} required />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Your Resident State</label>
-              <select value={formData.residentState} onChange={(e) => setFormData({ ...formData, residentState: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-navy-500 focus:border-transparent" required>
+              <label className={labelClass}>Your Resident State</label>
+              <select value={formData.residentState} onChange={(e) => setFormData({ ...formData, residentState: e.target.value })} className={selectClass} required>
                 <option value=""></option>
                 {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Release Needed</label>
-              <select value={formData.releaseNeeded} onChange={(e) => setFormData({ ...formData, releaseNeeded: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-navy-500 focus:border-transparent" required>
+              <label className={labelClass}>Release Needed</label>
+              <select value={formData.releaseNeeded} onChange={(e) => setFormData({ ...formData, releaseNeeded: e.target.value })} className={selectClass} required>
                 <option value=""></option>
                 <option value="Yes">Yes</option>
                 <option value="No">No</option>
@@ -245,17 +251,17 @@ export function LifeOnly() {
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Upload Releases (Optional)</label>
-              <input type="file" multiple onChange={handleFileChange} className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-navy-500 focus:border-transparent" />
-              {files.length > 0 && <p className="text-sm text-gray-600 mt-1">{files.length} file(s) selected</p>}
+              <label className={labelClass}>Upload Releases (Optional)</label>
+              <input type="file" multiple onChange={handleFileChange} className="w-full px-4 py-2 bg-secondary border border-border rounded-lg text-foreground file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90" />
+              {files.length > 0 && <p className="text-sm text-muted-foreground mt-1">{files.length} file(s) selected</p>}
             </div>
 
             <div className="md:col-span-2">
-              <button type="button" onClick={() => setShowLicenseModal(true)} className="w-full px-4 py-2 bg-gold-500 text-white rounded-md hover:bg-gold-600 transition-colors font-medium">
+              <button type="button" onClick={() => setShowLicenseModal(true)} className="w-full px-4 py-2 bg-accent text-accent-foreground rounded-lg hover:bg-accent/90 transition-colors font-medium">
                 Select State Licenses
               </button>
               {formData.stateLicenses.length > 0 && (
-                <p className="text-sm text-gray-600 mt-2">
+                <p className="text-sm text-muted-foreground mt-2">
                   Selected: {formData.stateLicenses.slice(0, 3).join(', ')}
                   {formData.stateLicenses.length > 3 && ` (+${formData.stateLicenses.length - 3} more)`}
                 </p>
@@ -263,7 +269,7 @@ export function LifeOnly() {
             </div>
           </div>
 
-          <button type="submit" disabled={loading || formData.stateLicenses.length === 0} className="w-full bg-navy-600 text-white py-3 px-4 rounded-md hover:bg-navy-700 transition-colors font-bold text-lg disabled:opacity-50">
+          <button type="submit" disabled={loading || formData.stateLicenses.length === 0} className="w-full bg-primary text-primary-foreground py-3 px-4 rounded-lg hover:bg-primary/90 transition-colors font-bold text-lg disabled:opacity-50">
             {loading ? 'SUBMITTING...' : 'SUBMIT'}
           </button>
         </form>

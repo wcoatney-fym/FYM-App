@@ -1,15 +1,9 @@
 /**
  * HIP intake form — ported from contracting-portal
  *
- * Multi-step wizard for HIP agents. Supports:
- *   /hip          — generic with agent type selector (Broker / Career)
- *   /hip-broker   — predetermined HIP Broker
- *   /hip-career   — predetermined HIP Career Agent
- *   /field-hip    — predetermined HIP (via field route variant)
- *   /direct-pay-hip — predetermined HIP (via direct-pay route variant)
- *   /telesales-hip  — predetermined HIP (via telesales route variant)
- *
+ * Multi-step wizard for HIP agents. Supports route-based type detection.
  * Uses portalSupabase for portal DB (akhojh…).
+ * Styled for FYM App dark theme.
  */
 import { useState } from 'react';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
@@ -25,6 +19,10 @@ import { generateHubToken } from '@/lib/contracting/hubToken';
 import { formatPhoneDisplay } from '@/lib/contracting/helpers';
 import { US_STATES } from '@/lib/contracting/types';
 import type { PortalAgent } from '@/lib/contracting/types';
+
+const inputClass = 'w-full px-4 py-2.5 bg-secondary border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-foreground placeholder:text-muted-foreground';
+const labelClass = 'block text-sm font-medium text-muted-foreground mb-1';
+const selectClass = inputClass;
 
 const STEPS_WITH_TYPE = [
   { id: 1, title: 'Agent Type', icon: Briefcase },
@@ -86,9 +84,9 @@ export function HIP() {
 
   if (!formId) {
     return (
-      <div className="min-h-screen bg-steel-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow p-8 text-center">
-          <p className="text-red-600">Invalid form URL</p>
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="glass-card p-8 text-center">
+          <p className="text-destructive">Invalid form URL</p>
         </div>
       </div>
     );
@@ -221,16 +219,16 @@ export function HIP() {
   const progressPercent = ((currentStep - 1) / (STEPS.length - 1)) * 100;
 
   return (
-    <div className="min-h-screen bg-steel-50 py-8 px-4">
+    <div className="min-h-screen bg-background py-8 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-navy-600">FYM Financial</h1>
-          <p className="text-xs text-gray-600 mt-1">where transparency &amp; opportunity meet</p>
-          <h2 className="text-2xl font-bold text-gray-900 mt-6">
+          <h1 className="text-3xl font-bold text-primary">FYM Financial</h1>
+          <p className="text-xs text-muted-foreground mt-1">where transparency &amp; opportunity meet</p>
+          <h2 className="text-2xl font-bold text-foreground mt-6">
             {predeterminedType === 'HIP Broker' ? 'HIP BROKER' : predeterminedType === 'HIP Career Agent' ? 'HIP CAREER AGENT' : 'HIP AGENT'} INTAKE FORM
           </h2>
-          <p className="text-sm text-gray-600 mt-2">
-            Hello, <span className="font-semibold">{agent.first_name} {agent.last_name}</span>. Please complete all sections accurately.
+          <p className="text-sm text-muted-foreground mt-2">
+            Hello, <span className="font-semibold text-foreground">{agent.first_name} {agent.last_name}</span>. Please complete all sections accurately.
           </p>
         </div>
 
@@ -243,40 +241,40 @@ export function HIP() {
               const isActive = step.id === currentStep;
               return (
                 <div key={step.id} className="flex flex-col items-center flex-1">
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${isCompleted ? 'bg-navy-600 border-navy-600' : isActive ? 'bg-white border-navy-600' : 'bg-white border-gray-300'}`}>
-                    {isCompleted ? <Check className="w-4 h-4 text-white" /> : <Icon className={`w-4 h-4 ${isActive ? 'text-navy-600' : 'text-gray-400'}`} />}
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center border-2 transition-all duration-300 ${isCompleted ? 'bg-primary border-primary' : isActive ? 'bg-card border-primary' : 'bg-card border-border'}`}>
+                    {isCompleted ? <Check className="w-4 h-4 text-primary-foreground" /> : <Icon className={`w-4 h-4 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />}
                   </div>
-                  <span className={`text-xs mt-1 hidden sm:block ${isActive ? 'text-navy-600 font-semibold' : isCompleted ? 'text-navy-600' : 'text-gray-400'}`}>{step.title}</span>
+                  <span className={`text-xs mt-1 hidden sm:block ${isActive ? 'text-primary font-semibold' : isCompleted ? 'text-primary' : 'text-muted-foreground'}`}>{step.title}</span>
                 </div>
               );
             })}
           </div>
-          <div className="relative h-2 bg-gray-200 rounded-full overflow-hidden">
-            <div className="absolute left-0 top-0 h-full bg-navy-600 rounded-full transition-all duration-500" style={{ width: `${progressPercent}%` }} />
+          <div className="relative h-2 bg-secondary rounded-full overflow-hidden">
+            <div className="absolute left-0 top-0 h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${progressPercent}%` }} />
           </div>
-          <p className="text-xs text-gray-500 text-right mt-1">Step {currentStep} of {STEPS.length}</p>
+          <p className="text-xs text-muted-foreground text-right mt-1">Step {currentStep} of {STEPS.length}</p>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 md:p-8">
+        <div className="glass-card p-6 md:p-8">
           {/* Step 1 (type selection) — only when not predetermined */}
           {currentStep + stepOffset === 1 && (
             <div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Select Your Agent Type</h3>
-              <p className="text-sm text-gray-600 mb-6">Choose the category that best describes your role. Please make sure all information is correct and matches your license information in NIPR.</p>
+              <h3 className="text-xl font-bold text-foreground mb-2">Select Your Agent Type</h3>
+              <p className="text-sm text-muted-foreground mb-6">Choose the category that best describes your role.</p>
               <div className="grid grid-cols-1 gap-4">
                 {(['HIP Broker', 'HIP Career Agent'] as const).map((type) => (
-                  <button key={type} type="button" onClick={() => setAgentType(type)} className={`relative w-full text-left p-5 rounded-xl border-2 transition-all duration-200 ${agentType === type ? 'border-navy-600 bg-blue-50' : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'}`}>
+                  <button key={type} type="button" onClick={() => setAgentType(type)} className={`relative w-full text-left p-5 rounded-xl border-2 transition-all duration-200 ${agentType === type ? 'border-primary bg-primary/10' : 'border-border bg-card hover:border-muted-foreground hover:bg-secondary'}`}>
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className={`font-semibold text-lg ${agentType === type ? 'text-navy-600' : 'text-gray-900'}`}>{type}</p>
-                        <p className="text-sm text-gray-500 mt-1">
+                        <p className={`font-semibold text-lg ${agentType === type ? 'text-primary' : 'text-foreground'}`}>{type}</p>
+                        <p className="text-sm text-muted-foreground mt-1">
                           {type === 'HIP Broker'
                             ? <><span className="font-bold">60% contract (You Own Your Book of Business)</span> — Independent broker selling HIP products</>
                             : <><span className="font-bold">30% contract (Free Leads)</span> — Career agent contracted through the agency</>}
                         </p>
                       </div>
-                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ml-4 ${agentType === type ? 'border-navy-600 bg-navy-600' : 'border-gray-300'}`}>
-                        {agentType === type && <Check className="w-3.5 h-3.5 text-white" />}
+                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ml-4 ${agentType === type ? 'border-primary bg-primary' : 'border-border'}`}>
+                        {agentType === type && <Check className="w-3.5 h-3.5 text-primary-foreground" />}
                       </div>
                     </div>
                   </button>
@@ -288,26 +286,26 @@ export function HIP() {
           {/* Step 2 — Personal Info */}
           {currentStep + stepOffset === 2 && (
             <div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Personal Information</h3>
+              <h3 className="text-xl font-bold text-foreground mb-2">Personal Information</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <EditableAgentInfo agent={agent} onAgentUpdate={setAgent} variant="hip" />
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth <span className="text-red-500">*</span></label>
-                  <input type="date" value={formData.dateOfBirth} onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-500 focus:border-transparent" required />
+                  <label className={labelClass}>Date of Birth <span className="text-destructive">*</span></label>
+                  <input type="date" value={formData.dateOfBirth} onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })} className={inputClass} required />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Gender <span className="text-red-500">*</span></label>
+                  <label className={labelClass}>Gender <span className="text-destructive">*</span></label>
                   <div className="flex items-center gap-6 h-[42px]">
                     {(['Male', 'Female'] as const).map((option) => (
                       <label key={option} className="flex items-center gap-2 cursor-pointer">
-                        <input type="radio" name="gender" value={option} checked={formData.gender === option} onChange={(e) => setFormData({ ...formData, gender: e.target.value })} className="w-4 h-4 text-navy-600 border-gray-300 focus:ring-navy-500" />
-                        <span className="text-sm text-gray-700">{option}</span>
+                        <input type="radio" name="gender" value={option} checked={formData.gender === option} onChange={(e) => setFormData({ ...formData, gender: e.target.value })} className="w-4 h-4 text-primary border-border focus:ring-primary" />
+                        <span className="text-sm text-foreground">{option}</span>
                       </label>
                     ))}
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Social Security Number <span className="text-red-500">*</span></label>
+                  <label className={labelClass}>Social Security Number <span className="text-destructive">*</span></label>
                   <SSNInput value={formData.ssn} onChange={(value) => setFormData({ ...formData, ssn: value })} />
                 </div>
               </div>
@@ -317,28 +315,28 @@ export function HIP() {
           {/* Step 3 — Address */}
           {currentStep + stepOffset === 3 && (
             <div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Home Address</h3>
-              <p className="text-sm text-gray-600 mb-6">Enter your current residential address.</p>
+              <h3 className="text-xl font-bold text-foreground mb-2">Home Address</h3>
+              <p className="text-sm text-muted-foreground mb-6">Enter your current residential address.</p>
               <div className="grid grid-cols-1 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Street Address <span className="text-red-500">*</span></label>
-                  <input type="text" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} placeholder="123 Main St" className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-500 focus:border-transparent" required />
+                  <label className={labelClass}>Street Address <span className="text-destructive">*</span></label>
+                  <input type="text" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} placeholder="123 Main St" className={inputClass} required />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="sm:col-span-1">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">City <span className="text-red-500">*</span></label>
-                    <input type="text" value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-500 focus:border-transparent" required />
+                    <label className={labelClass}>City <span className="text-destructive">*</span></label>
+                    <input type="text" value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} className={inputClass} required />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">State <span className="text-red-500">*</span></label>
-                    <select value={formData.state} onChange={(e) => setFormData({ ...formData, state: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-500 focus:border-transparent" required>
+                    <label className={labelClass}>State <span className="text-destructive">*</span></label>
+                    <select value={formData.state} onChange={(e) => setFormData({ ...formData, state: e.target.value })} className={selectClass} required>
                       <option value=""></option>
                       {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Postal Code <span className="text-red-500">*</span></label>
-                    <input type="text" inputMode="numeric" value={formData.postalCode} onChange={(e) => setFormData({ ...formData, postalCode: e.target.value.replace(/\D/g, '').slice(0, 5) })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-500 focus:border-transparent" maxLength={5} pattern="\d{5}" required />
+                    <label className={labelClass}>Postal Code <span className="text-destructive">*</span></label>
+                    <input type="text" inputMode="numeric" value={formData.postalCode} onChange={(e) => setFormData({ ...formData, postalCode: e.target.value.replace(/\D/g, '').slice(0, 5) })} className={inputClass} maxLength={5} pattern="\d{5}" required />
                   </div>
                 </div>
               </div>
@@ -348,20 +346,20 @@ export function HIP() {
           {/* Step 4 — License Info */}
           {currentStep + stepOffset === 4 && (
             <div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">License Information</h3>
-              <p className="text-sm text-gray-600 mb-6">Ensure all details match exactly what is listed in NIPR.</p>
+              <h3 className="text-xl font-bold text-foreground mb-2">License Information</h3>
+              <p className="text-sm text-muted-foreground mb-6">Ensure all details match exactly what is listed in NIPR.</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Resident License Number <span className="text-red-500">*</span></label>
-                  <input type="text" value={formData.residentLicenseNumber} onChange={(e) => setFormData({ ...formData, residentLicenseNumber: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-500 focus:border-transparent" required />
+                  <label className={labelClass}>Resident License Number <span className="text-destructive">*</span></label>
+                  <input type="text" value={formData.residentLicenseNumber} onChange={(e) => setFormData({ ...formData, residentLicenseNumber: e.target.value })} className={inputClass} required />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">NPN <span className="text-red-500">*</span></label>
-                  <input type="text" value={formData.npn} onChange={(e) => setFormData({ ...formData, npn: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-500 focus:border-transparent" required />
+                  <label className={labelClass}>NPN <span className="text-destructive">*</span></label>
+                  <input type="text" value={formData.npn} onChange={(e) => setFormData({ ...formData, npn: e.target.value })} className={inputClass} required />
                 </div>
                 <div className="sm:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Resident State <span className="text-red-500">*</span></label>
-                  <select value={formData.residentState} onChange={(e) => setFormData({ ...formData, residentState: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-500 focus:border-transparent" required>
+                  <label className={labelClass}>Resident State <span className="text-destructive">*</span></label>
+                  <select value={formData.residentState} onChange={(e) => setFormData({ ...formData, residentState: e.target.value })} className={selectClass} required>
                     <option value=""></option>
                     {US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
@@ -373,36 +371,36 @@ export function HIP() {
           {/* Step 5 — Final Details */}
           {currentStep + stepOffset === 5 && (
             <form onSubmit={handleSubmit}>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Final Details</h3>
-              <p className="text-sm text-gray-600 mb-6">Complete your state licenses and any release documentation.</p>
+              <h3 className="text-xl font-bold text-foreground mb-2">Final Details</h3>
+              <p className="text-sm text-muted-foreground mb-6">Complete your state licenses and any release documentation.</p>
               <div className="space-y-5">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Release Needed <span className="text-red-500">*</span></label>
-                  <select value={formData.releaseNeeded} onChange={(e) => setFormData({ ...formData, releaseNeeded: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-500 focus:border-transparent" required>
+                  <label className={labelClass}>Release Needed <span className="text-destructive">*</span></label>
+                  <select value={formData.releaseNeeded} onChange={(e) => setFormData({ ...formData, releaseNeeded: e.target.value })} className={selectClass} required>
                     <option value=""></option>
                     <option value="Yes">Yes</option>
                     <option value="No">No</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Upload Releases <span className="text-gray-400 font-normal">(Optional)</span></label>
-                  <input type="file" multiple onChange={handleFileChange} className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-500 focus:border-transparent text-sm" />
-                  {files.length > 0 && <p className="text-sm text-gray-600 mt-1">{files.length} file(s) selected</p>}
+                  <label className={labelClass}>Upload Releases <span className="text-muted-foreground font-normal">(Optional)</span></label>
+                  <input type="file" multiple onChange={handleFileChange} className="w-full px-4 py-2.5 bg-secondary border border-border rounded-lg text-foreground text-sm file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90" />
+                  {files.length > 0 && <p className="text-sm text-muted-foreground mt-1">{files.length} file(s) selected</p>}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">State Licenses <span className="text-red-500">*</span></label>
-                  <button type="button" onClick={() => setShowLicenseModal(true)} className={`w-full px-4 py-2.5 rounded-lg border-2 font-medium transition-colors ${formData.stateLicenses.length > 0 ? 'bg-gold-500 border-gold-500 text-white hover:bg-gold-600' : 'bg-white border-gold-500 text-gold-600 hover:bg-orange-50'}`}>
+                  <label className={labelClass}>State Licenses <span className="text-destructive">*</span></label>
+                  <button type="button" onClick={() => setShowLicenseModal(true)} className={`w-full px-4 py-2.5 rounded-lg border-2 font-medium transition-colors ${formData.stateLicenses.length > 0 ? 'bg-accent border-accent text-accent-foreground hover:bg-accent/90' : 'bg-card border-accent text-accent hover:bg-secondary'}`}>
                     {formData.stateLicenses.length > 0 ? `${formData.stateLicenses.length} State(s) Selected - Click to Edit` : 'Select State Licenses'}
                   </button>
                   {formData.stateLicenses.length > 0 && (
-                    <p className="text-sm text-gray-600 mt-2">
+                    <p className="text-sm text-muted-foreground mt-2">
                       {formData.stateLicenses.slice(0, 4).join(', ')}
                       {formData.stateLicenses.length > 4 && ` +${formData.stateLicenses.length - 4} more`}
                     </p>
                   )}
                 </div>
                 <div className="pt-2">
-                  <button type="submit" disabled={loading || !canAdvance()} className="w-full bg-navy-600 text-white py-3.5 px-4 rounded-lg hover:bg-navy-700 transition-colors font-bold text-lg disabled:opacity-50 flex items-center justify-center gap-2">
+                  <button type="submit" disabled={loading || !canAdvance()} className="w-full bg-primary text-primary-foreground py-3.5 px-4 rounded-lg hover:bg-primary/90 transition-colors font-bold text-lg disabled:opacity-50 flex items-center justify-center gap-2">
                     {loading ? 'SUBMITTING...' : 'SUBMIT FORM'}
                   </button>
                 </div>
@@ -412,26 +410,26 @@ export function HIP() {
 
           {/* Navigation buttons */}
           {currentStep + stepOffset < 5 && (
-            <div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-100">
-              <button type="button" onClick={handleBack} disabled={currentStep === 1} className="flex items-center gap-2 px-5 py-2.5 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+            <div className="flex items-center justify-between mt-8 pt-6 border-t border-border">
+              <button type="button" onClick={handleBack} disabled={currentStep === 1} className="flex items-center gap-2 px-5 py-2.5 text-muted-foreground border border-border rounded-lg hover:bg-secondary transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
                 <ChevronLeft className="w-4 h-4" /> Back
               </button>
-              <button type="button" onClick={handleNext} disabled={!canAdvance()} className="flex items-center gap-2 px-6 py-2.5 bg-navy-600 text-white rounded-lg hover:bg-navy-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed font-medium">
+              <button type="button" onClick={handleNext} disabled={!canAdvance()} className="flex items-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed font-medium">
                 Continue <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           )}
 
           {currentStep + stepOffset === 5 && (
-            <div className="mt-6 pt-4 border-t border-gray-100">
-              <button type="button" onClick={handleBack} className="flex items-center gap-2 px-5 py-2.5 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+            <div className="mt-6 pt-4 border-t border-border">
+              <button type="button" onClick={handleBack} className="flex items-center gap-2 px-5 py-2.5 text-muted-foreground border border-border rounded-lg hover:bg-secondary transition-colors">
                 <ChevronLeft className="w-4 h-4" /> Back
               </button>
             </div>
           )}
         </div>
 
-        <p className="text-center text-xs text-gray-500 mt-4">Your information is encrypted and securely transmitted.</p>
+        <p className="text-center text-xs text-muted-foreground mt-4">Your information is encrypted and securely transmitted.</p>
       </div>
 
       <StateLicenseSelector isOpen={showLicenseModal} onClose={() => setShowLicenseModal(false)} selectedStates={formData.stateLicenses} onConfirm={(states) => setFormData({ ...formData, stateLicenses: states })} />

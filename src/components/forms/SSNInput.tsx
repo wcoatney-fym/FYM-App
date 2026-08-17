@@ -2,6 +2,7 @@
  * SSNInput — ported from contracting-portal
  *
  * Formatted SSN entry with auto-advance between segments.
+ * Styled for FYM App dark theme.
  */
 import { useState, useRef } from 'react';
 
@@ -10,6 +11,8 @@ interface SSNInputProps {
   onChange: (value: string) => void;
   required?: boolean;
 }
+
+const segmentClass = 'px-3 py-2 bg-secondary border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-center text-foreground placeholder:text-muted-foreground';
 
 export function SSNInput({ value, onChange, required = true }: SSNInputProps) {
   const [part1, setPart1] = useState(value.slice(0, 3));
@@ -45,27 +48,27 @@ export function SSNInput({ value, onChange, required = true }: SSNInputProps) {
         type="text"
         value={part1}
         onChange={handlePart1Change}
-        className="w-16 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-navy-500 focus:border-transparent text-center"
+        className={`w-16 ${segmentClass}`}
         maxLength={3}
         required={required}
       />
-      <span className="text-gray-400">-</span>
+      <span className="text-muted-foreground">-</span>
       <input
         ref={input2Ref}
         type="text"
         value={part2}
         onChange={handlePart2Change}
-        className="w-12 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-navy-500 focus:border-transparent text-center"
+        className={`w-12 ${segmentClass}`}
         maxLength={2}
         required={required}
       />
-      <span className="text-gray-400">-</span>
+      <span className="text-muted-foreground">-</span>
       <input
         ref={input3Ref}
         type="text"
         value={part3}
         onChange={handlePart3Change}
-        className="w-20 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-navy-500 focus:border-transparent text-center"
+        className={`w-20 ${segmentClass}`}
         maxLength={4}
         required={required}
       />
