@@ -6,6 +6,7 @@
  */
 import { useEffect } from 'react';
 import { CheckCircle } from 'lucide-react';
+import { PublicFormLayout } from '@/components/forms/PublicFormLayout';
 
 export function ThankYou() {
   useEffect(() => {
@@ -22,7 +23,8 @@ export function ThankYou() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-steel-50 flex items-center justify-center p-4">
+    <PublicFormLayout>
+    <div className="flex items-center justify-center min-h-screen p-4">
       <div className="bg-white rounded-lg shadow-lg p-12 max-w-2xl w-full text-center">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-navy-600">FYM Financial</h1>
@@ -48,5 +50,6 @@ export function ThankYou() {
         </p>
       </div>
     </div>
+    </PublicFormLayout>
   );
 }

@@ -77,7 +77,7 @@ export function SecurityCodeGate({ onSuccess, formId }: SecurityCodeGateProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="min-h-screen bg-steel-50 flex items-center justify-center p-4 public-form-light" style={{ colorScheme: 'light', color: '#212529' }}>
       <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
         <div className="flex items-center justify-center mb-6">
           <Lock className="w-8 h-8 text-navy-600 mr-2" />
@@ -93,7 +93,7 @@ export function SecurityCodeGate({ onSuccess, formId }: SecurityCodeGateProps) {
               autoComplete="one-time-code"
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-              className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-navy-500 focus:border-transparent text-center text-2xl font-mono tracking-wider"
+              className="w-full px-4 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-navy-500 focus:border-transparent text-center text-2xl font-mono tracking-wider text-gray-900 bg-white placeholder-gray-400"
               maxLength={6}
               required
             />

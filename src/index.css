@@ -312,7 +312,8 @@
 
 /* Force native form elements to match dark theme.
    Prevents white-on-white text in unstyled inputs/selects/textareas.
-   Activation pages override with explicit bg-white + text-fym-ink. */
+   Activation pages override with explicit bg-white + text-fym-ink.
+   Public intake forms override via .public-form-light wrapper. */
 input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
 select,
 textarea {
@@ -326,6 +327,22 @@ textarea::placeholder {
 select option {
   background-color: hsl(var(--card));
   color: hsl(var(--foreground));
+}
+
+/* Public intake form light-theme overrides — undo the dark globals above */
+.public-form-light input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
+.public-form-light select,
+.public-form-light textarea {
+  background-color: #ffffff;
+  color: #111827;
+}
+.public-form-light input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file'])::placeholder,
+.public-form-light textarea::placeholder {
+  color: #9ca3af;
+}
+.public-form-light select option {
+  background-color: #ffffff;
+  color: #111827;
 }
 
 /* Make all recharts text readable on dark bg */

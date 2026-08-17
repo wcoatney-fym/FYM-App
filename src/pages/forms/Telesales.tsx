@@ -17,6 +17,7 @@ import { generateHubToken } from '@/lib/contracting/hubToken';
 import { formatPhoneDisplay } from '@/lib/contracting/helpers';
 import { US_STATES } from '@/lib/contracting/types';
 import type { PortalAgent } from '@/lib/contracting/types';
+import { PublicFormLayout } from '@/components/forms/PublicFormLayout';
 
 export function Telesales() {
   const [searchParams] = useSearchParams();
@@ -45,11 +46,13 @@ export function Telesales() {
 
   if (!formId) {
     return (
-      <div className="min-h-screen bg-steel-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow p-8 text-center">
-          <p className="text-red-600">Invalid form URL</p>
+      <PublicFormLayout>
+        <div className="flex items-center justify-center min-h-screen p-4">
+          <div className="bg-white rounded-lg shadow p-8 text-center">
+            <p className="text-red-600">Invalid form URL</p>
+          </div>
         </div>
-      </div>
+      </PublicFormLayout>
     );
   }
 
@@ -158,7 +161,8 @@ export function Telesales() {
   }
 
   return (
-    <div className="min-h-screen bg-steel-50 py-8 px-4">
+    <PublicFormLayout>
+    <div className="py-8 px-4">
       <div className="max-w-4xl mx-auto">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-navy-600">FYM Financial</h1>
@@ -307,5 +311,6 @@ export function Telesales() {
         />
       )}
     </div>
+    </PublicFormLayout>
   );
 }
