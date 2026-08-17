@@ -15,7 +15,7 @@ import {
   Phone, Mail, Calendar, User, Clock, ArrowRight,
 } from 'lucide-react';
 import { TimePeriodSelector } from '@/components/filters/TimePeriodSelector';
-import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
+import { type DatePreset, type DateRange, RECRUITING_DEFAULT_PRESET, RECRUITING_DATE_PRESETS, getDateRange } from '@/lib/dateUtils';
 
 import { fetchRecruitingLeads, fetchCampaigns } from '@/lib/recruiting';
 import type {
@@ -200,8 +200,8 @@ function LeadDetailModal({ lead, open, onClose }: { lead: RecruitingLead | null;
 const PAGE_SIZE = 20;
 
 export function RecruitingLeadsTab() {
-  const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
-  const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
+  const [datePreset, setDatePreset] = useState<DatePreset>(RECRUITING_DEFAULT_PRESET);
+  const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(RECRUITING_DEFAULT_PRESET));
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState<string>('all');
   const [campaignFilter, setCampaignFilter] = useState<string>('all');
@@ -255,7 +255,7 @@ export function RecruitingLeadsTab() {
       {/* Header with date selector */}
       <div className="flex items-center justify-between">
         <div />
-        <TimePeriodSelector preset={datePreset} dateRange={dateRange} onChange={handleDateChange} />
+        <TimePeriodSelector preset={datePreset} dateRange={dateRange} onChange={handleDateChange} presets={RECRUITING_DATE_PRESETS} />
       </div>
 
       {/* Pipeline summary — click a card to filter the table */}

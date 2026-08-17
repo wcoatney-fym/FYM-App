@@ -13,7 +13,7 @@ import {
   ResponsiveContainer, ComposedChart, Legend,
 } from 'recharts';
 import { TimePeriodSelector } from '@/components/filters/TimePeriodSelector';
-import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
+import { type DatePreset, type DateRange, RECRUITING_DEFAULT_PRESET, RECRUITING_DATE_PRESETS, getDateRange } from '@/lib/dateUtils';
 
 import {
   fetchRecruitingKpis, fetchDailySpendData, fetchCampaigns,
@@ -160,8 +160,8 @@ function StatusBadge({ status }: { status: CampaignStatus }) {
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function RecruitingDashboardTab() {
-  const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
-  const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
+  const [datePreset, setDatePreset] = useState<DatePreset>(RECRUITING_DEFAULT_PRESET);
+  const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(RECRUITING_DEFAULT_PRESET));
 
   const dateFilter: RecruitingDateFilter = useMemo(() => ({
     startDate: dateRange.startDate,
@@ -228,7 +228,7 @@ export function RecruitingDashboardTab() {
       {/* Header with date selector */}
       <div className="flex items-center justify-between">
         <div />
-        <TimePeriodSelector preset={datePreset} dateRange={dateRange} onChange={handleDateChange} />
+        <TimePeriodSelector preset={datePreset} dateRange={dateRange} onChange={handleDateChange} presets={RECRUITING_DATE_PRESETS} />
       </div>
 
       {/* Empty state */}

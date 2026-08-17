@@ -11,7 +11,7 @@ import {
   ResponsiveContainer, BarChart, Cell,
 } from 'recharts';
 import { TimePeriodSelector } from '@/components/filters/TimePeriodSelector';
-import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
+import { type DatePreset, type DateRange, RECRUITING_DEFAULT_PRESET, RECRUITING_DATE_PRESETS, getDateRange } from '@/lib/dateUtils';
 
 import {
   fetchStageDropoffs, fetchStalledRecruits, fetchStageTimings,
@@ -463,8 +463,8 @@ function RoiView() {
 // ── Main Component ─────────────────────────────────────────────────────────
 export function RecruitingAnalyticsTab() {
   const [view, setView] = useState<AnalyticsView>('conversion');
-  const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
-  const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
+  const [datePreset, setDatePreset] = useState<DatePreset>(RECRUITING_DEFAULT_PRESET);
+  const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(RECRUITING_DEFAULT_PRESET));
 
   const dateFilter: RecruitingDateFilter = useMemo(() => ({
     startDate: dateRange.startDate,
@@ -505,7 +505,7 @@ export function RecruitingAnalyticsTab() {
         </div>
 
         {view === 'conversion' && (
-          <TimePeriodSelector preset={datePreset} dateRange={dateRange} onChange={handleDateChange} />
+          <TimePeriodSelector preset={datePreset} dateRange={dateRange} onChange={handleDateChange} presets={RECRUITING_DATE_PRESETS} />
         )}
       </div>
 
