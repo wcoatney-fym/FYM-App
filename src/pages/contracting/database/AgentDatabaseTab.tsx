@@ -113,6 +113,8 @@ export function AgentDatabaseTab() {
     running: boolean;
     result: { created: number; skipped: number; failed: number; errors: string[] } | null;
   }>({ running: false, result: null });
+  const [crmOnboardAgent, setCrmOnboardAgent] = useState<FymAgent | null>(null);
+  const [terminateAgent, setTerminateAgent] = useState<FymAgent | null>(null);
 
   // Sort the filtered agents
   const sortedAgents = useMemo(
@@ -654,13 +656,36 @@ export function AgentDatabaseTab() {
 
                     {/* Actions */}
                     <td className="px-4 py-3 whitespace-nowrap text-center">
-                      <button
-                        onClick={() => setDetailAgent(agent)}
-                        className="p-1.5 text-cyan-400 hover:bg-cyan-500/10 rounded transition-colors"
-                        aria-label={`View details for ${agent.full_name}`}
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => setDetailAgent(agent)}
+                          className="p-1.5 text-cyan-400 hover:bg-cyan-500/10 rounded transition-colors"
+                          aria-label={`View details for ${agent.full_name}`}
+                          title="View details"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        {!agent.crm_onboarded && agent.first_name && agent.last_name && (agent.email || agent.phone) && (
+                          <button
+                            onClick={() => setCrmOnboardAgent(agent)}
+                            className="p-1.5 text-emerald-400 hover:bg-emerald-500/10 rounded transition-colors"
+                            aria-label={`CRM Onboard ${agent.full_name}`}
+                            title="CRM Onboard"
+                          >
+                            <Users className="w-4 h-4" />
+                          </button>
+                        )}
+                        {agent.crm_onboarded && agent.intake_status !== 'terminated' && (
+                          <button
+                            onClick={() => setTerminateAgent(agent)}
+                            className="p-1.5 text-red-400/60 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                            aria-label={`Terminate ${agent.full_name}`}
+                            title="Terminate"
+                          >
+                            <AlertTriangle className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -701,6 +726,30 @@ export function AgentDatabaseTab() {
           agent={detailAgent}
           onClose={() => setDetailAgent(null)}
           onRefresh={refresh}
+        />
+      )}
+
+      {/* Table-level CRM Onboard Modal */}
+      {crmOnboardAgent && (
+        <CrmOnboardTableModal
+          agent={crmOnboardAgent}
+          onClose={() => setCrmOnboardAgent(null)}
+          onComplete={() => {
+            setCrmOnboardAgent(null);
+            refresh();
+          }}
+        />
+      )}
+
+      {/* Table-level Terminate Modal */}
+      {terminateAgent && terminateAgent.source !== 'prod' && (
+        <TerminateAgentModal
+          agent={toPortalAgent(terminateAgent, terminateAgent.source === 'intake' && terminateAgent.id.startsWith('intake-') ? terminateAgent.id.replace('intake-', '') : null)}
+          onClose={() => setTerminateAgent(null)}
+          onComplete={() => {
+            setTerminateAgent(null);
+            refresh();
+          }}
         />
       )}
     </div>
@@ -1301,6 +1350,319 @@ function toPortalAgent(agent: FymAgent, portalAgentId: string | null): PortalAge
   };
 }
 
+// ── CRM Onboard from Table — works with FymAgent directly ─────────────
+
+const MALE_IMG = 'https://storage.googleapis.com/msgsndr/YM9XmCanfO6p28b1sQOH/media/6882b3d23303840127a970fb.png';
+const FEMALE_IMG = 'https://storage.googleapis.com/msgsndr/YM9XmCanfO6p28b1sQOH/media/6882b3d2f665866357dfd218.png';
+
+function CrmOnboardTableModal({
+  agent,
+  onClose,
+  onComplete,
+}: {
+  agent: FymAgent;
+  onClose: () => void;
+  onComplete: () => void;
+}) {
+  const [step, setStep] = useState<'gender' | 'confirm'>('gender');
+  const [gender, setGender] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleGender = (g: string) => {
+    setGender(g);
+    setStep('confirm');
+  };
+
+  const handleConfirm = async () => {
+    if (!portalSupabase) return;
+    setSubmitting(true);
+    setError('');
+
+    try {
+      const agency = 'FYM';
+      const profileImage = gender === 'Male' ? MALE_IMG : FEMALE_IMG;
+
+      // Find roster upload for FYM
+      const { data: upload } = await portalSupabase
+        .from('crm_roster_uploads')
+        .select('id, headers')
+        .eq('agency', agency)
+        .maybeSingle();
+
+      if (!upload) {
+        setError('No CRM roster found for FYM. Please upload a roster first.');
+        setSubmitting(false);
+        return;
+      }
+
+      // Load all rows to find open seat
+      const { data: rosterRows } = await portalSupabase
+        .from('crm_roster')
+        .select('id, row_data')
+        .eq('upload_id', upload.id);
+
+      const numericRows = (rosterRows || []).filter(
+        (r) => /^\d+$/.test(r.row_data['Seat Number'] || '')
+      );
+
+      // Derive shared fields
+      const crmNumber = numericRows.find((r) => r.row_data['All Templates | Agent CRM #']?.trim())
+        ?.row_data['All Templates | Agent CRM #'] || '';
+      const calendarEmbed = numericRows.find((r) => r.row_data['Calendar Embed Code']?.trim())
+        ?.row_data['Calendar Embed Code'] || '';
+      const urlPrefix = (() => {
+        const sample = numericRows.find((r) => r.row_data['Digital Business Card Home Page']?.trim());
+        if (!sample) return '';
+        const m = sample.row_data['Digital Business Card Home Page'].match(/^(https?:\/\/[^/]+\.my-agent-appt\.com\/r)\d+/);
+        return m ? sample.row_data['Digital Business Card Home Page'].replace(/\/r\d+-.*$/, '') : '';
+      })();
+
+      // Find closest open seat to 1
+      const openSeat = numericRows
+        .filter((r) => !r.row_data['First Name']?.trim() || r.row_data['CSR Placeholder'] === 'true')
+        .sort((a, b) => Number(a.row_data['Seat Number']) - Number(b.row_data['Seat Number']))[0];
+
+      let seatNumber: string;
+
+      if (openSeat) {
+        seatNumber = openSeat.row_data['Seat Number'];
+        const updatedRowData: Record<string, string> = {
+          ...openSeat.row_data,
+          'First Name': agent.first_name,
+          'Last Name': agent.last_name,
+          'Phone': agent.phone || '',
+          'Email': agent.email || '',
+          'Agent NPN': agent.npn || '',
+          'All Templates | Agent Profile Image': profileImage,
+          'All Templates | Agent CRM #': crmNumber,
+          'CSR Placeholder': '',
+        };
+        if (calendarEmbed) updatedRowData['Calendar Embed Code'] = calendarEmbed;
+        if (urlPrefix) {
+          updatedRowData['Digital Business Card Home Page'] = `${urlPrefix}/r${seatNumber}-click-to-schedule`;
+          updatedRowData['Appt Booked Confirmation Page'] = `${urlPrefix}/r${seatNumber}-youre-confirmed`;
+        }
+
+        const { error: updateError } = await portalSupabase
+          .from('crm_roster')
+          .update({ row_data: updatedRowData })
+          .eq('id', openSeat.id);
+
+        if (updateError) {
+          setError('Failed to update roster seat. Please try again.');
+          setSubmitting(false);
+          return;
+        }
+      } else {
+        // All seats filled — create max+1
+        const maxSeat = numericRows.reduce(
+          (max, r) => Math.max(max, Number(r.row_data['Seat Number'])),
+          0
+        );
+        seatNumber = String(maxSeat + 1);
+
+        const newRowData: Record<string, string> = {};
+        for (const h of upload.headers) newRowData[h] = '';
+        newRowData['Seat Number'] = seatNumber;
+        newRowData['First Name'] = agent.first_name;
+        newRowData['Last Name'] = agent.last_name;
+        newRowData['Phone'] = agent.phone || '';
+        newRowData['Email'] = agent.email || '';
+        newRowData['Agent NPN'] = agent.npn || '';
+        newRowData['All Templates | Agent Profile Image'] = profileImage;
+        newRowData['All Templates | Agent CRM #'] = crmNumber;
+        if (calendarEmbed) newRowData['Calendar Embed Code'] = calendarEmbed;
+        if (urlPrefix) {
+          newRowData['Digital Business Card Home Page'] = `${urlPrefix}/r${seatNumber}-click-to-schedule`;
+          newRowData['Appt Booked Confirmation Page'] = `${urlPrefix}/r${seatNumber}-youre-confirmed`;
+        }
+
+        const { error: insertError } = await portalSupabase
+          .from('crm_roster')
+          .insert({ upload_id: upload.id, row_data: newRowData });
+
+        if (insertError) {
+          setError('Failed to create roster seat. Please try again.');
+          setSubmitting(false);
+          return;
+        }
+      }
+
+      // Fire webhook unless zaps are paused
+      const { data: agencyData } = await portalSupabase
+        .from('hierarchy_agencies')
+        .select('zaps_paused, calendar_embed_code')
+        .eq('name', agency)
+        .maybeSingle();
+
+      if (!agencyData?.zaps_paused) {
+        const digitalCardUrl = urlPrefix
+          ? `${urlPrefix}/r${seatNumber}-click-to-schedule`
+          : '';
+        const confirmUrl = urlPrefix
+          ? `${urlPrefix}/r${seatNumber}-youre-confirmed`
+          : '';
+
+        await fireCrmOnboardingWebhook({
+          seatNumber,
+          agentNpn: agent.npn || '',
+          firstName: agent.first_name,
+          lastName: agent.last_name,
+          email: agent.email || '',
+          phone: agent.phone || '',
+          profileImage,
+          crmNumber,
+          agency,
+          digitalBusinessCardUrl: digitalCardUrl,
+          confirmationPageUrl: confirmUrl,
+          calendarEmbedCode: calendarEmbed || agencyData?.calendar_embed_code || '',
+        });
+      }
+
+      // If agent has a portal record, mark crm_onboarded + create pipeline entry
+      const portalId = agent.source === 'intake' && agent.id.startsWith('intake-')
+        ? agent.id.replace('intake-', '')
+        : null;
+
+      if (portalId && portalSupabase) {
+        await portalSupabase
+          .from('agents')
+          .update({ crm_onboarded: true })
+          .eq('id', portalId);
+
+        const now = new Date().toISOString();
+        const autoAdvanceAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+        const { data: pipelineData } = await portalSupabase
+          .from('crm_pipeline')
+          .insert({
+            agent_id: portalId,
+            agency,
+            first_name: agent.first_name,
+            last_name: agent.last_name,
+            email: agent.email || '',
+            phone: agent.phone || '',
+            seat_number: seatNumber,
+            crm_number: crmNumber,
+            agent_npn: agent.npn || '',
+            stage: 'processing',
+            zap_sent_at: now,
+            user_created_at: now,
+            seat_filled_at: now,
+            auto_advance_at: autoAdvanceAt,
+          })
+          .select('id')
+          .maybeSingle();
+
+        if (pipelineData) {
+          await portalSupabase.from('crm_pipeline_history').insert({
+            pipeline_record_id: pipelineData.id,
+            agent_id: portalId,
+            agency,
+            first_name: agent.first_name,
+            last_name: agent.last_name,
+            email: agent.email || '',
+            phone: agent.phone || '',
+            seat_number: seatNumber,
+            crm_number: crmNumber,
+            agent_npn: agent.npn || '',
+            final_stage: 'processing',
+            zap_sent_at: now,
+            user_created_at: now,
+            seat_filled_at: now,
+            entered_at: now,
+          });
+        }
+      }
+
+      onComplete();
+    } catch {
+      setError('An unexpected error occurred. Please try again.');
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-card border border-border rounded-xl shadow-2xl max-w-md w-full">
+        <div className="px-6 py-4 border-b border-border">
+          <h2 className="text-lg font-bold text-foreground">
+            {step === 'gender' ? 'Select Gender' : 'CRM Onboarding Confirmation'}
+          </h2>
+        </div>
+
+        {step === 'gender' ? (
+          <>
+            <div className="px-6 py-5">
+              <p className="text-foreground/80 mb-4">
+                Gender is required for{' '}
+                <span className="font-semibold">{agent.full_name}</span>
+                . Please select their gender to continue.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => handleGender('Male')}
+                  className="flex-1 px-4 py-3 text-sm font-medium border-2 border-border rounded-lg hover:border-cyan-500 hover:bg-cyan-500/10 transition-colors"
+                >
+                  Male
+                </button>
+                <button
+                  onClick={() => handleGender('Female')}
+                  className="flex-1 px-4 py-3 text-sm font-medium border-2 border-border rounded-lg hover:border-cyan-500 hover:bg-cyan-500/10 transition-colors"
+                >
+                  Female
+                </button>
+              </div>
+            </div>
+            <div className="px-6 py-4 bg-secondary/50 rounded-b-xl flex justify-end">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 text-sm font-medium text-foreground/80 bg-card border border-border rounded-md hover:bg-secondary transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="px-6 py-5">
+              <p className="text-foreground/80">
+                This will assign a CRM seat and send{' '}
+                <span className="font-semibold">{agent.full_name}</span>
+                &apos;s information to the Onboarding team for CRM processing.
+              </p>
+              <p className="text-muted-foreground text-sm mt-2">
+                The next available seat (closest to seat 1) will be assigned.
+              </p>
+              {error && (
+                <p className="mt-3 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-md px-3 py-2">
+                  {error}
+                </p>
+              )}
+            </div>
+            <div className="px-6 py-4 bg-secondary/50 rounded-b-xl flex justify-end gap-3">
+              <button
+                onClick={onClose}
+                disabled={submitting}
+                className="px-4 py-2 text-sm font-medium text-foreground/80 bg-card border border-border rounded-md hover:bg-secondary transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirm}
+                disabled={submitting}
+                className="px-4 py-2 text-sm font-medium text-white bg-cyan-600 rounded-md hover:bg-cyan-700 transition-colors disabled:opacity-50"
+              >
+                {submitting ? 'Assigning Seat…' : 'Confirm'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function AgentDirectoryDetailModal({
   agent,
   onClose,
@@ -1314,9 +1676,10 @@ function AgentDirectoryDetailModal({
   const [showCrmOnboard, setShowCrmOnboard] = useState(false);
   const [showTerminate, setShowTerminate] = useState(false);
 
-  // Can CRM onboard: has a portal agent ID, not already onboarded, not terminated
-  const canCrmOnboard = !agent.crm_onboarded && !portal.loading && portal.portalAgentId !== null && agent.intake_status !== 'terminated';
-  // Can terminate: has a portal agent ID, not already terminated
+  // Can CRM onboard: not already onboarded, not terminated, has minimum identity (name + email or phone)
+  const hasMinIdentity = agent.first_name && agent.last_name && (agent.email || agent.phone);
+  const canCrmOnboard = !agent.crm_onboarded && !portal.loading && hasMinIdentity && agent.intake_status !== 'terminated';
+  // Can terminate: has a portal agent ID (needs portal record to update status), not already terminated
   const canTerminate = !portal.loading && portal.portalAgentId !== null && agent.intake_status !== 'terminated';
 
   return (
