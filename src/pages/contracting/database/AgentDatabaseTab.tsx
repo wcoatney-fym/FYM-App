@@ -443,7 +443,7 @@ export function AgentDatabaseTab() {
       )}
 
       {/* Source summary cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <HudFrame accentColor="hsl(145 63% 42% / 0.5)">
           <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-4">
             <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
@@ -497,6 +497,20 @@ export function AgentDatabaseTab() {
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Deduplicated across sources
+            </p>
+          </div>
+        </HudFrame>
+        <HudFrame accentColor="hsl(48 96% 53% / 0.5)">
+          <div className="bg-card/50 backdrop-blur border border-border rounded-lg p-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+              <CheckCircle2 className="w-4 h-4 text-yellow-400" />
+              CRM Onboarded
+            </div>
+            <div className="text-3xl font-bold text-foreground tabular-nums">
+              {agents.filter(a => a.crm_onboarded).length.toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Agents with CRM roster seat
             </p>
           </div>
         </HudFrame>
