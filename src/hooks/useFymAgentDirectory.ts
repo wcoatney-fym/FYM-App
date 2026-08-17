@@ -378,7 +378,6 @@ export function useFymAgentDirectory(): UseFymAgentDirectoryReturn {
             let offset = 0;
             const rosterEmails = new Set<string>();
             const rosterNpns = new Set<string>();
-            const rosterNames = new Set<string>();
 
             while (true) {
               const { data: seats } = await portalSupabase
@@ -389,7 +388,6 @@ export function useFymAgentDirectory(): UseFymAgentDirectoryReturn {
 
               for (const seat of (seats || [])) {
                 const firstName = (seat.row_data['First Name'] || '').trim();
-                const lastName = (seat.row_data['Last Name'] || '').trim();
                 const email = (seat.row_data['Email'] || '').trim().toLowerCase();
                 const npn = (seat.row_data['Agent NPN'] || '').trim();
                 const isCsr = seat.row_data['CSR Placeholder'] === 'true';
@@ -398,7 +396,6 @@ export function useFymAgentDirectory(): UseFymAgentDirectoryReturn {
                 if (firstName && !isCsr) {
                   if (email) rosterEmails.add(email);
                   if (npn) rosterNpns.add(npn);
-                  rosterNames.add(`${firstName.toLowerCase()}|${lastName.toLowerCase()}`);
                 }
               }
 
@@ -407,17 +404,16 @@ export function useFymAgentDirectory(): UseFymAgentDirectoryReturn {
             }
 
             // Mark agents who already have a CRM seat
-            // Match priority: email (primary) → NPN (secondary) → name (fallback)
+            // Match by email (primary) or NPN (secondary) only.
+            // Name matching dropped — produced 37 false positives (218 vs 181).
             for (const agent of allAgents) {
               if (agent.crm_onboarded) continue; // already flagged via portal agents table
               const agentEmail = (agent.email || '').trim().toLowerCase();
               const agentNpn = (agent.npn || '').trim();
-              const agentNameKey = `${agent.first_name.toLowerCase().trim()}|${agent.last_name.toLowerCase().trim()}`;
 
               if (
                 (agentEmail && rosterEmails.has(agentEmail)) ||
-                (agentNpn && rosterNpns.has(agentNpn)) ||
-                rosterNames.has(agentNameKey)
+                (agentNpn && rosterNpns.has(agentNpn))
               ) {
                 agent.crm_onboarded = true;
               }
