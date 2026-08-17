@@ -40,8 +40,12 @@ function StageBadge({ stage }: { stage: string }) {
   return <Badge variant="outline" className={config.className}>{config.label}</Badge>;
 }
 
-// ── Pipeline summary ───────────────────────────────────────────────────────
-function PipelineSummary({ leads }: { leads: RecruitingLead[] }) {
+// ── Pipeline summary (clickable stage cards) ──────────────────────────────
+function PipelineSummary({ leads, activeStage, onStageClick }: {
+  leads: RecruitingLead[];
+  activeStage: string;
+  onStageClick: (stage: string) => void;
+}) {
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
     Object.keys(STAGE_CONFIG).forEach(k => c[k] = 0);
@@ -51,14 +55,23 @@ function PipelineSummary({ leads }: { leads: RecruitingLead[] }) {
 
   return (
     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-3">
-      {Object.entries(STAGE_CONFIG).map(([key, config]) => (
-        <Card key={key} className="bg-card/60 border-border/30">
-          <CardContent className="p-3 text-center">
-            <p className="text-2xl font-bold">{counts[key] ?? 0}</p>
-            <Badge variant="outline" className={`${config.className} mt-1`}>{config.label}</Badge>
-          </CardContent>
-        </Card>
-      ))}
+      {Object.entries(STAGE_CONFIG).map(([key, config]) => {
+        const isActive = activeStage === key;
+        return (
+          <Card
+            key={key}
+            className={`bg-card/60 border-border/30 cursor-pointer transition-all hover:border-border/60 ${
+              isActive ? 'ring-1 ring-primary/50 border-primary/40' : ''
+            }`}
+            onClick={() => onStageClick(key)}
+          >
+            <CardContent className="p-3 text-center">
+              <p className="text-2xl font-bold">{counts[key] ?? 0}</p>
+              <Badge variant="outline" className={`${config.className} mt-1`}>{config.label}</Badge>
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }
@@ -245,8 +258,12 @@ export function RecruitingLeadsTab() {
         <TimePeriodSelector preset={datePreset} dateRange={dateRange} onChange={handleDateChange} />
       </div>
 
-      {/* Pipeline summary */}
-      <PipelineSummary leads={allLeads} />
+      {/* Pipeline summary — click a card to filter the table */}
+      <PipelineSummary
+        leads={allLeads}
+        activeStage={stageFilter}
+        onStageClick={(stage) => handleFilter(() => setStageFilter(stageFilter === stage ? 'all' : stage))}
+      />
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
