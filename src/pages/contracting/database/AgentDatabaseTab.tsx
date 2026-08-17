@@ -45,6 +45,9 @@ import { supabase } from '@/lib/supabase';
 import { portalSupabase } from '@/lib/portal-supabase';
 import { HudFrame } from '@/components/ui/hud-frame';
 import { fmt$ } from '@/lib/formatUtils';
+import { CrmOnboardingModal } from './CrmOnboardingModal';
+import { TerminateAgentModal } from './TerminateAgentModal';
+import type { PortalAgent, PortalIntakeRecord } from '@/lib/contracting/types';
 
 // ── Sorting ────────────────────────────────────────────────────────
 
@@ -697,6 +700,7 @@ export function AgentDatabaseTab() {
         <AgentDirectoryDetailModal
           agent={detailAgent}
           onClose={() => setDetailAgent(null)}
+          onRefresh={refresh}
         />
       )}
     </div>
@@ -1274,14 +1278,46 @@ const STAGE_LABELS: Record<string, string> = {
   terminated: 'Terminated',
 };
 
+/** Bridge a FymAgent into the PortalAgent shape the CRM modals expect */
+function toPortalAgent(agent: FymAgent, portalAgentId: string | null): PortalAgent {
+  return {
+    id: portalAgentId || (agent.source === 'intake' && agent.id.startsWith('intake-') ? agent.id.replace('intake-', '') : agent.id),
+    first_name: agent.first_name,
+    last_name: agent.last_name,
+    email: agent.email || '',
+    phone: agent.phone || '',
+    form_type: (agent.form_type || 'field') as PortalAgent['form_type'],
+    agency: 'FYM' as PortalAgent['agency'],
+    security_code: '',
+    status: (agent.intake_status || 'completed') as PortalAgent['status'],
+    date_sent: '',
+    date_completed: null,
+    expiration_date: '',
+    form_url: '',
+    crm_onboarded: agent.crm_onboarded,
+    terminated_at: null,
+    created_at: agent.added_at || '',
+    updated_at: '',
+  };
+}
+
 function AgentDirectoryDetailModal({
   agent,
   onClose,
+  onRefresh,
 }: {
   agent: FymAgent;
   onClose: () => void;
+  onRefresh: () => void;
 }) {
   const portal = usePortalEnrichment(agent);
+  const [showCrmOnboard, setShowCrmOnboard] = useState(false);
+  const [showTerminate, setShowTerminate] = useState(false);
+
+  // Can CRM onboard: has a portal agent ID, not already onboarded, not terminated
+  const canCrmOnboard = !agent.crm_onboarded && !portal.loading && portal.portalAgentId !== null && agent.intake_status !== 'terminated';
+  // Can terminate: has a portal agent ID, not already terminated
+  const canTerminate = !portal.loading && portal.portalAgentId !== null && agent.intake_status !== 'terminated';
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -1461,7 +1497,27 @@ function AgentDirectoryDetailModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 bg-secondary/50 rounded-b-xl flex justify-end">
+        <div className="px-6 py-4 bg-secondary/50 rounded-b-xl flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {canCrmOnboard && (
+              <button
+                onClick={() => setShowCrmOnboard(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-cyan-600 rounded-md hover:bg-cyan-700 transition-colors"
+              >
+                <Users className="w-4 h-4" />
+                CRM Onboard
+              </button>
+            )}
+            {canTerminate && (
+              <button
+                onClick={() => setShowTerminate(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-red-400 bg-red-500/10 border border-red-500/20 rounded-md hover:bg-red-500/20 transition-colors"
+              >
+                <AlertTriangle className="w-4 h-4" />
+                Terminate
+              </button>
+            )}
+          </div>
           <button
             onClick={onClose}
             className="px-4 py-2 text-sm font-medium text-foreground/80 bg-card border border-border rounded-md hover:bg-secondary transition-colors"
@@ -1470,6 +1526,51 @@ function AgentDirectoryDetailModal({
           </button>
         </div>
       </div>
+
+      {/* CRM Onboarding Modal */}
+      {showCrmOnboard && (
+        <CrmOnboardingModal
+          agent={toPortalAgent(agent, portal.portalAgentId)}
+          submission={portal.intakeForm ? {
+            id: '',
+            agent_id: portal.portalAgentId || '',
+            date_of_birth: portal.intakeForm.date_of_birth || '',
+            address: portal.intakeForm.address || '',
+            city: portal.intakeForm.city || '',
+            state: portal.intakeForm.state || '',
+            postal_code: portal.intakeForm.postal_code || '',
+            ssn: '',
+            resident_license_number: portal.intakeForm.resident_license_number || '',
+            npn: portal.intakeForm.npn || '',
+            resident_state: portal.intakeForm.resident_state || '',
+            ctm_acknowledgment: null,
+            agent_type: portal.intakeForm.agent_type || null,
+            gender: null,
+            release_needed: portal.intakeForm.release_needed || '',
+            state_licenses: portal.intakeForm.state_licenses || [],
+            submitted_at: portal.intakeForm.submitted_at || '',
+          } as PortalIntakeRecord : null}
+          onClose={() => setShowCrmOnboard(false)}
+          onComplete={() => {
+            setShowCrmOnboard(false);
+            onRefresh();
+            onClose();
+          }}
+        />
+      )}
+
+      {/* Terminate Modal */}
+      {showTerminate && (
+        <TerminateAgentModal
+          agent={toPortalAgent(agent, portal.portalAgentId)}
+          onClose={() => setShowTerminate(false)}
+          onComplete={() => {
+            setShowTerminate(false);
+            onRefresh();
+            onClose();
+          }}
+        />
+      )}
     </div>
   );
 }
