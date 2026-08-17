@@ -617,13 +617,32 @@ async function handleSync(
     `[sync] ${transitionsToInsert.length} total transitions built, ${newTransitions.length} genuinely new (${transitionsToInsert.length - newTransitions.length} skipped as existing)`
   );
 
-  // ── 3. BATCH UPSERT leads ─────────────────────────────────────────────
-  console.log(`[sync] Upserting ${leadsToUpsert.length} leads...`);
+  // ── 3. BATCH UPSERT leads (deduped by ghl_contact_id) ─────────────────
+  // A contact can appear in leadsToUpsert multiple times — once from the
+  // recruiting sub loop and again from each contracting/RTS stage they're in.
+  // Postgres rejects "ON CONFLICT DO UPDATE cannot affect row a second time"
+  // when the same conflict key appears twice in one batch. Dedup here: last
+  // entry wins (it has the highest stage).
+  const dedupedLeads = new Map<string, Record<string, unknown>>();
+  for (const lead of leadsToUpsert) {
+    const key = lead.ghl_contact_id as string;
+    const existing = dedupedLeads.get(key);
+    if (existing) {
+      // Merge: keep non-null fields from both, newer entry wins for stage
+      for (const [k, v] of Object.entries(lead)) {
+        if (v != null) existing[k] = v;
+      }
+    } else {
+      dedupedLeads.set(key, { ...lead });
+    }
+  }
+  const uniqueLeads = [...dedupedLeads.values()];
+  console.log(`[sync] Upserting ${uniqueLeads.length} leads (deduped from ${leadsToUpsert.length})...`);
   const BATCH = 200;
   let leadsUpserted = 0;
 
-  for (let i = 0; i < leadsToUpsert.length; i += BATCH) {
-    const batch = leadsToUpsert.slice(i, i + BATCH);
+  for (let i = 0; i < uniqueLeads.length; i += BATCH) {
+    const batch = uniqueLeads.slice(i, i + BATCH);
     const { error } = await appDb
       .from("recruiting_leads")
       .upsert(batch, { onConflict: "ghl_contact_id", ignoreDuplicates: false });
