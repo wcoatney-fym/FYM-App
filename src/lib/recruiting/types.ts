@@ -208,7 +208,8 @@ export interface RecruitingKpis {
   totalSpend: number;
   totalLeads: number;
   cpl: number;
-  cpa: number;
+  cpa: number;           // RTS CPA (totalSpend / rts)
+  productionCpa: number;  // Production CPA (totalSpend / producing)
   contactRate: number;
   closeRatio: number;
   placedPolicies: number;

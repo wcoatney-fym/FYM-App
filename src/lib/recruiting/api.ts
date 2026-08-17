@@ -277,7 +277,7 @@ export async function fetchCampaigns(): Promise<Campaign[]> {
 }
 
 const EMPTY_KPIS: RecruitingKpis = {
-  totalSpend: 0, totalLeads: 0, cpl: 0, cpa: 0,
+  totalSpend: 0, totalLeads: 0, cpl: 0, cpa: 0, productionCpa: 0,
   contactRate: 0, closeRatio: 0, placedPolicies: 0, activeAdSets: 0,
   spendDelta: 0, leadsDelta: 0, cplDelta: 0, cpaDelta: 0,
   totalRecruits: 0, attendeeRate: 0, hireRate: 0, rtsRate: 0,
@@ -324,6 +324,7 @@ export async function fetchRecruitingKpis(filter?: RecruitingDateFilter): Promis
     totalLeads: pipelineLeads || totalLeads,
     cpl: (pipelineLeads || totalLeads) > 0 ? totalSpend / (pipelineLeads || totalLeads) : 0,
     cpa: rts > 0 ? totalSpend / rts : 0,
+    productionCpa: producing > 0 ? totalSpend / producing : 0,
     contactRate: pipelineLeads > 0 ? attendees / pipelineLeads : 0,
     closeRatio: attendees > 0 ? hired / attendees : 0,
     placedPolicies: producing,
