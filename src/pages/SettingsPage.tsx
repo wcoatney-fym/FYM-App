@@ -29,6 +29,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useViewAsStore } from '@/store/view-as-store';
 import type { UserRole } from '@/contexts/AuthContext';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Eye, ShieldPlus, Trash2, UserPlus, CheckCircle2, AlertCircle, Users, Settings, KeyRound, Copy, RefreshCw, Search, Zap, Eye as EyeIcon, EyeOff } from 'lucide-react';
 import { CoachingThresholdsCard } from '@/components/settings/CoachingThresholdsCard';
 
@@ -87,88 +88,103 @@ export function SettingsPage() {
         <p className="text-sm text-muted-foreground mb-6">
           Manage connections, admin access, and impersonation controls.
         </p>
-        <StaggerContainer className="space-y-6">
-        {isFymAdmin && (
-          <StaggerItem><Card className="border-border">
-            <CardHeader>
-              <CardTitle className="text-base font-semibold text-foreground">Supabase Connection</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="sb-url" className="text-sm font-medium text-foreground/80">
-                  Supabase URL
-                </Label>
-                <Input
-                  id="sb-url"
-                  placeholder="https://your-project.supabase.co"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  className="bg-card font-mono text-sm"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="sb-key" className="text-sm font-medium text-foreground/80">
-                  Anon Key
-                </Label>
-                <Input
-                  id="sb-key"
-                  type="password"
-                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..."
-                  value={key}
-                  onChange={(e) => setKey(e.target.value)}
-                  className="bg-card font-mono text-sm"
-                />
-              </div>
-              <div className="flex items-center gap-3 pt-2">
-                <Button onClick={handleSave} className="bg-primary hover:bg-primary/80">
-                  Save Connection
-                </Button>
-                {saved && (
-                  <span className="text-sm text-emerald-400 font-medium animate-in fade-in">
-                    Saved successfully
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Credentials are stored in localStorage. They override .env values when set.
-              </p>
-              {(url || key) && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    localStorage.removeItem('fym_supabase_url');
-                    localStorage.removeItem('fym_supabase_anon_key');
-                    setUrl('');
-                    setKey('');
-                    setSaved(false);
-                  }}
-                  className="text-muted-foreground hover:text-red-400 hover:bg-red-500/10 h-7 px-2 text-xs"
-                >
-                  Clear overrides &amp; use .env defaults
-                </Button>
-              )}
-            </CardContent>
-          </Card></StaggerItem>
-        )}
 
-        {isFymAdmin && <StaggerItem><FymAdminManagementCard currentUserId={user?.id ?? null} /></StaggerItem>}
-        {isFymAdmin && <StaggerItem><AgencyCredentialsCard /></StaggerItem>}
-        {isFymAdmin && <StaggerItem><CoachingThresholdsCard /></StaggerItem>}
-        {isFymAdmin && <StaggerItem><ViewAsCard /></StaggerItem>}
+        {isFymAdmin ? (
+          <Tabs defaultValue="general" className="w-full">
+            <TabsList className="mb-6">
+              <TabsTrigger value="general" className="gap-1.5">
+                <Settings size={14} />
+                General
+              </TabsTrigger>
+              <TabsTrigger value="agency-access" className="gap-1.5">
+                <KeyRound size={14} />
+                Agency Access
+              </TabsTrigger>
+            </TabsList>
 
-        {!isFymAdmin && (
-          <StaggerItem>
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="w-12 h-12 rounded-xl bg-muted/30 flex items-center justify-center mb-4">
-                <Settings size={24} className="text-muted-foreground/50" />
-              </div>
-              <p className="text-sm font-medium text-foreground/70">No settings available for your role</p>
-              <p className="text-xs text-muted-foreground mt-1">Contact an FYM admin if you need access changes.</p>
+            <TabsContent value="general">
+              <StaggerContainer className="space-y-6">
+                <StaggerItem><Card className="border-border">
+                  <CardHeader>
+                    <CardTitle className="text-base font-semibold text-foreground">Supabase Connection</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="sb-url" className="text-sm font-medium text-foreground/80">
+                        Supabase URL
+                      </Label>
+                      <Input
+                        id="sb-url"
+                        placeholder="https://your-project.supabase.co"
+                        value={url}
+                        onChange={(e) => setUrl(e.target.value)}
+                        className="bg-card font-mono text-sm"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="sb-key" className="text-sm font-medium text-foreground/80">
+                        Anon Key
+                      </Label>
+                      <Input
+                        id="sb-key"
+                        type="password"
+                        placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+                        value={key}
+                        onChange={(e) => setKey(e.target.value)}
+                        className="bg-card font-mono text-sm"
+                      />
+                    </div>
+                    <div className="flex items-center gap-3 pt-2">
+                      <Button onClick={handleSave} className="bg-primary hover:bg-primary/80">
+                        Save Connection
+                      </Button>
+                      {saved && (
+                        <span className="text-sm text-emerald-400 font-medium animate-in fade-in">
+                          Saved successfully
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Credentials are stored in localStorage. They override .env values when set.
+                    </p>
+                    {(url || key) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          localStorage.removeItem('fym_supabase_url');
+                          localStorage.removeItem('fym_supabase_anon_key');
+                          setUrl('');
+                          setKey('');
+                          setSaved(false);
+                        }}
+                        className="text-muted-foreground hover:text-red-400 hover:bg-red-500/10 h-7 px-2 text-xs"
+                      >
+                        Clear overrides &amp; use .env defaults
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card></StaggerItem>
+
+                <StaggerItem><FymAdminManagementCard currentUserId={user?.id ?? null} /></StaggerItem>
+                <StaggerItem><CoachingThresholdsCard /></StaggerItem>
+                <StaggerItem><ViewAsCard /></StaggerItem>
+              </StaggerContainer>
+            </TabsContent>
+
+            <TabsContent value="agency-access">
+              <AgencyCredentialsCard />
+            </TabsContent>
+          </Tabs>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="w-12 h-12 rounded-xl bg-muted/30 flex items-center justify-center mb-4">
+              <Settings size={24} className="text-muted-foreground/50" />
             </div>
-          </StaggerItem>
+            <p className="text-sm font-medium text-foreground/70">No settings available for your role</p>
+            <p className="text-xs text-muted-foreground mt-1">Contact an FYM admin if you need access changes.</p>
+          </div>
         )}
-        </StaggerContainer>
       </div>
     </div>
   );
