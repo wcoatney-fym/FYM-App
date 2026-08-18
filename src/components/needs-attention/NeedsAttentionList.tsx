@@ -469,9 +469,9 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
 
       {/* Policy list */}
       {loading ? (
-        <div className="space-y-3">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="h-20 rounded-xl shimmer" />
+        <div className="space-y-1">
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+            <div key={i} className="h-12 rounded-lg shimmer" />
           ))}
         </div>
       ) : filtered.length === 0 ? (
@@ -485,16 +485,29 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
           </p>
         </Card>
       ) : (
-        <div className="space-y-2">
-          {visiblePolicies.map((policy) => (
-            <AttentionCard
-              key={policy.policy_number}
-              policy={policy}
-              showAgent={showAgent}
-              onActionChange={handleActionChange}
-              notes={notesMap.get(policy.policy_number)}
-            />
-          ))}
+        <Card className="overflow-hidden">
+          {/* Column header */}
+          <div className="flex items-center gap-0 px-0 py-2 border-b border-border bg-muted/30">
+            <div className="w-1 flex-shrink-0" />
+            <div className="w-[60px] flex-shrink-0 text-center pl-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Day</div>
+            <div className="w-[80px] flex-shrink-0 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Flag</div>
+            <div className="flex-1 min-w-0 px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Client</div>
+            <div className="w-[90px] flex-shrink-0 text-right pr-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Premium</div>
+            <div className="w-[260px] flex-shrink-0 pr-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground text-center">Actions</div>
+          </div>
+
+          {/* Rows */}
+          <div>
+            {visiblePolicies.map((policy) => (
+              <AttentionCard
+                key={policy.policy_number}
+                policy={policy}
+                showAgent={showAgent}
+                onActionChange={handleActionChange}
+                notes={notesMap.get(policy.policy_number)}
+              />
+            ))}
+          </div>
 
           {/* Load more */}
           {hasMore && (
@@ -502,7 +515,6 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
               onClick={() => {
                 const nextCount = visibleCount + PAGE_SIZE;
                 setVisibleCount(nextCount);
-                // Batch-fetch notes for the next page of policies
                 const nextPage = filtered.slice(visibleCount, nextCount).map((p) => p.policy_number);
                 if (nextPage.length > 0) {
                   fetchNotesForPolicies(nextPage).then((newNotes) => {
@@ -514,12 +526,12 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
                   });
                 }
               }}
-              className="w-full py-3 text-sm font-semibold text-muted-foreground hover:text-foreground border border-border rounded-xl hover:bg-muted transition-colors"
+              className="w-full py-3 text-sm font-semibold text-muted-foreground hover:text-foreground border-t border-border hover:bg-muted transition-colors"
             >
               Show more ({filtered.length - visibleCount} remaining)
             </button>
           )}
-        </div>
+        </Card>
       )}
     </div>
   );
