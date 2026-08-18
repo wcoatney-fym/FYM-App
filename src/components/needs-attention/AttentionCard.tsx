@@ -1,11 +1,12 @@
 /**
- * AttentionCard — Individual at-risk policy card with tri-state action buttons.
+ * AttentionCard — Compact at-risk policy row with urgency color bar and tri-state actions.
  *
- * Displays urgency-ranked policy info with Got it / Working / Done buttons.
- * Action state is persisted to `atrisk_tasks` in the FYM App DB.
+ * Redesigned from bloated cards to dense, scannable table rows.
+ * Urgency is conveyed via a left color bar (red → amber → muted) instead of
+ * repeated banners. Actions are inline pill buttons. Premium is prominent.
  */
 import { useState, useEffect } from 'react';
-import { Zap, AlertTriangle, PauseCircle, MessageSquarePlus } from 'lucide-react';
+import { MessageSquarePlus, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ManagerNoteComposer } from '@/components/notes/ManagerNoteComposer';
 import { NoteDisplay } from '@/components/notes/NoteDisplay';
@@ -29,7 +30,6 @@ export interface AttentionPolicy {
   draft_count: number;
   agent_writing_number: string | null;
   agency_id: string;
-  /** Current action state from atrisk_tasks */
   action_state: ActionState;
 }
 
@@ -37,21 +37,16 @@ interface AttentionCardProps {
   policy: AttentionPolicy;
   showAgent?: boolean;
   onActionChange: (policyNumber: string, state: ActionState) => void;
-  /** Pre-loaded notes for this policy (optional — fetches own if not provided) */
   notes?: ManagerNote[];
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-function urgencyLevel(daysIdle: number): 'final7' | 'critical' | 'warning' | 'watch' {
-  if (daysIdle >= 38) return 'final7';
+function urgencyLevel(daysIdle: number): 'final' | 'critical' | 'warning' | 'watch' {
+  if (daysIdle >= 38) return 'final';
   if (daysIdle >= 30) return 'critical';
   if (daysIdle >= 14) return 'warning';
   return 'watch';
-}
-
-function daysRemaining(daysIdle: number): number {
-  return Math.max(0, 45 - daysIdle);
 }
 
 function flagLabel(flagType: string | null): string {
@@ -65,13 +60,26 @@ function flagLabel(flagType: string | null): string {
   }
 }
 
-function flagIcon(flagType: string | null) {
-  switch (flagType?.toLowerCase()) {
-    case 'future_term': return AlertTriangle;
-    case 'pended': return PauseCircle;
-    default: return AlertTriangle;
-  }
-}
+const urgencyBarColor = {
+  final: 'bg-red-500',
+  critical: 'bg-red-500/70',
+  warning: 'bg-amber-500',
+  watch: 'bg-blue-500/50',
+} as const;
+
+const urgencyDayColor = {
+  final: 'text-red-400',
+  critical: 'text-red-400/80',
+  warning: 'text-amber-400',
+  watch: 'text-muted-foreground',
+} as const;
+
+const urgencyBgHover = {
+  final: 'hover:bg-red-500/[0.03]',
+  critical: 'hover:bg-red-500/[0.02]',
+  warning: 'hover:bg-amber-500/[0.02]',
+  watch: 'hover:bg-muted/30',
+} as const;
 
 // ── Component ──────────────────────────────────────────────────────────────
 
@@ -79,13 +87,12 @@ export function AttentionCard({ policy, showAgent = false, onActionChange, notes
   const [localState, setLocalState] = useState<ActionState>(policy.action_state);
   const { isAgent } = useEffectiveAuth();
   const [noteOpen, setNoteOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [notes, setNotes] = useState<ManagerNote[]>(externalNotes ?? []);
   const urgency = urgencyLevel(policy.days_idle);
-  const remaining = daysRemaining(policy.days_idle);
-  const isFinal7 = urgency === 'final7';
-  const FlagIcon = flagIcon(policy.flag_type);
+  const daysLeft = Math.max(0, 45 - policy.days_idle);
+  const annualPremium = policy.plan_premium * 12;
 
-  // Load notes for this policy if not provided externally
   useEffect(() => {
     if (externalNotes) { setNotes(externalNotes); return; }
     fetchNotesForPolicy(policy.policy_number).then(setNotes);
@@ -98,134 +105,130 @@ export function AttentionCard({ policy, showAgent = false, onActionChange, notes
   };
 
   return (
-    <div
-      className={cn(
-        'rounded-xl border bg-card transition-colors',
-        isFinal7 && 'border-l-[3px] border-l-red-500 border-red-500/30',
-        urgency === 'critical' && 'border-l-[3px] border-l-red-500/60',
-        urgency === 'warning' && 'border-l-[3px] border-l-amber-500/60',
-        urgency === 'watch' && 'border-border',
-      )}
-    >
-      {/* Final 7 days banner */}
-      {isFinal7 && (
-        <div className="px-4 py-1.5 flex items-center gap-2 bg-red-500/10 border-b border-red-500/20 rounded-t-xl">
-          <Zap size={12} className="text-red-400" />
-          <span className="text-[10.5px] font-bold uppercase tracking-wider text-red-400">
-            Final {remaining} days of grace · highest urgency
-          </span>
-        </div>
-      )}
+    <div className={cn(
+      'group border-b border-border/40 transition-colors',
+      urgencyBgHover[urgency],
+    )}>
+      {/* Main row */}
+      <div className="flex items-center gap-0 py-2.5 px-0">
+        {/* Urgency color bar */}
+        <div className={cn('w-1 self-stretch rounded-full flex-shrink-0', urgencyBarColor[urgency])} />
 
-      <div className="p-4 flex items-center gap-4">
-        {/* Flag info */}
-        <div className="w-[100px] flex-shrink-0">
-          <span className={cn(
-            'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold',
-            urgency === 'final7' || urgency === 'critical'
-              ? 'bg-red-500/10 text-red-400'
-              : 'bg-amber-500/10 text-amber-400',
-          )}>
-            <FlagIcon size={10} />
-            {flagLabel(policy.flag_type)}
-          </span>
-          <div className={cn(
-            'text-[10.5px] font-bold font-mono mt-1',
-            urgency === 'final7' || urgency === 'critical' ? 'text-red-400' : 'text-amber-400',
-          )}>
-            Day {policy.days_idle}/45
+        {/* Days counter */}
+        <div className={cn(
+          'w-[60px] flex-shrink-0 text-center pl-3',
+          urgencyDayColor[urgency],
+        )}>
+          <div className="text-sm font-bold font-mono leading-tight">
+            {policy.days_idle >= 45 ? '45+' : policy.days_idle}
+          </div>
+          <div className="text-[9px] uppercase tracking-wider font-semibold opacity-70">
+            {daysLeft === 0 ? 'past due' : `${daysLeft}d left`}
           </div>
         </div>
 
-        {/* Client & policy info */}
-        <div className="flex-1 min-w-0">
+        {/* Flag pill */}
+        <div className="w-[80px] flex-shrink-0 px-1">
+          <span className={cn(
+            'inline-block px-2 py-0.5 rounded text-[10px] font-semibold leading-tight',
+            urgency === 'final' || urgency === 'critical'
+              ? 'bg-red-500/10 text-red-400'
+              : urgency === 'warning'
+                ? 'bg-amber-500/10 text-amber-400'
+                : 'bg-muted text-muted-foreground',
+          )}>
+            {flagLabel(policy.flag_type)}
+          </span>
+        </div>
+
+        {/* Client name + meta */}
+        <div className="flex-1 min-w-0 px-2">
           <div className="flex items-center gap-2">
-            <span className="font-bold text-sm text-foreground truncate">
+            <span className="font-semibold text-[13px] text-foreground truncate">
               {policy.client_name || 'Unknown'}
             </span>
-            {localState !== 'none' && (
-              <span className={cn(
-                'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold',
-                localState === 'got_it' && 'bg-muted text-muted-foreground',
-                localState === 'working' && 'bg-amber-500/10 text-amber-400',
-                localState === 'done' && 'bg-emerald-500/10 text-emerald-400',
-              )}>
-                {localState === 'got_it' ? '✓ Got it' : localState === 'working' ? 'Working' : '✓ Done'}
+            {notes.length > 0 && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">
+                {notes.length} note{notes.length > 1 ? 's' : ''}
               </span>
             )}
           </div>
-          <div className="text-[11.5px] text-muted-foreground mt-0.5">
-            <span className="font-mono font-semibold text-foreground/70">{policy.product_type}</span>
-            {' · '}
-            {policy.status}
+          <div className="text-[11px] text-muted-foreground truncate">
+            {policy.product_type}
             {showAgent && policy.agent_writing_number && (
-              <span className="text-muted-foreground"> · Agent {policy.agent_writing_number}</span>
+              <> · <span className="font-mono">{policy.agent_writing_number}</span></>
             )}
+            {' · '}{policy.status}
           </div>
         </div>
 
-        {/* Premium */}
-        <div className="text-right flex-shrink-0 w-[80px]">
-          <div className="font-bold font-mono text-sm">
-            ${Math.round(policy.plan_premium * 12).toLocaleString()}
+        {/* Premium — prominent */}
+        <div className="w-[90px] flex-shrink-0 text-right pr-3">
+          <div className={cn(
+            'font-bold font-mono text-sm',
+            urgency === 'final' ? 'text-red-400' : 'text-foreground',
+          )}>
+            ${annualPremium >= 1000
+              ? `${(annualPremium / 1000).toFixed(1)}k`
+              : Math.round(annualPremium).toLocaleString()
+            }
           </div>
-          <div className="text-[10.5px] text-muted-foreground">annual</div>
+          <div className="text-[9px] text-muted-foreground uppercase tracking-wide">annual</div>
         </div>
 
-        {/* Action buttons */}
-        <div className="flex gap-1.5 flex-shrink-0">
-          <button
-            onClick={() => handleAction('got_it')}
-            className={cn(
-              'px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all',
-              localState === 'got_it'
-                ? 'bg-slate-600 text-white border-slate-600'
-                : 'border-border bg-card text-muted-foreground hover:bg-muted',
-            )}
-          >
-            {localState === 'got_it' ? '✓ Got it' : 'Got it'}
-          </button>
-          <button
-            onClick={() => handleAction('working')}
-            className={cn(
-              'px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all',
-              localState === 'working'
-                ? 'bg-amber-500 text-white border-amber-500'
-                : 'border-border bg-card text-muted-foreground hover:bg-muted',
-            )}
-          >
-            Working
-          </button>
-          <button
-            onClick={() => handleAction('done')}
-            className={cn(
-              'px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all',
-              localState === 'done'
-                ? 'bg-emerald-500 text-white border-emerald-500'
-                : 'border-border bg-card text-muted-foreground hover:bg-muted',
-            )}
-          >
-            Done
-          </button>
+        {/* Action pills — compact inline */}
+        <div className="flex items-center gap-1 flex-shrink-0 pr-2">
+          {(['got_it', 'working', 'done'] as const).map((action) => {
+            const isActive = localState === action;
+            const labels = { got_it: 'Got it', working: 'Working', done: 'Done' };
+            const activeColors = {
+              got_it: 'bg-slate-600 text-white border-slate-600',
+              working: 'bg-amber-500 text-white border-amber-500',
+              done: 'bg-emerald-500 text-white border-emerald-500',
+            };
+            return (
+              <button
+                key={action}
+                onClick={() => handleAction(action)}
+                className={cn(
+                  'px-2.5 py-1 rounded-md border text-[11px] font-semibold transition-all leading-tight',
+                  isActive
+                    ? activeColors[action]
+                    : 'border-border/60 bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground',
+                )}
+              >
+                {isActive && action !== 'working' ? '✓ ' : ''}{labels[action]}
+              </button>
+            );
+          })}
+
+          {/* Note + expand */}
+          {!isAgent && (
+            <button
+              onClick={() => setNoteOpen(true)}
+              className="p-1 rounded-md text-muted-foreground hover:text-primary hover:bg-muted transition-colors"
+              title="Add note"
+            >
+              <MessageSquarePlus size={13} />
+            </button>
+          )}
+
+          {notes.length > 0 && (
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              title={expanded ? 'Collapse notes' : 'Expand notes'}
+            >
+              {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            </button>
+          )}
         </div>
-
-        {/* Note button (managers/admins only) */}
-        {!isAgent && (
-          <button
-            onClick={() => setNoteOpen(true)}
-            className="p-1.5 rounded-lg border border-border bg-card text-muted-foreground hover:bg-muted hover:text-primary transition-colors flex-shrink-0"
-            title="Add manager note"
-          >
-            <MessageSquarePlus size={14} />
-          </button>
-        )}
-
       </div>
 
-      {/* Inline notes display */}
-      {notes.length > 0 && (
-        <div className="border-t border-border/30">
-          {notes.slice(0, 2).map(note => (
+      {/* Expandable notes section */}
+      {expanded && notes.length > 0 && (
+        <div className="ml-[61px] mr-4 pb-2 border-l-2 border-border/20 pl-4">
+          {notes.map(note => (
             <NoteDisplay
               key={note.id}
               note={note}
@@ -233,11 +236,6 @@ export function AttentionCard({ policy, showAgent = false, onActionChange, notes
               onAcknowledged={() => fetchNotesForPolicy(policy.policy_number).then(setNotes)}
             />
           ))}
-          {notes.length > 2 && (
-            <div className="px-4 py-1 text-[10px] text-muted-foreground">
-              +{notes.length - 2} more notes
-            </div>
-          )}
         </div>
       )}
 

@@ -21,7 +21,7 @@ type WorkboardView = 'cards' | 'pipeline';
 
 export function ManagerWorkboardPage() {
   const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
-  const [view, setView] = useState<WorkboardView>('cards');
+  const [view, setView] = useState<WorkboardView>('pipeline');
 
   return (
     <div>
