@@ -202,6 +202,28 @@ export async function fetchProductMix(params?: {
   return res.data;
 }
 
+// ── Monthly overlay: submitted (app_recvd_date) vs issued (issue_date) ──
+
+export interface MonthlyOverlayRow {
+  month: string;
+  submitted_policies: number;
+  submitted_ap: number;
+  issued_policies: number;
+  issued_ap: number;
+}
+
+export async function fetchMonthlyOverlay(params?: {
+  agency_id?: string;
+  start_date?: string;
+  end_date?: string;
+}): Promise<MonthlyOverlayRow[]> {
+  const res = await callEdgeFunction<ProdDataResponse<MonthlyOverlayRow[]>>(
+    'prod-data',
+    { type: 'monthly_overlay', ...params }
+  );
+  return res.data;
+}
+
 // ── book-of-business types ─────────────────────────────────────────────
 
 export interface PolicyRow {
