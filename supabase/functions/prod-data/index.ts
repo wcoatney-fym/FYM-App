@@ -295,6 +295,9 @@ Deno.serve(async (req) => {
     const dailyMap = new Map<string, Map<string, { policies: number; annual_premium: number }>>();
     const monthlyMap = new Map<string, Map<string, { policies: number; annual_premium: number }>>();
     const productMixMap = new Map<string, Map<string, number>>();
+    // Overlay: submitted (app_recvd_date) vs issued (issue_date) per month
+    const overlaySubmittedMap = new Map<string, { policies: number; annual_premium: number }>();
+    const overlayIssuedMap = new Map<string, { policies: number; annual_premium: number }>();
 
     const now = new Date();
     const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -308,6 +311,7 @@ Deno.serve(async (req) => {
           TRIM(plan_code) AS plan_code,
           TRIM(cntrct_code) AS cntrct_code,
           app_recvd_date,
+          issue_date,
           paid_to_date,
           term_date,
           annual_premium,
@@ -342,6 +346,9 @@ Deno.serve(async (req) => {
 
         const appRecvdDate = row.app_recvd_date
           ? new Date(row.app_recvd_date as string).toISOString().split("T")[0]
+          : null;
+        const issueDate = row.issue_date
+          ? new Date(row.issue_date as string).toISOString().split("T")[0]
           : null;
         const paidToDate = row.paid_to_date
           ? new Date(row.paid_to_date as string).toISOString().split("T")[0]
@@ -390,7 +397,7 @@ Deno.serve(async (req) => {
           : null;
 
         // ── Agency accumulation ──
-        if (type === "agency" || type === "daily" || type === "monthly" || type === "product_mix") {
+        if (type === "agency" || type === "daily" || type === "monthly" || type === "monthly_overlay" || type === "product_mix") {
           // FYM house production has blank ga_name — hardcode it
           const rawGaName = agencyId === '202JVV00' ? 'FYM' : ((row.ga_name as string | null)?.trim() || null);
 
@@ -509,6 +516,23 @@ Deno.serve(async (req) => {
           mm.set(appRecvdDateMonth, existing);
         }
 
+        // ── Monthly overlay accumulation (submitted vs issued) ──
+        if (type === "monthly_overlay") {
+          if (appRecvdDateMonth) {
+            const existing = overlaySubmittedMap.get(appRecvdDateMonth) || { policies: 0, annual_premium: 0 };
+            existing.policies++;
+            existing.annual_premium += annualPremium;
+            overlaySubmittedMap.set(appRecvdDateMonth, existing);
+          }
+          const issueDateMonth = issueDate ? issueDate.slice(0, 7) : null;
+          if (issueDateMonth) {
+            const existing = overlayIssuedMap.get(issueDateMonth) || { policies: 0, annual_premium: 0 };
+            existing.policies++;
+            existing.annual_premium += annualPremium;
+            overlayIssuedMap.set(issueDateMonth, existing);
+          }
+        }
+
         // ── Product mix ──
         if (type === "product_mix" && status === "active") {
           if (!productMixMap.has(agencyId)) productMixMap.set(agencyId, new Map());
@@ -563,6 +587,31 @@ Deno.serve(async (req) => {
           }
         }
         result = monthlyRows;
+        break;
+      }
+      case "monthly_overlay": {
+        // Merge submitted + issued into a single array keyed by month
+        const allMonths = new Set([...overlaySubmittedMap.keys(), ...overlayIssuedMap.keys()]);
+        const overlayRows: Array<{
+          month: string;
+          submitted_policies: number;
+          submitted_ap: number;
+          issued_policies: number;
+          issued_ap: number;
+        }> = [];
+        for (const month of allMonths) {
+          const sub = overlaySubmittedMap.get(month);
+          const iss = overlayIssuedMap.get(month);
+          overlayRows.push({
+            month,
+            submitted_policies: sub?.policies ?? 0,
+            submitted_ap: Math.round((sub?.annual_premium ?? 0) * 100) / 100,
+            issued_policies: iss?.policies ?? 0,
+            issued_ap: Math.round((iss?.annual_premium ?? 0) * 100) / 100,
+          });
+        }
+        overlayRows.sort((a, b) => a.month.localeCompare(b.month));
+        result = overlayRows;
         break;
       }
       case "product_mix": {
