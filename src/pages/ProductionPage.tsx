@@ -13,7 +13,9 @@ import {
   fetchAgencyProduction,
   fetchAgentProduction,
   fetchDailyProduction,
+  fetchMonthlyOverlay,
   type AgentProduction,
+  type MonthlyOverlayRow,
 } from '@/lib/prod-api';
 import {
   filterDailyByRange,
@@ -85,6 +87,9 @@ export function ProductionPage() {
   const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
   const orgData = useOrgData();
 
+  // Monthly overlay: submitted (app_recvd_date) vs issued (issue_date)
+  const [overlayData, setOverlayData] = useState<MonthlyOverlayRow[]>([]);
+
   // Local state for date-filtered data (only when user picks a custom date range)
   const [localAgencies, setLocalAgencies] = useState<AgencyRow[]>([]);
   const [localMonthly, setLocalMonthly] = useState<RawMonthlyRow[]>([]);
@@ -105,6 +110,18 @@ export function ProductionPage() {
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
 
   const useRpc = datePreset !== 'allTime';
+
+  // Fetch monthly overlay data (submitted vs issued) — runs once on mount + when agency filter changes
+  useEffect(() => {
+    let cancelled = false;
+    const params: Record<string, string> = {};
+    if (filterAgencyId) params.agency_id = filterAgencyId;
+    else if (!isOrgWide && effectiveAgencyWritingNumber) params.agency_id = effectiveAgencyWritingNumber;
+    fetchMonthlyOverlay(params)
+      .then(data => { if (!cancelled) setOverlayData(data); })
+      .catch(err => { console.error('Monthly overlay fetch error:', err); });
+    return () => { cancelled = true; };
+  }, [filterAgencyId, isOrgWide, effectiveAgencyWritingNumber]);
 
   // Build agency name lookup from retention data (ga_name from Max's DB) + local agencies table
   const agencyNameMap = useMemo(() => {
@@ -351,6 +368,20 @@ export function ProductionPage() {
       .sort((a, b) => a.bucket.localeCompare(b.bucket))
       .slice(-12);
   }, [dailyRows, rawMonthly, granularity, filterAgencyId, filterAgentId]);
+
+  // Overlay chart data: transform MonthlyOverlayRow[] into chart-ready format
+  const overlayChartData = useMemo(() => {
+    return overlayData
+      .slice(-12)
+      .map(row => ({
+        bucket: row.month,
+        label: fmtMonth(row.month),
+        submitted: row.submitted_policies,
+        issued: row.issued_policies,
+        submitted_ap: row.submitted_ap,
+        issued_ap: row.issued_ap,
+      }));
+  }, [overlayData]);
 
   const displayStats = useMemo((): OrgStats | null => {
     if (!stats) return null;
@@ -798,6 +829,72 @@ export function ProductionPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* ── Submitted vs Issued Overlay Chart ── */}
+        {overlayData.length > 0 && (
+          <Card className="border-border">
+            <CardHeader>
+              <div>
+                <CardTitle className="text-base text-foreground">Apps Submitted vs Policies Issued</CardTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">Monthly · Bars = issued (by issue date) · Line = submitted (by app received date)</p>
+              </div>
+            </CardHeader>
+            <CardContent className="pb-2">
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={overlayChartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 33% 17%)" />
+                    <XAxis
+                      dataKey="label"
+                      stroke="hsl(215 20% 55%)"
+                      fontSize={11}
+                      interval={overlayChartData.length > 12 ? 1 : 0}
+                      angle={overlayChartData.length > 10 ? -45 : 0}
+                      textAnchor={overlayChartData.length > 10 ? 'end' : 'middle'}
+                      height={overlayChartData.length > 10 ? 50 : 30}
+                    />
+                    <YAxis
+                      stroke="hsl(215 20% 55%)"
+                      fontSize={11}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        borderRadius: '8px',
+                        border: '1px solid hsl(217 33% 20%)',
+                        background: 'hsl(222 47% 9%)',
+                        color: 'hsl(210 40% 98%)',
+                        fontSize: 12,
+                      }}
+                      formatter={(value: number, name: string) => [
+                        fmtNum(value),
+                        name === 'issued' ? 'Issued (by issue date)' : 'Submitted (by app received date)',
+                      ]}
+                      labelFormatter={(label: string) => label}
+                    />
+                    <Legend
+                      formatter={(value: string) => value === 'issued' ? 'Policies Issued' : 'Apps Submitted'}
+                      wrapperStyle={{ color: 'hsl(215 20% 65%)' }}
+                    />
+                    <Bar
+                      dataKey="issued"
+                      fill="hsl(199 89% 48%)"
+                      fillOpacity={0.4}
+                      stroke="hsl(199 89% 48%)"
+                      radius={[3, 3, 0, 0]}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="submitted"
+                      stroke="hsl(38 92% 50%)"
+                      strokeWidth={2.5}
+                      dot={{ r: 3, fill: 'hsl(38 92% 50%)' }}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* ── Book Quality Section (migrated from Financials) ── */}
         {isOrgWide && (
