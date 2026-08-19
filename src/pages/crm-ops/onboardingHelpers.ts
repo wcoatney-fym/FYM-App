@@ -177,6 +177,53 @@ export async function handleUndoStep(
   }
 }
 
+/**
+ * Backfill the CRM number into all roster rows for an agency.
+ * Called when Step 2 (Phone & Subaccount Setup) is confirmed and
+ * a CRM number exists — ensures every roster row has the current value.
+ */
+export async function backfillRosterCrmNumber(agencyName: string, crmNumber: string) {
+  if (!crmNumber.trim()) return;
+
+  const { data: uploads } = await supabase
+    .from('crm_roster_uploads')
+    .select('id')
+    .eq('agency', agencyName)
+    .order('uploaded_at', { ascending: false })
+    .limit(1);
+
+  if (!uploads || uploads.length === 0) return;
+
+  const { data: rows } = await supabase
+    .from('crm_roster')
+    .select('id, row_data')
+    .eq('upload_id', uploads[0].id);
+
+  if (!rows || rows.length === 0) return;
+
+  const BATCH_SIZE = 50;
+  const rowsToUpdate = rows.filter(
+    (r) => (r.row_data as Record<string, string>)['All Templates | Agent CRM #'] !== crmNumber.trim()
+  );
+
+  for (let i = 0; i < rowsToUpdate.length; i += BATCH_SIZE) {
+    const batch = rowsToUpdate.slice(i, i + BATCH_SIZE);
+    await Promise.all(
+      batch.map((row) =>
+        supabase
+          .from('crm_roster')
+          .update({
+            row_data: {
+              ...(row.row_data as Record<string, string>),
+              'All Templates | Agent CRM #': crmNumber.trim(),
+            },
+          })
+          .eq('id', row.id)
+      )
+    );
+  }
+}
+
 export interface ZapFireResult {
   sent: number;
   failed: number;
