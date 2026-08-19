@@ -65,6 +65,8 @@ export interface FymAgent {
   ahl_writing_number: string | null;
   heartland_writing_number: string | null;
   manhattan_writing_number: string | null;
+  /** Carrier tags derived from writing numbers + LOB assignments */
+  carriers: string[];
   // Timestamp for "recently added" badge
   added_at: string | null;
 }
@@ -123,6 +125,23 @@ interface PortalAgent {
   created_at: string | null;
 }
 
+/** Derive carrier tags from roster writing number fields */
+function deriveCarriers(agent: {
+  writing_number?: string | null;
+  gtl_writing_number?: string | null;
+  ahl_writing_number?: string | null;
+  heartland_writing_number?: string | null;
+  manhattan_writing_number?: string | null;
+}): string[] {
+  const carriers: string[] = [];
+  if (agent.writing_number?.trim()) carriers.push('UNL');
+  if (agent.gtl_writing_number?.trim()) carriers.push('GTL');
+  if (agent.ahl_writing_number?.trim()) carriers.push('AHL');
+  if (agent.heartland_writing_number?.trim()) carriers.push('Heartland');
+  if (agent.manhattan_writing_number?.trim()) carriers.push('Manhattan');
+  return carriers;
+}
+
 // ── Hook ─────────────────────────────────────────────────────────────
 
 export function useFymAgentDirectory(): UseFymAgentDirectoryReturn {
@@ -164,19 +183,32 @@ export function useFymAgentDirectory(): UseFymAgentDirectoryReturn {
         const email = agent.email?.toLowerCase().trim() || '';
         const wn = agent.writing_number?.trim() || '';
 
+        /** Merge supplemental fields from a lower-priority duplicate */
+        const mergeInto = (existing: FymAgent) => {
+          // Merge prod metrics onto higher-priority source
+          if (agent.total_policies > 0 && existing.total_policies === 0) {
+            existing.total_policies = agent.total_policies;
+            existing.active_policies = agent.active_policies;
+            existing.terminated_policies = agent.terminated_policies;
+            existing.at_risk_policies = agent.at_risk_policies;
+            existing.total_annual_premium = agent.total_annual_premium;
+            existing.active_annual_premium = agent.active_annual_premium;
+          }
+          // Fill in missing NPN (intake often has it when roster doesn't)
+          if (!existing.npn && agent.npn) existing.npn = agent.npn;
+          // Merge carriers from intake LOB assignments into roster agent
+          if (agent.carriers.length > 0) {
+            for (const c of agent.carriers) {
+              if (!existing.carriers.includes(c)) existing.carriers.push(c);
+            }
+          }
+        };
+
         // Check for existing by WN (most reliable match)
         if (wn) {
           const existing = byWn.get(wn);
           if (existing) {
-            // Merge prod metrics onto higher-priority source
-            if (agent.total_policies > 0 && existing.total_policies === 0) {
-              existing.total_policies = agent.total_policies;
-              existing.active_policies = agent.active_policies;
-              existing.terminated_policies = agent.terminated_policies;
-              existing.at_risk_policies = agent.at_risk_policies;
-              existing.total_annual_premium = agent.total_annual_premium;
-              existing.active_annual_premium = agent.active_annual_premium;
-            }
+            mergeInto(existing);
             return;
           }
         }
@@ -185,15 +217,7 @@ export function useFymAgentDirectory(): UseFymAgentDirectoryReturn {
         if (email) {
           const existing = byEmail.get(email);
           if (existing) {
-            // Merge prod metrics
-            if (agent.total_policies > 0 && existing.total_policies === 0) {
-              existing.total_policies = agent.total_policies;
-              existing.active_policies = agent.active_policies;
-              existing.terminated_policies = agent.terminated_policies;
-              existing.at_risk_policies = agent.at_risk_policies;
-              existing.total_annual_premium = agent.total_annual_premium;
-              existing.active_annual_premium = agent.active_annual_premium;
-            }
+            mergeInto(existing);
             // Fill in missing WN
             if (!existing.writing_number && wn) {
               existing.writing_number = wn;
@@ -257,6 +281,13 @@ export function useFymAgentDirectory(): UseFymAgentDirectoryReturn {
             ahl_writing_number: r.ahl_writing_number || null,
             heartland_writing_number: r.heartland_writing_number || null,
             manhattan_writing_number: r.manhattan_writing_number || null,
+            carriers: deriveCarriers({
+              writing_number: r.unl_writing_number,
+              gtl_writing_number: r.gtl_writing_number,
+              ahl_writing_number: r.ahl_writing_number,
+              heartland_writing_number: r.heartland_writing_number,
+              manhattan_writing_number: r.manhattan_writing_number,
+            }),
             added_at: r.created_at || null,
           });
         }
@@ -284,7 +315,44 @@ export function useFymAgentDirectory(): UseFymAgentDirectoryReturn {
 
         intakeCount = allIntake.length;
 
+        // Batch-fetch NPN from agent_intake for agents with null NPN
+        const npnMissing = allIntake.filter(a => !a.npn).map(a => a.id);
+        const intakeNpnMap = new Map<string, string>();
+        if (npnMissing.length > 0) {
+          // Fetch in batches of 200
+          for (let i = 0; i < npnMissing.length; i += 200) {
+            const batch = npnMissing.slice(i, i + 200);
+            const { data: intakeRows } = await portalSupabase
+              .from('agent_intake')
+              .select('agent_id, npn')
+              .in('agent_id', batch);
+            for (const row of (intakeRows || [])) {
+              if (row.npn) intakeNpnMap.set(row.agent_id, row.npn);
+            }
+          }
+        }
+
+        // Batch-fetch carrier LOB assignments for all intake agents
+        const intakeIds = allIntake.map(a => a.id);
+        const lobMap = new Map<string, string[]>();
+        for (let i = 0; i < intakeIds.length; i += 200) {
+          const batch = intakeIds.slice(i, i + 200);
+          const { data: lobRows } = await portalSupabase
+            .from('agent_lob_assignments')
+            .select('agent_id, carrier')
+            .in('agent_id', batch);
+          for (const row of (lobRows || [])) {
+            if (!row.carrier) continue;
+            const existing = lobMap.get(row.agent_id) || [];
+            if (!existing.includes(row.carrier)) existing.push(row.carrier);
+            lobMap.set(row.agent_id, existing);
+          }
+        }
+
         for (const a of allIntake) {
+          const resolvedNpn = a.npn || intakeNpnMap.get(a.id) || null;
+          const intakeCarriers = lobMap.get(a.id) || [];
+
           addAgent({
             id: `intake-${a.id}`,
             writing_number: null,
@@ -293,7 +361,7 @@ export function useFymAgentDirectory(): UseFymAgentDirectoryReturn {
             full_name: [a.first_name, a.last_name].filter(Boolean).join(' ').trim() || 'Unknown',
             email: a.email || null,
             phone: a.phone || null,
-            npn: a.npn || null,
+            npn: resolvedNpn,
             source: 'intake',
             is_manager: false,
             total_policies: 0,
@@ -309,6 +377,7 @@ export function useFymAgentDirectory(): UseFymAgentDirectoryReturn {
             ahl_writing_number: null,
             heartland_writing_number: null,
             manhattan_writing_number: null,
+            carriers: intakeCarriers,
             added_at: a.created_at || null,
           });
         }
@@ -354,6 +423,7 @@ export function useFymAgentDirectory(): UseFymAgentDirectoryReturn {
             ahl_writing_number: null,
             heartland_writing_number: null,
             manhattan_writing_number: null,
+            carriers: a.writing_number ? ['UNL'] : [],
             added_at: null,
           });
         }

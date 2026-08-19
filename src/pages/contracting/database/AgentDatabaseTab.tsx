@@ -53,7 +53,7 @@ import type { PortalAgent, PortalIntakeRecord } from '@/lib/contracting/types';
 
 // ── Sorting ────────────────────────────────────────────────────────
 
-type SortKey = 'name' | 'writing_number' | 'source' | 'active' | 'at_risk' | 'total' | 'active_ap';
+type SortKey = 'name' | 'source' | 'active' | 'at_risk' | 'total' | 'active_ap';
 type SortDir = 'asc' | 'desc';
 
 interface SortState {
@@ -74,8 +74,7 @@ function compareFymAgents(a: FymAgent, b: FymAgent, sort: SortState): number {
   switch (sort.key) {
     case 'name':
       return m * a.full_name.localeCompare(b.full_name);
-    case 'writing_number':
-      return m * (a.writing_number || '').localeCompare(b.writing_number || '');
+
     case 'source':
       return m * ((SOURCE_ORDER[a.source] ?? 9) - (SOURCE_ORDER[b.source] ?? 9));
     case 'active':
@@ -129,7 +128,7 @@ export function AgentDatabaseTab() {
     setSort((prev) =>
       prev.key === key
         ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
-        : { key, dir: key === 'name' || key === 'writing_number' || key === 'source' ? 'asc' : 'desc' }
+        : { key, dir: key === 'name' || key === 'source' ? 'asc' : 'desc' }
     );
     setPage(0);
   };
@@ -162,6 +161,7 @@ export function AgentDatabaseTab() {
 
     const headerRow = [
       'Agent Name',
+      'Carriers',
       'Writing Number',
       'NPN',
       'Source',
@@ -184,6 +184,7 @@ export function AgentDatabaseTab() {
       csvRows.push(
         [
           escapeField(agent.full_name),
+          escapeField(agent.carriers.join(', ')),
           escapeField(agent.writing_number || ''),
           escapeField(agent.npn || ''),
           escapeField(
@@ -561,7 +562,9 @@ export function AgentDatabaseTab() {
             <thead className="bg-secondary/50 sticky top-0 z-10">
               <tr>
                 <SortableHeader label="Agent" sortKey="name" align="left" sort={sort} onToggle={toggleSort} />
-                <SortableHeader label="Writing #" sortKey="writing_number" align="left" sort={sort} onToggle={toggleSort} />
+                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Carriers
+                </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   NPN
                 </th>
@@ -625,9 +628,22 @@ export function AgentDatabaseTab() {
                       )}
                     </td>
 
-                    {/* Writing number */}
-                    <td className="px-4 py-3 whitespace-nowrap font-mono text-sm text-foreground/80">
-                      {agent.writing_number || '—'}
+                    {/* Carriers */}
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {agent.carriers.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {agent.carriers.map((c) => (
+                            <span
+                              key={c}
+                              className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
+                            >
+                              {c}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      )}
                     </td>
 
                     {/* NPN */}
