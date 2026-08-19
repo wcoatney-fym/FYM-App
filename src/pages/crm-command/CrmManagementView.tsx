@@ -2,6 +2,7 @@
  * CrmManagementView — The 8-tab CRM Management portal view.
  *
  * Ported 1:1 from contracting-portal/src/pages/AgencyPortal.tsx.
+ * Styled to match FYM App's dark theme design system.
  *
  * Renders inside CRM Command for:
  *   1. Agency admins whose agency is CRM-onboarded (crm_enabled=true)
@@ -18,6 +19,7 @@ import {
   Upload, Package, MessageSquareText, Headphones,
   ArrowLeft,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { usePortalAgency } from '@/hooks/usePortalAgency';
 import { AgentManagementTab } from './AgentManagementTab';
 import { CrmDashboardTab } from './CrmDashboardTab';
@@ -55,7 +57,7 @@ export function CrmManagementView({ agencyName, agencyId: _agencyId, onBack }: C
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-navy-600" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
       </div>
     );
   }
@@ -66,15 +68,15 @@ export function CrmManagementView({ agencyName, agencyId: _agencyId, onBack }: C
         {onBack && (
           <button
             onClick={onBack}
-            className="flex items-center gap-1.5 mb-6 text-sm text-steel-500 hover:text-steel-700 transition-colors"
+            className="flex items-center gap-1.5 mb-6 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to CRM Command
           </button>
         )}
         <div className="text-center">
-          <p className="text-lg font-bold text-steel-900">Agency Not Found</p>
-          <p className="text-sm text-steel-500 mt-1">Could not find CRM data for "{agencyName}"</p>
+          <p className="text-lg font-bold text-foreground">Agency Not Found</p>
+          <p className="text-sm text-muted-foreground mt-1">Could not find CRM data for "{agencyName}"</p>
         </div>
       </div>
     );
@@ -84,48 +86,49 @@ export function CrmManagementView({ agencyName, agencyId: _agencyId, onBack }: C
   const visibleTabs = TAB_ITEMS.filter(t => !hiddenTabs.includes(t.key));
 
   return (
-    <div className="flex flex-col h-full bg-white">
-      {/* Header bar — matches portal's dark navy header */}
-      <div className="flex items-center justify-between h-14 px-6 bg-navy-900">
+    <div className="flex flex-col h-full">
+      {/* Header — agency name + back button */}
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           {onBack && (
             <button
               onClick={onBack}
-              className="flex items-center gap-1.5 text-xs font-medium text-white/60 hover:text-white transition-colors"
+              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
+              <ArrowLeft className="w-4 h-4" />
             </button>
           )}
           <div>
-            <h2 className="text-sm font-bold text-white">{agency.name}</h2>
+            <h1 className="text-xl font-bold text-foreground">{agency.name}</h1>
             {allAgencies.length > 1 && (
-              <p className="text-[11px] text-white/50">{allAgencies.length} agencies</p>
+              <p className="text-xs text-muted-foreground">{allAgencies.length} agencies</p>
             )}
           </div>
         </div>
         {onBack && (
           <button
             onClick={onBack}
-            className="text-xs text-white/60 hover:text-white transition-colors"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
-            ← Back
+            ← Back to CRM Command
           </button>
         )}
       </div>
 
-      {/* Tab bar — white background with pill-style active tab */}
-      <div className="flex items-center gap-1 px-6 py-2 bg-white border-b border-steel-200 overflow-x-auto">
+      {/* Tab bar — matches FYM App's existing tab pattern */}
+      <div className="flex items-center gap-1 overflow-x-auto pb-1 mb-4 border-b border-border/40 scrollbar-thin">
         {visibleTabs.map((tab) => {
           const Icon = tab.icon;
           return (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-2 rounded-t-lg text-xs font-medium whitespace-nowrap transition-all border-b-2',
                 activeTab === tab.key
-                  ? 'bg-navy-800 text-white'
-                  : 'text-steel-600 hover:bg-steel-100 hover:text-steel-900'
-              }`}
+                  ? 'border-primary text-primary bg-primary/5'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-secondary/30'
+              )}
             >
               <Icon className="w-3.5 h-3.5" />
               {tab.label}
@@ -134,8 +137,8 @@ export function CrmManagementView({ agencyName, agencyId: _agencyId, onBack }: C
         })}
       </div>
 
-      {/* Tab content — white background to match portal */}
-      <div className="flex-1 overflow-y-auto px-6 py-5 bg-steel-50">
+      {/* Tab content */}
+      <div className="flex-1 overflow-y-auto">
         {activeTab === 'dashboard' && (
           <CrmDashboardTab agencyName={agencyName} agencyId={agency.id} agencyIds={agencyIds} agencyNames={agencyNames} />
         )}
