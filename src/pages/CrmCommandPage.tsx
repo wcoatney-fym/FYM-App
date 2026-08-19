@@ -1,10 +1,13 @@
-import { useCallback } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, ScrollText, KanbanSquare, GitBranch,
   Workflow, BarChart3, Target, Users, Headphones, Settings, Database, ShieldCheck
 } from 'lucide-react';
+import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
+import { supabase } from '@/lib/supabase';
+import { CrmManagementView } from './crm-command/CrmManagementView';
 
 // Tab components
 import { CcDashboardTab } from './crm-command/CcDashboardTab';
@@ -58,6 +61,34 @@ export function CrmCommandPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const rawTab = searchParams.get('tab') || '';
   const activeTab: CrmCommandTab = VALID_TABS.has(rawTab) ? (rawTab as CrmCommandTab) : 'dashboard';
+  const { isFymAdmin, effectiveAgencyId, isViewingAs } = useEffectiveAuth();
+
+  // Track whether to show the CRM Management view (for agency admins or FYM admin "View As")
+  const [viewAsAgency, setViewAsAgency] = useState<{ id: string; name: string } | null>(null);
+  const [agencyCrmEnabled, setAgencyCrmEnabled] = useState<boolean | null>(null);
+  const [agencyName, setAgencyName] = useState<string>('');
+
+  // For agency admins: check if their agency is CRM-enabled
+  useEffect(() => {
+    if (isFymAdmin && !isViewingAs) {
+      // FYM admin in normal mode — show admin tabs
+      setAgencyCrmEnabled(false);
+      return;
+    }
+    if (!effectiveAgencyId || !supabase) {
+      setAgencyCrmEnabled(false);
+      return;
+    }
+    supabase
+      .from('agencies')
+      .select('crm_enabled, name')
+      .eq('id', effectiveAgencyId)
+      .maybeSingle()
+      .then(({ data }) => {
+        setAgencyCrmEnabled(data?.crm_enabled ?? false);
+        setAgencyName(data?.name ?? '');
+      });
+  }, [effectiveAgencyId, isFymAdmin, isViewingAs]);
 
   const setActiveTab = useCallback((tab: CrmCommandTab) => {
     setSearchParams((prev) => {
@@ -68,6 +99,42 @@ export function CrmCommandPage() {
     }, { replace: true });
   }, [setSearchParams]);
 
+  // FYM admin clicked "View As" on a specific agency from CRM Ops
+  if (viewAsAgency) {
+    return (
+      <CrmManagementView
+        agencyName={viewAsAgency.name}
+        agencyId={viewAsAgency.id}
+        onBack={() => setViewAsAgency(null)}
+      />
+    );
+  }
+
+  // Agency admin with CRM-enabled agency → show CRM Management view
+  if (!isFymAdmin && agencyCrmEnabled && effectiveAgencyId) {
+    return (
+      <CrmManagementView
+        agencyName={agencyName}
+        agencyId={effectiveAgencyId}
+      />
+    );
+  }
+
+  // FYM admin in View As mode with CRM-enabled agency → show CRM Management view
+  if (isFymAdmin && isViewingAs && agencyCrmEnabled && effectiveAgencyId) {
+    return (
+      <CrmManagementView
+        agencyName={agencyName}
+        agencyId={effectiveAgencyId}
+        onBack={() => {
+          // View As exit is handled by the ViewAsBanner, so just show admin view
+          setAgencyCrmEnabled(false);
+        }}
+      />
+    );
+  }
+
+  // Default: FYM admin view with 13 tabs
   return (
     <div className="flex flex-col h-full">
       {/* Tab bar */}
