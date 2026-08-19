@@ -20,6 +20,7 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 import { supabase as portalSupabase } from '@/lib/crm/portal-client';
+import { AgentManagementTab } from './AgentManagementTab';
 
 // ── Tab placeholder components (will be replaced with real implementations) ──
 
@@ -142,7 +143,7 @@ export function CrmManagementView({ agencyName, agencyId, onBack, subAgencies }:
       {/* Active tab content */}
       <div className="flex-1 overflow-y-auto">
         {activeTab === 'dashboard' && <PlaceholderTab name="Dashboard" icon={LayoutDashboard} />}
-        {activeTab === 'agents' && <PlaceholderTab name="Agent Management" icon={Users} />}
+        {activeTab === 'agents' && <AgentManagementTab agencyName={agencyName} agencyId={agencyId} />}
         {activeTab === 'book-of-business' && <PlaceholderTab name="Book of Business" icon={BookOpen} />}
         {activeTab === 'new-business' && <PlaceholderTab name="New Business" icon={PlusCircle} />}
         {activeTab === 'cancellation-upload' && <PlaceholderTab name="Cancellation Upload" icon={FileUp} />}
