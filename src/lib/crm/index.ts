@@ -5,5 +5,6 @@ export { supabase, ensurePortalAuth, portalConfigured, PORTAL_URL, PORTAL_ANON_K
 export * from './types';
 export * from './helpers';
 export * from './webhooks';
+export * from './ghl-sync';
 export * from './cross-sell-helpers';
 export * from './roster-repush';

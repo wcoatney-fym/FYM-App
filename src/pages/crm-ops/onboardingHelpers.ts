@@ -9,7 +9,7 @@
 // @ts-nocheck
 import { supabase } from '@/lib/crm/portal-client';
 import type { CrmAgency } from '@/lib/crm/types';
-import { fireCrmOnboardingWebhook, warmUpCrmOnboardingWebhook } from '@/lib/crm/webhooks';
+import { fireCrmGhlSync, warmUpCrmGhlSync } from '@/lib/crm/ghl-sync';
 import { UserCheck, Phone, Upload, Database } from 'lucide-react';
 
 export const STEPS = [
@@ -241,7 +241,7 @@ export async function fireZapForAgency(
   let sent = 0;
   let failed = 0;
 
-  await warmUpCrmOnboardingWebhook();
+  await warmUpCrmGhlSync();
   await new Promise((r) => setTimeout(r, 1500));
 
   const failedRows: typeof populatedRows = [];
@@ -251,7 +251,7 @@ export async function fireZapForAgency(
     const seatNum = rd['Seat Number'] || '';
 
     // Overlay current agency data onto each row at fire time
-    const success = await fireCrmOnboardingWebhook({
+    const result = await fireCrmGhlSync({
       seatNumber: seatNum,
       agentNpn: rd['Agent NPN'] || '',
       firstName: rd['First Name'] || '',
@@ -268,9 +268,9 @@ export async function fireZapForAgency(
         ? `https://${urlPrefix}.my-agent-appt.com/r${seatNum}-youre-confirmed`
         : rd['Appt Booked Confirmation Page'] || '',
       calendarEmbedCode: calendarEmbed || rd['Calendar Embed Code'] || '',
-    });
+    }, 'onboard');
 
-    if (success) {
+    if (result.success) {
       sent++;
     } else {
       failed++;
@@ -287,7 +287,7 @@ export async function fireZapForAgency(
       const rd = row.row_data as Record<string, string>;
       const seatNum = rd['Seat Number'] || '';
 
-      const success = await fireCrmOnboardingWebhook({
+      const result = await fireCrmGhlSync({
         seatNumber: seatNum,
         agentNpn: rd['Agent NPN'] || '',
         firstName: rd['First Name'] || '',
@@ -304,9 +304,9 @@ export async function fireZapForAgency(
           ? `https://${urlPrefix}.my-agent-appt.com/r${seatNum}-youre-confirmed`
           : rd['Appt Booked Confirmation Page'] || '',
         calendarEmbedCode: calendarEmbed || rd['Calendar Embed Code'] || '',
-      });
+      }, 'onboard');
 
-      if (success) {
+      if (result.success) {
         sent++;
         failed--;
         onProgress?.({ sent, total, failed });

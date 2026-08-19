@@ -7,7 +7,7 @@
  */
 import { useState } from 'react';
 import { portalSupabase } from '@/lib/portal-supabase';
-import { fireCrmOnboardingWebhook } from '@/lib/contracting/webhooks';
+import { fireCrmGhlSync } from '@/lib/crm/ghl-sync';
 import type { PortalAgent, PortalIntakeRecord } from '@/lib/contracting/types';
 
 const MALE_PROFILE_IMAGE =
@@ -160,7 +160,7 @@ export function CrmOnboardingModal({
         .maybeSingle();
 
       if (!zapCheck?.zaps_paused) {
-        const webhookSuccess = await fireCrmOnboardingWebhook({
+        const syncResult = await fireCrmGhlSync({
           seatNumber,
           agentNpn: submission?.npn || '',
           firstName: agent.first_name,
@@ -170,11 +170,11 @@ export function CrmOnboardingModal({
           profileImage,
           crmNumber,
           agency,
-        });
+        }, 'onboard');
 
-        if (!webhookSuccess) {
+        if (!syncResult.success) {
           setError(
-            'Seat assigned but webhook failed. Please contact support.'
+            'Seat assigned but GHL sync failed. Please contact support.'
           );
         }
       }
