@@ -350,6 +350,11 @@ table tbody tr:hover {
   background-color: hsl(217 33% 10%);
 }
 
+/* Spinner animation for CheckinMorePage */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* Dialog/sheet overlays */
 [data-radix-overlay] {
   background-color: hsl(222 47% 4% / 0.8) !important;

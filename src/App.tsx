@@ -38,6 +38,7 @@ import { ProductionGroupPage } from '@/pages/groups/ProductionGroupPage';
 import { QualityGroupPage } from '@/pages/groups/QualityGroupPage';
 import { RecruitingGroupPage, RecruitingDashboardTab, RecruitingLeadsTab, RecruitingAnalyticsTab } from '@/pages/recruiting';
 import { DailyPulsePage } from '@/pages/DailyPulsePage';
+import { CheckinMorePage } from '@/pages/CheckinMorePage';
 import { Toaster } from 'sonner';
 import { LifeOnly } from '@/pages/forms/LifeOnly';
 import { Field as FieldForm } from '@/pages/forms/Field';
@@ -68,6 +69,7 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/activate/:slug" element={<ActivationPage />} />
+          <Route path="/checkin/more" element={<CheckinMorePage />} />
 
           {/* Protected — AppLayout enforces auth */}
           <Route element={<AppLayout />}>
