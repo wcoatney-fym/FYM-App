@@ -32,6 +32,7 @@ import {
   ChevronDown,
   RotateCcw,
   Eye,
+  EyeOff,
   Undo2,
   X,
   Phone,
@@ -45,7 +46,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/crm/portal-client';
 import { fireCrossSellConfirmWebhook } from '@/lib/crm/webhooks';
-import type { CrmAgency, CrmTemplate } from '@/lib/crm/types';
+import type { CrmAgency, CrmTemplate, AgencyGhlConfig } from '@/lib/crm/types';
 import { parseCSV } from '@/lib/crm/csv-parser';
 import { ConfirmationModal } from './ConfirmationModal';
 import { STEPS, getStepIndex, getStepState, escapeField, padRosterTo200, handleUndoStep, fireZapForAgency } from './onboardingHelpers';
@@ -724,12 +725,6 @@ const CsrStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agenc
 const SETUP_TASKS = [
   { key: 'setup_subaccount' as const, label: 'Set up subaccount' },
   { key: 'setup_snapshot' as const, label: 'Push snapshot' },
-  { key: 'setup_ghl_api' as const, label: 'Add GHL API' },
-  {
-    key: 'setup_zapier' as const,
-    label: 'Wire up Zapier',
-    link: 'https://zapier.com/editor/00000000-0000-c000-8000-000357476597/published',
-  },
 ] as const;
 
 const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ agency, onRefresh }) => {
@@ -746,12 +741,39 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
   const [businessLogoUrl, setBusinessLogoUrl] = useState(agency.business_logo_url || '');
   const [logoUnavailable, setLogoUnavailable] = useState(false);
 
+  // GHL API inline credentials state
+  const [ghlConfig, setGhlConfig] = useState<AgencyGhlConfig | null>(null);
+  const [ghlApiKey, setGhlApiKey] = useState('');
+  const [ghlLocationId, setGhlLocationId] = useState('');
+  const [showGhlKey, setShowGhlKey] = useState(false);
+  const [ghlLoading, setGhlLoading] = useState(true);
+
+  // Load GHL config on mount
+  useEffect(() => {
+    const loadGhlConfig = async () => {
+      const { data } = await supabase
+        .from('agency_ghl_configs')
+        .select('*')
+        .eq('agency_id', agency.id)
+        .maybeSingle();
+      if (data) {
+        setGhlConfig(data);
+        setGhlApiKey(data.ghl_api_key || '');
+        setGhlLocationId(data.ghl_location_id || '');
+      }
+      setGhlLoading(false);
+    };
+    loadGhlConfig();
+  }, [agency.id]);
+
+  const ghlConfigSaved = !!(ghlConfig?.ghl_api_key?.trim() && ghlConfig?.ghl_location_id?.trim());
+
   const phoneSaved = !!agency.agency_phone?.trim();
   const calendarUrlSaved = !!agency.calendar_embed_code?.trim() && !!agency.agency_url_prefix?.trim();
   // Logo URL is optional (some agencies have no hosted logo). Business details are
   // considered saved once the business name is persisted.
   const businessDetailsSaved = !!agency.business_name?.trim();
-  const allSetupDone = agency.setup_subaccount && agency.setup_snapshot && agency.setup_ghl_api && agency.setup_zapier;
+  const allSetupDone = agency.setup_subaccount && agency.setup_snapshot && ghlConfigSaved;
   const crossSellReady = phoneSaved && calendarUrlSaved;
   const canComplete = phoneValue.trim().length > 0 && allSetupDone && crossSellConfirmed && calendarUrlSaved && businessDetailsSaved;
 
@@ -770,12 +792,50 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
     setSaving(null);
   };
 
-  const handleToggle = async (key: 'setup_subaccount' | 'setup_snapshot' | 'setup_ghl_api' | 'setup_zapier') => {
+  const handleToggle = async (key: 'setup_subaccount' | 'setup_snapshot') => {
     setSaving(key);
     const newValue = !agency[key];
     await supabase
       .from('hierarchy_agencies')
       .update({ [key]: newValue, updated_at: new Date().toISOString() })
+      .eq('id', agency.id);
+    await onRefresh();
+    setSaving(null);
+  };
+
+  const handleSaveGhlCredentials = async () => {
+    if (!ghlApiKey.trim() || !ghlLocationId.trim()) return;
+    setSaving('ghl_api');
+    const now = new Date().toISOString();
+    if (ghlConfig) {
+      const { data } = await supabase
+        .from('agency_ghl_configs')
+        .update({
+          ghl_api_key: ghlApiKey.trim(),
+          ghl_location_id: ghlLocationId.trim(),
+          updated_at: now,
+        })
+        .eq('id', ghlConfig.id)
+        .select()
+        .maybeSingle();
+      if (data) setGhlConfig(data);
+    } else {
+      const { data } = await supabase
+        .from('agency_ghl_configs')
+        .insert({
+          agency_id: agency.id,
+          ghl_api_key: ghlApiKey.trim(),
+          ghl_location_id: ghlLocationId.trim(),
+          connection_status: 'disconnected',
+        })
+        .select()
+        .maybeSingle();
+      if (data) setGhlConfig(data);
+    }
+    // Also mark the legacy flag so helpers stay consistent
+    await supabase
+      .from('hierarchy_agencies')
+      .update({ setup_ghl_api: true, updated_at: now })
       .eq('id', agency.id);
     await onRefresh();
     setSaving(null);
@@ -908,20 +968,83 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
                     <span className={`text-sm font-medium flex-1 ${checked ? 'text-emerald-400 line-through' : 'text-foreground/80'}`}>
                       {task.label}
                     </span>
-                    {'link' in task && (
-                      <a
-                        href={task.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="text-xs font-medium text-primary hover:underline"
-                      >
-                        Open Zapier
-                      </a>
-                    )}
                   </label>
                 );
               })}
+
+              {/* GHL API Credentials — inline form, auto-completes when saved */}
+              <div
+                className={`rounded-lg border transition-all ${
+                  ghlConfigSaved
+                    ? 'bg-emerald-500/10 border-emerald-500/20'
+                    : 'bg-muted border-border'
+                }`}
+              >
+                <div className="flex items-center gap-3 p-3">
+                  <div className={`w-4.5 h-4.5 rounded flex items-center justify-center ${
+                    ghlConfigSaved ? 'bg-primary text-white' : 'border border-border'
+                  }`}>
+                    {ghlConfigSaved && <CheckCircle2 className="w-3.5 h-3.5" />}
+                  </div>
+                  <span className={`text-sm font-medium flex-1 ${ghlConfigSaved ? 'text-emerald-400 line-through' : 'text-foreground/80'}`}>
+                    Add GHL API
+                  </span>
+                  {ghlConfigSaved && ghlConfig?.connection_status === 'connected' && (
+                    <span className="flex items-center gap-1 text-xs text-emerald-400 font-medium">
+                      <CheckCircle2 className="w-3 h-3" />
+                      Connected
+                    </span>
+                  )}
+                </div>
+                {!ghlLoading && (
+                  <div className="px-4 pb-4 space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">API Key</label>
+                      <div className="relative">
+                        <input
+                          type={showGhlKey ? 'text' : 'password'}
+                          value={ghlApiKey}
+                          onChange={(e) => setGhlApiKey(e.target.value)}
+                          placeholder="Enter GHL API key"
+                          className="w-full px-3 py-2 pr-9 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm font-mono bg-card"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowGhlKey(!showGhlKey)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          {showGhlKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-muted-foreground mb-1">Location ID</label>
+                      <input
+                        type="text"
+                        value={ghlLocationId}
+                        onChange={(e) => setGhlLocationId(e.target.value)}
+                        placeholder="Enter GHL Location ID"
+                        className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm font-mono bg-card"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleSaveGhlCredentials}
+                        disabled={saving === 'ghl_api' || !ghlApiKey.trim() || !ghlLocationId.trim()}
+                        className="px-3 py-1.5 text-xs font-medium text-primary bg-cyan-500/10 border border-primary/20 rounded-lg hover:bg-blue-500/10 transition-colors disabled:opacity-50"
+                      >
+                        {saving === 'ghl_api' ? 'Saving...' : ghlConfigSaved ? 'Update Credentials' : 'Save Credentials'}
+                      </button>
+                      {ghlConfigSaved && saving !== 'ghl_api' && (
+                        <span className="flex items-center gap-1 text-xs text-emerald-400 font-medium">
+                          <CheckCircle2 className="w-3 h-3" />
+                          Saved
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
