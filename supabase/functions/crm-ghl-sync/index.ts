@@ -120,8 +120,10 @@ interface PushResult {
   agent: string;
   seatNumber: string;
   customValuesPushed: boolean;
+  customValuesUpdated: number;
   userCreated: boolean;
   sunfirePushed: boolean;
+  sunfireValuesUpdated: number;
   errors: string[];
 }
 
@@ -225,10 +227,11 @@ function getSunfireConfig(agencyName: string): GhlConfig | null {
 /** Build the custom value key-value pairs for a given agent seat */
 function buildCustomValues(agent: AgentData): Record<string, string> {
   const seat = agent.seatNumber;
-  const prefix = `Agent # ${seat} | `;
+  // GHL naming convention: "Agent #99 | Field" (no space between # and number)
+  const prefix = `Agent #${seat} | `;
 
   return {
-    [`${prefix}CRM Number`]: agent.crmNumber || "",
+    [`${prefix}CRM #`]: agent.crmNumber || "",
     [`${prefix}First Name`]: agent.firstName || "",
     [`${prefix}Full Name`]: `${agent.firstName} ${agent.lastName}`.trim(),
     [`${prefix}Mobile #`]: agent.phone || "",
@@ -242,52 +245,101 @@ function buildCustomValues(agent: AgentData): Record<string, string> {
   };
 }
 
-/** Push custom values to a GHL location */
+/** Fetch all custom values for a location and build a name→id lookup */
+async function getCustomValueIds(
+  config: GhlConfig,
+): Promise<Map<string, string>> {
+  const res = await fetch(
+    `${GHL_BASE}/locations/${config.locationId}/customValues`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${config.apiKey}`,
+        Version: GHL_API_VERSION,
+        Accept: "application/json",
+      },
+    },
+  );
+  if (!res.ok) return new Map();
+  const data = await res.json();
+  const lookup = new Map<string, string>();
+  for (const cv of data.customValues || []) {
+    lookup.set(cv.name, cv.id);
+  }
+  return lookup;
+}
+
+/** Push custom values to a GHL location (individual PUT per custom value) */
 async function pushCustomValuesToLocation(
   config: GhlConfig,
   customValues: Record<string, string>,
   locationLabel: string,
-): Promise<{ success: boolean; errors: string[] }> {
+): Promise<{ success: boolean; updated: number; errors: string[] }> {
   const errors: string[] = [];
+  let updated = 0;
 
-  // GHL Custom Values API: PUT /locations/{locationId}/customValues
-  // Body: { customValues: [{ key: "fieldName", value: "fieldValue" }] }
-  const cvPayload = Object.entries(customValues).map(([key, value]) => ({
-    key,
-    value,
-  }));
-
+  // 1. Get name→id lookup for all custom values in this location
+  let cvLookup: Map<string, string>;
   try {
-    const res = await fetch(
-      `${GHL_BASE}/locations/${config.locationId}/customValues`,
-      {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${config.apiKey}`,
-          "Content-Type": "application/json",
-          Version: GHL_API_VERSION,
-          Accept: "application/json",
-        },
-        body: JSON.stringify({ customValues: cvPayload }),
-      },
-    );
-
-    if (!res.ok) {
-      const errText = await res.text();
-      errors.push(
-        `Custom values push to ${locationLabel} failed: ${res.status} — ${errText.slice(0, 200)}`,
-      );
-      return { success: false, errors };
-    }
-
-    return { success: true, errors };
+    cvLookup = await getCustomValueIds(config);
   } catch (err) {
     errors.push(
-      `Custom values push to ${locationLabel} error: ${err instanceof Error ? err.message : String(err)}`,
+      `Failed to fetch custom values from ${locationLabel}: ${err instanceof Error ? err.message : String(err)}`,
     );
-    return { success: false, errors };
+    return { success: false, updated: 0, errors };
   }
+
+  if (cvLookup.size === 0) {
+    errors.push(`No custom values found in ${locationLabel} — cannot update`);
+    return { success: false, updated: 0, errors };
+  }
+
+  // 2. Update each custom value individually by ID
+  for (const [name, value] of Object.entries(customValues)) {
+    const cvId = cvLookup.get(name);
+    if (!cvId) {
+      errors.push(`Custom value "${name}" not found in ${locationLabel} — skipped`);
+      continue;
+    }
+
+    try {
+      const res = await fetch(
+        `${GHL_BASE}/locations/${config.locationId}/customValues/${cvId}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${config.apiKey}`,
+            "Content-Type": "application/json",
+            Version: GHL_API_VERSION,
+            Accept: "application/json",
+          },
+          body: JSON.stringify({ name, value }),
+        },
+      );
+
+      if (!res.ok) {
+        const errText = await res.text();
+        errors.push(
+          `Update "${name}" in ${locationLabel} failed: ${res.status} — ${errText.slice(0, 200)}`,
+        );
+      } else {
+        updated++;
+      }
+    } catch (err) {
+      errors.push(
+        `Update "${name}" in ${locationLabel} error: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
+    // Brief pause between updates to respect rate limits
+    await new Promise((r) => setTimeout(r, 50));
+  }
+
+  return { success: updated > 0, updated, errors };
 }
+
+// GHL company ID — the agency-level entity that owns all subaccounts
+const GHL_COMPANY_ID = "FEDr3fIGdMoLQ5xi6o8s";
 
 /** Create a GHL user in the agency subaccount */
 async function createGhlUser(
@@ -309,12 +361,12 @@ async function createGhlUser(
         Accept: "application/json",
       },
       body: JSON.stringify({
-        companyId: locationId,
+        companyId: GHL_COMPANY_ID,
         firstName: agent.firstName,
         lastName: agent.lastName,
         email: agent.email,
         phone: agent.phone,
-        type: "user",
+        type: "account",
         role: "user",
         locationIds: [locationId],
         permissions: DEFAULT_USER_PERMISSIONS,
@@ -352,8 +404,10 @@ async function processAgent(
     agent: `${agent.firstName} ${agent.lastName}`.trim(),
     seatNumber: agent.seatNumber,
     customValuesPushed: false,
+    customValuesUpdated: 0,
     userCreated: false,
     sunfirePushed: false,
+    sunfireValuesUpdated: 0,
     errors: [],
   };
 
@@ -375,6 +429,7 @@ async function processAgent(
       `${agent.agency} subaccount`,
     );
     result.customValuesPushed = agencyPush.success;
+    result.customValuesUpdated = agencyPush.updated;
     result.errors.push(...agencyPush.errors);
 
     // 3. Dual-push to Sunfire if applicable
@@ -387,6 +442,7 @@ async function processAgent(
           "Sunfire subaccount",
         );
         result.sunfirePushed = sunfirePush.success;
+        result.sunfireValuesUpdated = sunfirePush.updated;
         result.errors.push(...sunfirePush.errors);
       } else {
         result.errors.push("Sunfire config not available — skipped dual-push");
