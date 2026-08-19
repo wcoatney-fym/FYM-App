@@ -204,7 +204,7 @@ const AGENCY_CONFIG_MAP: Record<string, { envKey: string; locationId: string }> 
   "Berith Partners LLC": { envKey: "CRM_OPS_BERITH_PARTNERS_AGENCY_API", locationId: "2zscje2WhD64VpxQvTsU" },
   "MHA (IFG)": { envKey: "CRM_OPS_MHA_IFG_AGENCY_API", locationId: "W2d8rLlhu7zchstuX3m9" },
   "MHA (YFMO)": { envKey: "CRM_OPS_MHA_YFMO_AGENCY_API", locationId: "OAd1PnliebjgodpEGuCI" },
-  "360 Insurance": { envKey: "CRM_OPS_360_INSURANCE_AGENCY_API", locationId: "Uc3AEjz4qy9D672Q4IsC" },
+  "360 Insurance Group": { envKey: "CRM_OPS_360_INSURANCE_AGENCY_API", locationId: "Uc3AEjz4qy9D672Q4IsC" },
 };
 
 /** Get per-agency Sunfire GHL config from env vars */
