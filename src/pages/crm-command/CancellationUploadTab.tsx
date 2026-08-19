@@ -1,6 +1,7 @@
 /**
  * CancellationUploadTab — Agency-scoped cancellation roster upload + log.
- * Ported 1:1 from contracting-portal/src/pages/portal/PortalCancellationsTab.tsx
+ * Ported 1:1 from contracting-portal PortalCancellationsTab.tsx
+ * Styled for FYM App dark theme.
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
@@ -201,36 +202,36 @@ export function CancellationUploadTab({ agency, agencyIds }: CancellationUploadT
   return (
     <div className="space-y-6">
       {showRejectionBanner && (
-        <div className="flex items-start gap-3 p-5 bg-red-50 rounded-xl border border-red-200 shadow-sm">
-          <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+        <div className="flex items-start gap-3 p-5 bg-red-500/10 rounded-xl border border-red-500/20">
+          <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="text-sm font-semibold text-red-800">Cancellation Upload Rejected</p>
-            <p className="text-sm text-red-700 mt-1">{latestRejection!.rejection_reason}</p>
-            <p className="text-xs text-red-600 mt-2">File: <span className="font-medium">{latestRejection!.file_name}</span> — Please address the issue above and re-upload your corrected cancellation data.</p>
+            <p className="text-sm font-semibold text-red-300">Cancellation Upload Rejected</p>
+            <p className="text-sm text-red-400/80 mt-1">{latestRejection!.rejection_reason}</p>
+            <p className="text-xs text-red-400/60 mt-2">File: <span className="font-medium">{latestRejection!.file_name}</span> — Please address the issue above and re-upload your corrected cancellation data.</p>
           </div>
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-steel-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-5 border-b border-steel-100">
-          <h3 className="text-lg font-semibold text-steel-900">Cancellation Upload</h3>
-          <p className="text-sm text-steel-500 mt-1">Upload cancelled policy records using the required CSV format.</p>
+      <div className="glass rounded-xl overflow-hidden">
+        <div className="px-6 py-5 border-b border-border/40">
+          <h3 className="text-lg font-semibold text-foreground">Cancellation Upload</h3>
+          <p className="text-sm text-muted-foreground mt-1">Upload cancelled policy records using the required CSV format.</p>
         </div>
         <div className="px-6 py-5">
-          {loadingAgencies && <div className="text-center py-4 text-sm text-steel-500">Loading agencies...</div>}
+          {loadingAgencies && <div className="text-center py-4 text-sm text-muted-foreground">Loading agencies...</div>}
 
           {!loadingAgencies && childAgencies.length > 0 && !selectedUploadAgency && (
             <div className="mb-5">
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
-                <h4 className="text-sm font-semibold text-amber-800 mb-1">Select Agency</h4>
-                <p className="text-xs text-amber-700">Which agency is this cancellation report for?</p>
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 mb-4">
+                <h4 className="text-sm font-semibold text-amber-300 mb-1">Select Agency</h4>
+                <p className="text-xs text-amber-400/80">Which agency is this cancellation report for?</p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {childAgencies.map(a => (
                   <button key={a.id} onClick={() => setSelectedUploadAgency(a)}
-                    className="flex items-center gap-3 p-4 bg-white border border-steel-200 rounded-lg hover:border-navy-400 hover:bg-navy-50 transition-colors text-left">
-                    <Building2 className="w-5 h-5 text-steel-400 shrink-0" />
-                    <span className="text-sm font-medium text-steel-800">{a.name}</span>
+                    className="flex items-center gap-3 p-4 glass rounded-lg hover:bg-secondary/50 transition-colors text-left">
+                    <Building2 className="w-5 h-5 text-muted-foreground shrink-0" />
+                    <span className="text-sm font-medium text-foreground">{a.name}</span>
                   </button>
                 ))}
               </div>
@@ -238,23 +239,23 @@ export function CancellationUploadTab({ agency, agencyIds }: CancellationUploadT
           )}
 
           {selectedUploadAgency && childAgencies.length > 0 && (
-            <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-navy-50 border border-navy-200 rounded-lg">
-              <Building2 className="w-4 h-4 text-navy-600" />
-              <span className="text-sm font-medium text-navy-800">Uploading for: {selectedUploadAgency.name}</span>
-              <button onClick={() => { setSelectedUploadAgency(null); reset(); }} className="ml-auto text-xs text-navy-600 hover:text-navy-800 underline">Change</button>
+            <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-primary/10 border border-primary/20 rounded-lg">
+              <Building2 className="w-4 h-4 text-primary" />
+              <span className="text-sm font-medium text-primary">Uploading for: {selectedUploadAgency.name}</span>
+              <button onClick={() => { setSelectedUploadAgency(null); reset(); }} className="ml-auto text-xs text-primary/70 hover:text-primary underline">Change</button>
             </div>
           )}
 
           {selectedUploadAgency && (
-            <div className="bg-steel-50 border border-steel-200 rounded-lg p-4 mb-5">
-              <h4 className="text-sm font-semibold text-steel-800 mb-2">Upload Requirements</h4>
-              <ul className="text-sm text-steel-600 space-y-1.5 list-disc pl-5">
-                <li>File must be a <strong>.csv</strong> with these exact columns: <span className="font-mono text-xs bg-white px-1.5 py-0.5 rounded border border-steel-200">First Name</span>, <span className="font-mono text-xs bg-white px-1.5 py-0.5 rounded border border-steel-200">Last Name</span>, <span className="font-mono text-xs bg-white px-1.5 py-0.5 rounded border border-steel-200">Phone</span>, <span className="font-mono text-xs bg-white px-1.5 py-0.5 rounded border border-steel-200">Tag</span></li>
-                <li><strong>No middle initials</strong> — First Name should contain only the first name</li>
-                <li><strong>Phone number is required</strong> on every row</li>
-                <li>Tag column must contain exactly: <span className="font-mono text-xs bg-white px-1.5 py-0.5 rounded border border-steel-200">cancelled policy | launch</span></li>
+            <div className="bg-secondary/30 border border-border/30 rounded-lg p-4 mb-5">
+              <h4 className="text-sm font-semibold text-foreground mb-2">Upload Requirements</h4>
+              <ul className="text-sm text-muted-foreground space-y-1.5 list-disc pl-5">
+                <li>File must be a <strong className="text-foreground">.csv</strong> with these exact columns: <span className="font-mono text-xs bg-secondary/50 px-1.5 py-0.5 rounded border border-border/30 text-foreground/80">First Name</span>, <span className="font-mono text-xs bg-secondary/50 px-1.5 py-0.5 rounded border border-border/30 text-foreground/80">Last Name</span>, <span className="font-mono text-xs bg-secondary/50 px-1.5 py-0.5 rounded border border-border/30 text-foreground/80">Phone</span>, <span className="font-mono text-xs bg-secondary/50 px-1.5 py-0.5 rounded border border-border/30 text-foreground/80">Tag</span></li>
+                <li><strong className="text-foreground">No middle initials</strong> — First Name should contain only the first name</li>
+                <li><strong className="text-foreground">Phone number is required</strong> on every row</li>
+                <li>Tag column must contain exactly: <span className="font-mono text-xs bg-secondary/50 px-1.5 py-0.5 rounded border border-border/30 text-foreground/80">cancelled policy | launch</span></li>
               </ul>
-              <button onClick={downloadTemplate} className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-navy-600 text-white text-sm font-medium rounded-lg hover:bg-navy-700 transition-colors">
+              <button onClick={downloadTemplate} className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/80 transition-colors">
                 <Download className="w-4 h-4" />Download Template
               </button>
             </div>
@@ -264,83 +265,83 @@ export function CancellationUploadTab({ agency, agencyIds }: CancellationUploadT
             <div onDragOver={(e) => { e.preventDefault(); setDragActive(true); }} onDragLeave={() => setDragActive(false)} onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
               className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors ${
-                dragActive ? 'border-navy-400 bg-navy-50' : 'border-steel-300 hover:border-steel-400 bg-white'
+                dragActive ? 'border-primary bg-primary/5' : 'border-border/50 hover:border-border bg-secondary/20'
               }`}>
-              <Upload className="w-10 h-10 text-steel-400 mx-auto mb-3" />
-              <p className="text-sm font-medium text-steel-700">Drag and drop your CSV file here, or click to browse</p>
-              <p className="text-xs text-steel-500 mt-1">Only .csv files accepted</p>
+              <Upload className="w-10 h-10 text-muted-foreground/50 mx-auto mb-3" />
+              <p className="text-sm font-medium text-foreground/80">Drag and drop your CSV file here, or click to browse</p>
+              <p className="text-xs text-muted-foreground mt-1">Only .csv files accepted</p>
               <input ref={fileInputRef} type="file" accept=".csv" onChange={handleFileChange} className="hidden" />
             </div>
           )}
 
           {validationErrors.length > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-5">
-              <div className="flex items-center gap-2 mb-3"><XCircle className="w-5 h-5 text-red-600" /><h4 className="text-sm font-semibold text-red-800">Upload Rejected — {validationErrors.length} issue{validationErrors.length !== 1 ? 's' : ''} found</h4></div>
-              <p className="text-xs text-red-600 mb-3">Please fix the following issues in your CSV and re-upload.</p>
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-5">
+              <div className="flex items-center gap-2 mb-3"><XCircle className="w-5 h-5 text-red-400" /><h4 className="text-sm font-semibold text-red-300">Upload Rejected — {validationErrors.length} issue{validationErrors.length !== 1 ? 's' : ''} found</h4></div>
+              <p className="text-xs text-red-400/70 mb-3">Please fix the following issues in your CSV and re-upload.</p>
               <div className="max-h-60 overflow-y-auto space-y-1.5">
                 {validationErrors.map((err, i) => (
-                  <div key={i} className="flex items-start gap-2 text-sm"><AlertTriangle className="w-3.5 h-3.5 text-red-500 mt-0.5 shrink-0" /><span className="text-red-700"><strong>Row {err.row}:</strong> {err.message}</span></div>
+                  <div key={i} className="flex items-start gap-2 text-sm"><AlertTriangle className="w-3.5 h-3.5 text-red-400 mt-0.5 shrink-0" /><span className="text-red-300/80"><strong>Row {err.row}:</strong> {err.message}</span></div>
                 ))}
               </div>
-              <button onClick={reset} className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"><RefreshCw className="w-4 h-4" />Upload Again</button>
+              <button onClick={reset} className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-red-500/20 text-red-300 text-sm font-medium rounded-lg hover:bg-red-500/30 transition-colors border border-red-500/30"><RefreshCw className="w-4 h-4" />Upload Again</button>
             </div>
           )}
 
           {parsedRows && validationErrors.length === 0 && !successMessage && (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5">
-              <div className="flex items-center gap-2 mb-3"><CheckCircle2 className="w-5 h-5 text-emerald-600" /><h4 className="text-sm font-semibold text-emerald-800">Validation Passed — {parsedRows.length} row{parsedRows.length !== 1 ? 's' : ''} ready</h4></div>
-              <div className="bg-white border border-emerald-200 rounded-lg overflow-hidden mb-4">
+            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-5">
+              <div className="flex items-center gap-2 mb-3"><CheckCircle2 className="w-5 h-5 text-emerald-400" /><h4 className="text-sm font-semibold text-emerald-300">Validation Passed — {parsedRows.length} row{parsedRows.length !== 1 ? 's' : ''} ready</h4></div>
+              <div className="bg-secondary/30 border border-border/30 rounded-lg overflow-hidden mb-4">
                 <table className="w-full text-sm">
-                  <thead><tr className="bg-emerald-50 border-b border-emerald-100"><th className="px-3 py-2 text-left text-xs font-medium text-emerald-700">#</th><th className="px-3 py-2 text-left text-xs font-medium text-emerald-700">First Name</th><th className="px-3 py-2 text-left text-xs font-medium text-emerald-700">Last Name</th><th className="px-3 py-2 text-left text-xs font-medium text-emerald-700">Phone</th><th className="px-3 py-2 text-left text-xs font-medium text-emerald-700">Tag</th></tr></thead>
+                  <thead><tr className="bg-secondary/50 border-b border-border/30"><th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">#</th><th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">First Name</th><th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Last Name</th><th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Phone</th><th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Tag</th></tr></thead>
                   <tbody>
                     {parsedRows.slice(0, 5).map((row, i) => (
-                      <tr key={i} className="border-b border-emerald-50 last:border-0"><td className="px-3 py-2 text-steel-500">{row.rowNumber}</td><td className="px-3 py-2 text-steel-800">{row.firstName}</td><td className="px-3 py-2 text-steel-800">{row.lastName}</td><td className="px-3 py-2 text-steel-800">{row.phone}</td><td className="px-3 py-2 text-steel-800 font-mono text-xs">{row.tag}</td></tr>
+                      <tr key={i} className="border-b border-border/20 last:border-0"><td className="px-3 py-2 text-muted-foreground">{row.rowNumber}</td><td className="px-3 py-2 text-foreground">{row.firstName}</td><td className="px-3 py-2 text-foreground">{row.lastName}</td><td className="px-3 py-2 text-foreground">{row.phone}</td><td className="px-3 py-2 text-foreground font-mono text-xs">{row.tag}</td></tr>
                     ))}
                   </tbody>
                 </table>
-                {parsedRows.length > 5 && <div className="px-3 py-2 text-xs text-steel-500 bg-emerald-50 border-t border-emerald-100">...and {parsedRows.length - 5} more row{parsedRows.length - 5 !== 1 ? 's' : ''}</div>}
+                {parsedRows.length > 5 && <div className="px-3 py-2 text-xs text-muted-foreground bg-secondary/30 border-t border-border/20">...and {parsedRows.length - 5} more row{parsedRows.length - 5 !== 1 ? 's' : ''}</div>}
               </div>
               <div className="flex items-center gap-3">
-                <button onClick={handleSubmit} disabled={submitting} className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50">
+                <button onClick={handleSubmit} disabled={submitting} className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-500/20 text-emerald-300 text-sm font-medium rounded-lg hover:bg-emerald-500/30 transition-colors border border-emerald-500/30 disabled:opacity-50">
                   {submitting ? <><RefreshCw className="w-4 h-4 animate-spin" />Uploading...</> : <><CheckCircle2 className="w-4 h-4" />Submit for Review</>}
                 </button>
-                <button onClick={reset} className="px-4 py-2.5 text-sm font-medium text-steel-600 hover:text-steel-800 transition-colors">Cancel</button>
+                <button onClick={reset} className="px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Cancel</button>
               </div>
             </div>
           )}
 
           {successMessage && (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 text-center">
-              <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
-              <p className="text-sm font-semibold text-emerald-800">{successMessage}</p>
-              <button onClick={reset} className="mt-3 text-sm text-emerald-700 hover:text-emerald-900 underline">Upload another file</button>
+            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-5 text-center">
+              <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto mb-2" />
+              <p className="text-sm font-semibold text-emerald-300">{successMessage}</p>
+              <button onClick={reset} className="mt-3 text-sm text-emerald-400/80 hover:text-emerald-300 underline">Upload another file</button>
             </div>
           )}
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-steel-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-steel-100"><h3 className="text-sm font-semibold text-steel-800">Upload History</h3></div>
+      <div className="glass rounded-xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-border/40"><h3 className="text-sm font-semibold text-foreground">Upload History</h3></div>
         {loadingHistory ? (
-          <div className="px-6 py-8 text-center text-sm text-steel-500">Loading...</div>
+          <div className="px-6 py-8 text-center text-sm text-muted-foreground">Loading...</div>
         ) : uploads.length === 0 ? (
-          <div className="px-6 py-8 text-center"><FileText className="w-8 h-8 text-steel-300 mx-auto mb-2" /><p className="text-sm text-steel-500">No uploads yet</p></div>
+          <div className="px-6 py-8 text-center"><FileText className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" /><p className="text-sm text-muted-foreground">No uploads yet</p></div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead><tr className="bg-steel-50 border-b border-steel-100"><th className="px-4 py-2.5 text-left text-xs font-medium text-steel-600">Date</th><th className="px-4 py-2.5 text-left text-xs font-medium text-steel-600">File</th><th className="px-4 py-2.5 text-left text-xs font-medium text-steel-600">Rows</th><th className="px-4 py-2.5 text-left text-xs font-medium text-steel-600">Status</th></tr></thead>
+              <thead><tr className="bg-secondary/30 border-b border-border/30"><th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Date</th><th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">File</th><th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Rows</th><th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Status</th></tr></thead>
               <tbody>
                 {uploads.map(u => (
                   <tr key={u.id}
-                    className={`border-b border-steel-50 last:border-0 ${u.status === 'rejected' && u.rejection_reason ? 'cursor-pointer hover:bg-red-50/50 transition-colors' : ''} ${u.status === 'rejected' ? 'border-l-2 border-l-red-300' : ''}`}
+                    className={`border-b border-border/20 last:border-0 ${u.status === 'rejected' && u.rejection_reason ? 'cursor-pointer hover:bg-red-500/5 transition-colors' : ''} ${u.status === 'rejected' ? 'border-l-2 border-l-red-500/50' : ''}`}
                     onClick={() => { if (u.status === 'rejected' && u.rejection_reason) setExpandedRejectionId(expandedRejectionId === u.id ? null : u.id); }}>
-                    <td className="px-4 py-2.5 text-steel-700 whitespace-nowrap">{new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</td>
-                    <td className="px-4 py-2.5 text-steel-800 font-medium max-w-[200px] truncate">{u.file_name}</td>
-                    <td className="px-4 py-2.5 text-steel-700">{u.row_count}</td>
+                    <td className="px-4 py-2.5 text-foreground/70 whitespace-nowrap">{new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</td>
+                    <td className="px-4 py-2.5 text-foreground font-medium max-w-[200px] truncate">{u.file_name}</td>
+                    <td className="px-4 py-2.5 text-foreground/70">{u.row_count}</td>
                     <td className="px-4 py-2.5">
-                      {u.status === 'success' ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200"><CheckCircle2 className="w-3 h-3" />Confirmed</span>
-                        : u.status === 'pending_approval' ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200"><Clock className="w-3 h-3" />Pending Review</span>
-                        : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-200"><XCircle className="w-3 h-3" />Rejected{u.rejection_reason && <span className="text-red-400 ml-1">— click for details</span>}</span>}
+                      {u.status === 'success' ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"><CheckCircle2 className="w-3 h-3" />Confirmed</span>
+                        : u.status === 'pending_approval' ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/15 text-amber-400 border border-amber-500/20"><Clock className="w-3 h-3" />Pending Review</span>
+                        : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/15 text-red-400 border border-red-500/20"><XCircle className="w-3 h-3" />Rejected{u.rejection_reason && <span className="text-red-400/50 ml-1">— click for details</span>}</span>}
                     </td>
                   </tr>
                 ))}

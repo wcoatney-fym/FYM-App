@@ -1,6 +1,7 @@
 /**
  * CsrContactTab — CSR contact card + edit form.
- * Ported 1:1 from contracting-portal/src/pages/portal/PortalCsrTab.tsx
+ * Ported 1:1 from contracting-portal PortalCsrTab.tsx
+ * Styled for FYM App dark theme.
  */
 import { useState } from 'react';
 import { Headphones as HeadphonesIcon, Phone, Mail, Shield, User, Clock, Pencil, X } from 'lucide-react';
@@ -29,19 +30,19 @@ export function CsrContactTab({ agency, onRefresh }: CsrContactTabProps) {
   if (!hasCsr && !editing) {
     return (
       <div className="max-w-lg mx-auto">
-        <div className="bg-white rounded-xl border border-steel-200 p-10 text-center">
-          <div className="w-16 h-16 rounded-full bg-steel-100 flex items-center justify-center mx-auto mb-5">
-            <HeadphonesIcon className="w-8 h-8 text-steel-400" />
+        <div className="glass rounded-xl p-10 text-center">
+          <div className="w-16 h-16 rounded-full bg-secondary/50 flex items-center justify-center mx-auto mb-5">
+            <HeadphonesIcon className="w-8 h-8 text-muted-foreground/50" />
           </div>
-          <h2 className="text-xl font-bold text-steel-900 mb-2">CSR Not Yet Assigned</h2>
-          <p className="text-sm text-steel-500 max-w-sm mx-auto">
+          <h2 className="text-xl font-bold text-foreground mb-2">CSR Not Yet Assigned</h2>
+          <p className="text-sm text-muted-foreground max-w-sm mx-auto">
             Your dedicated Customer Service Representative has not been assigned yet.
             You'll be notified once one is assigned to your agency.
           </p>
-          <div className="mt-6 pt-6 border-t border-steel-100">
-            <p className="text-xs text-steel-400">
+          <div className="mt-6 pt-6 border-t border-border/30">
+            <p className="text-xs text-muted-foreground/60">
               Need immediate help? Contact us at{' '}
-              <a href="mailto:Contracting@teamFYM.com" className="text-navy-600 hover:underline font-medium">Contracting@teamFYM.com</a>
+              <a href="mailto:Contracting@teamFYM.com" className="text-primary hover:underline font-medium">Contracting@teamFYM.com</a>
             </p>
           </div>
         </div>
@@ -59,16 +60,16 @@ export function CsrContactTab({ agency, onRefresh }: CsrContactTabProps) {
 
   return (
     <div className="max-w-lg mx-auto">
-      <div className="bg-white rounded-xl border border-steel-200 overflow-hidden shadow-sm">
-        <div className="bg-gradient-to-r from-navy-800 to-navy-600 px-6 py-6 text-center relative">
-          <button onClick={() => setEditing(true)} className="absolute top-4 right-4 p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors border border-white/20" title="Edit CSR">
-            <Pencil className="w-4 h-4 text-white" />
+      <div className="glass rounded-xl overflow-hidden">
+        <div className="bg-gradient-to-r from-primary/30 to-primary/10 px-6 py-6 text-center relative border-b border-border/30">
+          <button onClick={() => setEditing(true)} className="absolute top-4 right-4 p-2 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors border border-border/30" title="Edit CSR">
+            <Pencil className="w-4 h-4 text-foreground/70" />
           </button>
-          <div className="w-16 h-16 rounded-full bg-white/15 flex items-center justify-center mx-auto mb-3 border border-white/20">
-            <User className="w-8 h-8 text-gold-300" />
+          <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-3 border border-primary/30">
+            <User className="w-8 h-8 text-primary" />
           </div>
-          <h2 className="text-xl font-bold text-white">{fullName}</h2>
-          <p className="text-white/60 text-sm mt-0.5">Your Dedicated CSR</p>
+          <h2 className="text-xl font-bold text-foreground">{fullName}</h2>
+          <p className="text-muted-foreground/60 text-sm mt-0.5">Your Dedicated CSR</p>
         </div>
 
         <div className="p-6 space-y-4">
@@ -79,13 +80,13 @@ export function CsrContactTab({ agency, onRefresh }: CsrContactTabProps) {
         </div>
 
         {agency.csr_can_fill_seat && (
-          <div className="px-6 py-3 bg-emerald-50 border-t border-emerald-100">
-            <p className="text-xs text-emerald-700 font-medium">This CSR will temporarily fill an agent's seat if terminated</p>
+          <div className="px-6 py-3 bg-emerald-500/10 border-t border-emerald-500/20">
+            <p className="text-xs text-emerald-400 font-medium">This CSR will temporarily fill an agent's seat if terminated</p>
           </div>
         )}
 
-        <div className="px-6 py-4 bg-steel-50 border-t border-steel-100">
-          <div className="flex items-center gap-2 text-xs text-steel-400"><Clock className="w-3 h-3" /><span>Available Monday - Friday, 9am - 5pm EST</span></div>
+        <div className="px-6 py-4 bg-secondary/20 border-t border-border/30">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground/60"><Clock className="w-3 h-3" /><span>Available Monday - Friday, 9am - 5pm EST</span></div>
         </div>
       </div>
     </div>
@@ -104,7 +105,7 @@ function CsrEditForm({ agency, onRefresh, onCancel }: { agency: PortalAgency; on
 
   const isValid = firstName.trim() && lastName.trim() && phone.trim() && email.trim() && gender;
   const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
-  const inputClass = 'w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-navy-500 focus:border-transparent text-sm';
+  const inputClass = 'w-full px-4 py-2.5 bg-secondary/50 border border-border/50 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary/50 text-sm text-foreground placeholder:text-muted-foreground/50';
 
   const handleSave = async () => {
     if (!isValid) return;
@@ -121,43 +122,43 @@ function CsrEditForm({ agency, onRefresh, onCancel }: { agency: PortalAgency; on
   };
 
   return (
-    <div className="bg-white rounded-xl border border-steel-200 overflow-hidden shadow-sm">
-      <div className="flex items-center justify-between px-6 py-4 border-b border-steel-100">
-        <h3 className="font-semibold text-gray-900">Edit CSR Information</h3>
-        <button onClick={onCancel} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-500"><X className="w-5 h-5" /></button>
+    <div className="glass rounded-xl overflow-hidden">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-border/40">
+        <h3 className="font-semibold text-foreground">Edit CSR Information</h3>
+        <button onClick={onCancel} className="p-1.5 rounded-lg hover:bg-secondary/50 transition-colors text-muted-foreground"><X className="w-5 h-5" /></button>
       </div>
       <div className="p-6 space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label><input type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} className={inputClass} placeholder="First name" /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label><input type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} className={inputClass} placeholder="Last name" /></div>
+          <div><label className="block text-sm font-medium text-foreground/80 mb-1">First Name *</label><input type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} className={inputClass} placeholder="First name" /></div>
+          <div><label className="block text-sm font-medium text-foreground/80 mb-1">Last Name *</label><input type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} className={inputClass} placeholder="Last name" /></div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Phone *</label><input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className={inputClass} placeholder="(555) 123-4567" /></div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Email *</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} placeholder="csr@example.com" /></div>
+          <div><label className="block text-sm font-medium text-foreground/80 mb-1">Phone *</label><input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className={inputClass} placeholder="(555) 123-4567" /></div>
+          <div><label className="block text-sm font-medium text-foreground/80 mb-1">Email *</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} placeholder="csr@example.com" /></div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">NPN <span className="text-gray-400 font-normal">(optional)</span></label><input type="text" value={npn} onChange={(e) => { setNpn(e.target.value); if (!e.target.value.trim()) setCanFillSeat(false); }} className={inputClass} placeholder="National Producer Number" /></div>
+          <div><label className="block text-sm font-medium text-foreground/80 mb-1">NPN <span className="text-muted-foreground font-normal">(optional)</span></label><input type="text" value={npn} onChange={(e) => { setNpn(e.target.value); if (!e.target.value.trim()) setCanFillSeat(false); }} className={inputClass} placeholder="National Producer Number" /></div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Gender <span className="text-red-500">*</span></label>
+            <label className="block text-sm font-medium text-foreground/80 mb-1">Gender <span className="text-red-400">*</span></label>
             <div className="flex gap-3 mt-1">
-              <button type="button" onClick={() => setGender('Male')} className={`flex-1 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${gender === 'Male' ? 'bg-navy-600 text-white border-navy-600' : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'}`}>Male</button>
-              <button type="button" onClick={() => setGender('Female')} className={`flex-1 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${gender === 'Female' ? 'bg-navy-600 text-white border-navy-600' : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'}`}>Female</button>
+              <button type="button" onClick={() => setGender('Male')} className={`flex-1 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${gender === 'Male' ? 'bg-primary text-primary-foreground border-primary' : 'bg-secondary/30 text-foreground/70 border-border/50 hover:border-border'}`}>Male</button>
+              <button type="button" onClick={() => setGender('Female')} className={`flex-1 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${gender === 'Female' ? 'bg-primary text-primary-foreground border-primary' : 'bg-secondary/30 text-foreground/70 border-border/50 hover:border-border'}`}>Female</button>
             </div>
           </div>
         </div>
-        <div className={`flex items-start gap-3 p-4 rounded-lg border transition-colors ${npn.trim() ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-100'}`}>
+        <div className={`flex items-start gap-3 p-4 rounded-lg border transition-colors ${npn.trim() ? 'bg-secondary/20 border-border/40' : 'bg-secondary/10 border-border/20'}`}>
           <button type="button" role="switch" aria-checked={canFillSeat} disabled={!npn.trim()} onClick={() => setCanFillSeat(!canFillSeat)}
-            className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-navy-500 focus:ring-offset-2 ${!npn.trim() ? 'bg-gray-200 cursor-not-allowed' : canFillSeat ? 'bg-navy-600 cursor-pointer' : 'bg-gray-300 cursor-pointer'}`}>
-            <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow ring-0 transition-transform duration-200 ease-in-out ${canFillSeat ? 'translate-x-5' : 'translate-x-0'}`} />
+            className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background ${!npn.trim() ? 'bg-secondary/50 cursor-not-allowed' : canFillSeat ? 'bg-primary cursor-pointer' : 'bg-secondary cursor-pointer'}`}>
+            <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-foreground shadow ring-0 transition-transform duration-200 ease-in-out ${canFillSeat ? 'translate-x-5' : 'translate-x-0'}`} />
           </button>
           <div className="flex-1">
-            <p className={`text-sm font-medium ${npn.trim() ? 'text-gray-900' : 'text-gray-400'}`}>If an agent is terminated, this CSR will temporarily fill that seat</p>
-            {!npn.trim() && <p className="text-xs text-gray-400 mt-0.5">Requires NPN to enable</p>}
+            <p className={`text-sm font-medium ${npn.trim() ? 'text-foreground' : 'text-muted-foreground/50'}`}>If an agent is terminated, this CSR will temporarily fill that seat</p>
+            {!npn.trim() && <p className="text-xs text-muted-foreground/40 mt-0.5">Requires NPN to enable</p>}
           </div>
         </div>
         <div className="flex items-center gap-3 justify-end pt-2">
-          <button onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors">Cancel</button>
-          <button onClick={handleSave} disabled={saving || !isValid} className="px-5 py-2.5 text-sm font-medium text-white bg-navy-600 rounded-lg hover:bg-navy-700 transition-colors disabled:opacity-50">{saving ? 'Saving...' : 'Save Changes'}</button>
+          <button onClick={onCancel} className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Cancel</button>
+          <button onClick={handleSave} disabled={saving || !isValid} className="px-5 py-2.5 text-sm font-medium text-primary-foreground bg-primary rounded-lg hover:bg-primary/80 transition-colors disabled:opacity-50">{saving ? 'Saving...' : 'Save Changes'}</button>
         </div>
       </div>
     </div>
@@ -166,11 +167,11 @@ function CsrEditForm({ agency, onRefresh, onCancel }: { agency: PortalAgency; on
 
 function ContactRow({ icon: Icon, label, value, href }: { icon: React.FC<{ className?: string }>; label: string; value: string; href?: string }) {
   return (
-    <div className="flex items-center gap-4 p-3 rounded-lg bg-steel-50 hover:bg-steel-100 transition-colors">
-      <div className="w-10 h-10 rounded-lg bg-navy-50 flex items-center justify-center flex-shrink-0 border border-navy-100"><Icon className="w-5 h-5 text-navy-600" /></div>
+    <div className="flex items-center gap-4 p-3 rounded-lg bg-secondary/20 hover:bg-secondary/30 transition-colors">
+      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 border border-primary/20"><Icon className="w-5 h-5 text-primary" /></div>
       <div className="min-w-0 flex-1">
-        <p className="text-xs text-steel-500">{label}</p>
-        {href ? <a href={href} className="text-sm font-medium text-navy-600 hover:underline">{value}</a> : <p className="text-sm font-medium text-steel-900">{value}</p>}
+        <p className="text-xs text-muted-foreground">{label}</p>
+        {href ? <a href={href} className="text-sm font-medium text-primary hover:underline">{value}</a> : <p className="text-sm font-medium text-foreground">{value}</p>}
       </div>
     </div>
   );
