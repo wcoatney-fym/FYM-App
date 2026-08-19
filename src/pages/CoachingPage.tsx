@@ -11,6 +11,7 @@ import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated
 import { HudFrame } from '@/components/ui/hud-frame';
 import { supabase } from '@/lib/supabase';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
+import { fetchAtRiskPolicies as fetchAtRiskPoliciesEdge } from '@/lib/prod-api';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { DataFilters } from '@/components/filters/DataFilters';
 import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
@@ -53,20 +54,8 @@ interface CoachingRow {
   days_since_paid: number | null;
 }
 
-interface AtRiskBoardRow {
-  policy_number: string;
-  agency_id: string;
-  agent_id: string | null;
-  product_type: string;
-  plan_premium: number;
-  flag_type: string;
-  paid_to_date: string;
-  days_since_draft: number;
-  draft_count: number;
-  task_id: string | null;
-  task_status: string | null;
-  task_due_date: string | null;
-}
+// AtRiskBoardRow: REMOVED — was reading from dropped manager_at_risk_board view.
+// syncAtRisk() now reads from fetchAtRiskPolicies edge function.
 
 // ── Stage config ─────────────────────────────────────────────────────────
 const STAGES = [
@@ -103,34 +92,11 @@ function productBadgeClass(product: string | null) {
   return 'bg-secondary text-muted-foreground border-border';
 }
 
-const PAGE = 500;
-
-async function fetchAllPaginated<T>(
-  table: string,
-  select: string,
-  order?: { column: string; ascending?: boolean },
-  agencyFilter?: { isOrgWide: boolean; agencyId: string | null; writingNumber?: string | null; isAgent?: boolean }
-): Promise<T[]> {
-  if (!supabase) return [];
-  let all: T[] = [];
-  let offset = 0;
-  while (true) {
-    let query = (supabase as any).from(table).select(select).range(offset, offset + PAGE - 1);
-    if (order) query = query.order(order.column, { ascending: order.ascending ?? true });
-    // Agents see only their own policies (by writing number)
-    if (agencyFilter?.isAgent && agencyFilter.writingNumber) {
-      query = query.eq('agent_id', agencyFilter.writingNumber);
-    } else if (agencyFilter && !agencyFilter.isOrgWide && agencyFilter.agencyId) {
-      query = query.eq('agency_id', agencyFilter.agencyId);
-    }
-    const { data, error } = await query;
-    if (error) throw error;
-    all = [...all, ...((data || []) as T[])];
-    if (!data || data.length < PAGE) break;
-    offset += PAGE;
-  }
-  return all;
-}
+// fetchAllPaginated + coaching_pipeline: REMOVED
+// Both the coaching_pipeline view and manager_at_risk_board view were dropped
+// in migration 20260731000001_drop_policy_cache_layer.sql.
+// load() now reads atrisk_tasks directly + enriches via fetchAtRiskPolicies edge function.
+// syncAtRisk() now fetches at-risk policies from the edge function instead of the dropped view.
 
 // ── Component ──────────────────────────────────────────────────────────────
 export function CoachingPage() {
@@ -183,8 +149,62 @@ export function CoachingPage() {
     if (!supabase) { setLoading(false); return; }
     setLoading(true);
     try {
-      const data = await fetchAllPaginated<CoachingRow>('coaching_pipeline', '*', undefined, { isOrgWide, agencyId: effectiveAgencyId, writingNumber: effectiveWritingNumber, isAgent });
-      setRows(data);
+      // 1. Fetch atrisk_tasks from local Supabase (paginated)
+      const allTasks: any[] = [];
+      const TASK_PAGE = 1000;
+      let offset = 0;
+      while (true) {
+        let q = (supabase as any).from('atrisk_tasks').select('*').range(offset, offset + TASK_PAGE - 1);
+        if (isAgent && effectiveWritingNumber) {
+          q = q.eq('assigned_to', effectiveWritingNumber);
+        } else if (!isOrgWide && effectiveAgencyId) {
+          q = q.eq('agency_id', effectiveAgencyId);
+        }
+        const { data: tasks } = await q;
+        if (tasks) allTasks.push(...tasks);
+        if (!tasks || tasks.length < TASK_PAGE) break;
+        offset += TASK_PAGE;
+      }
+
+      // 2. Fetch at-risk policy data from edge function for enrichment
+      const agencyParam = (!isOrgWide && effectiveAgencyId) ? effectiveAgencyId : undefined;
+      const res = await fetchAtRiskPoliciesEdge(agencyParam ? { agency_id: agencyParam } : undefined);
+      const policyMap = new Map(res.data.policies.map(p => [p.policy_number, p]));
+
+      // 3. Merge tasks with policy data into CoachingRow shape
+      const merged: CoachingRow[] = allTasks.map(t => {
+        const pol = policyMap.get(t.policy_number);
+        return {
+          task_id: t.id,
+          policy_number: t.policy_number,
+          agency_id: t.agency_id,
+          agency_name: null,
+          stage: t.stage || 'new',
+          status: t.status || 'new',
+          priority: t.priority || 'medium',
+          assigned_to: t.assigned_to,
+          assigned_name: null,
+          notes: t.notes,
+          last_contact_date: t.last_contact_date,
+          resolution: t.resolution,
+          escalated_at: t.escalated_at,
+          flag_type: t.flag_type || pol?.flag_type || 'at_risk',
+          due_date: t.due_date,
+          created_at: t.created_at,
+          updated_at: t.updated_at,
+          product_type: pol?.product_type ?? null,
+          plan_premium: pol?.plan_premium ?? null,
+          paid_to_date: pol?.paid_to_date ?? null,
+          draft_count: pol?.draft_count ?? null,
+          policy_effective_date: pol?.policy_effective_date ?? null,
+          agent_id: pol?.agent_writing_number ?? null,
+          agent_name: null,
+          is_at_risk: pol ? true : null,
+          days_since_paid: pol?.days_idle ?? null,
+        };
+      });
+
+      setRows(merged);
     } catch (err) {
       console.error('Coaching pipeline load error:', err);
     } finally {
@@ -298,13 +318,30 @@ export function CoachingPage() {
     setSavingField(null);
   }
 
-  // ── Auto-sync from manager_at_risk_board ──
+  // ── Auto-sync from edge function (at-risk policies from Max's prod DB) ──
   async function syncAtRisk() {
     if (!supabase) return;
     setSyncing(true);
     try {
-      const board = await fetchAllPaginated<AtRiskBoardRow>('manager_at_risk_board', '*');
-      const untasked = board.filter(b => !b.task_id);
+      // Fetch at-risk policies from edge function
+      const res = await fetchAtRiskPoliciesEdge();
+      const edgePolicies = res.data.policies;
+
+      // Get existing tasks to find untasked policies
+      const existingTasks = new Set<string>();
+      const TASK_PAGE = 1000;
+      let offset = 0;
+      while (true) {
+        const { data: tasks } = await supabase
+          .from('atrisk_tasks')
+          .select('policy_number')
+          .range(offset, offset + TASK_PAGE - 1);
+        if (tasks) for (const t of tasks as any[]) existingTasks.add(t.policy_number);
+        if (!tasks || tasks.length < TASK_PAGE) break;
+        offset += TASK_PAGE;
+      }
+
+      const untasked = edgePolicies.filter(p => !existingTasks.has(p.policy_number));
 
       if (untasked.length === 0) {
         setSyncing(false);
@@ -312,14 +349,14 @@ export function CoachingPage() {
         return;
       }
 
-      const inserts = untasked.map(b => ({
-        policy_number: b.policy_number,
-        agency_id: b.agency_id,
+      const inserts = untasked.map(p => ({
+        policy_number: p.policy_number,
+        agency_id: p.agency_id,
         status: 'new',
-        flag_type: b.flag_type,
+        flag_type: p.flag_type || 'at_risk',
         due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
         stage: 'new',
-        priority: priorityFromDays(b.days_since_draft),
+        priority: priorityFromDays(p.days_idle),
       }));
 
       // Insert in chunks to stay well under request size limits

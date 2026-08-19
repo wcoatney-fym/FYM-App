@@ -22,6 +22,8 @@ import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated
 import { supabase } from '@/lib/supabase';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { ClientDetailDrawer } from '@/components/client-detail';
+import { fetchAtRiskPolicies } from '@/lib/prod-api';
+import type { AtRiskPolicy as EdgeAtRiskPolicy } from '@/lib/prod-api';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 export interface AtRiskPolicy {
@@ -112,46 +114,84 @@ export function AtRiskKanban({ filterAgencyId }: AtRiskKanbanProps) {
   const [selectedPolicy, setSelectedPolicy] = useState<AtRiskPolicy | null>(null);
 
   const fetchData = useCallback(async (isRefresh = false) => {
-    if (!supabase) return;
     isRefresh ? setRefreshing(true) : setLoading(true);
 
     try {
-      const PAGE_SIZE = 1000;
-      const allRows: AtRiskPolicy[] = [];
-      let offset = 0;
+      // 1. Fetch at-risk policies from edge function (Max's prod DB)
+      const agencyParam = filterAgencyId
+        || (!isOrgWide && effectiveAgencyId ? effectiveAgencyId : undefined);
+      const res = await fetchAtRiskPolicies(agencyParam ? { agency_id: agencyParam } : undefined);
+      const edgePolicies: EdgeAtRiskPolicy[] = res.data.policies;
 
-      while (true) {
-        let q = supabase
-          .from('manager_at_risk_board')
-          .select('*')
-          .order('days_since_draft', { ascending: false })
-          .range(offset, offset + PAGE_SIZE - 1);
-
-        // Scope by auth role
-        if (isAgent && effectiveWritingNumber) {
-          q = q.eq('writing_number', effectiveWritingNumber);
-        } else if (!isOrgWide && effectiveAgencyId) {
-          q = q.eq('agency_id', effectiveAgencyId);
+      // 2. Fetch task/stage data from local Supabase (atrisk_tasks)
+      let taskMap = new Map<string, {
+        task_id: string; stage: string; assigned_to: string | null;
+        due_date: string | null; created_at: string;
+        ghl_contact_id: string | null; ghl_opportunity_id: string | null;
+      }>();
+      if (supabase) {
+        const PAGE_SIZE = 1000;
+        let offset = 0;
+        while (true) {
+          const { data: tasks } = await supabase
+            .from('atrisk_tasks')
+            .select('id, policy_number, stage, assigned_to, due_date, created_at, ghl_contact_id, ghl_opportunity_id')
+            .range(offset, offset + PAGE_SIZE - 1);
+          if (tasks) {
+            for (const t of tasks as any[]) {
+              taskMap.set(t.policy_number, {
+                task_id: t.id,
+                stage: t.stage,
+                assigned_to: t.assigned_to,
+                due_date: t.due_date,
+                created_at: t.created_at,
+                ghl_contact_id: t.ghl_contact_id,
+                ghl_opportunity_id: t.ghl_opportunity_id,
+              });
+            }
+          }
+          if (!tasks || tasks.length < PAGE_SIZE) break;
+          offset += PAGE_SIZE;
         }
-
-        const { data, error } = await q;
-        if (error) { console.error('At-risk fetch error:', error.message); break; }
-        if (!data || data.length === 0) break;
-
-        allRows.push(...(data as unknown as AtRiskPolicy[]));
-        if (data.length < PAGE_SIZE) break;
-        offset += PAGE_SIZE;
       }
 
-      // Apply UI-level agency filter (FYM admin default)
-      let filtered = allRows;
-      if (filterAgencyId) {
-        filtered = allRows.filter(p => p.agency_id === filterAgencyId);
+      // 3. Merge edge + task data into component's AtRiskPolicy shape
+      let merged: AtRiskPolicy[] = edgePolicies.map(ep => {
+        const task = taskMap.get(ep.policy_number);
+        return {
+          policy_number: ep.policy_number,
+          client_name: ep.client_name,
+          agency_id: ep.agency_id,
+          agency_name: null,
+          agent_id: null,
+          agent_name: null,
+          writing_number: ep.agent_writing_number,
+          product_type: ep.product_type,
+          plan_premium: ep.plan_premium,
+          flag_type: ep.flag_type || 'at_risk',
+          paid_to_date: ep.paid_to_date || '',
+          policy_effective_date: ep.policy_effective_date || '',
+          draft_count: ep.draft_count,
+          is_at_risk: true,
+          days_since_draft: ep.days_idle,
+          task_id: task?.task_id ?? null,
+          task_status: (task?.stage as Stage) ?? null,
+          task_assigned_to: task?.assigned_to ?? null,
+          task_due_date: task?.due_date ?? null,
+          task_created_at: task?.created_at ?? null,
+          ghl_contact_id: task?.ghl_contact_id ?? null,
+          ghl_opportunity_id: task?.ghl_opportunity_id ?? null,
+        };
+      });
+
+      // 4. Agent-level scoping
+      if (isAgent && effectiveWritingNumber) {
+        merged = merged.filter(p => p.writing_number === effectiveWritingNumber);
       }
 
       // Sort by urgency: worst first
-      filtered.sort((a, b) => b.days_since_draft - a.days_since_draft);
-      setPolicies(filtered);
+      merged.sort((a, b) => b.days_since_draft - a.days_since_draft);
+      setPolicies(merged);
     } catch (err) {
       console.error('At-risk pipeline fetch error:', err);
     } finally {

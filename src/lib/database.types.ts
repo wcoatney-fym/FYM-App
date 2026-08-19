@@ -67,27 +67,7 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['profiles']['Insert']>;
         Relationships: [];
       };
-      policy_cache: {
-        Row: {
-          policy_number: string;
-          agent_id: string | null;
-          agency_id: string;
-          product_type: 'HI' | 'HHC' | null;
-          status: string | null;
-          plan_premium: number | null;
-          billing_mode: string | null;
-          policy_effective_date: string | null;
-          paid_to_date: string | null;
-          draft_count: number;
-          last_contact_date: string | null;
-          flag_type: FlagType;
-          is_at_risk: boolean;
-          synced_at: string;
-        };
-        Insert: Omit<Database['public']['Tables']['policy_cache']['Row'], 'synced_at'>;
-        Update: Partial<Database['public']['Tables']['policy_cache']['Insert']>;
-        Relationships: [];
-      };
+      // policy_cache: DROPPED in migration 20260731000001_drop_policy_cache_layer.sql
       atrisk_tasks: {
         Row: {
           id: string;
@@ -542,28 +522,7 @@ export interface Database {
         };
         Relationships: [];
       };
-      manager_at_risk_board: {
-        Row: {
-          policy_number: string | null;
-          agency_id: string | null;
-          agent_id: string | null;
-          product_type: string | null;
-          plan_premium: number | null;
-          flag_type: string | null;
-          paid_to_date: string | null;
-          policy_effective_date: string | null;
-          draft_count: number | null;
-          is_at_risk: boolean | null;
-          synced_at: string | null;
-          days_since_draft: number | null;
-          task_id: string | null;
-          task_status: AtRiskStatus | null;
-          task_assigned_to: string | null;
-          task_due_date: string | null;
-          task_created_at: string | null;
-        };
-        Relationships: [];
-      };
+      // manager_at_risk_board: DROPPED in migration 20260731000001_drop_policy_cache_layer.sql
       roster_agent_summary: {
         Row: {
           id: string;
@@ -592,56 +551,12 @@ export interface Database {
         };
         Relationships: [];
       };
-      coaching_pipeline: {
-        Row: {
-          task_id: string;
-          policy_number: string;
-          agency_id: string;
-          agency_name: string | null;
-          stage: string;
-          status: string;
-          priority: string;
-          assigned_to: string | null;
-          assigned_name: string | null;
-          notes: string | null;
-          last_contact_date: string | null;
-          resolution: string | null;
-          escalated_at: string | null;
-          flag_type: string;
-          due_date: string | null;
-          created_at: string;
-          updated_at: string;
-          product_type: string | null;
-          plan_premium: number | null;
-          paid_to_date: string | null;
-          draft_count: number | null;
-          policy_effective_date: string | null;
-          agent_id: string | null;
-          agent_name: string | null;
-          is_at_risk: boolean | null;
-          days_since_paid: number | null;
-        };
-        Relationships: [];
-      };
+      // coaching_pipeline: DROPPED in migration 20260731000001_drop_policy_cache_layer.sql
     };
-    Functions: {
-      filtered_agency_production: {
-        Args: { start_date: string; end_date: string };
-        Returns: Record<string, unknown>[];
-      };
-      filtered_agent_production: {
-        Args: { start_date: string; end_date: string };
-        Returns: Record<string, unknown>[];
-      };
-      filtered_monthly_production: {
-        Args: { start_date: string; end_date: string };
-        Returns: Record<string, unknown>[];
-      };
-      filtered_daily_production: {
-        Args: { start_date: string; end_date: string };
-        Returns: Record<string, unknown>[];
-      };
-    };
+    // Functions dropped in migration 20260731000001_drop_policy_cache_layer.sql:
+    // filtered_agency_production, filtered_agent_production,
+    // filtered_monthly_production, filtered_daily_production
+    Functions: Record<string, never>;
     Enums: {
       user_role: UserRole;
       atrisk_status: AtRiskStatus;
