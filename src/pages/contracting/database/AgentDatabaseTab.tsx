@@ -48,7 +48,7 @@ import { HudFrame } from '@/components/ui/hud-frame';
 import { fmt$ } from '@/lib/formatUtils';
 import { CrmOnboardingModal } from './CrmOnboardingModal';
 import { TerminateAgentModal } from './TerminateAgentModal';
-import { fireCrmOnboardingWebhook } from '@/lib/contracting/webhooks';
+import { fireCrmGhlSync } from '@/lib/crm/ghl-sync';
 import type { PortalAgent, PortalIntakeRecord } from '@/lib/contracting/types';
 
 // ── Sorting ────────────────────────────────────────────────────────
@@ -1518,7 +1518,7 @@ function CrmOnboardTableModal({
           ? `${urlPrefix}/r${seatNumber}-youre-confirmed`
           : '';
 
-        await fireCrmOnboardingWebhook({
+        await fireCrmGhlSync({
           seatNumber,
           agentNpn: agent.npn || '',
           firstName: agent.first_name,
@@ -1531,7 +1531,7 @@ function CrmOnboardTableModal({
           digitalBusinessCardUrl: digitalCardUrl,
           confirmationPageUrl: confirmUrl,
           calendarEmbedCode: calendarEmbed || agencyData?.calendar_embed_code || '',
-        });
+        }, 'onboard');
       }
 
       // If agent has a portal record, mark crm_onboarded + create pipeline entry

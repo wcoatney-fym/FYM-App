@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/crm/portal-client';
 import { parseCSV } from '@/lib/crm/csv-parser';
-import { fireCrmOnboardingWebhook } from '@/lib/crm/webhooks';
+import { fireCrmGhlSync } from '@/lib/crm/ghl-sync';
 import { pushRosterRowsToGhl } from '@/lib/crm/roster-repush';
 import { AgencyRosterCard } from '@/pages/crm-ops/AgencyRosterCard';
 import { normalizeRosterRows } from '@/lib/crm/roster-normalizer';
@@ -453,7 +453,7 @@ export const RosterTab: React.FC = () => {
 
         if (!agencyData.zaps_paused) {
           const crmNumber = terminateRow.row_data['All Templates | Agent CRM #'] || '';
-          await fireCrmOnboardingWebhook({
+          await fireCrmGhlSync({
             seatNumber: terminateRow.row_data['Seat Number'] || '',
             agentNpn: agencyData.csr_npn || '',
             firstName: agencyData.csr_first_name || '',
@@ -463,7 +463,7 @@ export const RosterTab: React.FC = () => {
             profileImage: csrProfileImage,
             crmNumber,
             agency,
-          });
+          }, 'push_custom_values');
         }
       } else {
         const clearedRowData = {
@@ -856,7 +856,7 @@ const AddAgentModal: React.FC<AddAgentModalProps> = ({ upload, onClose, onSaved 
         const seatNum = Number(seatNumber);
         const digitalCardUrl = urlPrefix ? `${urlPrefix}/r${seatNum}-click-to-schedule` : '';
         const confirmUrl = urlPrefix ? `${urlPrefix}/r${seatNum}-youre-confirmed` : '';
-        await fireCrmOnboardingWebhook({
+        await fireCrmGhlSync({
           seatNumber,
           agentNpn: form.agentNpn.trim(),
           firstName: form.firstName.trim(),
@@ -869,7 +869,7 @@ const AddAgentModal: React.FC<AddAgentModalProps> = ({ upload, onClose, onSaved 
           digitalBusinessCardUrl: digitalCardUrl,
           confirmationPageUrl: confirmUrl,
           calendarEmbedCode: calendarEmbed || agencyData?.calendar_embed_code || '',
-        });
+        }, 'onboard');
       }
 
       await onSaved();

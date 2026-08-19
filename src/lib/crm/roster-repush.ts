@@ -7,9 +7,10 @@
 // @ts-nocheck
 import { supabase } from './portal-client';
 import {
-  fireCrmOnboardingWebhook,
-  warmUpCrmOnboardingWebhook,
-} from './webhooks';
+  fireCrmGhlSync,
+  warmUpCrmGhlSync,
+  type CrmGhlSyncAgent,
+} from './ghl-sync';
 
 export type RosterRepushRow = {
   id: string;
@@ -199,7 +200,7 @@ export async function pushRosterRowsToGhl(
   }
 
   if (!options.skipWarmup) {
-    await warmUpCrmOnboardingWebhook();
+    await warmUpCrmGhlSync();
     await sleep(WARMUP_SETTLE_MS);
   }
 
@@ -208,10 +209,9 @@ export async function pushRosterRowsToGhl(
   const failedRows: RosterRepushRow[] = [];
 
   for (const row of populated) {
-    const success = await fireCrmOnboardingWebhook(
-      buildOnboardingPayload(row, agencyName)
-    );
-    if (success) {
+    const payload = buildOnboardingPayload(row, agencyName);
+    const result = await fireCrmGhlSync(payload, 'onboard');
+    if (result.success) {
       sent++;
       rowResults[row.id] = 'success';
       options.onRowResult?.(row.id, 'success');
@@ -229,10 +229,9 @@ export async function pushRosterRowsToGhl(
   if (failedRows.length > 0) {
     await sleep(RETRY_INITIAL_DELAY_MS);
     for (const row of failedRows) {
-      const success = await fireCrmOnboardingWebhook(
-        buildOnboardingPayload(row, agencyName)
-      );
-      if (success) {
+      const payload = buildOnboardingPayload(row, agencyName);
+      const result = await fireCrmGhlSync(payload, 'onboard');
+      if (result.success) {
         sent++;
         failed--;
         rowResults[row.id] = 'success';

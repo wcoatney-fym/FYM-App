@@ -7,7 +7,7 @@
  */
 import { useState } from 'react';
 import { portalSupabase } from '@/lib/portal-supabase';
-import { fireCrmOnboardingWebhook } from '@/lib/contracting/webhooks';
+import { fireCrmGhlSync } from '@/lib/crm/ghl-sync';
 import type { PortalAgent } from '@/lib/contracting/types';
 
 const MALE_PROFILE_IMAGE =
@@ -108,7 +108,7 @@ export function TerminateAgentModal({
               rowWithCrm?.row_data['All Templates | Agent CRM #'] || '';
 
             if (!agencyData.zaps_paused) {
-              await fireCrmOnboardingWebhook({
+              await fireCrmGhlSync({
                 seatNumber: matchingRow.row_data['Seat Number'] || '',
                 agentNpn: agencyData.csr_npn || '',
                 firstName: agencyData.csr_first_name || '',
@@ -118,7 +118,7 @@ export function TerminateAgentModal({
                 profileImage: csrProfileImage,
                 crmNumber,
                 agency,
-              });
+              }, 'push_custom_values');
             }
           } else {
             // Clear the seat

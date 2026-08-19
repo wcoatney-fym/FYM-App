@@ -36,7 +36,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { supabase } from '@/lib/crm/portal-client';
-import { fireCrmOnboardingWebhook } from '@/lib/crm/webhooks';
+import { fireCrmGhlSync } from '@/lib/crm/ghl-sync';
 import type { CrmTicket, CrmTicketMessage } from '@/lib/crm/types';
 
 interface TicketWithAgency extends CrmTicket {
@@ -673,7 +673,7 @@ const TicketCard: React.FC<{
     }
 
     const rd = row.row_data as Record<string, string>;
-    const success = await fireCrmOnboardingWebhook({
+    const result = await fireCrmGhlSync({
       seatNumber: rd['Seat Number'] || '',
       agentNpn: rd['Agent NPN'] || '',
       firstName: rd['First Name'] || '',
@@ -686,9 +686,9 @@ const TicketCard: React.FC<{
       digitalBusinessCardUrl: rd['Digital Business Card Home Page'] || '',
       confirmationPageUrl: rd['Appt Booked Confirmation Page'] || '',
       calendarEmbedCode: rd['Calendar Embed Code'] || '',
-    });
+    }, 'push_custom_values');
 
-    setZapResult(success ? 'success' : 'failed');
+    setZapResult(result.success ? 'success' : 'failed');
     setZapSending(false);
   };
 
