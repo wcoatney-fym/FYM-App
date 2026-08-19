@@ -22,6 +22,7 @@ export interface CrmGhlSyncAgent {
   profileImage: string;
   crmNumber: string;
   agency: string;
+  agencyId?: string;
   digitalBusinessCardUrl?: string;
   confirmationPageUrl?: string;
   calendarEmbedCode?: string;
