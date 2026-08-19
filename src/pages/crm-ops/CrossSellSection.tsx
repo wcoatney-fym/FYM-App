@@ -26,12 +26,15 @@ import { buildDynamicFields } from '@/lib/crm/cross-sell-helpers';
 
 const FIELD_KEYS = [
   'headline',
+  'hero_headline',
   'subheadline',
   'meta_title',
   'meta_description',
   'meta_image_url',
+  'cta_headline',
   'cta_text',
   'button_cta_text',
+  'learn_more_text',
   'bullet_1',
   'bullet_1_description',
   'bullet_2',
@@ -42,32 +45,52 @@ const FIELD_KEYS = [
   'bullet_4_description',
   'bullet_5',
   'bullet_5_description',
+  'benefit_1_title',
+  'benefit_1_description',
+  'benefit_2_title',
+  'benefit_2_description',
+  'benefit_3_title',
+  'benefit_3_description',
+  'benefit_4_title',
+  'benefit_4_description',
+  'benefit_5_title',
+  'benefit_5_description',
   'specialist_full_name',
   'specialist_title',
+  'specialist_intro',
   'specialist_email',
   'specialist_mobile',
   'funnel_link_step_1',
   'funnel_link_step_2',
+  'booking_url',
+  'trigger_link',
   'calendar_embed_code',
   'appointment_disclaimer',
   'confirmation_headline',
   'confirmation_subheadline',
+  'confirmation_details',
   'confirmation_next_steps',
   'system_crm_number',
   'qualification_age_requirement',
   'qualification_doctor_participation',
   'qualification_enrollment_fee',
   'qualification_income_guidelines',
+  'qualification_medication_requirement',
+  'qualification_renewal_requirement',
+  'qualification_residency',
 ] as const;
 
 const FIELD_LABELS: Record<string, string> = {
   headline: 'Headline',
+  hero_headline: 'Hero Headline',
   subheadline: 'Subheadline',
   meta_title: 'Meta Title',
   meta_description: 'Meta Description',
   meta_image_url: 'Meta Image URL',
+  cta_headline: 'CTA Headline',
   cta_text: 'CTA Text',
   button_cta_text: 'Button CTA Text',
+  learn_more_text: 'Learn More Text',
   bullet_1: 'Bullet 1',
   bullet_1_description: 'Bullet 1 Description',
   bullet_2: 'Bullet 2',
@@ -78,33 +101,51 @@ const FIELD_LABELS: Record<string, string> = {
   bullet_4_description: 'Bullet 4 Description',
   bullet_5: 'Bullet 5',
   bullet_5_description: 'Bullet 5 Description',
+  benefit_1_title: 'Benefit #1 Title',
+  benefit_1_description: 'Benefit #1 Description',
+  benefit_2_title: 'Benefit #2 Title',
+  benefit_2_description: 'Benefit #2 Description',
+  benefit_3_title: 'Benefit #3 Title',
+  benefit_3_description: 'Benefit #3 Description',
+  benefit_4_title: 'Benefit #4 Title',
+  benefit_4_description: 'Benefit #4 Description',
+  benefit_5_title: 'Benefit #5 Title',
+  benefit_5_description: 'Benefit #5 Description',
   specialist_full_name: 'Specialist Full Name',
   specialist_title: 'Specialist Title',
+  specialist_intro: 'Specialist Intro',
   specialist_email: 'Specialist Email',
   specialist_mobile: 'Specialist Mobile #',
   funnel_link_step_1: 'Funnel Link | Step 1 - Home & Awareness',
   funnel_link_step_2: 'Funnel Link | Step 2 - Appointment Booking',
+  booking_url: 'Booking URL',
+  trigger_link: 'Trigger Link',
   calendar_embed_code: 'Calendar Embed Code',
   appointment_disclaimer: 'Appointment Disclaimer',
   confirmation_headline: 'Confirmation Headline',
   confirmation_subheadline: 'Confirmation Subheadline',
+  confirmation_details: 'Confirmation Details',
   confirmation_next_steps: 'Confirmation Next Steps',
   system_crm_number: 'System CRM #',
   qualification_age_requirement: 'Qualification | Age Requirement',
   qualification_doctor_participation: 'Qualification | Doctor Participation',
   qualification_enrollment_fee: 'Qualification | Enrollment Fee',
   qualification_income_guidelines: 'Qualification | Income Guidelines',
+  qualification_medication_requirement: 'Qualification | Medication Requirement',
+  qualification_renewal_requirement: 'Qualification | Renewal Requirement',
+  qualification_residency: 'Qualification | Residency',
 };
 
 const FIELD_GROUPS = [
   { label: 'Meta / SEO', keys: ['meta_title', 'meta_description', 'meta_image_url'] },
-  { label: 'Headlines & Copy', keys: ['headline', 'subheadline', 'cta_text', 'button_cta_text'] },
+  { label: 'Headlines & Copy', keys: ['headline', 'hero_headline', 'subheadline', 'cta_headline', 'cta_text', 'button_cta_text', 'learn_more_text'] },
   { label: 'Bullets', keys: ['bullet_1', 'bullet_1_description', 'bullet_2', 'bullet_2_description', 'bullet_3', 'bullet_3_description', 'bullet_4', 'bullet_4_description', 'bullet_5', 'bullet_5_description'] },
-  { label: 'Specialist Info', keys: ['specialist_full_name', 'specialist_title', 'specialist_email', 'specialist_mobile'] },
-  { label: 'Funnel Links', keys: ['funnel_link_step_1', 'funnel_link_step_2'] },
+  { label: 'Benefits', keys: ['benefit_1_title', 'benefit_1_description', 'benefit_2_title', 'benefit_2_description', 'benefit_3_title', 'benefit_3_description', 'benefit_4_title', 'benefit_4_description', 'benefit_5_title', 'benefit_5_description'] },
+  { label: 'Specialist Info', keys: ['specialist_full_name', 'specialist_title', 'specialist_intro', 'specialist_email', 'specialist_mobile'] },
+  { label: 'Funnel Links & Triggers', keys: ['funnel_link_step_1', 'funnel_link_step_2', 'booking_url', 'trigger_link'] },
   { label: 'Calendar & Booking', keys: ['calendar_embed_code', 'appointment_disclaimer'] },
-  { label: 'Confirmation', keys: ['confirmation_headline', 'confirmation_subheadline', 'confirmation_next_steps'] },
-  { label: 'Qualification (Product 5)', keys: ['qualification_age_requirement', 'qualification_doctor_participation', 'qualification_enrollment_fee', 'qualification_income_guidelines'], productOnly: 5 },
+  { label: 'Confirmation', keys: ['confirmation_headline', 'confirmation_subheadline', 'confirmation_details', 'confirmation_next_steps'] },
+  { label: 'Qualification (Product 5)', keys: ['qualification_age_requirement', 'qualification_doctor_participation', 'qualification_enrollment_fee', 'qualification_income_guidelines', 'qualification_medication_requirement', 'qualification_renewal_requirement', 'qualification_residency'], productOnly: 5 },
   { label: 'System', keys: ['system_crm_number'] },
 ];
 
@@ -135,36 +176,54 @@ function generateAiPrompt(productName: string): string {
 
 This product is offered as a cross-sell to existing Medicare/health insurance clients (primarily seniors aged 65+). The content must be compliant with insurance marketing regulations, professional in tone, and persuasive.
 
-Please generate values for each of the following 28 fields. Provide clear, concise, and compelling content for each:
+Please generate values for each of the following fields. Provide clear, concise, and compelling content for each:
 
-1. Appointment Disclaimer - Legal disclaimer for appointment booking
-2. Bullet 1 - Key benefit headline (short)
-3. Bullet 1 Description - Expanded description of benefit 1
-4. Bullet 2 - Key benefit headline (short)
-5. Bullet 2 Description - Expanded description of benefit 2
-6. Bullet 3 - Key benefit headline (short)
-7. Bullet 3 Description - Expanded description of benefit 3
-8. Bullet 4 - Key benefit headline (short)
-9. Bullet 4 Description - Expanded description of benefit 4
-10. Bullet 5 - Key benefit headline (short)
-11. Bullet 5 Description - Expanded description of benefit 5
-12. Button CTA Text - Call-to-action button text (2-4 words)
-13. CTA Text - Supporting call-to-action text (one sentence)
-14. Calendar Embed Code - Leave blank (to be configured)
-15. Confirmation Headline - Thank you page headline
-16. Confirmation Next Steps - What happens after booking (2-3 sentences)
-17. Confirmation Subheadline - Thank you page supporting text
-18. Funnel Link | Step 1 - Home & Awareness - Leave blank (URL to be configured)
-19. Funnel Link | Step 2 - Appointment Booking - Leave blank (URL to be configured)
-20. Headline - Main page headline (attention-grabbing, benefit-focused)
-21. Meta Description - SEO meta description (155 chars max)
-22. Meta Image URL - Leave blank (image to be uploaded)
-23. Meta Title - SEO page title (60 chars max)
-24. Specialist Email - Leave blank (to be assigned)
-25. Specialist Full Name - Leave blank (to be assigned)
-26. Specialist Mobile # - Leave blank (to be assigned)
-27. Specialist Title - Suggested title for the specialist role
-28. System CRM # - Leave blank (to be configured)
+1. Headline - Main page headline (attention-grabbing, benefit-focused)
+2. Hero Headline - Hero section headline (short, impactful)
+3. Subheadline - Supporting headline text
+4. Meta Title - SEO page title (60 chars max)
+5. Meta Description - SEO meta description (155 chars max)
+6. Meta Image URL - Leave blank (image to be uploaded)
+7. CTA Headline - Call-to-action section headline
+8. CTA Text - Supporting call-to-action text (one sentence)
+9. Button CTA Text - Call-to-action button text (2-4 words)
+10. Learn More Text - "Learn more" link text
+11. Bullet 1 - Key benefit headline (short)
+12. Bullet 1 Description - Expanded description of benefit 1
+13. Bullet 2 - Key benefit headline (short)
+14. Bullet 2 Description - Expanded description of benefit 2
+15. Bullet 3 - Key benefit headline (short)
+16. Bullet 3 Description - Expanded description of benefit 3
+17. Bullet 4 - Key benefit headline (short)
+18. Bullet 4 Description - Expanded description of benefit 4
+19. Bullet 5 - Key benefit headline (short)
+20. Bullet 5 Description - Expanded description of benefit 5
+21. Benefit #1 Title - Feature/benefit card title
+22. Benefit #1 Description - Feature/benefit card description
+23. Benefit #2 Title - Feature/benefit card title
+24. Benefit #2 Description - Feature/benefit card description
+25. Benefit #3 Title - Feature/benefit card title
+26. Benefit #3 Description - Feature/benefit card description
+27. Benefit #4 Title - Feature/benefit card title
+28. Benefit #4 Description - Feature/benefit card description
+29. Benefit #5 Title - Feature/benefit card title
+30. Benefit #5 Description - Feature/benefit card description
+31. Specialist Full Name - Leave blank (to be assigned)
+32. Specialist Title - Suggested title for the specialist role
+33. Specialist Intro - Brief intro paragraph for the specialist
+34. Specialist Email - Leave blank (to be assigned)
+35. Specialist Mobile # - Leave blank (to be assigned)
+36. Funnel Link | Step 1 - Home & Awareness - Leave blank (URL to be configured)
+37. Funnel Link | Step 2 - Appointment Booking - Leave blank (URL to be configured)
+38. Booking URL - Leave blank (URL to be configured)
+39. Trigger Link - Leave blank (URL to be configured)
+40. Calendar Embed Code - Leave blank (to be configured)
+41. Appointment Disclaimer - Legal disclaimer for appointment booking
+42. Confirmation Headline - Thank you page headline
+43. Confirmation Subheadline - Thank you page supporting text
+44. Confirmation Details - Appointment/confirmation details text
+45. Confirmation Next Steps - What happens after booking (2-3 sentences)
+46. System CRM # - Leave blank (to be configured)
 
 Format your response as a numbered list matching the fields above. Each field value should be on its own line.`;
 }
