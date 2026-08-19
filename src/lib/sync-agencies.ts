@@ -16,7 +16,9 @@ export interface SyncResult {
   updated: number;
   unchanged: number;
   deactivated: number;
+  provisioned: number;
   errors?: string[];
+  provision_errors?: string[];
   elapsed_ms: number;
 }
 

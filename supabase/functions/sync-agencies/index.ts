@@ -23,6 +23,82 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const PORTAL_REF = "akhojhncsswyzcnicedt";
 
+// ── Auto-provision helpers ──────────────────────────────────────────────
+
+function generatePassword(agencyName: string): string {
+  const clean = agencyName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 12);
+  const rand = Math.floor(1000 + Math.random() * 9000);
+  return `${clean}${rand}!`;
+}
+
+function toSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
+/**
+ * Auto-provision FYM App login credentials for a newly synced agency.
+ * Creates a Supabase Auth user + profile + stores credentials on the agency row.
+ * Best-effort — failures are logged but don't block the sync.
+ */
+async function autoProvisionLogin(
+  supabase: ReturnType<typeof createClient>,
+  agencyId: string,
+  agencyName: string,
+  agencySlug: string | null,
+): Promise<{ provisioned: boolean; email?: string; error?: string }> {
+  try {
+    const slug = agencySlug || toSlug(agencyName);
+    const email = `${slug}@app.teamfym.com`;
+    const password = generatePassword(agencyName);
+
+    // Check if auth user already exists
+    const { data: { users: existingUsers } } = await supabase.auth.admin.listUsers();
+    const existingUser = existingUsers?.find((u: { email?: string }) => u.email === email);
+
+    let userId: string;
+
+    if (existingUser) {
+      userId = existingUser.id;
+      await supabase.auth.admin.updateUserById(userId, { password });
+    } else {
+      const { data: { user: newUser }, error: createErr } = await supabase.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+      });
+      if (createErr || !newUser) {
+        return { provisioned: false, error: createErr?.message ?? 'Failed to create auth user' };
+      }
+      userId = newUser.id;
+    }
+
+    // Upsert profile
+    await supabase.from('profiles').upsert({
+      id: userId,
+      role: 'admin',
+      full_name: `${agencyName} Admin`,
+      agency_id: agencyId,
+      writing_number: null,
+      npn: null,
+      updated_at: new Date().toISOString(),
+    });
+
+    // Store credentials on agency row
+    await supabase.from('agencies').update({
+      app_login_email: email,
+      app_login_password: password,
+      updated_at: new Date().toISOString(),
+    }).eq('id', agencyId);
+
+    return { provisioned: true, email };
+  } catch (err) {
+    return { provisioned: false, error: (err as Error).message };
+  }
+}
+
 interface HierarchyAgency {
   id: string;
   name: string;
@@ -135,7 +211,9 @@ Deno.serve(async (req) => {
     let created = 0;
     let updated = 0;
     let unchanged = 0;
+    let provisioned = 0;
     let errors: string[] = [];
+    let provisionErrors: string[] = [];
 
     for (const ha of hierarchyAgencies) {
       const wn = ha.unl_writing_number.trim();
@@ -188,21 +266,32 @@ Deno.serve(async (req) => {
             updated++;
           }
         } else {
-          // Brand new agency — insert
+          // Brand new agency — insert + auto-provision login
           const slug = ha.slug || ha.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-          const { error } = await supabase
+          const { data: insertedAgency, error } = await supabase
             .from("agencies")
             .insert({
               name: ha.name,
               slug,
               writing_number: wn,
               is_active: ha.is_active,
-            });
+            })
+            .select('id')
+            .maybeSingle();
 
           if (error) {
             errors.push(`Insert ${ha.name}: ${error.message}`);
           } else {
             created++;
+            // Auto-provision FYM App login credentials
+            if (insertedAgency?.id) {
+              const provision = await autoProvisionLogin(supabase, insertedAgency.id, ha.name, slug);
+              if (provision.provisioned) {
+                provisioned++;
+              } else {
+                provisionErrors.push(`${ha.name}: ${provision.error}`);
+              }
+            }
           }
         }
       }
@@ -242,7 +331,9 @@ Deno.serve(async (req) => {
         updated,
         unchanged,
         deactivated,
+        provisioned,
         errors: errors.length > 0 ? errors : undefined,
+        provision_errors: provisionErrors.length > 0 ? provisionErrors : undefined,
         elapsed_ms: elapsed,
       })
     );
