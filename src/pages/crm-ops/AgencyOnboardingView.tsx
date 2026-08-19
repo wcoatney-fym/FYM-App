@@ -50,6 +50,7 @@ import type { CrmAgency, CrmTemplate, AgencyGhlConfig } from '@/lib/crm/types';
 import { parseCSV } from '@/lib/crm/csv-parser';
 import { ConfirmationModal } from './ConfirmationModal';
 import { STEPS, getStepIndex, getStepState, escapeField, padRosterTo200, handleUndoStep, fireZapForAgency, backfillRosterCrmNumber } from './onboardingHelpers';
+import { regenerateAgencyRosterHiddenFields } from '@/lib/crm/roster-repush';
 import type { ZapFireResult } from './onboardingHelpers';
 import { CrossSellSection } from './CrossSellSection';
 import { normalizeRosterRows, ROSTER_TEMPLATE_HEADERS } from '@/lib/crm/roster-normalizer';
@@ -856,6 +857,14 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
         updated_at: new Date().toISOString(),
       })
       .eq('id', agency.id);
+
+    // Auto-regenerate roster hidden fields (booking links, calendar embed)
+    await regenerateAgencyRosterHiddenFields(
+      agency.name,
+      urlPrefix.trim(),
+      calendarEmbed.trim(),
+    );
+
     await onRefresh();
     setSaving(null);
   };
