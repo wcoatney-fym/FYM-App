@@ -26,6 +26,8 @@ import { toast } from 'sonner';
 import { AttentionCard, type AttentionPolicy, type ActionState } from './AttentionCard';
 import { AttentionFilters, type FlagFilter, type ActionFilter } from './AttentionFilters';
 import { pushStageToGhl } from '@/lib/ghl-push';
+import { ClientDetailDrawer } from '@/components/client-detail';
+import type { DrawerPolicy } from '@/components/client-detail';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -352,6 +354,27 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
 
   // ── CSV export ───────────────────────────────────────────────────────
   const [exporting, setExporting] = useState(false);
+  const [selectedPolicy, setSelectedPolicy] = useState<DrawerPolicy | null>(null);
+
+  // Map AttentionPolicy → DrawerPolicy for the detail drawer
+  const handlePolicyClick = useCallback((p: AttentionPolicy) => {
+    setSelectedPolicy({
+      policy_number: p.policy_number,
+      client_name: p.client_name,
+      product_type: p.product_type,
+      status: p.status,
+      plan_premium: p.plan_premium,
+      annual_premium: p.plan_premium * 12,
+      policy_effective_date: p.policy_effective_date,
+      paid_to_date: p.paid_to_date,
+      draft_count: p.draft_count,
+      is_at_risk: true,
+      flag_type: p.flag_type,
+      days_since_paid: p.days_idle,
+      agent_writing_number: p.agent_writing_number,
+      agency_id: p.agency_id,
+    });
+  }, []);
 
   const exportCsv = useCallback(() => {
     if (filtered.length === 0) return;
@@ -504,6 +527,7 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
                 policy={policy}
                 showAgent={showAgent}
                 onActionChange={handleActionChange}
+                onPolicyClick={handlePolicyClick}
                 notes={notesMap.get(policy.policy_number)}
               />
             ))}
@@ -532,6 +556,14 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
             </button>
           )}
         </Card>
+      )}
+
+      {/* Client Detail Drawer */}
+      {selectedPolicy && (
+        <ClientDetailDrawer
+          policy={selectedPolicy}
+          onClose={() => setSelectedPolicy(null)}
+        />
       )}
     </div>
   );
