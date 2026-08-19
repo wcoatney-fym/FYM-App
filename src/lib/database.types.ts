@@ -20,6 +20,9 @@ export interface Database {
           name: string;
           slug: string | null;
           is_active: boolean;
+          crm_enabled: boolean;
+          app_login_email: string | null;
+          app_login_password: string | null;
           created_at: string;
           updated_at: string;
         };

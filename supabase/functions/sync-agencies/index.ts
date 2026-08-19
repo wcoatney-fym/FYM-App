@@ -107,6 +107,7 @@ interface HierarchyAgency {
   is_active: boolean;
   agency_type: string | null;
   parent_agency_id: string | null;
+  crm_enabled: boolean;
 }
 
 interface RcbzagAgency {
@@ -116,6 +117,7 @@ interface RcbzagAgency {
   writing_number: string | null;
   tracker_id: string | null;
   is_active: boolean;
+  crm_enabled: boolean;
 }
 
 function corsResponse(body?: string, status = 200): Response {
@@ -151,7 +153,8 @@ Deno.serve(async (req) => {
         },
         body: JSON.stringify({
           query: `
-            SELECT id, name, slug, unl_writing_number, is_active, agency_type, parent_agency_id
+            SELECT id, name, slug, unl_writing_number, is_active, agency_type, parent_agency_id,
+                   COALESCE(crm_enabled, false) as crm_enabled
             FROM hierarchy_agencies
             WHERE unl_writing_number IS NOT NULL
               AND unl_writing_number != ''
@@ -188,7 +191,7 @@ Deno.serve(async (req) => {
     while (true) {
       const { data, error } = await supabase
         .from("agencies")
-        .select("id, name, slug, writing_number, tracker_id, is_active")
+        .select("id, name, slug, writing_number, tracker_id, is_active, crm_enabled")
         .range(offset, offset + PAGE_SIZE - 1);
 
       if (error) {
@@ -224,14 +227,16 @@ Deno.serve(async (req) => {
         const nameChanged = existing.name !== ha.name;
         const slugChanged = existing.slug !== ha.slug;
         const activeChanged = existing.is_active !== ha.is_active;
+        const crmChanged = existing.crm_enabled !== ha.crm_enabled;
 
-        if (nameChanged || slugChanged || activeChanged) {
+        if (nameChanged || slugChanged || activeChanged || crmChanged) {
           const { error } = await supabase
             .from("agencies")
             .update({
               name: ha.name,
               slug: ha.slug,
               is_active: ha.is_active,
+              crm_enabled: ha.crm_enabled,
             })
             .eq("id", existing.id);
 
@@ -257,6 +262,7 @@ Deno.serve(async (req) => {
               name: ha.name,
               slug: ha.slug,
               is_active: ha.is_active,
+              crm_enabled: ha.crm_enabled,
             })
             .eq("id", nameMatch.id);
 
@@ -275,6 +281,7 @@ Deno.serve(async (req) => {
               slug,
               writing_number: wn,
               is_active: ha.is_active,
+              crm_enabled: ha.crm_enabled,
             })
             .select('id')
             .maybeSingle();
