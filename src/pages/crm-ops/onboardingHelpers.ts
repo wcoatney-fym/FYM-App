@@ -45,8 +45,7 @@ export function getStepState(
       agency.agency_phone?.trim() &&
       agency.setup_subaccount &&
       agency.setup_snapshot &&
-      agency.setup_ghl_api &&
-      agency.setup_zapier;
+      agency.setup_ghl_api;
     if (phoneAndSetupDone) return 'complete';
     return 'active';
   }
@@ -110,7 +109,6 @@ export async function handleUndoStep(
         setup_subaccount: false,
         setup_snapshot: false,
         setup_ghl_api: false,
-        setup_zapier: false,
         onboarding_status: 'pending_csr_assignment',
         updated_at: now,
       })
@@ -135,7 +133,6 @@ export async function handleUndoStep(
         setup_subaccount: false,
         setup_snapshot: false,
         setup_ghl_api: false,
-        setup_zapier: false,
         onboarding_status: 'awaiting_agency_phone',
         updated_at: now,
       })
