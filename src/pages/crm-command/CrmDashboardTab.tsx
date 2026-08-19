@@ -38,6 +38,8 @@ interface DashboardData {
 interface CrmDashboardTabProps {
   agencyName: string;
   agencyId: string;
+  agencyIds?: string[];
+  agencyNames?: string[];
 }
 
 const STAGE_LABELS: Record<string, string> = {

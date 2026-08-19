@@ -28,6 +28,8 @@ interface PolicyRow {
 interface BookOfBusinessTabProps {
   agencyName: string;
   agencyId: string;
+  agencyIds?: string[];
+  agencyNames?: string[];
 }
 
 const PAGE_SIZE = 25;

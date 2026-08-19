@@ -29,6 +29,9 @@ interface IntakeRecord {
 interface NewBusinessTabProps {
   agencyName: string;
   agencyId: string;
+  agencyIds?: string[];
+  agencyNames?: string[];
+  agency?: unknown;
 }
 
 const PAGE_SIZE = 25;

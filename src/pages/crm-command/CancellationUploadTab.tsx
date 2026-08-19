@@ -1,335 +1,354 @@
 /**
  * CancellationUploadTab — Agency-scoped cancellation roster upload + log.
- *
- * Features:
- *   - Instructions for submitting agent cancellations
- *   - Download cancellation template CSV
- *   - Upload completed cancellation roster (inserts to crm_termination_log)
- *   - View existing termination records
+ * Ported 1:1 from contracting-portal/src/pages/portal/PortalCancellationsTab.tsx
  */
-import { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, FileUp, Download, Upload, ChevronLeft, ChevronRight, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  Upload, Download, FileText, AlertTriangle, CheckCircle2,
+  XCircle, RefreshCw, Building2, Clock,
+} from 'lucide-react';
 import { supabase as portalSupabase } from '@/lib/crm/portal-client';
-
-interface TerminationRecord {
-  id: string;
-  agent_name: string | null;
-  agent_npn: string | null;
-  status: string | null;
-  agency: string | null;
-  terminated_at: string | null;
-  created_at: string;
-}
+import type { PortalAgency } from '@/hooks/usePortalAgency';
 
 interface CancellationUploadTabProps {
   agencyName: string;
   agencyId: string;
+  agencyIds: string[];
+  agency: PortalAgency;
 }
 
-const PAGE_SIZE = 25;
+interface ParsedRow { rowNumber: number; firstName: string; lastName: string; phone: string; tag: string; }
+interface ValidationError { row: number; message: string; }
+interface UploadRecord {
+  id: string; file_name: string; row_count: number; status: string;
+  errors: ValidationError[] | null; rejection_reason: string | null; created_at: string;
+}
 
-const TEMPLATE_CSV = `Agent First Name,Agent Last Name,Agent NPN,Termination Date,Reason
-John,Doe,12345678,${new Date().toISOString().split('T')[0]},Voluntary
-Jane,Smith,87654321,${new Date().toISOString().split('T')[0]},Involuntary`;
+const REQUIRED_TAG = 'cancelled policy | launch';
+const EXPECTED_HEADERS = ['First Name', 'Last Name', 'Phone', 'Tag'];
 
-export function CancellationUploadTab({ agencyName }: CancellationUploadTabProps) {
-  const [loading, setLoading] = useState(true);
-  const [records, setRecords] = useState<TerminationRecord[]>([]);
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(0);
-  const [uploading, setUploading] = useState(false);
-  const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string } | null>(null);
-  const [portalAgencyName, setPortalAgencyName] = useState<string>('');
+function parseCSV(text: string): string[][] {
+  const lines = text.split(/\r?\n/).filter(line => line.trim() !== '');
+  return lines.map(line => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') { current += '"'; i++; } else { inQuotes = !inQuotes; }
+      } else if (ch === ',' && !inQuotes) { result.push(current.trim()); current = ''; } else { current += ch; }
+    }
+    result.push(current.trim());
+    return result;
+  });
+}
+
+function hasMiddleInitial(name: string): boolean {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length > 1) return true;
+  if (/\.\s*$/.test(name.trim())) return true;
+  return false;
+}
+
+function validateRows(rows: string[][], headers: string[]): { parsed: ParsedRow[]; errors: ValidationError[] } {
+  const errors: ValidationError[] = [];
+  const parsed: ParsedRow[] = [];
+  const headerNorm = headers.map(h => h.toLowerCase().trim());
+  const fnIdx = headerNorm.indexOf('first name');
+  const lnIdx = headerNorm.indexOf('last name');
+  const phIdx = headerNorm.indexOf('phone');
+  const tagIdx = headerNorm.indexOf('tag');
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const rowNum = i + 2;
+    const firstName = (row[fnIdx] || '').trim();
+    const lastName = (row[lnIdx] || '').trim();
+    const phone = (row[phIdx] || '').trim();
+    const tag = (row[tagIdx] || '').trim();
+    if (!firstName && !lastName && !phone && !tag) continue;
+    if (!firstName) errors.push({ row: rowNum, message: 'First Name is missing' });
+    else if (hasMiddleInitial(firstName)) errors.push({ row: rowNum, message: 'First Name appears to contain a middle initial or extra name — only first name allowed' });
+    if (!lastName) errors.push({ row: rowNum, message: 'Last Name is missing' });
+    if (!phone) errors.push({ row: rowNum, message: 'Phone is missing' });
+    if (!tag) errors.push({ row: rowNum, message: 'Tag is missing' });
+    else if (tag.toLowerCase() !== REQUIRED_TAG.toLowerCase()) errors.push({ row: rowNum, message: `Tag must be exactly "${REQUIRED_TAG}"` });
+    parsed.push({ rowNumber: rowNum, firstName, lastName, phone, tag });
+  }
+  return { parsed, errors };
+}
+
+function downloadTemplate() {
+  const csv = EXPECTED_HEADERS.join(',') + '\n';
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'cancellation_upload_template.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+export function CancellationUploadTab({ agency, agencyIds }: CancellationUploadTabProps) {
+  const [uploads, setUploads] = useState<UploadRecord[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
+  const [dragActive, setDragActive] = useState(false);
+  const [parsedRows, setParsedRows] = useState<ParsedRow[] | null>(null);
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
+  const [fileName, setFileName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [expandedRejectionId, setExpandedRejectionId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { loadRecords(); }, [agencyName]);
+  const [childAgencies, setChildAgencies] = useState<{ id: string; name: string }[]>([]);
+  const [selectedUploadAgency, setSelectedUploadAgency] = useState<{ id: string; name: string } | null>(null);
+  const [loadingAgencies, setLoadingAgencies] = useState(false);
 
-  const loadRecords = async () => {
-    setLoading(true);
-
-    const { data: agencies } = await portalSupabase
-      .from('hierarchy_agencies')
-      .select('id, name, parent_agency_id')
-      .eq('is_active', true)
-      .eq('crm_enabled', true);
-
-    if (!agencies) { setLoading(false); return; }
-
-    const normalizedName = agencyName.toLowerCase().trim();
-    const parent = agencies.find(
-      (a: { name: string }) => a.name.toLowerCase().trim() === normalizedName
-    ) || agencies.find(
-      (a: { name: string }) =>
-        normalizedName.includes(a.name.toLowerCase().trim()) ||
-        a.name.toLowerCase().trim().includes(normalizedName)
-    );
-
-    if (!parent) { setRecords([]); setLoading(false); return; }
-
-    setPortalAgencyName(parent.name);
-
-    const children = agencies.filter(
-      (a: { parent_agency_id: string | null }) => a.parent_agency_id === parent.id
-    );
-    const groupNames = [parent, ...children].map((a: { name: string }) => a.name);
-
-    const { data } = await portalSupabase
-      .from('crm_termination_log')
-      .select('*')
-      .in('agency', groupNames)
-      .order('created_at', { ascending: false });
-
-    setRecords((data || []) as TerminationRecord[]);
-    setLoading(false);
-  };
-
-  const downloadTemplate = () => {
-    const blob = new Blob([TEMPLATE_CSV], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'cancellation-template.csv';
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !portalAgencyName) return;
-
-    setUploading(true);
-    setUploadResult(null);
-
-    try {
-      const text = await file.text();
-      const lines = text.trim().split('\n');
-      if (lines.length < 2) {
-        setUploadResult({ success: false, message: 'CSV file must have a header row and at least one data row' });
-        setUploading(false);
-        return;
-      }
-
-      // Parse CSV (simple — assumes no commas in values)
-      const headers = lines[0].split(',').map((h) => h.trim());
-      const firstNameIdx = headers.findIndex((h) => /first/i.test(h));
-      const lastNameIdx = headers.findIndex((h) => /last/i.test(h));
-      const npnIdx = headers.findIndex((h) => /npn/i.test(h));
-      const dateIdx = headers.findIndex((h) => /date/i.test(h));
-
-      if (firstNameIdx < 0 && lastNameIdx < 0) {
-        setUploadResult({ success: false, message: 'CSV must have "First Name" and "Last Name" columns' });
-        setUploading(false);
-        return;
-      }
-
-      const rows = [];
-      for (let i = 1; i < lines.length; i++) {
-        const cols = lines[i].split(',').map((c) => c.trim());
-        const firstName = firstNameIdx >= 0 ? cols[firstNameIdx] : '';
-        const lastName = lastNameIdx >= 0 ? cols[lastNameIdx] : '';
-        const name = `${firstName} ${lastName}`.trim();
-        if (!name) continue;
-
-        rows.push({
-          agent_name: name,
-          agent_npn: npnIdx >= 0 ? cols[npnIdx] || null : null,
-          agency: portalAgencyName,
-          status: 'pending',
-          terminated_at: dateIdx >= 0 && cols[dateIdx] ? cols[dateIdx] : new Date().toISOString(),
+  useEffect(() => {
+    if (agency.agency_type === 'main') {
+      setLoadingAgencies(true);
+      portalSupabase
+        .from('hierarchy_agencies')
+        .select('id, name')
+        .eq('parent_agency_id', agency.id)
+        .eq('is_active', true)
+        .order('name')
+        .then(({ data }: { data: { id: string; name: string }[] | null }) => {
+          const children = data || [];
+          if (children.length > 0) {
+            setChildAgencies([{ id: agency.id, name: agency.name }, ...children]);
+          } else {
+            setSelectedUploadAgency({ id: agency.id, name: agency.name });
+          }
+          setLoadingAgencies(false);
         });
-      }
-
-      if (rows.length === 0) {
-        setUploadResult({ success: false, message: 'No valid agent rows found in the CSV' });
-        setUploading(false);
-        return;
-      }
-
-      const { error } = await portalSupabase
-        .from('crm_termination_log')
-        .insert(rows);
-
-      if (error) {
-        setUploadResult({ success: false, message: `Upload failed: ${error.message}` });
-      } else {
-        setUploadResult({ success: true, message: `${rows.length} cancellation${rows.length !== 1 ? 's' : ''} submitted successfully` });
-        await loadRecords();
-      }
-    } catch (err) {
-      setUploadResult({ success: false, message: `Error reading file: ${err instanceof Error ? err.message : 'Unknown error'}` });
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+    } else {
+      setSelectedUploadAgency({ id: agency.id, name: agency.name });
     }
+  }, [agency]);
+
+  const fetchHistory = useCallback(async () => {
+    setLoadingHistory(true);
+    const { data } = await portalSupabase
+      .from('agency_cancellation_uploads')
+      .select('id, file_name, row_count, status, errors, rejection_reason, created_at')
+      .in('agency_id', agencyIds)
+      .order('created_at', { ascending: false })
+      .limit(20);
+    setUploads((data as UploadRecord[] | null) || []);
+    setLoadingHistory(false);
+  }, [agencyIds]);
+
+  useEffect(() => { fetchHistory(); }, [fetchHistory]);
+
+  const processFile = (file: File) => {
+    setSuccessMessage('');
+    setFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      const allRows = parseCSV(text);
+      if (allRows.length < 1) { setValidationErrors([{ row: 0, message: 'File is empty' }]); setParsedRows(null); return; }
+      const headers = allRows[0];
+      const headerNorm = headers.map(h => h.toLowerCase().trim());
+      const missingHeaders = EXPECTED_HEADERS.filter(h => !headerNorm.includes(h.toLowerCase()));
+      if (missingHeaders.length > 0) { setValidationErrors([{ row: 1, message: `Missing required columns: ${missingHeaders.join(', ')}` }]); setParsedRows(null); return; }
+      const dataRows = allRows.slice(1);
+      if (dataRows.length === 0) { setValidationErrors([{ row: 0, message: 'No data rows found' }]); setParsedRows(null); return; }
+      const { parsed, errors } = validateRows(dataRows, headers);
+      setParsedRows(parsed);
+      setValidationErrors(errors);
+      if (errors.length > 0) logRejection(file.name, dataRows.length, errors);
+    };
+    reader.readAsText(file);
   };
 
-  const filtered = useMemo(() => {
-    if (!search.trim()) return records;
-    const q = search.toLowerCase();
-    return records.filter((r) =>
-      (r.agent_name || '').toLowerCase().includes(q) ||
-      (r.agent_npn || '').includes(q) ||
-      (r.agency || '').toLowerCase().includes(q)
-    );
-  }, [records, search]);
+  const logRejection = async (name: string, rowCount: number, errors: ValidationError[]) => {
+    const targetId = selectedUploadAgency?.id || agency.id;
+    await portalSupabase.from('agency_cancellation_uploads').insert({
+      agency_id: targetId, file_name: name, row_count: rowCount, status: 'rejected',
+      errors: errors as unknown as Record<string, unknown>[],
+    });
+    fetchHistory();
+  };
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paged = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const handleSubmit = async () => {
+    if (!parsedRows || validationErrors.length > 0 || !selectedUploadAgency) return;
+    setSubmitting(true);
+    const targetId = selectedUploadAgency.id;
+    const uploadId = crypto.randomUUID();
+    const { error: insertError } = await portalSupabase.from('agency_cancellation_uploads').insert({
+      id: uploadId, agency_id: targetId, file_name: fileName, row_count: parsedRows.length, status: 'pending_approval',
+    });
+    if (insertError) { setValidationErrors([{ row: 0, message: `Failed to submit upload: ${insertError.message}` }]); setParsedRows(null); setSubmitting(false); return; }
+    const rows = parsedRows.map(r => ({
+      agency_id: targetId, upload_id: uploadId, first_name: r.firstName, last_name: r.lastName, phone: r.phone, tag: r.tag,
+    }));
+    const batchSize = 500;
+    for (let i = 0; i < rows.length; i += batchSize) { await portalSupabase.from('agency_cancellations').insert(rows.slice(i, i + batchSize)); }
+    setSuccessMessage(`Upload submitted for review (${parsedRows.length} records). Our team will confirm and process shortly.`);
+    setParsedRows(null); setValidationErrors([]); setFileName(''); setSubmitting(false); fetchHistory();
+  };
 
-  useEffect(() => { setPage(0); }, [search]);
+  const handleDrop = (e: React.DragEvent) => { e.preventDefault(); setDragActive(false); const file = e.dataTransfer.files[0]; if (file && file.name.endsWith('.csv')) processFile(file); };
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) processFile(file); e.target.value = ''; };
+  const reset = () => { setParsedRows(null); setValidationErrors([]); setFileName(''); setSuccessMessage(''); };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-16 text-muted-foreground">
-        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mr-3" />
-        Loading cancellations…
-      </div>
-    );
-  }
+  const latestRejection = uploads.find(u => u.status === 'rejected' && u.rejection_reason);
+  const hasNewerPendingOrSuccess = latestRejection ? uploads.some(u => (u.status === 'pending_approval' || u.status === 'success') && new Date(u.created_at) > new Date(latestRejection.created_at)) : false;
+  const showRejectionBanner = latestRejection && !hasNewerPendingOrSuccess;
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* Instructions + Upload section */}
-      <div className="bg-card border border-border/40 rounded-xl p-5">
-        <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-          <FileUp className="w-4 h-4 text-muted-foreground" />
-          Submit Agent Cancellations
-        </h3>
-        <div className="space-y-3">
-          <div className="bg-secondary/30 rounded-lg p-3">
-            <p className="text-xs text-foreground/80 leading-relaxed">
-              <strong>Instructions:</strong> To cancel/terminate agents from your roster, download the template below,
-              fill in the agent details (first name, last name, NPN, termination date, and reason), then upload the
-              completed CSV. Your CSR will review and confirm each cancellation.
-            </p>
+    <div className="space-y-6">
+      {showRejectionBanner && (
+        <div className="flex items-start gap-3 p-5 bg-red-50 rounded-xl border border-red-200 shadow-sm">
+          <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-red-800">Cancellation Upload Rejected</p>
+            <p className="text-sm text-red-700 mt-1">{latestRejection!.rejection_reason}</p>
+            <p className="text-xs text-red-600 mt-2">File: <span className="font-medium">{latestRejection!.file_name}</span> — Please address the issue above and re-upload your corrected cancellation data.</p>
           </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={downloadTemplate}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-secondary hover:bg-secondary/80 text-foreground rounded-lg transition-colors"
-            >
-              <Download className="w-3.5 h-3.5" />
-              Download Template
-            </button>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv"
-              onChange={handleFileUpload}
-              className="hidden"
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {uploading ? (
-                <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-primary-foreground" />
-              ) : (
-                <Upload className="w-3.5 h-3.5" />
-              )}
-              {uploading ? 'Uploading…' : 'Upload Cancellation Roster'}
-            </button>
-          </div>
-
-          {uploadResult && (
-            <div className={cn(
-              'flex items-center gap-2 p-3 rounded-lg text-xs font-medium',
-              uploadResult.success ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
-            )}>
-              {uploadResult.success ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-              {uploadResult.message}
-            </div>
-          )}
         </div>
-      </div>
+      )}
 
-      {/* Existing cancellations */}
-      {records.length > 0 && (
-        <>
-          <div className="flex items-center justify-between gap-3">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Search by agent name or NPN…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-sm bg-secondary/50 border border-border/40 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary/50"
-              />
-            </div>
-            <span className="text-xs text-muted-foreground">
-              {filtered.length} record{filtered.length !== 1 ? 's' : ''}
-            </span>
-          </div>
+      <div className="bg-white rounded-xl border border-steel-200 shadow-sm overflow-hidden">
+        <div className="px-6 py-5 border-b border-steel-100">
+          <h3 className="text-lg font-semibold text-steel-900">Cancellation Upload</h3>
+          <p className="text-sm text-steel-500 mt-1">Upload cancelled policy records using the required CSV format.</p>
+        </div>
+        <div className="px-6 py-5">
+          {loadingAgencies && <div className="text-center py-4 text-sm text-steel-500">Loading agencies...</div>}
 
-          <div className="border border-border/40 rounded-lg overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-secondary/30 border-b border-border/40">
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">Agent Name</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">NPN</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">Agency</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">Status</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">Terminated</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paged.map((r) => (
-                    <tr key={r.id} className="border-b border-border/20 hover:bg-secondary/10 transition-colors">
-                      <td className="px-4 py-2.5 font-medium">{r.agent_name || '--'}</td>
-                      <td className="px-4 py-2.5 text-muted-foreground font-mono text-xs">{r.agent_npn || '--'}</td>
-                      <td className="px-4 py-2.5 text-muted-foreground">{r.agency || '--'}</td>
-                      <td className="px-4 py-2.5">
-                        <span className={cn(
-                          'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium',
-                          r.status === 'confirmed' ? 'bg-emerald-500/10 text-emerald-400' :
-                          r.status === 'rejected' ? 'bg-red-500/10 text-red-400' :
-                          'bg-amber-500/10 text-amber-400'
-                        )}>
-                          {r.status || 'pending'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2.5 text-muted-foreground text-xs">
-                        {r.terminated_at
-                          ? new Date(r.terminated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                          : '--'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between px-1">
-              <span className="text-xs text-muted-foreground">Page {page + 1} of {totalPages}</span>
-              <div className="flex items-center gap-1">
-                <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}
-                  className="p-1.5 rounded hover:bg-secondary/50 disabled:opacity-30 transition-colors">
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <button onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
-                  className="p-1.5 rounded hover:bg-secondary/50 disabled:opacity-30 transition-colors">
-                  <ChevronRight className="w-4 h-4" />
-                </button>
+          {!loadingAgencies && childAgencies.length > 0 && !selectedUploadAgency && (
+            <div className="mb-5">
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+                <h4 className="text-sm font-semibold text-amber-800 mb-1">Select Agency</h4>
+                <p className="text-xs text-amber-700">Which agency is this cancellation report for?</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {childAgencies.map(a => (
+                  <button key={a.id} onClick={() => setSelectedUploadAgency(a)}
+                    className="flex items-center gap-3 p-4 bg-white border border-steel-200 rounded-lg hover:border-navy-400 hover:bg-navy-50 transition-colors text-left">
+                    <Building2 className="w-5 h-5 text-steel-400 shrink-0" />
+                    <span className="text-sm font-medium text-steel-800">{a.name}</span>
+                  </button>
+                ))}
               </div>
             </div>
           )}
-        </>
-      )}
 
-      {/* Empty state for records (still show upload section above) */}
-      {records.length === 0 && (
-        <div className="text-center py-6 text-muted-foreground text-sm">
-          No cancellations submitted yet. Use the form above to upload a cancellation roster.
+          {selectedUploadAgency && childAgencies.length > 0 && (
+            <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-navy-50 border border-navy-200 rounded-lg">
+              <Building2 className="w-4 h-4 text-navy-600" />
+              <span className="text-sm font-medium text-navy-800">Uploading for: {selectedUploadAgency.name}</span>
+              <button onClick={() => { setSelectedUploadAgency(null); reset(); }} className="ml-auto text-xs text-navy-600 hover:text-navy-800 underline">Change</button>
+            </div>
+          )}
+
+          {selectedUploadAgency && (
+            <div className="bg-steel-50 border border-steel-200 rounded-lg p-4 mb-5">
+              <h4 className="text-sm font-semibold text-steel-800 mb-2">Upload Requirements</h4>
+              <ul className="text-sm text-steel-600 space-y-1.5 list-disc pl-5">
+                <li>File must be a <strong>.csv</strong> with these exact columns: <span className="font-mono text-xs bg-white px-1.5 py-0.5 rounded border border-steel-200">First Name</span>, <span className="font-mono text-xs bg-white px-1.5 py-0.5 rounded border border-steel-200">Last Name</span>, <span className="font-mono text-xs bg-white px-1.5 py-0.5 rounded border border-steel-200">Phone</span>, <span className="font-mono text-xs bg-white px-1.5 py-0.5 rounded border border-steel-200">Tag</span></li>
+                <li><strong>No middle initials</strong> — First Name should contain only the first name</li>
+                <li><strong>Phone number is required</strong> on every row</li>
+                <li>Tag column must contain exactly: <span className="font-mono text-xs bg-white px-1.5 py-0.5 rounded border border-steel-200">cancelled policy | launch</span></li>
+              </ul>
+              <button onClick={downloadTemplate} className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-navy-600 text-white text-sm font-medium rounded-lg hover:bg-navy-700 transition-colors">
+                <Download className="w-4 h-4" />Download Template
+              </button>
+            </div>
+          )}
+
+          {selectedUploadAgency && !parsedRows && validationErrors.length === 0 && !successMessage && (
+            <div onDragOver={(e) => { e.preventDefault(); setDragActive(true); }} onDragLeave={() => setDragActive(false)} onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors ${
+                dragActive ? 'border-navy-400 bg-navy-50' : 'border-steel-300 hover:border-steel-400 bg-white'
+              }`}>
+              <Upload className="w-10 h-10 text-steel-400 mx-auto mb-3" />
+              <p className="text-sm font-medium text-steel-700">Drag and drop your CSV file here, or click to browse</p>
+              <p className="text-xs text-steel-500 mt-1">Only .csv files accepted</p>
+              <input ref={fileInputRef} type="file" accept=".csv" onChange={handleFileChange} className="hidden" />
+            </div>
+          )}
+
+          {validationErrors.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-5">
+              <div className="flex items-center gap-2 mb-3"><XCircle className="w-5 h-5 text-red-600" /><h4 className="text-sm font-semibold text-red-800">Upload Rejected — {validationErrors.length} issue{validationErrors.length !== 1 ? 's' : ''} found</h4></div>
+              <p className="text-xs text-red-600 mb-3">Please fix the following issues in your CSV and re-upload.</p>
+              <div className="max-h-60 overflow-y-auto space-y-1.5">
+                {validationErrors.map((err, i) => (
+                  <div key={i} className="flex items-start gap-2 text-sm"><AlertTriangle className="w-3.5 h-3.5 text-red-500 mt-0.5 shrink-0" /><span className="text-red-700"><strong>Row {err.row}:</strong> {err.message}</span></div>
+                ))}
+              </div>
+              <button onClick={reset} className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"><RefreshCw className="w-4 h-4" />Upload Again</button>
+            </div>
+          )}
+
+          {parsedRows && validationErrors.length === 0 && !successMessage && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5">
+              <div className="flex items-center gap-2 mb-3"><CheckCircle2 className="w-5 h-5 text-emerald-600" /><h4 className="text-sm font-semibold text-emerald-800">Validation Passed — {parsedRows.length} row{parsedRows.length !== 1 ? 's' : ''} ready</h4></div>
+              <div className="bg-white border border-emerald-200 rounded-lg overflow-hidden mb-4">
+                <table className="w-full text-sm">
+                  <thead><tr className="bg-emerald-50 border-b border-emerald-100"><th className="px-3 py-2 text-left text-xs font-medium text-emerald-700">#</th><th className="px-3 py-2 text-left text-xs font-medium text-emerald-700">First Name</th><th className="px-3 py-2 text-left text-xs font-medium text-emerald-700">Last Name</th><th className="px-3 py-2 text-left text-xs font-medium text-emerald-700">Phone</th><th className="px-3 py-2 text-left text-xs font-medium text-emerald-700">Tag</th></tr></thead>
+                  <tbody>
+                    {parsedRows.slice(0, 5).map((row, i) => (
+                      <tr key={i} className="border-b border-emerald-50 last:border-0"><td className="px-3 py-2 text-steel-500">{row.rowNumber}</td><td className="px-3 py-2 text-steel-800">{row.firstName}</td><td className="px-3 py-2 text-steel-800">{row.lastName}</td><td className="px-3 py-2 text-steel-800">{row.phone}</td><td className="px-3 py-2 text-steel-800 font-mono text-xs">{row.tag}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+                {parsedRows.length > 5 && <div className="px-3 py-2 text-xs text-steel-500 bg-emerald-50 border-t border-emerald-100">...and {parsedRows.length - 5} more row{parsedRows.length - 5 !== 1 ? 's' : ''}</div>}
+              </div>
+              <div className="flex items-center gap-3">
+                <button onClick={handleSubmit} disabled={submitting} className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50">
+                  {submitting ? <><RefreshCw className="w-4 h-4 animate-spin" />Uploading...</> : <><CheckCircle2 className="w-4 h-4" />Submit for Review</>}
+                </button>
+                <button onClick={reset} className="px-4 py-2.5 text-sm font-medium text-steel-600 hover:text-steel-800 transition-colors">Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {successMessage && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-5 text-center">
+              <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-2" />
+              <p className="text-sm font-semibold text-emerald-800">{successMessage}</p>
+              <button onClick={reset} className="mt-3 text-sm text-emerald-700 hover:text-emerald-900 underline">Upload another file</button>
+            </div>
+          )}
         </div>
-      )}
+      </div>
+
+      <div className="bg-white rounded-xl border border-steel-200 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-steel-100"><h3 className="text-sm font-semibold text-steel-800">Upload History</h3></div>
+        {loadingHistory ? (
+          <div className="px-6 py-8 text-center text-sm text-steel-500">Loading...</div>
+        ) : uploads.length === 0 ? (
+          <div className="px-6 py-8 text-center"><FileText className="w-8 h-8 text-steel-300 mx-auto mb-2" /><p className="text-sm text-steel-500">No uploads yet</p></div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="bg-steel-50 border-b border-steel-100"><th className="px-4 py-2.5 text-left text-xs font-medium text-steel-600">Date</th><th className="px-4 py-2.5 text-left text-xs font-medium text-steel-600">File</th><th className="px-4 py-2.5 text-left text-xs font-medium text-steel-600">Rows</th><th className="px-4 py-2.5 text-left text-xs font-medium text-steel-600">Status</th></tr></thead>
+              <tbody>
+                {uploads.map(u => (
+                  <tr key={u.id}
+                    className={`border-b border-steel-50 last:border-0 ${u.status === 'rejected' && u.rejection_reason ? 'cursor-pointer hover:bg-red-50/50 transition-colors' : ''} ${u.status === 'rejected' ? 'border-l-2 border-l-red-300' : ''}`}
+                    onClick={() => { if (u.status === 'rejected' && u.rejection_reason) setExpandedRejectionId(expandedRejectionId === u.id ? null : u.id); }}>
+                    <td className="px-4 py-2.5 text-steel-700 whitespace-nowrap">{new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</td>
+                    <td className="px-4 py-2.5 text-steel-800 font-medium max-w-[200px] truncate">{u.file_name}</td>
+                    <td className="px-4 py-2.5 text-steel-700">{u.row_count}</td>
+                    <td className="px-4 py-2.5">
+                      {u.status === 'success' ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200"><CheckCircle2 className="w-3 h-3" />Confirmed</span>
+                        : u.status === 'pending_approval' ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200"><Clock className="w-3 h-3" />Pending Review</span>
+                        : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-200"><XCircle className="w-3 h-3" />Rejected{u.rejection_reason && <span className="text-red-400 ml-1">— click for details</span>}</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
