@@ -118,25 +118,25 @@ export const RosterTab: React.FC = () => {
       .filter((u): u is RosterUpload => u !== null)
       .map((u) => u.id);
 
+    // Count filled seats per agency — query each roster individually
+    // (max 200 rows each). Exclude CSR placeholder rows.
     if (uploadIds.length > 0) {
-      const { data: rosterRows } = await supabase
-        .from('crm_roster')
-        .select('upload_id, row_data')
-        .in('upload_id', uploadIds);
-
-      if (rosterRows) {
-        const counts: Record<string, number> = {};
-        for (const name of names) {
+      const counts: Record<string, number> = {};
+      await Promise.all(
+        names.map(async (name) => {
           const upload = byAgency[name];
-          if (!upload) continue;
-          counts[name] = rosterRows.filter(
-            (r) =>
-              r.upload_id === upload.id &&
-              r.row_data['First Name']?.trim()
+          if (!upload) return;
+          const { data: rows } = await supabase
+            .from('crm_roster')
+            .select('row_data')
+            .eq('upload_id', upload.id)
+            .limit(200);
+          counts[name] = (rows || []).filter(
+            (r) => r.row_data['First Name']?.trim() && r.row_data['CSR Placeholder'] !== 'true'
           ).length;
-        }
-        setPopulatedCounts(counts);
-      }
+        })
+      );
+      setPopulatedCounts(counts);
     }
   };
 
