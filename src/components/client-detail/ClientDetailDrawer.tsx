@@ -26,6 +26,8 @@ import { fetchNotesForPolicy, createNote, formatNoteTime } from '@/lib/notes-api
 import type { ManagerNote } from '@/lib/notes-api';
 import { urgencyLabel } from '@/lib/risk-utils';
 import { fmt$, fmtDate } from '@/lib/formatUtils';
+import { fetchBookOfBusiness } from '@/lib/prod-api';
+import type { PolicyRow as FullPolicyRow } from '@/lib/prod-api';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -153,16 +155,33 @@ export function ClientDetailDrawer({
   const [noteText, setNoteText] = useState('');
   const [submittingNote, setSubmittingNote] = useState(false);
   const [visible, setVisible] = useState(false);
+  const [enrichedData, setEnrichedData] = useState<FullPolicyRow | null>(null);
+  const [enriching, setEnriching] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
 
+  // Merge enriched data over passed-in props (enriched wins where non-null)
+  const e = enrichedData;
+  const clientName = e?.client_name ?? policy.client_name;
+  const agentName = e?.agent_name ?? policy.agent_name;
+  const agencyName = e?.agency_name ?? policy.agency_name;
+  const agentWn = e?.agent_writing_number ?? policy.agent_writing_number ?? policy.writing_number ?? null;
+  const termDate = e?.term_date ?? policy.term_date;
+  const billingMode = e?.billing_mode ?? policy.billing_mode;
+  const status = e?.status ?? policy.status;
+  const paidToDate = e?.paid_to_date ?? policy.paid_to_date;
+  const effectiveDate = e?.policy_effective_date ?? policy.policy_effective_date;
+  const draftCount = e?.draft_count ?? policy.draft_count;
+  const productType = e?.product_type ?? policy.product_type;
+  const flagType = e?.flag_type ?? policy.flag_type;
+  const isAtRisk = e?.is_at_risk ?? policy.is_at_risk;
+
   // Derived values
-  const monthlyPremium = policy.plan_premium ?? policy.monthly_premium ?? (policy.annual_premium / 12);
-  const annualPremium = Number(policy.annual_premium);
-  const agentWn = policy.agent_writing_number ?? policy.writing_number ?? null;
-  const daysSincePaid = policy.days_since_paid ?? computeDaysSincePaid(policy.paid_to_date);
+  const monthlyPremium = e?.plan_premium ?? policy.plan_premium ?? policy.monthly_premium ?? (policy.annual_premium / 12);
+  const annualPremium = Number(e?.annual_premium ?? policy.annual_premium);
+  const daysSincePaid = policy.days_since_paid ?? computeDaysSincePaid(paidToDate);
   const currentStage = (policy.task_status as Stage) || null;
   const stageColor = currentStage ? (STAGE_COLORS[currentStage] || DEFAULT_COLORS) : null;
-  const urgency = policy.is_at_risk ? urgencyLabel(policy.flag_type, daysSincePaid) : null;
+  const urgency = isAtRisk ? urgencyLabel(flagType, daysSincePaid) : null;
   const daysToTerminate = daysSincePaid !== null ? Math.max(0, 45 - daysSincePaid) : null;
 
   // Animate in
@@ -184,6 +203,21 @@ export function ClientDetailDrawer({
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [handleClose]);
+
+  // Enrich policy data from edge function on mount
+  useEffect(() => {
+    let cancelled = false;
+    setEnriching(true);
+    fetchBookOfBusiness({ search: policy.policy_number, page_size: 1 })
+      .then(res => {
+        if (cancelled) return;
+        const match = res.data.find(p => p.policy_number === policy.policy_number);
+        if (match) setEnrichedData(match);
+      })
+      .catch(err => console.warn('[ClientDetailDrawer] enrich fetch failed, using passed props:', err))
+      .finally(() => { if (!cancelled) setEnriching(false); });
+    return () => { cancelled = true; };
+  }, [policy.policy_number]);
 
   // Load timeline data (stage history + notes)
   useEffect(() => {
@@ -215,15 +249,36 @@ export function ClientDetailDrawer({
       .finally(() => setLoadingTimeline(false));
   }, [policy.policy_number, policy.task_id]);
 
-  // Stage transition handler
+  // Stage transition handler — updates task + writes stage history
   const handleTransition = async (target: Stage) => {
     if (!policy.task_id || !supabase || target === currentStage) return;
     setTransitioning(target);
     try {
+      // 1. Update the task stage
       await supabase
         .from('atrisk_tasks')
         .update({ stage: target, stage_changed_at: new Date().toISOString() })
         .eq('id', policy.task_id);
+
+      // 2. Write stage history entry
+      const { data: userData } = await supabase.auth.getUser();
+      await (supabase as any)
+        .from('atrisk_stage_history')
+        .insert({
+          task_id: policy.task_id,
+          from_stage: currentStage,
+          to_stage: target,
+          changed_by: userData?.user?.id ?? null,
+          source: 'app',
+        });
+
+      // 3. Refresh timeline to show the new entry
+      const { data: freshHistory } = await (supabase as any)
+        .from('atrisk_stage_history')
+        .select('*')
+        .eq('task_id', policy.task_id)
+        .order('changed_at', { ascending: false });
+      if (freshHistory) setHistory(freshHistory as StageHistoryEntry[]);
 
       onStageChange?.(policy.policy_number, target);
     } catch (err) {
@@ -289,15 +344,15 @@ export function ClientDetailDrawer({
         }`}>
           <Phone size={14} className="text-muted-foreground shrink-0" />
           <span className="font-medium text-foreground truncate">
-            {policy.client_name || 'Unknown Client'}
+            {clientName || 'Unknown Client'}
           </span>
           <span className="text-muted-foreground">|</span>
           <Badge className={`text-[10px] shrink-0 ${
-            policy.product_type === 'HHC'
+            productType === 'HHC'
               ? 'bg-sky-500/10 text-sky-400 border-sky-500/20'
               : 'bg-violet-500/10 text-violet-400 border-violet-500/20'
           }`}>
-            {policy.product_type}
+            {productType}
           </Badge>
           <span className="text-muted-foreground">|</span>
           <span className="font-data text-foreground/80 shrink-0">${Number(monthlyPremium).toFixed(0)}/mo</span>
@@ -311,11 +366,11 @@ export function ClientDetailDrawer({
               </span>
             </>
           )}
-          {policy.agent_name && (
+          {agentName && (
             <>
               <span className="text-muted-foreground hidden sm:inline">|</span>
               <span className="text-muted-foreground text-xs hidden sm:inline truncate">
-                Agent: {policy.agent_name}
+                Agent: {agentName}
               </span>
             </>
           )}
@@ -334,16 +389,17 @@ export function ClientDetailDrawer({
             {/* Header */}
             <div>
               <h3 className="text-lg font-bold text-foreground">
-                {policy.client_name || 'Unknown Client'}
+                {clientName || 'Unknown Client'}
+                {enriching && <span className="text-xs text-muted-foreground ml-2 font-normal">(enriching…)</span>}
               </h3>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <span className="text-xs text-muted-foreground font-data">
                   #{policy.policy_number}
                 </span>
-                <Badge className={`text-[10px] border ${statusBadgeClass(policy.status)}`}>
-                  {policy.status}
+                <Badge className={`text-[10px] border ${statusBadgeClass(status)}`}>
+                  {status}
                 </Badge>
-                {policy.is_at_risk && urgency && (
+                {isAtRisk && urgency && (
                   <Badge className={`text-[10px] border font-bold ${
                     urgency.severity === 'danger'
                       ? 'bg-red-500/15 text-red-300 border-red-500/30'
@@ -358,7 +414,7 @@ export function ClientDetailDrawer({
                   </Badge>
                 )}
               </div>
-              {daysToTerminate !== null && policy.is_at_risk && (
+              {daysToTerminate !== null && isAtRisk && (
                 <p className={`text-xs mt-1 font-bold ${
                   daysToTerminate <= 7 ? 'text-red-400' : daysToTerminate <= 15 ? 'text-amber-400' : 'text-muted-foreground'
                 }`}>
@@ -373,27 +429,27 @@ export function ClientDetailDrawer({
                 Policy Details
               </h4>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
-                <InfoCell icon={<FileText size={13} />} label="Product" value={policy.product_type} />
+                <InfoCell icon={<FileText size={13} />} label="Product" value={productType} />
                 <InfoCell icon={<DollarSign size={13} />} label="Monthly" value={`$${Number(monthlyPremium).toFixed(2)}`} />
                 <InfoCell icon={<DollarSign size={13} />} label="Annual" value={fmt$(annualPremium)} />
-                <InfoCell icon={<Calendar size={13} />} label="Effective" value={fmtDate(policy.policy_effective_date)} />
+                <InfoCell icon={<Calendar size={13} />} label="Effective" value={fmtDate(effectiveDate)} />
                 <InfoCell
                   icon={<Clock size={13} />}
                   label="Paid To"
-                  value={fmtDate(policy.paid_to_date)}
+                  value={fmtDate(paidToDate)}
                   valueClass={
                     daysSincePaid !== null && daysSincePaid > 45 ? 'text-red-400 font-bold' :
                     daysSincePaid !== null && daysSincePaid > 30 ? 'text-amber-400 font-bold' : ''
                   }
                 />
-                <InfoCell icon={<FileText size={13} />} label="Drafts" value={String(policy.draft_count)} valueClass={
-                  policy.draft_count >= 3 ? 'text-emerald-400' : policy.draft_count === 0 ? 'text-red-400' : ''
+                <InfoCell icon={<FileText size={13} />} label="Drafts" value={String(draftCount)} valueClass={
+                  draftCount >= 3 ? 'text-emerald-400' : draftCount === 0 ? 'text-red-400' : ''
                 } />
-                {policy.billing_mode && (
-                  <InfoCell icon={<FileText size={13} />} label="Billing Mode" value={String(policy.billing_mode)} />
+                {billingMode && (
+                  <InfoCell icon={<FileText size={13} />} label="Billing Mode" value={String(billingMode)} />
                 )}
-                {policy.term_date && (
-                  <InfoCell icon={<Calendar size={13} />} label="Term Date" value={fmtDate(policy.term_date)} valueClass="text-red-400" />
+                {termDate && (
+                  <InfoCell icon={<Calendar size={13} />} label="Term Date" value={fmtDate(termDate)} valueClass="text-red-400" />
                 )}
                 {daysSincePaid !== null && (
                   <InfoCell
@@ -415,16 +471,16 @@ export function ClientDetailDrawer({
                 Agent & Agency
               </h4>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
-                <InfoCell icon={<User size={13} />} label="Agent" value={policy.agent_name || 'Unassigned'} />
+                <InfoCell icon={<User size={13} />} label="Agent" value={agentName || 'Unassigned'} />
                 {agentWn && (
                   <InfoCell icon={<FileText size={13} />} label="Writing #" value={`#${agentWn}`} />
                 )}
-                <InfoCell icon={<Building2 size={13} />} label="Agency" value={policy.agency_name || policy.agency_id || '—'} />
+                <InfoCell icon={<Building2 size={13} />} label="Agency" value={agencyName || policy.agency_id || '—'} />
               </div>
             </section>
 
             {/* ── Quick Actions (stage transition) ───────────────────── */}
-            {actionsEnabled && policy.is_at_risk && policy.task_id && (
+            {actionsEnabled && isAtRisk && policy.task_id && (
               <section>
                 <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                   Move Stage
