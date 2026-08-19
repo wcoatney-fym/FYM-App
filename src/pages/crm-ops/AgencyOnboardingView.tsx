@@ -49,7 +49,7 @@ import { fireCrossSellConfirmWebhook } from '@/lib/crm/webhooks';
 import type { CrmAgency, CrmTemplate, AgencyGhlConfig } from '@/lib/crm/types';
 import { parseCSV } from '@/lib/crm/csv-parser';
 import { ConfirmationModal } from './ConfirmationModal';
-import { STEPS, getStepIndex, getStepState, escapeField, padRosterTo200, handleUndoStep, fireZapForAgency } from './onboardingHelpers';
+import { STEPS, getStepIndex, getStepState, escapeField, padRosterTo200, handleUndoStep, fireZapForAgency, backfillRosterCrmNumber } from './onboardingHelpers';
 import type { ZapFireResult } from './onboardingHelpers';
 import { CrossSellSection } from './CrossSellSection';
 import { normalizeRosterRows, ROSTER_TEMPLATE_HEADERS } from '@/lib/crm/roster-normalizer';
@@ -788,6 +788,10 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
         updated_at: new Date().toISOString(),
       })
       .eq('id', agency.id);
+
+    // Backfill CRM number into any existing roster rows immediately
+    await backfillRosterCrmNumber(agency.name, phoneValue.trim());
+
     await onRefresh();
     setSaving(null);
   };
@@ -885,6 +889,10 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
         updated_at: now,
       })
       .eq('id', agency.id);
+
+    // Backfill CRM number into any existing roster rows
+    await backfillRosterCrmNumber(agency.name, phoneValue.trim());
+
     await supabase.from('crm_notifications').insert({
       agency_id: agency.id,
       type: 'phone_setup_complete',
@@ -1457,8 +1465,15 @@ const RosterStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = ({ ag
         return;
       }
 
-      const crmNumber = agency.crm_number || '';
-      const { headers: canonicalHeaders, rows: normalizedRows } = normalizeRosterRows(rawRows, crmNumber, agency.csr_npn || undefined);
+      // Re-read CRM number fresh from DB to avoid stale prop
+      const { data: freshAgency } = await supabase
+        .from('hierarchy_agencies')
+        .select('crm_number, csr_npn')
+        .eq('id', agency.id)
+        .maybeSingle();
+      const crmNumber = freshAgency?.crm_number || agency.crm_number || '';
+      const csrNpn = freshAgency?.csr_npn || agency.csr_npn || undefined;
+      const { headers: canonicalHeaders, rows: normalizedRows } = normalizeRosterRows(rawRows, crmNumber, csrNpn);
 
       const { data: existing } = await supabase
         .from('crm_roster_uploads')
