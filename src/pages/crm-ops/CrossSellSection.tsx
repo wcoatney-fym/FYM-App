@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/crm/portal-client';
 import { buildDynamicFields } from '@/lib/crm/cross-sell-helpers';
+import { fireCrmGhlCrossSellPush } from '@/lib/crm/ghl-sync';
 
 const FIELD_KEYS = [
   'headline',
@@ -236,6 +237,8 @@ export const CrossSellSection: React.FC<CrossSellSectionProps> = ({ agencyId, ag
   const [saving, setSaving] = useState<number | null>(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [copiedPrompt, setCopiedPrompt] = useState<number | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const getDynamicFields = useCallback(
     (productNumber: number) =>
@@ -446,14 +449,46 @@ export const CrossSellSection: React.FC<CrossSellSectionProps> = ({ agencyId, ag
               <p className="text-xs text-muted-foreground">Configure 5 cross-sell product funnels for {agencyName}</p>
             </div>
           </div>
-          <button
-            onClick={() => setShowUploadModal(true)}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-primary bg-cyan-500/10 border border-primary/20 rounded-lg hover:bg-blue-500/10 transition-colors"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            Upload Defaults
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={async () => {
+                setSyncing(true);
+                setSyncResult(null);
+                const result = await fireCrmGhlCrossSellPush(agencyId, agencyName);
+                setSyncing(false);
+                if (result.success) {
+                  setSyncResult({ success: true, message: `Synced ${result.valuesUpdated || 0} values to GHL` });
+                } else {
+                  setSyncResult({ success: false, message: result.error || 'Sync failed' });
+                }
+                setTimeout(() => setSyncResult(null), 4000);
+              }}
+              disabled={syncing || products.length === 0}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
+            >
+              {syncing ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Upload className="w-3.5 h-3.5" />
+              )}
+              {syncing ? 'Syncing...' : 'Sync to GHL'}
+            </button>
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-primary bg-cyan-500/10 border border-primary/20 rounded-lg hover:bg-blue-500/10 transition-colors"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              Upload Defaults
+            </button>
+          </div>
         </div>
+
+        {syncResult && (
+          <div className={`text-xs font-medium px-3 py-2 rounded-lg mb-3 ${syncResult.success ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20' : 'text-red-400 bg-red-500/10 border border-red-500/20'}`}>
+            {syncResult.success ? <Check className="w-3.5 h-3.5 inline mr-1.5" /> : <X className="w-3.5 h-3.5 inline mr-1.5" />}
+            {syncResult.message}
+          </div>
+        )}
 
         <div className="space-y-3">
           {products.map((product) => {

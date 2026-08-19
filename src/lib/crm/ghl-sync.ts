@@ -108,6 +108,62 @@ export async function fireCrmGhlSync(
   }
 }
 
+export interface CrmGhlCrossSellResult {
+  success: boolean;
+  productsProcessed?: number;
+  valuesAttempted?: number;
+  valuesUpdated?: number;
+  errors?: string[];
+  error?: string;
+}
+
+/**
+ * Push cross-sell product custom values to GHL for an agency.
+ * Reads from crm_agency_cross_sell in the portal DB and pushes to the
+ * agency's GHL subaccount (no Sunfire for cross-sell).
+ *
+ * @param agencyId - Agency UUID (primary lookup)
+ * @param agencyName - Agency name (fallback lookup)
+ */
+export async function fireCrmGhlCrossSellPush(
+  agencyId: string,
+  agencyName?: string,
+): Promise<CrmGhlCrossSellResult> {
+  if (!CRM_GHL_SYNC_URL || !SUPABASE_KEY) {
+    return { success: false, error: 'CRM GHL sync not configured' };
+  }
+
+  try {
+    const response = await fetch(CRM_GHL_SYNC_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+      },
+      body: JSON.stringify({
+        action: 'push_cross_sell',
+        agencyId,
+        agencyName: agencyName || '',
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      return {
+        success: false,
+        error: `Cross-sell push failed: ${response.status} — ${errText.slice(0, 200)}`,
+      };
+    }
+
+    return await response.json();
+  } catch (err) {
+    return {
+      success: false,
+      error: `Cross-sell push error: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
 /**
  * Batch push custom values + create GHL users for multiple agents.
  *
