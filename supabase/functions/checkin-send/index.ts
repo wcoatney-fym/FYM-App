@@ -4,6 +4,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getTodayET, isWeekdayET } from "../_shared/date-helpers.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -36,31 +37,6 @@ async function sendSms(to: string, body: string): Promise<boolean> {
   return true;
 }
 
-function isWeekday(): boolean {
-  // Check in EST (America/New_York)
-  const now = new Date();
-  const estDay = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    weekday: "short",
-  }).format(now);
-  return !["Sat", "Sun"].includes(estDay);
-}
-
-function getTodayEST(): string {
-  // Get today's date in EST
-  const now = new Date();
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(now);
-  const y = parts.find((p) => p.type === "year")!.value;
-  const m = parts.find((p) => p.type === "month")!.value;
-  const d = parts.find((p) => p.type === "day")!.value;
-  return `${y}-${m}-${d}`;
-}
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -68,7 +44,7 @@ serve(async (req) => {
 
   try {
     // Skip weekends
-    if (!isWeekday()) {
+    if (!isWeekdayET()) {
       return new Response(
         JSON.stringify({ message: "Weekend — skipping check-in", sent: 0 }),
         { headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -76,7 +52,7 @@ serve(async (req) => {
     }
 
     const sb = createClient(supabaseUrl, supabaseKey);
-    const today = getTodayEST();
+    const today = getTodayET();
 
     // Get all active recipients
     const { data: recipients, error: recErr } = await sb

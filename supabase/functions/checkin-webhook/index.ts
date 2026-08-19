@@ -4,6 +4,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getTodayET } from "../_shared/date-helpers.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,6 +22,9 @@ const FALLBACK_REPLY =
   "Hey! This number is for FYM's daily check-in survey only. " +
   "For questions or support, reach out to Bianca Bill at bbill@teamfym.com — " +
   "she'll get you to the right person.";
+
+const MANAGER_NON_MORE_REPLY =
+  "This is FYM's daily check-in line. Reply MORE for the agent-by-agent breakdown.";
 
 function normalizePhone(raw: string): string {
   const digits = raw.replace(/\D/g, "");
@@ -94,7 +98,7 @@ serve(async (req) => {
     const from = formData.get("From") as string;
     const body = (formData.get("Body") as string || "").trim();
     const incomingPhone = normalizePhone(from);
-    const today = new Date().toISOString().split("T")[0]; // UTC date
+    const today = getTodayET(); // Fixed: was UTC, now America/New_York
 
     console.log(`Inbound SMS from ${incomingPhone}: "${body}"`);
 
@@ -107,8 +111,8 @@ serve(async (req) => {
       .single();
 
     if (manager && body.toLowerCase() !== "more") {
-      // Manager texted something other than MORE — send fallback
-      await sendSms(incomingPhone, FALLBACK_REPLY);
+      // Manager texted something other than MORE — short helpful reply, NOT Bianca redirect
+      await sendSms(incomingPhone, MANAGER_NON_MORE_REPLY);
       return new Response("<Response></Response>", {
         headers: { "Content-Type": "text/xml", ...corsHeaders },
       });
@@ -119,7 +123,8 @@ serve(async (req) => {
       const { data: responses } = await sb
         .from("checkin_responses")
         .select("*, checkin_recipients!inner(first_name, last_name)")
-        .eq("check_in_date", today);
+        .eq("check_in_date", today)
+        .order("id", { ascending: true }); // Deterministic order by response ID
 
       if (!responses?.length) {
         await sendSms(incomingPhone, "No check-in responses yet for today.");
@@ -177,7 +182,7 @@ serve(async (req) => {
       .single();
 
     if (!recipient) {
-      // Unknown sender — send fallback redirect
+      // Unknown sender — send fallback redirect to Bianca
       console.log(`Unknown sender: ${incomingPhone}`);
       await sendSms(incomingPhone, FALLBACK_REPLY);
       return new Response("<Response></Response>", {

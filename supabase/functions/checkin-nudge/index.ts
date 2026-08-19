@@ -4,6 +4,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getTodayET } from "../_shared/date-helpers.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -36,20 +37,6 @@ async function sendSms(to: string, body: string): Promise<boolean> {
   return true;
 }
 
-function getTodayEST(): string {
-  const now = new Date();
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(now);
-  const y = parts.find((p) => p.type === "year")!.value;
-  const m = parts.find((p) => p.type === "month")!.value;
-  const d = parts.find((p) => p.type === "day")!.value;
-  return `${y}-${m}-${d}`;
-}
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -57,7 +44,7 @@ serve(async (req) => {
 
   try {
     const sb = createClient(supabaseUrl, supabaseKey);
-    const today = getTodayEST();
+    const today = getTodayET();
 
     // Find agents who haven't responded (still in q1_sent or pending, not yet nudged)
     const { data: pending, error } = await sb

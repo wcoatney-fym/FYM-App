@@ -5,6 +5,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getTodayET, formatDateFriendly } from "../_shared/date-helpers.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -37,30 +38,6 @@ async function sendSms(to: string, body: string): Promise<boolean> {
   return true;
 }
 
-function getTodayEST(): string {
-  const now = new Date();
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(now);
-  const y = parts.find((p) => p.type === "year")!.value;
-  const m = parts.find((p) => p.type === "month")!.value;
-  const d = parts.find((p) => p.type === "day")!.value;
-  return `${y}-${m}-${d}`;
-}
-
-function formatDateFriendly(dateStr: string): string {
-  const d = new Date(dateStr + "T12:00:00");
-  return d.toLocaleDateString("en-US", {
-    timeZone: "America/New_York",
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
-}
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -68,7 +45,7 @@ serve(async (req) => {
 
   try {
     const sb = createClient(supabaseUrl, supabaseKey);
-    const today = getTodayEST();
+    const today = getTodayET();
     const friendlyDate = formatDateFriendly(today);
 
     // Get today's responses
@@ -88,27 +65,54 @@ serve(async (req) => {
       );
     }
 
-    // Compute stats
-    const responded = responses!.filter(
-      (r) => r.conversation_state === "complete" || r.conversation_state === "declined"
+    // Compute stats — mutually exclusive buckets. No double-counting.
+    //
+    // Buckets:
+    //   working    = complete + is_working=true (finished survey, said yes)
+    //   notWorking = declined + is_working=false (said no to Q1)
+    //   midSurvey  = q2_sent or q3_sent (answered Q1 yes, still in survey)
+    //   noResponse = q1_sent, pending, nudged (never answered Q1)
+    //
+    // "Responded" = working + notWorking + midSurvey (anyone who answered Q1)
+    // Invariant: working + notWorking + midSurvey + noResponse === total
+
+    const working = responses!.filter(
+      (r) => r.conversation_state === "complete" && r.is_working === true
     );
-    const working = responses!.filter((r) => r.is_working === true);
-    const notWorking = responses!.filter((r) => r.is_working === false);
+    const notWorking = responses!.filter(
+      (r) => r.conversation_state === "declined" && r.is_working === false
+    );
+    const midSurvey = responses!.filter(
+      (r) => ["q2_sent", "q3_sent"].includes(r.conversation_state)
+    );
     const noResponse = responses!.filter(
-      (r) => !["complete", "declined"].includes(r.conversation_state)
+      (r) => ["q1_sent", "pending", "nudged"].includes(r.conversation_state)
     );
+
+    const responded = working.length + notWorking.length + midSurvey.length;
     const fourPlusHrs = responses!.filter((r) => r.has_four_plus_hours === true);
     const totalApps = responses!.reduce((sum, r) => sum + (r.app_goal || 0), 0);
-    const responseRate = total > 0 ? Math.round((responded.length / total) * 100) : 0;
+    const responseRate = total > 0 ? Math.round((responded / total) * 100) : 0;
+
+    // Sanity check: buckets must sum to total
+    const bucketSum = working.length + notWorking.length + midSurvey.length + noResponse.length;
+    if (bucketSum !== total) {
+      console.error(
+        `BUCKET MISMATCH: working(${working.length}) + notWorking(${notWorking.length}) + midSurvey(${midSurvey.length}) + noResponse(${noResponse.length}) = ${bucketSum}, total = ${total}`
+      );
+    }
 
     // Build summary message
+    const midSurveyLine = midSurvey.length > 0
+      ? `\n⏳ ${midSurvey.length} responding (mid-survey)`
+      : "";
     const summary = [
       `📊 Daily Check-In — ${friendlyDate}`,
       ``,
       `✅ ${working.length} working / ${total} total (${responseRate}% response rate)`,
       `⏰ ${fourPlusHrs.length} planning 4+ hrs talk time`,
       `📝 ${totalApps} total apps committed`,
-      `🚫 ${notWorking.length} not working | ${noResponse.length} no response`,
+      `🚫 ${notWorking.length} not working | ${noResponse.length} no response${midSurveyLine}`,
       ``,
       `Reply MORE for agent-by-agent breakdown`,
     ].join("\n");
@@ -140,9 +144,10 @@ serve(async (req) => {
         sent,
         stats: {
           total,
-          responded: responded.length,
+          responded,
           working: working.length,
           notWorking: notWorking.length,
+          midSurvey: midSurvey.length,
           noResponse: noResponse.length,
           fourPlusHrs: fourPlusHrs.length,
           totalApps,
