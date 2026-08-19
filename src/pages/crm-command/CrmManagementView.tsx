@@ -21,18 +21,17 @@ import {
 } from 'lucide-react';
 import { supabase as portalSupabase } from '@/lib/crm/portal-client';
 import { AgentManagementTab } from './AgentManagementTab';
+import { CrmDashboardTab } from './CrmDashboardTab';
+import { SupportTab } from './SupportTab';
+import { CsrContactTab } from './CsrContactTab';
+import { NewBusinessTab } from './NewBusinessTab';
+import { BookOfBusinessTab } from './BookOfBusinessTab';
+import { CancellationUploadTab } from './CancellationUploadTab';
+import { CrossSellTab } from './CrossSellTab';
 
 // ── Tab placeholder components (will be replaced with real implementations) ──
 
-function PlaceholderTab({ name, icon: Icon }: { name: string; icon: React.ElementType }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-      <Icon className="w-12 h-12 mb-3 opacity-40" />
-      <p className="text-lg font-medium">{name}</p>
-      <p className="text-sm mt-1">Coming soon</p>
-    </div>
-  );
-}
+// All 8 tabs are now data-connected — no more placeholders needed
 
 // ── Types ──
 
@@ -142,14 +141,14 @@ export function CrmManagementView({ agencyName, agencyId, onBack, subAgencies }:
 
       {/* Active tab content */}
       <div className="flex-1 overflow-y-auto">
-        {activeTab === 'dashboard' && <PlaceholderTab name="Dashboard" icon={LayoutDashboard} />}
+        {activeTab === 'dashboard' && <CrmDashboardTab agencyName={agencyName} agencyId={agencyId} />}
         {activeTab === 'agents' && <AgentManagementTab agencyName={agencyName} agencyId={agencyId} />}
-        {activeTab === 'book-of-business' && <PlaceholderTab name="Book of Business" icon={BookOpen} />}
-        {activeTab === 'new-business' && <PlaceholderTab name="New Business" icon={PlusCircle} />}
-        {activeTab === 'cancellation-upload' && <PlaceholderTab name="Cancellation Upload" icon={FileUp} />}
-        {activeTab === 'cross-sell' && <PlaceholderTab name="Cross-Sell" icon={ArrowLeftRight} />}
-        {activeTab === 'support' && <PlaceholderTab name="Support" icon={Headphones} />}
-        {activeTab === 'csr-contact' && <PlaceholderTab name="CSR Contact" icon={UserCircle} />}
+        {activeTab === 'book-of-business' && <BookOfBusinessTab agencyName={agencyName} agencyId={agencyId} />}
+        {activeTab === 'new-business' && <NewBusinessTab agencyName={agencyName} agencyId={agencyId} />}
+        {activeTab === 'cancellation-upload' && <CancellationUploadTab agencyName={agencyName} agencyId={agencyId} />}
+        {activeTab === 'cross-sell' && <CrossSellTab agencyName={agencyName} agencyId={agencyId} />}
+        {activeTab === 'support' && <SupportTab agencyName={agencyName} agencyId={agencyId} />}
+        {activeTab === 'csr-contact' && <CsrContactTab agencyName={agencyName} agencyId={agencyId} />}
       </div>
     </div>
   );
