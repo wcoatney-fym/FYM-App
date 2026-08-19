@@ -98,7 +98,7 @@ export function CrmManagementView({ agencyName, agencyId, onBack, subAgencies }:
   }, [agencyId, subAgencies]);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full px-6 py-4">
       {/* Header */}
       <div className="flex items-center gap-3 mb-4">
         {onBack && (
