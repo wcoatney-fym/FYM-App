@@ -49,6 +49,12 @@ interface AgentManagementTabProps {
   agencyName: string;
   /** Agency ID from the FYM App agencies table */
   agencyId: string;
+  /** Portal agency object (optional, for future use) */
+  agency?: unknown;
+  /** Portal agency IDs (optional, for future use) */
+  agencyIds?: string[];
+  /** Portal agency names (optional, for future use) */
+  agencyNames?: string[];
 }
 
 const PAGE_SIZE = 25;
