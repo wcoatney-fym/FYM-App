@@ -79,26 +79,21 @@ export const AgenciesTab: React.FC = () => {
       }
     }
 
+    // Count filled seats per agency — query each roster individually
+    // (max 200 rows each). Exclude CSR placeholder rows.
     const counts: Record<string, number> = {};
-    const uploadIds = Object.values(latestUploadByAgency);
-    if (uploadIds.length > 0) {
-      const { data: rows } = await supabase
-        .from('crm_roster')
-        .select('upload_id, row_data')
-        .in('upload_id', uploadIds);
-
-      const uploadToAgency: Record<string, string> = {};
-      for (const [agency, uid] of Object.entries(latestUploadByAgency)) {
-        uploadToAgency[uid] = agency;
-      }
-
-      for (const row of (rows || [])) {
-        const agency = uploadToAgency[row.upload_id];
-        if (agency && row.row_data['First Name']?.trim()) {
-          counts[agency] = (counts[agency] || 0) + 1;
-        }
-      }
-    }
+    await Promise.all(
+      Object.entries(latestUploadByAgency).map(async ([agency, uploadId]) => {
+        const { data: rows } = await supabase
+          .from('crm_roster')
+          .select('row_data')
+          .eq('upload_id', uploadId)
+          .limit(200);
+        counts[agency] = (rows || []).filter(
+          (r) => r.row_data['First Name']?.trim() && r.row_data['CSR Placeholder'] !== 'true'
+        ).length;
+      })
+    );
 
     setFilledSeats(counts);
     setLoading(false);
