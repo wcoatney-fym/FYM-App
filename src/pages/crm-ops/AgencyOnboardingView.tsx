@@ -1023,15 +1023,16 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground/80 mb-1.5">Agency URL Prefix</label>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-0">
+                    <span className="inline-flex items-center px-3 py-2.5 text-sm text-muted-foreground bg-muted border border-r-0 border-border rounded-l-lg select-none">https://</span>
                     <input
                       type="text"
                       value={urlPrefix}
                       onChange={(e) => setUrlPrefix(e.target.value)}
-                      className="flex-1 max-w-xs px-4 py-2.5 border border-border rounded-lg focus:ring-2 focus:ring-ring focus:border-ring text-sm"
+                      className="flex-1 max-w-xs px-4 py-2.5 border border-border focus:ring-2 focus:ring-ring focus:border-ring text-sm"
                       placeholder="agencyname"
                     />
-                    <span className="text-sm text-muted-foreground">.my-agent-appt.com</span>
+                    <span className="inline-flex items-center px-3 py-2.5 text-sm text-muted-foreground bg-muted border border-l-0 border-border rounded-r-lg select-none">.my-agent-appt.com</span>
                   </div>
                   {urlPrefix.trim() && (
                     <div className="mt-2 p-3 bg-muted rounded-lg border border-border">

@@ -414,13 +414,17 @@ const EditBusinessInfoModal: React.FC<{
 
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1">Agency URL Prefix</label>
-            <input
-              type="url"
-              value={urlPrefix}
-              onChange={(e) => setUrlPrefix(e.target.value)}
-              placeholder="https://book.agency.com/"
-              className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring/20 focus:border-primary outline-none"
-            />
+            <div className="flex items-center gap-0">
+              <span className="inline-flex items-center px-2.5 py-2 text-sm text-muted-foreground bg-muted border border-r-0 border-border rounded-l-lg select-none">https://</span>
+              <input
+                type="text"
+                value={urlPrefix}
+                onChange={(e) => setUrlPrefix(e.target.value)}
+                placeholder="agencyname"
+                className="flex-1 px-3 py-2 text-sm border border-border focus:ring-2 focus:ring-ring/20 focus:border-primary outline-none"
+              />
+              <span className="inline-flex items-center px-2.5 py-2 text-sm text-muted-foreground bg-muted border border-l-0 border-border rounded-r-lg select-none">.my-agent-appt.com</span>
+            </div>
             <p className="text-xs text-muted-foreground mt-1">Prefixed to agent booking links in the portal</p>
           </div>
 
@@ -638,16 +642,20 @@ const SyncBusinessInfoModal: React.FC<{
 
           <div>
             <label className="block text-xs font-medium text-muted-foreground mb-1">Agency URL Prefix</label>
-            <input
-              type="text"
-              value={urlPrefix}
-              onChange={(e) => setUrlPrefix(e.target.value)}
-              disabled={running}
-              placeholder="wisechoice"
-              className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:ring-2 focus:ring-ring/20 focus:border-primary outline-none disabled:bg-muted"
-            />
+            <div className="flex items-center gap-0">
+              <span className="inline-flex items-center px-2.5 py-2 text-sm text-muted-foreground bg-muted border border-r-0 border-border rounded-l-lg select-none">https://</span>
+              <input
+                type="text"
+                value={urlPrefix}
+                onChange={(e) => setUrlPrefix(e.target.value)}
+                disabled={running}
+                placeholder="agencyname"
+                className="flex-1 px-3 py-2 text-sm border border-border focus:ring-2 focus:ring-ring/20 focus:border-primary outline-none disabled:bg-muted"
+              />
+              <span className="inline-flex items-center px-2.5 py-2 text-sm text-muted-foreground bg-muted border border-l-0 border-border rounded-r-lg select-none">.my-agent-appt.com</span>
+            </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Builds each seat's links: <span className="font-mono">{'{prefix}'}.my-agent-appt.com/r{'{seat}'}-click-to-schedule</span>
+              Builds each seat's links: <span className="font-mono">https://{'{prefix}'}.my-agent-appt.com/r{'{seat}'}-click-to-schedule</span>
             </p>
           </div>
 
