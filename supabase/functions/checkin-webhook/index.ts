@@ -119,12 +119,14 @@ serve(async (req) => {
     }
 
     if (manager && body.toLowerCase() === "more") {
-      // Send detailed breakdown
+      // Generate a signed token and send a short SMS with the hosted page link.
+      // The hosted page shows the full agent-by-agent breakdown, mobile-optimized.
+
+      // Quick stats for the headline
       const { data: responses } = await sb
         .from("checkin_responses")
-        .select("*, checkin_recipients!inner(first_name, last_name)")
-        .eq("check_in_date", today)
-        .order("id", { ascending: true }); // Deterministic order by response ID
+        .select("conversation_state, is_working")
+        .eq("check_in_date", today);
 
       if (!responses?.length) {
         await sendSms(incomingPhone, "No check-in responses yet for today.");
@@ -133,40 +135,45 @@ serve(async (req) => {
         });
       }
 
-      // Build breakdown — paginate at ~1500 chars to stay under SMS limits
-      const lines: string[] = [`📋 Agent Breakdown — ${today}:`];
-      for (const r of responses) {
-        const rec = (r as any).checkin_recipients;
-        const name = `${rec.first_name} ${rec.last_name}`;
-        if (r.conversation_state === "complete" || r.conversation_state === "declined") {
-          if (r.is_working) {
-            const hrs = r.has_four_plus_hours ? "4+ hrs" : "<4 hrs";
-            const apps = r.app_goal ? `${r.app_goal}${r.app_goal === 5 ? "+" : ""} apps` : "";
-            lines.push(`• ${name} — Working, ${hrs}${apps ? ", " + apps : ""}`);
-          } else {
-            lines.push(`• ${name} — Not working`);
-          }
-        } else {
-          lines.push(`• ${name} — No response ⚠️`);
+      // Compute headline stats (mutually exclusive buckets)
+      const working = responses.filter(
+        (r) => r.conversation_state === "complete" && r.is_working === true
+      ).length;
+      const notWorking = responses.filter(
+        (r) => r.conversation_state === "declined" && r.is_working === false
+      ).length;
+      const noResponse = responses.filter(
+        (r) => ["q1_sent", "pending", "nudged"].includes(r.conversation_state)
+      ).length;
+
+      // Generate signed token via the checkin-more-page edge function
+      const tokenResp = await fetch(
+        `${supabaseUrl}/functions/v1/checkin-more-page`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${supabaseKey}`,
+          },
+          body: JSON.stringify({ action: "generate", manager_id: manager.id, date: today }),
         }
+      );
+
+      if (!tokenResp.ok) {
+        console.error("Token generation failed:", await tokenResp.text());
+        await sendSms(incomingPhone, "Unable to generate breakdown link. Try again in a moment.");
+        return new Response("<Response></Response>", {
+          headers: { "Content-Type": "text/xml", ...corsHeaders },
+        });
       }
 
-      // Split into SMS-safe chunks (~1500 chars each)
-      const chunks: string[] = [];
-      let current = "";
-      for (const line of lines) {
-        if (current.length + line.length + 1 > 1500) {
-          chunks.push(current);
-          current = line;
-        } else {
-          current += (current ? "\n" : "") + line;
-        }
-      }
-      if (current) chunks.push(current);
+      const { url } = await tokenResp.json();
 
-      for (const chunk of chunks) {
-        await sendSms(incomingPhone, chunk);
-      }
+      // Build short SMS — plain text, no emoji, under one segment (160 chars GSM-7)
+      // GSM-7 safe: no emoji, no special unicode
+      const smsBody = `${working} working, ${notWorking} off, ${noResponse} silent. Full breakdown: ${url}`;
+
+      await sendSms(incomingPhone, smsBody);
 
       return new Response("<Response></Response>", {
         headers: { "Content-Type": "text/xml", ...corsHeaders },
