@@ -143,43 +143,83 @@ function getPortalClient() {
   return createClient(url, key);
 }
 
-/** Look up per-agency GHL credentials from portal DB */
+/** Look up per-agency GHL credentials — env vars first, portal DB fallback */
 async function getAgencyGhlConfig(agencyName: string): Promise<GhlConfig | null> {
-  const portal = getPortalClient();
+  // 1. Try env var (hardcoded mapping — always available, no DB round-trip)
+  const envMapping = AGENCY_CONFIG_MAP[agencyName];
+  if (envMapping) {
+    const apiKey = Deno.env.get(envMapping.envKey);
+    if (apiKey) {
+      return { apiKey, locationId: envMapping.locationId };
+    }
+  }
 
-  // Find agency by name
-  const { data: agency } = await portal
-    .from("hierarchy_agencies")
-    .select("id, ghl_api_enabled")
-    .eq("name", agencyName)
-    .eq("is_active", true)
-    .maybeSingle();
+  // 2. Fall back to portal DB (agency_ghl_configs table)
+  try {
+    const portal = getPortalClient();
+    const { data: agency } = await portal
+      .from("hierarchy_agencies")
+      .select("id, ghl_api_enabled")
+      .eq("name", agencyName)
+      .eq("is_active", true)
+      .maybeSingle();
 
-  if (!agency) return null;
+    if (!agency) return null;
 
-  // Get the GHL config
-  const { data: config } = await portal
-    .from("agency_ghl_configs")
-    .select("ghl_api_key, ghl_location_id, connection_status")
-    .eq("agency_id", agency.id)
-    .maybeSingle();
+    const { data: config } = await portal
+      .from("agency_ghl_configs")
+      .select("ghl_api_key, ghl_location_id, connection_status")
+      .eq("agency_id", agency.id)
+      .maybeSingle();
 
-  if (!config || !config.ghl_api_key || !config.ghl_location_id) {
+    if (!config || !config.ghl_api_key || !config.ghl_location_id) {
+      return null;
+    }
+
+    return {
+      apiKey: config.ghl_api_key,
+      locationId: config.ghl_location_id,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Per-agency Sunfire subaccount mapping (agency name → env var + location ID)
+const SUNFIRE_CONFIG_MAP: Record<string, { envKey: string; locationId: string }> = {
+  "FYM": { envKey: "CRM_OPS_FYM_SUNFIRE_API", locationId: "IQljfeWX6wWHmzUtgSyz" },
+  "MHA (IFG)": { envKey: "CRM_OPS_MHA_IFG_SUNFIRE_API", locationId: "J3OhGPUb6xcoWHnFGOit" },
+  "MHA (YFMO)": { envKey: "CRM_OPS_MHA_YFMO_SUNFIRE_API", locationId: "wIbVl4AX2LZRDL8pTK2c" },
+};
+
+// Per-agency GHL config mapping (agency name → env var + location ID)
+// Used as fallback when agency_ghl_configs DB table doesn't have the agency
+const AGENCY_CONFIG_MAP: Record<string, { envKey: string; locationId: string }> = {
+  "FYM": { envKey: "CRM_OPS_FYM_AGENCY_API", locationId: "YM9XmCanfO6p28b1sQOH" },
+  "Wisechoice": { envKey: "CRM_OPS_WISECHOICE_AGENCY_API", locationId: "I7Mw22ovq7fPgJWV5eWL" },
+  "Aspire": { envKey: "CRM_OPS_ASPIRE_AGENCY_API", locationId: "MrRGbMxuEFqc6y00tr5A" },
+  "DH Insurance": { envKey: "CRM_OPS_DH_INSURANCE_AGENCY_API", locationId: "gUWVjvEQMniOUvPEV2Z6" },
+  "Berith Partners LLC": { envKey: "CRM_OPS_BERITH_PARTNERS_AGENCY_API", locationId: "2zscje2WhD64VpxQvTsU" },
+  "MHA (IFG)": { envKey: "CRM_OPS_MHA_IFG_AGENCY_API", locationId: "W2d8rLlhu7zchstuX3m9" },
+  "MHA (YFMO)": { envKey: "CRM_OPS_MHA_YFMO_AGENCY_API", locationId: "OAd1PnliebjgodpEGuCI" },
+  "360 Insurance": { envKey: "CRM_OPS_360_INSURANCE_AGENCY_API", locationId: "Uc3AEjz4qy9D672Q4IsC" },
+};
+
+/** Get per-agency Sunfire GHL config from env vars */
+function getSunfireConfig(agencyName: string): GhlConfig | null {
+  const mapping = SUNFIRE_CONFIG_MAP[agencyName];
+  if (!mapping) return null;
+
+  const apiKey = Deno.env.get(mapping.envKey);
+  if (!apiKey) {
+    // Fall back to the shared Sunfire key if per-agency key isn't set
+    const fallbackKey = Deno.env.get("GHL_API_KEY_SUNFIRE");
+    const fallbackLoc = Deno.env.get("GHL_LOCATION_ID_SUNFIRE");
+    if (fallbackKey && fallbackLoc) return { apiKey: fallbackKey, locationId: fallbackLoc };
     return null;
   }
 
-  return {
-    apiKey: config.ghl_api_key,
-    locationId: config.ghl_location_id,
-  };
-}
-
-/** Get Sunfire GHL config from env vars */
-function getSunfireConfig(): GhlConfig | null {
-  const apiKey = Deno.env.get("GHL_API_KEY_SUNFIRE");
-  const locationId = Deno.env.get("GHL_LOCATION_ID_SUNFIRE");
-  if (!apiKey || !locationId) return null;
-  return { apiKey, locationId };
+  return { apiKey, locationId: mapping.locationId };
 }
 
 /** Build the custom value key-value pairs for a given agent seat */
@@ -339,7 +379,7 @@ async function processAgent(
 
     // 3. Dual-push to Sunfire if applicable
     if (isDualPush) {
-      const sunfireConfig = getSunfireConfig();
+      const sunfireConfig = getSunfireConfig(agent.agency);
       if (sunfireConfig) {
         const sunfirePush = await pushCustomValuesToLocation(
           sunfireConfig,
