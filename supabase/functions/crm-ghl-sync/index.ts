@@ -106,6 +106,7 @@ interface AgentData {
   profileImage: string;
   crmNumber: string;
   agency: string;
+  agencyId?: string;
   digitalBusinessCardUrl?: string;
   confirmationPageUrl?: string;
   calendarEmbedCode?: string;
@@ -145,10 +146,63 @@ function getPortalClient() {
   return createClient(url, key);
 }
 
-/** Look up per-agency GHL credentials — env vars first, portal DB fallback */
-async function getAgencyGhlConfig(agencyName: string): Promise<GhlConfig | null> {
-  // 1. Try env var (hardcoded mapping — always available, no DB round-trip)
-  const envMapping = AGENCY_CONFIG_MAP[agencyName];
+/** Normalize an agency name for fuzzy matching (lowercase, trimmed, collapsed whitespace). */
+function normalizeAgencyName(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/** Find env-var mapping with normalized/fuzzy name matching. */
+function findEnvMapping(agencyName: string): { envKey: string; locationId: string } | undefined {
+  // 1. Exact match (fast path)
+  if (AGENCY_CONFIG_MAP[agencyName]) return AGENCY_CONFIG_MAP[agencyName];
+
+  // 2. Normalized match (case-insensitive, trimmed)
+  const needle = normalizeAgencyName(agencyName);
+  for (const [key, value] of Object.entries(AGENCY_CONFIG_MAP)) {
+    if (normalizeAgencyName(key) === needle) return value;
+  }
+
+  // 3. Substring/contains match — if the DB name contains an env-map key or vice versa
+  for (const [key, value] of Object.entries(AGENCY_CONFIG_MAP)) {
+    const nKey = normalizeAgencyName(key);
+    if (needle.includes(nKey) || nKey.includes(needle)) return value;
+  }
+
+  return undefined;
+}
+
+/**
+ * Look up per-agency GHL credentials.
+ * Resolution order:
+ *   1. If agencyId provided → agency_ghl_configs by UUID (immune to name drift)
+ *   2. Env var mapping with normalized/fuzzy name match
+ *   3. DB lookup by name → agency_ghl_configs by UUID
+ */
+async function getAgencyGhlConfig(agencyName: string, agencyId?: string): Promise<GhlConfig | null> {
+  const portal = getPortalClient();
+
+  // 1. If we have an agency UUID, go straight to the DB config (most reliable)
+  if (agencyId) {
+    try {
+      const { data: config } = await portal
+        .from("agency_ghl_configs")
+        .select("ghl_api_key, ghl_location_id, connection_status")
+        .eq("agency_id", agencyId)
+        .maybeSingle();
+
+      if (config?.ghl_api_key && config?.ghl_location_id) {
+        return {
+          apiKey: config.ghl_api_key,
+          locationId: config.ghl_location_id,
+        };
+      }
+    } catch {
+      // DB lookup failed — continue to env-var fallback
+    }
+  }
+
+  // 2. Try env var mapping with normalized/fuzzy name match
+  const envMapping = findEnvMapping(agencyName);
   if (envMapping) {
     const apiKey = Deno.env.get(envMapping.envKey);
     if (apiKey) {
@@ -156,9 +210,8 @@ async function getAgencyGhlConfig(agencyName: string): Promise<GhlConfig | null>
     }
   }
 
-  // 2. Fall back to portal DB (agency_ghl_configs table)
+  // 3. Fall back to portal DB by name → agency_ghl_configs by ID
   try {
-    const portal = getPortalClient();
     const { data: agency } = await portal
       .from("hierarchy_agencies")
       .select("id, ghl_api_enabled")
@@ -413,10 +466,10 @@ async function processAgent(
 
   const isDualPush = DUAL_PUSH_AGENCIES.has(agent.agency);
 
-  // 1. Get agency GHL config
-  const agencyConfig = await getAgencyGhlConfig(agent.agency);
+  // 1. Get agency GHL config (prefer UUID, fall back to name with fuzzy match)
+  const agencyConfig = await getAgencyGhlConfig(agent.agency, agent.agencyId);
   if (!agencyConfig) {
-    result.errors.push(`No GHL config found for agency "${agent.agency}"`);
+    result.errors.push(`No GHL config found for agency "${agent.agency}"${agent.agencyId ? ` (id: ${agent.agencyId})` : ''}`);
     return result;
   }
 
@@ -491,6 +544,7 @@ Deno.serve(async (req: Request) => {
         profileImage: body.profileImage || "",
         crmNumber: body.crmNumber || "",
         agency: body.agency || "",
+        agencyId: body.agencyId || "",
         digitalBusinessCardUrl: body.digitalBusinessCardUrl || "",
         confirmationPageUrl: body.confirmationPageUrl || "",
         calendarEmbedCode: body.calendarEmbedCode || "",
@@ -538,6 +592,7 @@ Deno.serve(async (req: Request) => {
           profileImage: agentData.profileImage || "",
           crmNumber: agentData.crmNumber || "",
           agency: agentData.agency || "",
+          agencyId: agentData.agencyId || body.agencyId || "",
           digitalBusinessCardUrl: agentData.digitalBusinessCardUrl || "",
           confirmationPageUrl: agentData.confirmationPageUrl || "",
           calendarEmbedCode: agentData.calendarEmbedCode || "",

@@ -127,7 +127,8 @@ export async function regenerateAgencyRosterHiddenFields(
 /** Build the exact onboarding webhook payload for a roster row. */
 export function buildOnboardingPayload(
   row: RosterRepushRow,
-  agency: string
+  agency: string,
+  agencyId?: string,
 ) {
   return {
     seatNumber: row.row_data['Seat Number'] || '',
@@ -140,6 +141,7 @@ export function buildOnboardingPayload(
       row.row_data['All Templates | Agent Profile Image'] || '',
     crmNumber: row.row_data['All Templates | Agent CRM #'] || '',
     agency,
+    agencyId: agencyId || '',
     digitalBusinessCardUrl: row.row_data[DBC_HOME_PAGE_KEY] || '',
     confirmationPageUrl: row.row_data[APPT_CONFIRMATION_KEY] || '',
     calendarEmbedCode: row.row_data[CALENDAR_EMBED_KEY] || '',
@@ -158,6 +160,7 @@ export type RepushOptions = {
   onProgress?: (progress: RepushProgress) => void;
   onRowResult?: (rowId: string, status: RepushRowStatus) => void;
   skipWarmup?: boolean;
+  agencyId?: string;
 };
 
 export type RepushResult = {
@@ -181,9 +184,12 @@ export async function pushRosterRowsToGhl(
 ): Promise<RepushResult> {
   const { data: agencyData } = await supabase
     .from('hierarchy_agencies')
-    .select('zaps_paused')
+    .select('id, zaps_paused')
     .eq('name', agencyName)
     .maybeSingle();
+
+  // Resolve agencyId: prefer explicit option, fall back to DB lookup
+  const resolvedAgencyId = options.agencyId || agencyData?.id || '';
 
   const populated = rows.filter(isPopulated);
   const total = populated.length;
@@ -209,7 +215,7 @@ export async function pushRosterRowsToGhl(
   const failedRows: RosterRepushRow[] = [];
 
   for (const row of populated) {
-    const payload = buildOnboardingPayload(row, agencyName);
+    const payload = buildOnboardingPayload(row, agencyName, resolvedAgencyId);
     const result = await fireCrmGhlSync(payload, 'onboard');
     if (result.success) {
       sent++;
@@ -229,7 +235,7 @@ export async function pushRosterRowsToGhl(
   if (failedRows.length > 0) {
     await sleep(RETRY_INITIAL_DELAY_MS);
     for (const row of failedRows) {
-      const payload = buildOnboardingPayload(row, agencyName);
+      const payload = buildOnboardingPayload(row, agencyName, resolvedAgencyId);
       const result = await fireCrmGhlSync(payload, 'onboard');
       if (result.success) {
         sent++;

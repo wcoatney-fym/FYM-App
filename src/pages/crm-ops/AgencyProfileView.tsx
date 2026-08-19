@@ -564,6 +564,7 @@ const SyncBusinessInfoModal: React.FC<{
     setProgress({ sent: 0, failed: 0, total: candidates.length });
 
     const result = await pushRosterRowsToGhl(agency.name, candidates, {
+      agencyId: agency.id,
       onProgress: (p) => setProgress(p),
       onRowResult: (rowId, status) =>
         setRowReadout((prev) => prev.map((r) => (r.id === rowId ? { ...r, status } : r))),
