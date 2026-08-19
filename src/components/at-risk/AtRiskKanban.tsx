@@ -561,7 +561,7 @@ export function AtRiskKanban({ filterAgencyId }: AtRiskKanbanProps) {
           onClose={() => setSelectedPolicy(null)}
           onStageChange={(policyNumber, newStage) => {
             const p = policies.find(pol => pol.policy_number === policyNumber);
-            if (p) moveToStage(p, newStage);
+            if (p) moveToStage(p, newStage as Stage);
           }}
         />
       )}

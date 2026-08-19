@@ -16,7 +16,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   X, Clock, DollarSign, User, Building2, FileText,
   Calendar, ArrowRight, MessageSquare, Loader2, History,
-  Phone, Send, AlertTriangle, CheckCircle2, XCircle,
+  Phone, Send, AlertTriangle, CheckCircle2,
   ChevronRight,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
