@@ -46,6 +46,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/crm/portal-client';
 import { fireCrossSellConfirmWebhook } from '@/lib/crm/webhooks';
+import { fireCrmGhlCrossSellPush } from '@/lib/crm/ghl-sync';
 import type { CrmAgency, CrmTemplate, AgencyGhlConfig } from '@/lib/crm/types';
 import { parseCSV } from '@/lib/crm/csv-parser';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -1340,6 +1341,9 @@ const PhoneSetupStep: React.FC<{ agency: CrmAgency; onRefresh: () => void }> = (
                   fields: p.fields,
                 })),
               });
+
+              // Push cross-sell custom values to GHL
+              await fireCrmGhlCrossSellPush(agency.id, agency.name);
             }
 
             await supabase

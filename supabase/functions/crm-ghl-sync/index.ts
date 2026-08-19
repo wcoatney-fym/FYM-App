@@ -8,6 +8,7 @@
  *   - create_user: Create a GHL user in the agency subaccount (GHL sends invite)
  *   - onboard: Combined push_custom_values + create_user (default action)
  *   - batch: Process multiple agents in one call (for Roster batch push)
+ *   - push_cross_sell: Push cross-sell product custom values to GHL (agency only, no Sunfire)
  *
  * Routing:
  *   - FYM, MHA (IFG), MHA (YFMO) → push custom values to BOTH agency + Sunfire subaccounts
@@ -51,6 +52,63 @@ const CUSTOM_VALUE_FIELDS = [
   "Digital Business Card Home Page",
   "Appt Booked Confirmation Page",
 ] as const;
+
+// Cross-sell DB field key → GHL custom value label mapping
+const CROSS_SELL_FIELD_LABELS: Record<string, string> = {
+  headline: "Headline",
+  hero_headline: "Hero Headline",
+  subheadline: "Subheadline",
+  meta_title: "Meta Title",
+  meta_description: "Meta Description",
+  meta_image_url: "Meta Image URL",
+  cta_headline: "CTA Headline",
+  cta_text: "CTA Text",
+  button_cta_text: "Button CTA Text",
+  learn_more_text: "Learn More Text",
+  bullet_1: "Bullet 1",
+  bullet_1_description: "Bullet 1 Description",
+  bullet_2: "Bullet 2",
+  bullet_2_description: "Bullet 2 Description",
+  bullet_3: "Bullet 3",
+  bullet_3_description: "Bullet 3 Description",
+  bullet_4: "Bullet 4",
+  bullet_4_description: "Bullet 4 Description",
+  bullet_5: "Bullet 5",
+  bullet_5_description: "Bullet 5 Description",
+  benefit_1_title: "Benefit #1 Title",
+  benefit_1_description: "Benefit #1 Description",
+  benefit_2_title: "Benefit #2 Title",
+  benefit_2_description: "Benefit #2 Description",
+  benefit_3_title: "Benefit #3 Title",
+  benefit_3_description: "Benefit #3 Description",
+  benefit_4_title: "Benefit #4 Title",
+  benefit_4_description: "Benefit #4 Description",
+  benefit_5_title: "Benefit #5 Title",
+  benefit_5_description: "Benefit #5 Description",
+  specialist_full_name: "Specialist Full Name",
+  specialist_title: "Specialist Title",
+  specialist_intro: "Specialist Intro",
+  specialist_email: "Specialist Email",
+  specialist_mobile: "Specialist Mobile #",
+  funnel_link_step_1: "Funnel Link | Step 1 - Home & Awareness",
+  funnel_link_step_2: "Funnel Link | Step 2 - Appointment Booking",
+  booking_url: "Booking URL",
+  trigger_link: "Trigger Link",
+  calendar_embed_code: "Calendar Embed Code",
+  appointment_disclaimer: "Appointment Disclaimer",
+  confirmation_headline: "Confirmation Headline",
+  confirmation_subheadline: "Confirmation Subheadline",
+  confirmation_details: "Confirmation Details",
+  confirmation_next_steps: "Confirmation Next Steps",
+  system_crm_number: "System CRM #",
+  qualification_age_requirement: "Qualification | Age Requirement",
+  qualification_doctor_participation: "Qualification | Doctor Participation",
+  qualification_enrollment_fee: "Qualification | Enrollment Fee",
+  qualification_income_guidelines: "Qualification | Income Guidelines",
+  qualification_medication_requirement: "Qualification | Medication Requirement",
+  qualification_renewal_requirement: "Qualification | Renewal Requirement",
+  qualification_residency: "Qualification | Residency",
+};
 
 // Default GHL user permissions for new agents
 const DEFAULT_USER_PERMISSIONS = {
@@ -617,6 +675,89 @@ Deno.serve(async (req: Request) => {
         succeeded,
         failed,
         results,
+      });
+    }
+
+    // ── Push cross-sell custom values ──
+    if (action === "push_cross_sell") {
+      const agencyId = body.agencyId;
+      const agencyName = body.agencyName || body.agency || "";
+
+      if (!agencyId && !agencyName) {
+        return json({ success: false, error: "agencyId or agencyName is required" }, 400);
+      }
+
+      // 1. Get agency GHL config
+      const agencyConfig = await getAgencyGhlConfig(agencyName, agencyId);
+      if (!agencyConfig) {
+        return json({
+          success: false,
+          error: `No GHL config found for agency${agencyId ? ` (id: ${agencyId})` : ` "${agencyName}"`}`,
+        }, 400);
+      }
+
+      // 2. Read cross-sell products from portal DB
+      const portal = getPortalClient();
+      const lookupId = agencyId || undefined;
+      let crossSellQuery = portal
+        .from("crm_agency_cross_sell")
+        .select("product_number, product_name, fields")
+        .order("product_number");
+
+      if (lookupId) {
+        crossSellQuery = crossSellQuery.eq("agency_id", lookupId);
+      } else {
+        // Fall back: look up agency ID by name first
+        const { data: agency } = await portal
+          .from("hierarchy_agencies")
+          .select("id")
+          .eq("name", agencyName)
+          .eq("is_active", true)
+          .maybeSingle();
+        if (!agency) {
+          return json({ success: false, error: `Agency not found: "${agencyName}"` }, 400);
+        }
+        crossSellQuery = crossSellQuery.eq("agency_id", agency.id);
+      }
+
+      const { data: products, error: dbError } = await crossSellQuery;
+      if (dbError) {
+        return json({ success: false, error: `DB error: ${dbError.message}` }, 500);
+      }
+      if (!products || products.length === 0) {
+        return json({ success: false, error: "No cross-sell products configured for this agency" }, 400);
+      }
+
+      // 3. Build GHL custom value map: "Cross Selling | Product #N | Label" → value
+      const customValues: Record<string, string> = {};
+      for (const product of products) {
+        const fields = product.fields as Record<string, string>;
+        for (const [fieldKey, fieldValue] of Object.entries(fields)) {
+          if (!fieldValue || fieldValue.trim() === "") continue;
+          const label = CROSS_SELL_FIELD_LABELS[fieldKey];
+          if (!label) continue; // Unknown field key — skip
+          const ghlName = `Cross Selling | Product #${product.product_number} | ${label}`;
+          customValues[ghlName] = fieldValue;
+        }
+      }
+
+      if (Object.keys(customValues).length === 0) {
+        return json({ success: false, error: "No cross-sell values to push (all fields empty)" }, 400);
+      }
+
+      // 4. Push to GHL (agency subaccount only — no Sunfire for cross-sell)
+      const pushResult = await pushCustomValuesToLocation(
+        agencyConfig,
+        customValues,
+        `${agencyName || agencyId} subaccount`,
+      );
+
+      return json({
+        success: pushResult.success,
+        productsProcessed: products.length,
+        valuesAttempted: Object.keys(customValues).length,
+        valuesUpdated: pushResult.updated,
+        errors: pushResult.errors,
       });
     }
 
