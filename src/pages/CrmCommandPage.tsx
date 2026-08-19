@@ -8,6 +8,7 @@ import {
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { supabase } from '@/lib/supabase';
 import { CrmManagementView } from './crm-command/CrmManagementView';
+import { useCrmViewStore } from '@/store/crm-view-store';
 
 // Tab components
 import { CcDashboardTab } from './crm-command/CcDashboardTab';
@@ -62,9 +63,9 @@ export function CrmCommandPage() {
   const rawTab = searchParams.get('tab') || '';
   const activeTab: CrmCommandTab = VALID_TABS.has(rawTab) ? (rawTab as CrmCommandTab) : 'dashboard';
   const { isFymAdmin, effectiveAgencyId, isViewingAs } = useEffectiveAuth();
+  const { viewingAgency, clearView } = useCrmViewStore();
 
   // Track whether to show the CRM Management view (for agency admins or FYM admin "View As")
-  const [viewAsAgency, setViewAsAgency] = useState<{ id: string; name: string } | null>(null);
   const [agencyCrmEnabled, setAgencyCrmEnabled] = useState<boolean | null>(null);
   const [agencyName, setAgencyName] = useState<string>('');
 
@@ -99,13 +100,13 @@ export function CrmCommandPage() {
     }, { replace: true });
   }, [setSearchParams]);
 
-  // FYM admin clicked "View As" on a specific agency from CRM Ops
-  if (viewAsAgency) {
+  // FYM admin clicked "View CRM" on a specific agency from CRM Ops
+  if (viewingAgency) {
     return (
       <CrmManagementView
-        agencyName={viewAsAgency.name}
-        agencyId={viewAsAgency.id}
-        onBack={() => setViewAsAgency(null)}
+        agencyName={viewingAgency.name}
+        agencyId={viewingAgency.id}
+        onBack={clearView}
       />
     );
   }
@@ -126,10 +127,6 @@ export function CrmCommandPage() {
       <CrmManagementView
         agencyName={agencyName}
         agencyId={effectiveAgencyId}
-        onBack={() => {
-          // View As exit is handled by the ViewAsBanner, so just show admin view
-          setAgencyCrmEnabled(false);
-        }}
       />
     );
   }

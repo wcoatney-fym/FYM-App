@@ -10,6 +10,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Building2, ChevronRight, FlaskConical, GitBranch, X, UserCheck, Phone, ExternalLink, Zap, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/crm/portal-client';
+import { useCrmViewStore } from '@/store/crm-view-store';
 import { formatPhoneDisplay } from '@/lib/crm/helpers';
 import type { CrmAgency } from '@/lib/crm/types';
 import { AddAgencyModal } from '@/pages/crm-ops/AddAgencyModal';
@@ -296,7 +297,7 @@ export const AgenciesTab: React.FC = () => {
                 <tr className="bg-muted/50 border-b border-border">
                   <th className="px-5 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Agency Name</th>
                   <th className="px-4 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Agency</th>
-                  <th className="px-4 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Quick Link</th>
+                  <th className="px-4 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">View CRM</th>
                   <th className="px-4 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Type</th>
                   <th className="px-4 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Assigned CSR</th>
                   <th className="px-4 py-3 text-left text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">CRM #</th>
@@ -339,19 +340,19 @@ export const AgenciesTab: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-4 py-3.5 whitespace-nowrap">
-                        {agency.slug ? (
-                          <a
-                            href={`${import.meta.env.VITE_PORTAL_APP_URL || 'https://contracting.teamfym.com'}/${agency.slug}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                        {agency.crm_enabled ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              useCrmViewStore.getState().viewAgency(agency.id, agency.name);
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 rounded-lg transition-colors"
                           >
-                            {agency.slug}
                             <ExternalLink className="w-3 h-3" />
-                          </a>
+                            View CRM
+                          </button>
                         ) : (
-                          <span className="text-sm text-muted-foreground">--</span>
+                          <span className="text-xs text-muted-foreground">--</span>
                         )}
                       </td>
                       <td className="px-4 py-3.5 whitespace-nowrap">
