@@ -83,13 +83,12 @@ export function CrmManagementView({ agencyName, agencyId, onBack, subAgencies }:
   useEffect(() => {
     if (!portalSupabase) return;
     const loadSubAgencies = async () => {
-      const { data } = await portalSupabase
+      const { count } = await portalSupabase
         .from('hierarchy_agencies')
         .select('id', { count: 'exact', head: true })
         .eq('parent_agency_id', agencyId)
         .eq('is_active', true);
-      // data is null for head requests, count comes from the response
-      setAgencyCount((subAgencies?.length ?? 0) + 1);
+      setAgencyCount((count ?? 0) + 1); // +1 for the parent agency itself
     };
     if (subAgencies) {
       setAgencyCount(subAgencies.length + 1);
