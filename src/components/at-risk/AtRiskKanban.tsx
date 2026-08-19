@@ -21,7 +21,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
-import { AtRiskPolicyModal } from './AtRiskPolicyModal';
+import { ClientDetailDrawer } from '@/components/client-detail';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 export interface AtRiskPolicy {
@@ -535,14 +535,33 @@ export function AtRiskKanban({ filterAgencyId }: AtRiskKanbanProps) {
         </div>
       )}
 
-      {/* Policy detail modal */}
+      {/* Policy detail drawer */}
       {selectedPolicy && (
-        <AtRiskPolicyModal
-          policy={selectedPolicy}
+        <ClientDetailDrawer
+          policy={{
+            policy_number: selectedPolicy.policy_number,
+            client_name: selectedPolicy.client_name,
+            product_type: selectedPolicy.product_type,
+            status: 'active',
+            plan_premium: selectedPolicy.plan_premium,
+            annual_premium: selectedPolicy.plan_premium * 12,
+            policy_effective_date: selectedPolicy.policy_effective_date,
+            paid_to_date: selectedPolicy.paid_to_date,
+            draft_count: selectedPolicy.draft_count,
+            is_at_risk: selectedPolicy.is_at_risk,
+            flag_type: selectedPolicy.flag_type,
+            days_since_paid: selectedPolicy.days_since_draft,
+            agent_name: selectedPolicy.agent_name,
+            agent_writing_number: selectedPolicy.writing_number,
+            agency_id: selectedPolicy.agency_id,
+            agency_name: selectedPolicy.agency_name,
+            task_id: selectedPolicy.task_id,
+            task_status: selectedPolicy.task_status,
+          }}
           onClose={() => setSelectedPolicy(null)}
           onStageChange={(policyNumber, newStage) => {
             const p = policies.find(pol => pol.policy_number === policyNumber);
-            if (p) moveToStage(p, newStage);
+            if (p) moveToStage(p, newStage as Stage);
           }}
         />
       )}

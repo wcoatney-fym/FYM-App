@@ -37,6 +37,7 @@ interface AttentionCardProps {
   policy: AttentionPolicy;
   showAgent?: boolean;
   onActionChange: (policyNumber: string, state: ActionState) => void;
+  onPolicyClick?: (policy: AttentionPolicy) => void;
   notes?: ManagerNote[];
 }
 
@@ -83,7 +84,7 @@ const urgencyBgHover = {
 
 // ── Component ──────────────────────────────────────────────────────────────
 
-export function AttentionCard({ policy, showAgent = false, onActionChange, notes: externalNotes }: AttentionCardProps) {
+export function AttentionCard({ policy, showAgent = false, onActionChange, onPolicyClick, notes: externalNotes }: AttentionCardProps) {
   const [localState, setLocalState] = useState<ActionState>(policy.action_state);
   const { isAgent } = useEffectiveAuth();
   const [noteOpen, setNoteOpen] = useState(false);
@@ -141,10 +142,13 @@ export function AttentionCard({ policy, showAgent = false, onActionChange, notes
           </span>
         </div>
 
-        {/* Client name + meta */}
-        <div className="flex-1 min-w-0 px-2">
+        {/* Client name + meta — clickable for detail drawer */}
+        <div
+          className="flex-1 min-w-0 px-2 cursor-pointer"
+          onClick={() => onPolicyClick?.(policy)}
+        >
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-[13px] text-foreground truncate">
+            <span className="font-semibold text-[13px] text-foreground truncate hover:text-primary transition-colors">
               {policy.client_name || 'Unknown'}
             </span>
             {notes.length > 0 && (

@@ -12,6 +12,8 @@ import { Input } from '@/components/ui/input';
 import { Search, Download, ChevronDown, ChevronUp } from 'lucide-react';
 import type { PolicyRow } from '../types';
 import { fmt$, fmtDate, statusBadge } from '../helpers';
+import { ClientDetailDrawer } from '@/components/client-detail';
+import type { DrawerPolicy } from '@/components/client-detail';
 
 type PolicySort = 'effective' | 'premium' | 'status' | 'drafts' | 'paid';
 
@@ -26,6 +28,7 @@ export function PoliciesTab({ policies, agentId, writingNumber }: PoliciesTabPro
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'terminated' | 'pending' | 'at_risk'>('all');
   const [sortKey, setSortKey] = useState<PolicySort>('effective');
   const [sortAsc, setSortAsc] = useState(false);
+  const [selectedPolicy, setSelectedPolicy] = useState<DrawerPolicy | null>(null);
 
   const displayed = useMemo(() => {
     let filtered = [...policies];
@@ -187,7 +190,21 @@ export function PoliciesTab({ policies, agentId, writingNumber }: PoliciesTabPro
                     return (
                       <div
                         key={p.policy_number}
-                        className="grid grid-cols-9 gap-2 px-4 py-2.5 text-sm items-center hover:bg-secondary/20 transition-colors"
+                        className="grid grid-cols-9 gap-2 px-4 py-2.5 text-sm items-center hover:bg-secondary/20 transition-colors cursor-pointer"
+                        onClick={() => setSelectedPolicy({
+                          policy_number: p.policy_number,
+                          client_name: null,
+                          product_type: p.product_type,
+                          status: p.status,
+                          monthly_premium: p.monthly_premium,
+                          annual_premium: p.annual_premium,
+                          policy_effective_date: p.policy_effective_date,
+                          paid_to_date: p.paid_to_date,
+                          draft_count: p.draft_count,
+                          is_at_risk: p.is_at_risk,
+                          flag_type: p.flag_type,
+                          days_since_paid: p.days_since_paid,
+                        })}
                       >
                         <span className="col-span-2 font-data text-xs text-foreground truncate">
                           {p.policy_number}
@@ -237,6 +254,13 @@ export function PoliciesTab({ policies, agentId, writingNumber }: PoliciesTabPro
           )}
         </CardContent>
       </Card>
+      {/* Client Detail Drawer */}
+      {selectedPolicy && (
+        <ClientDetailDrawer
+          policy={selectedPolicy}
+          onClose={() => setSelectedPolicy(null)}
+        />
+      )}
     </div>
   );
 }

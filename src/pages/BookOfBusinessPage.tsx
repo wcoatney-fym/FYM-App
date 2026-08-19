@@ -17,6 +17,8 @@ import {
   Search, ChevronLeft, ChevronRight, Download,
   Filter, X, ArrowUpDown, ArrowUp, ArrowDown,
 } from 'lucide-react';
+import { ClientDetailDrawer } from '@/components/client-detail';
+import type { DrawerPolicy } from '@/components/client-detail';
 import { PeriodPills } from '@/components/filters/PeriodPills';
 import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@/lib/dateUtils';
 
@@ -122,6 +124,9 @@ export function BookOfBusinessPage() {
   // Sorting state
   const [sortField, setSortField] = useState<SortField>('submit_date');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+
+  // Drawer state
+  const [selectedPolicy, setSelectedPolicy] = useState<DrawerPolicy | null>(null);
 
   function handleSort(field: SortField) {
     if (sortField === field) {
@@ -485,7 +490,29 @@ export function BookOfBusinessPage() {
                   </tr>
                 ) : (
                   policies.map(p => (
-                    <tr key={p.policy_number} className="row-hover">
+                    <tr
+                      key={p.policy_number}
+                      className="row-hover cursor-pointer"
+                      onClick={() => setSelectedPolicy({
+                        policy_number: p.policy_number,
+                        client_name: p.client_name,
+                        product_type: p.product_type,
+                        status: p.status,
+                        monthly_premium: p.monthly_premium,
+                        annual_premium: p.annual_premium,
+                        billing_mode: p.billing_mode,
+                        policy_effective_date: p.policy_effective_date,
+                        paid_to_date: p.paid_to_date,
+                        draft_count: p.draft_count ?? 0,
+                        is_at_risk: p.is_at_risk,
+                        flag_type: p.flag_type,
+                        days_since_paid: p.days_since_paid,
+                        agent_name: p.agent_name,
+                        writing_number: p.writing_number,
+                        agency_id: p.agency_id,
+                        agency_name: p.agency_name,
+                      })}
+                    >
                       <td className="px-4 py-2.5 font-data text-foreground">{p.policy_number}</td>
                       <td className="px-4 py-2.5 text-foreground truncate max-w-[140px]">
                         {p.client_name || '—'}
@@ -570,6 +597,14 @@ export function BookOfBusinessPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Client Detail Drawer */}
+      {selectedPolicy && (
+        <ClientDetailDrawer
+          policy={selectedPolicy}
+          onClose={() => setSelectedPolicy(null)}
+        />
+      )}
     </>
   );
 }
