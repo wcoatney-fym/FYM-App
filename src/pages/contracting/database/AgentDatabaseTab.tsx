@@ -1420,6 +1420,30 @@ function CrmOnboardTableModal({
         (r) => /^\d+$/.test(r.row_data['Seat Number'] || '')
       );
 
+      // Resolve NPN: agent.npn → agent_intake fallback (agents table often has npn=null)
+      let resolvedNpn = agent.npn || '';
+      if (!resolvedNpn && portalSupabase) {
+        // Resolve portal agent ID
+        let pid = resolvePortalAgentId(agent);
+        if (!pid && agent.email) {
+          const { data: match } = await portalSupabase
+            .from('agents')
+            .select('id')
+            .eq('email', agent.email)
+            .limit(1)
+            .maybeSingle();
+          if (match) pid = match.id;
+        }
+        if (pid) {
+          const { data: intakeData } = await portalSupabase
+            .from('agent_intake')
+            .select('npn')
+            .eq('agent_id', pid)
+            .maybeSingle();
+          resolvedNpn = intakeData?.npn || '';
+        }
+      }
+
       // Derive shared fields
       const crmNumber = numericRows.find((r) => r.row_data['All Templates | Agent CRM #']?.trim())
         ?.row_data['All Templates | Agent CRM #'] || '';
@@ -1447,7 +1471,7 @@ function CrmOnboardTableModal({
           'Last Name': agent.last_name,
           'Phone': agent.phone || '',
           'Email': agent.email || '',
-          'Agent NPN': agent.npn || '',
+          'Agent NPN': resolvedNpn,
           'All Templates | Agent Profile Image': profileImage,
           'All Templates | Agent CRM #': crmNumber,
           'CSR Placeholder': '',
@@ -1483,7 +1507,7 @@ function CrmOnboardTableModal({
         newRowData['Last Name'] = agent.last_name;
         newRowData['Phone'] = agent.phone || '';
         newRowData['Email'] = agent.email || '';
-        newRowData['Agent NPN'] = agent.npn || '';
+        newRowData['Agent NPN'] = resolvedNpn;
         newRowData['All Templates | Agent Profile Image'] = profileImage;
         newRowData['All Templates | Agent CRM #'] = crmNumber;
         if (calendarEmbed) newRowData['Calendar Embed Code'] = calendarEmbed;
@@ -1520,7 +1544,7 @@ function CrmOnboardTableModal({
 
         await fireCrmGhlSync({
           seatNumber,
-          agentNpn: agent.npn || '',
+          agentNpn: resolvedNpn,
           firstName: agent.first_name,
           lastName: agent.last_name,
           email: agent.email || '',
