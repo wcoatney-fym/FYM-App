@@ -18,7 +18,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated';
 import { supabase } from '@/lib/supabase';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
-import { AtRiskDetailPanel } from './AtRiskDetailPanel';
+import { ClientDetailDrawer } from '@/components/client-detail';
+import { fetchAtRiskPolicies } from '@/lib/prod-api';
+import type { AtRiskPolicy as EdgeAtRiskPolicy } from '@/lib/prod-api';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface AtRiskPolicy {
@@ -101,43 +103,72 @@ export function AtRiskInsight({ filterAgencyId }: AtRiskInsightProps) {
   const [selectedPolicy, setSelectedPolicy] = useState<AtRiskPolicy | null>(null);
 
   const fetchData = useCallback(async (isRefresh = false) => {
-    if (!supabase) return;
     isRefresh ? setRefreshing(true) : setLoading(true);
 
     try {
-      const PAGE_SIZE = 1000;
-      const allRows: AtRiskPolicy[] = [];
-      let offset = 0;
+      // Fetch at-risk policies from edge function (Max's prod DB)
+      const agencyParam = filterAgencyId
+        || (!isOrgWide && effectiveAgencyId ? effectiveAgencyId : undefined);
+      const res = await fetchAtRiskPolicies(agencyParam ? { agency_id: agencyParam } : undefined);
+      const edgePolicies: EdgeAtRiskPolicy[] = res.data.policies;
 
-      while (true) {
-        let q = supabase
-          .from('manager_at_risk_board')
-          .select('*')
-          .order('days_since_draft', { ascending: false })
-          .range(offset, offset + PAGE_SIZE - 1);
-
-        if (isAgent && effectiveWritingNumber) {
-          q = q.eq('writing_number', effectiveWritingNumber);
-        } else if (!isOrgWide && effectiveAgencyId) {
-          q = q.eq('agency_id', effectiveAgencyId);
+      // Fetch task/stage data from local Supabase
+      let taskMap = new Map<string, { task_id: string; stage: string; assigned_to: string | null; due_date: string | null; created_at: string | null }>();
+      if (supabase) {
+        const PAGE_SIZE = 1000;
+        let offset = 0;
+        while (true) {
+          const { data: tasks } = await supabase
+            .from('atrisk_tasks')
+            .select('id, policy_number, stage, assigned_to, due_date, created_at')
+            .range(offset, offset + PAGE_SIZE - 1);
+          if (tasks) {
+            for (const t of tasks as any[]) {
+              taskMap.set(t.policy_number, {
+                task_id: t.id, stage: t.stage, assigned_to: t.assigned_to,
+                due_date: t.due_date, created_at: t.created_at,
+              });
+            }
+          }
+          if (!tasks || tasks.length < PAGE_SIZE) break;
+          offset += PAGE_SIZE;
         }
-
-        const { data, error } = await q;
-        if (error) { console.error('At-risk fetch error:', error.message); break; }
-        if (!data || data.length === 0) break;
-
-        allRows.push(...(data as unknown as AtRiskPolicy[]));
-        if (data.length < PAGE_SIZE) break;
-        offset += PAGE_SIZE;
       }
 
-      let filtered = allRows;
-      if (filterAgencyId) {
-        filtered = allRows.filter(p => p.agency_id === filterAgencyId);
+      // Merge edge + task data
+      let merged: AtRiskPolicy[] = edgePolicies.map(ep => {
+        const task = taskMap.get(ep.policy_number);
+        return {
+          policy_number: ep.policy_number,
+          client_name: ep.client_name,
+          agency_id: ep.agency_id,
+          agency_name: null,
+          agent_id: null,
+          agent_name: null,
+          writing_number: ep.agent_writing_number,
+          product_type: ep.product_type,
+          plan_premium: ep.plan_premium,
+          flag_type: ep.flag_type || 'at_risk',
+          paid_to_date: ep.paid_to_date || '',
+          policy_effective_date: ep.policy_effective_date || '',
+          draft_count: ep.draft_count,
+          is_at_risk: true,
+          days_since_draft: ep.days_idle,
+          task_id: task?.task_id ?? null,
+          task_status: task?.stage ?? null,
+          task_assigned_to: task?.assigned_to ?? null,
+          task_due_date: task?.due_date ?? null,
+          task_created_at: task?.created_at ?? null,
+        };
+      });
+
+      // Agent-level scoping
+      if (isAgent && effectiveWritingNumber) {
+        merged = merged.filter(p => p.writing_number === effectiveWritingNumber);
       }
 
-      filtered.sort((a, b) => b.days_since_draft - a.days_since_draft);
-      setPolicies(filtered);
+      merged.sort((a, b) => b.days_since_draft - a.days_since_draft);
+      setPolicies(merged);
     } catch (err) {
       console.error('At-risk insight fetch error:', err);
     } finally {
@@ -449,22 +480,32 @@ export function AtRiskInsight({ filterAgencyId }: AtRiskInsightProps) {
         );
       })()}
 
-      {/* Detail modal — shows full client info when a card is clicked */}
+      {/* Policy detail drawer */}
       {selectedPolicy && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-          onClick={() => setSelectedPolicy(null)}
-        >
-          <div
-            className="w-full max-w-lg max-h-[85vh] overflow-y-auto"
-            onClick={e => e.stopPropagation()}
-          >
-            <AtRiskDetailPanel
-              policy={selectedPolicy}
-              onClose={() => setSelectedPolicy(null)}
-            />
-          </div>
-        </div>
+        <ClientDetailDrawer
+          policy={{
+            policy_number: selectedPolicy.policy_number,
+            client_name: selectedPolicy.client_name,
+            product_type: selectedPolicy.product_type,
+            status: 'active',
+            plan_premium: selectedPolicy.plan_premium,
+            annual_premium: selectedPolicy.plan_premium * 12,
+            policy_effective_date: selectedPolicy.policy_effective_date,
+            paid_to_date: selectedPolicy.paid_to_date,
+            draft_count: selectedPolicy.draft_count,
+            is_at_risk: selectedPolicy.is_at_risk,
+            flag_type: selectedPolicy.flag_type,
+            days_since_paid: selectedPolicy.days_since_draft,
+            agent_name: selectedPolicy.agent_name,
+            agent_writing_number: selectedPolicy.writing_number,
+            agency_id: selectedPolicy.agency_id,
+            agency_name: selectedPolicy.agency_name,
+            task_id: selectedPolicy.task_id,
+            task_status: selectedPolicy.task_status,
+          }}
+          onClose={() => setSelectedPolicy(null)}
+          actionsEnabled={false}
+        />
       )}
     </div>
   );

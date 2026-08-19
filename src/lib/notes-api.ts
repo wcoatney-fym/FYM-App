@@ -45,7 +45,7 @@ export async function fetchNotesForPolicy(policyNumber: string): Promise<Manager
     console.error('[Notes] fetchNotesForPolicy error:', error);
     return [];
   }
-  return data ?? [];
+  return (data as ManagerNote[]) ?? [];
 }
 
 /** Batch-fetch notes for multiple policies in a single query */
@@ -92,7 +92,7 @@ export async function fetchNotesForAgent(agentWritingNumber: string): Promise<Ma
     console.error('[Notes] fetchNotesForAgent error:', error);
     return [];
   }
-  return data ?? [];
+  return (data as ManagerNote[]) ?? [];
 }
 
 /** Fetch recent notes across all agents/policies (for dashboard widgets) */
@@ -109,7 +109,7 @@ export async function fetchRecentNotes(limit = 20): Promise<ManagerNote[]> {
     console.error('[Notes] fetchRecentNotes error:', error);
     return [];
   }
-  return data ?? [];
+  return (data as ManagerNote[]) ?? [];
 }
 
 /** Create a new manager note */
@@ -140,7 +140,7 @@ export async function createNote(params: CreateNoteParams): Promise<ManagerNote 
     console.error('[Notes] createNote error:', error);
     return null;
   }
-  return data;
+  return data as ManagerNote;
 }
 
 /** Acknowledge a note (agent action) */
