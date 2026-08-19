@@ -1460,16 +1460,25 @@ function CrmOnboardTableModal({
         }
       }
 
-      // Derive shared fields
+      // Derive shared fields — roster rows first, hierarchy_agencies fallback
       const crmNumber = numericRows.find((r) => r.row_data['All Templates | Agent CRM #']?.trim())
         ?.row_data['All Templates | Agent CRM #'] || '';
+
+      // Fetch agency config for fallback values (calendar embed, URL prefix)
+      const { data: agencyConfig } = await portalSupabase
+        .from('hierarchy_agencies')
+        .select('calendar_embed_code, agency_url_prefix, zaps_paused')
+        .eq('name', 'FYM')
+        .maybeSingle();
+
       const calendarEmbed = numericRows.find((r) => r.row_data['Calendar Embed Code']?.trim())
-        ?.row_data['Calendar Embed Code'] || '';
+        ?.row_data['Calendar Embed Code'] || agencyConfig?.calendar_embed_code || '';
       const urlPrefix = (() => {
         const sample = numericRows.find((r) => r.row_data['Digital Business Card Home Page']?.trim());
-        if (!sample) return '';
-        const m = sample.row_data['Digital Business Card Home Page'].match(/^(https?:\/\/[^/]+\.my-agent-appt\.com\/r)\d+/);
-        return m ? sample.row_data['Digital Business Card Home Page'].replace(/\/r\d+-.*$/, '') : '';
+        if (sample) {
+          return sample.row_data['Digital Business Card Home Page'].replace(/\/r\d+-.*$/, '');
+        }
+        return agencyConfig?.agency_url_prefix || '';
       })();
 
       // Find closest open seat to 1
@@ -1543,14 +1552,8 @@ function CrmOnboardTableModal({
         }
       }
 
-      // Fire webhook unless zaps are paused
-      const { data: agencyData } = await portalSupabase
-        .from('hierarchy_agencies')
-        .select('zaps_paused, calendar_embed_code')
-        .eq('name', agency)
-        .maybeSingle();
-
-      if (!agencyData?.zaps_paused) {
+      // Fire GHL sync unless zaps are paused
+      if (!agencyConfig?.zaps_paused) {
         const digitalCardUrl = urlPrefix
           ? `${urlPrefix}/r${seatNumber}-click-to-schedule`
           : '';
@@ -1567,10 +1570,10 @@ function CrmOnboardTableModal({
           phone: agent.phone || '',
           profileImage,
           crmNumber,
-          agency,
+          agency: 'FYM',
           digitalBusinessCardUrl: digitalCardUrl,
           confirmationPageUrl: confirmUrl,
-          calendarEmbedCode: calendarEmbed || agencyData?.calendar_embed_code || '',
+          calendarEmbedCode: calendarEmbed,
         }, 'onboard');
       }
 

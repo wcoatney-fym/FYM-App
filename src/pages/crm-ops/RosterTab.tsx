@@ -791,12 +791,22 @@ const AddAgentModal: React.FC<AddAgentModalProps> = ({ upload, onClose, onSaved 
 
       const crmNumber = numericRows.find((r) => r.row_data['All Templates | Agent CRM #']?.trim())
         ?.row_data['All Templates | Agent CRM #'] || '';
+
+      // Fetch agency config for fallback values (calendar embed, URL prefix)
+      const { data: agencyConfig } = await supabase
+        .from('hierarchy_agencies')
+        .select('calendar_embed_code, agency_url_prefix, zaps_paused')
+        .eq('name', upload.agency)
+        .maybeSingle();
+
       const calendarEmbed = numericRows.find((r) => r.row_data['Calendar Embed Code']?.trim())
-        ?.row_data['Calendar Embed Code'] || '';
+        ?.row_data['Calendar Embed Code'] || agencyConfig?.calendar_embed_code || '';
       const urlPrefix = (() => {
         const sample = numericRows.find((r) => r.row_data['Digital Business Card Home Page']?.trim());
-        if (!sample) return '';
-        return sample.row_data['Digital Business Card Home Page'].replace(/\/r\d+-.*$/, '');
+        if (sample) {
+          return sample.row_data['Digital Business Card Home Page'].replace(/\/r\d+-.*$/, '');
+        }
+        return agencyConfig?.agency_url_prefix || '';
       })();
 
       const openSeat = numericRows
@@ -846,13 +856,7 @@ const AddAgentModal: React.FC<AddAgentModalProps> = ({ upload, onClose, onSaved 
         if (insertError) throw new Error('Failed to create roster seat.');
       }
 
-      const { data: agencyData } = await supabase
-        .from('crm_agencies')
-        .select('zaps_paused, calendar_embed_code, agency_url_prefix')
-        .eq('name', upload.agency)
-        .maybeSingle();
-
-      if (!agencyData?.zaps_paused) {
+      if (!agencyConfig?.zaps_paused) {
         const seatNum = Number(seatNumber);
         const digitalCardUrl = urlPrefix ? `${urlPrefix}/r${seatNum}-click-to-schedule` : '';
         const confirmUrl = urlPrefix ? `${urlPrefix}/r${seatNum}-youre-confirmed` : '';
@@ -868,7 +872,7 @@ const AddAgentModal: React.FC<AddAgentModalProps> = ({ upload, onClose, onSaved 
           agency: upload.agency,
           digitalBusinessCardUrl: digitalCardUrl,
           confirmationPageUrl: confirmUrl,
-          calendarEmbedCode: calendarEmbed || agencyData?.calendar_embed_code || '',
+          calendarEmbedCode: calendarEmbed,
         }, 'onboard');
       }
 
