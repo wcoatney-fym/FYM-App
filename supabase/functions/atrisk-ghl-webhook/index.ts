@@ -57,6 +57,51 @@ function getAppClient() {
   return createClient(url, key);
 }
 
+function getPortalClient() {
+  const url = Deno.env.get("PORTAL_SUPABASE_URL")!;
+  const key = Deno.env.get("PORTAL_SUPABASE_SERVICE_ROLE_KEY")!;
+  return createClient(url, key);
+}
+
+/**
+ * Check if manager_pipeline_enabled is true for the given agency.
+ * Uses agency_id directly, or resolves from location_id.
+ */
+async function isPipelineEnabled(
+  agencyId: string | null,
+  locationId: string | null
+): Promise<{ enabled: boolean; resolvedAgencyId: string | null }> {
+  const portal = getPortalClient();
+
+  // Try by agency_id first
+  if (agencyId) {
+    const { data } = await portal
+      .from("agency_ghl_configs")
+      .select("manager_pipeline_enabled")
+      .eq("agency_id", agencyId)
+      .maybeSingle();
+
+    if (data) {
+      return { enabled: !!data.manager_pipeline_enabled, resolvedAgencyId: agencyId };
+    }
+  }
+
+  // Fallback: resolve by location_id
+  if (locationId) {
+    const { data } = await portal
+      .from("agency_ghl_configs")
+      .select("agency_id, manager_pipeline_enabled")
+      .eq("ghl_location_id", locationId)
+      .maybeSingle();
+
+    if (data) {
+      return { enabled: !!data.manager_pipeline_enabled, resolvedAgencyId: data.agency_id };
+    }
+  }
+
+  return { enabled: false, resolvedAgencyId: null };
+}
+
 /** Resolve a GHL stage name to our internal stage key */
 function resolveStage(ghlStageName: string): string | null {
   const normalized = ghlStageName.trim().toLowerCase();
@@ -111,6 +156,18 @@ Deno.serve(async (req) => {
     const agencyId =
       body.agency_id ||
       url.searchParams.get("agency_id");
+
+    // Gate: check manager_pipeline_enabled before processing.
+    // If pipeline isn't enabled, this agency hasn't completed CRM team
+    // sync confirmation — silently skip the webhook.
+    const { enabled: pipelineEnabled } = await isPipelineEnabled(agencyId, locationId);
+    if (!pipelineEnabled) {
+      return json({
+        success: true,
+        skipped: true,
+        reason: "Manager pipeline not yet enabled — awaiting CRM team sync confirmation",
+      });
+    }
 
     if (!opportunityId || !pipelineStage) {
       console.warn("atrisk-ghl-webhook: missing opportunity_id or pipeline_stage", body);
