@@ -1031,46 +1031,55 @@ async function handleCreateSyncTask(body: any): Promise<Response> {
     });
   }
 
-  // Build task description from direction result
+  // Build task description — plain text (no markdown), with embedded agency_id for UI extraction
   const dir = direction_result;
-  let description = `**Sync Direction Review** for ${name}\n\n`;
-  description += `<!-- agency_id: ${agency_id} -->\n\n`;
+  const dirLabel = dir?.direction === 'app_to_ghl' ? 'App → GHL'
+    : dir?.direction === 'ghl_to_app' ? 'GHL → App'
+    : dir?.direction === 'conflict' ? 'CONFLICT'
+    : 'Empty (no data)';
+
+  let description = `Sync Direction Review for ${name}\n`;
+  description += `agency_id: ${agency_id}\n\n`;
 
   if (dir) {
-    description += `**Detected direction:** \`${dir.direction}\`\n`;
-    description += `**Reason:** ${dir.reason}\n\n`;
-    description += `**App side:**\n`;
-    description += `- Tasks: ${dir.app?.task_count ?? 0}\n`;
-    description += `- Worked stage changes: ${dir.app?.worked_stage_changes ?? 0}\n`;
-    description += `- Moved tasks: ${dir.app?.moved_tasks ?? 0}\n\n`;
-    description += `**GHL side:**\n`;
-    description += `- Total opportunities: ${dir.ghl?.total_opportunities ?? 0}\n`;
-    description += `- Worked (non-New): ${dir.ghl?.worked_opportunities ?? 0}\n`;
+    description += `DETECTED DIRECTION: ${dir.direction}\n`;
+    description += `Recommendation: ${dirLabel}\n\n`;
+    description += `Reason: ${dir.reason}\n\n`;
+    description += `--- App Side ---\n`;
+    description += `Tasks: ${dir.app?.task_count ?? 0}\n`;
+    description += `Worked stage changes: ${dir.app?.worked_stage_changes ?? 0}\n`;
+    description += `Moved tasks: ${dir.app?.moved_tasks ?? 0}\n\n`;
+    description += `--- GHL Side ---\n`;
+    description += `Total opportunities: ${dir.ghl?.total_opportunities ?? 0}\n`;
+    description += `Worked (non-New): ${dir.ghl?.worked_opportunities ?? 0}\n`;
 
     if (dir.ghl?.stage_breakdown) {
-      description += `- Stage breakdown: ${JSON.stringify(dir.ghl.stage_breakdown)}\n`;
+      const stages = Object.entries(dir.ghl.stage_breakdown)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join(', ');
+      description += `Stages: ${stages}\n`;
     }
     if (dir.ghl?.error) {
-      description += `- ⚠️ GHL error: ${dir.ghl.error}\n`;
+      description += `⚠ GHL error: ${dir.ghl.error}\n`;
     }
 
-    description += `\n**Action required:**\n`;
+    description += `\n--- Action ---\n`;
     switch (dir.direction) {
       case "app_to_ghl":
-        description += `Agency has worked the App pipeline. Confirm seeding App → GHL.`;
+        description += `Click "Confirm & Sync App → GHL" below to seed App data into GHL and enable two-way sync.`;
         break;
       case "ghl_to_app":
-        description += `Agency has worked in GHL. Confirm importing GHL → App.`;
+        description += `Click "Confirm & Sync GHL → App" below to import GHL data into the App and enable two-way sync.`;
         break;
       case "conflict":
-        description += `Both platforms have worked state. Review both sides and choose which to preserve.`;
+        description += `Both platforms have worked state. Choose which direction to sync below — the other side's data will be overwritten.`;
         break;
       case "empty":
-        description += `Neither platform has data. Enable two-way sync — new at-risk policies will populate both.`;
+        description += `Click "Enable Two-Way Sync" below — new at-risk policies will populate both sides automatically.`;
         break;
     }
   } else {
-    description += `Direction detection was not available. Run resolve_direction manually before syncing.`;
+    description += `Direction detection was not available. Use the sync buttons below to choose a direction manually.`;
   }
 
   // Insert the task

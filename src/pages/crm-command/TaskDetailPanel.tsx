@@ -65,25 +65,28 @@ export function TaskDetailPanel({ task, members, onClose, onUpdate, onDelete }: 
   const [syncDone, setSyncDone] = useState(false);
 
   // Detect if this is a Pipeline Sync Direction task
-  const isSyncTask = useMemo(() => task.title.startsWith('Pipeline Sync Direction'), [task.title]);
+  const isSyncTask = task.title.includes('Pipeline Sync Direction');
 
-  // Parse the detected direction from the task description
-  const detectedDirection = useMemo(() => {
+  // Parse the detected direction from the task description — try multiple patterns
+  const detectedDirection = useMemo((): 'app_to_ghl' | 'ghl_to_app' | 'conflict' | 'empty' | null => {
     if (!isSyncTask || !task.description) return null;
-    const match = task.description.match(/\*\*Detected direction:\*\*\s*`(\w+)`/);
-    if (match) return match[1] as 'app_to_ghl' | 'ghl_to_app' | 'conflict' | 'empty';
-    // Fallback: check for markdown-stripped version
-    const fallback = task.description.match(/Detected direction:\s*(\w+)/);
-    if (fallback) return fallback[1] as 'app_to_ghl' | 'ghl_to_app' | 'conflict' | 'empty';
+    const desc = task.description;
+    // Pattern 1: markdown bold + backtick (as authored)
+    const m1 = desc.match(/Detected direction[*:]*\s*`?(app_to_ghl|ghl_to_app|conflict|empty)`?/i);
+    if (m1) return m1[1].toLowerCase() as any;
+    // Pattern 2: plain text after "direction:"
+    const m2 = desc.match(/direction["']?:\s*["']?(app_to_ghl|ghl_to_app|conflict|empty)/i);
+    if (m2) return m2[1].toLowerCase() as any;
     return null;
   }, [isSyncTask, task.description]);
 
-  // Extract agency_id from task description (embedded as HTML comment or plain text)
-  const syncAgencyId = useMemo(() => {
+  // Extract agency_id from task description — try multiple patterns
+  const syncAgencyId = useMemo((): string | null => {
     if (!isSyncTask || !task.description) return null;
-    // Match HTML comment format: <!-- agency_id: uuid -->
-    const commentMatch = task.description.match(/agency_id:\s*([0-9a-f-]{36})/i);
-    if (commentMatch) return commentMatch[1];
+    const desc = task.description;
+    // Pattern 1: HTML comment <!-- agency_id: uuid -->
+    const m1 = desc.match(/agency_id[:\s]+([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+    if (m1) return m1[1];
     return null;
   }, [isSyncTask, task.description]);
 
@@ -203,19 +206,6 @@ export function TaskDetailPanel({ task, members, onClose, onUpdate, onDelete }: 
                         </Button>
                       </div>
                     </div>
-                  ) : detectedDirection === 'empty' ? (
-                    <div className="space-y-2">
-                      <p className="text-xs text-muted-foreground">No data on either side. Enable two-way sync for new at-risk policies.</p>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        disabled={syncExecuting || !syncAgencyId}
-                        onClick={() => handleExecuteSync('empty')}
-                        className="w-full text-xs gap-1.5 border-primary/30 hover:bg-primary/10"
-                      >
-                        {syncExecuting ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" />Enabling…</> : <><Zap className="w-3.5 h-3.5" />Enable Two-Way Sync</>}
-                      </Button>
-                    </div>
                   ) : (
                     <div className="space-y-2">
                       <p className="text-xs text-muted-foreground">
@@ -223,22 +213,54 @@ export function TaskDetailPanel({ task, members, onClose, onUpdate, onDelete }: 
                           ? 'Agency has worked the App pipeline. Confirm seeding App → GHL.'
                           : detectedDirection === 'ghl_to_app'
                           ? 'Agency has worked in GHL. Confirm importing GHL → App.'
-                          : 'Confirm sync direction below.'}
+                          : detectedDirection === 'empty'
+                          ? 'No data on either side. Enable two-way sync for new at-risk policies.'
+                          : 'Confirm sync direction below. Choose the source that has been worked:'}
                       </p>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        disabled={syncExecuting || !syncAgencyId}
-                        onClick={() => handleExecuteSync(detectedDirection === 'app_to_ghl' ? 'app_to_ghl' : detectedDirection === 'ghl_to_app' ? 'ghl_to_app' : 'empty')}
-                        className="w-full text-xs gap-1.5 border-primary/30 hover:bg-primary/10"
-                      >
-                        {syncExecuting ? (
-                          <><RefreshCw className="w-3.5 h-3.5 animate-spin" />Syncing…</>
-                        ) : (
-                          <>{detectedDirection === 'app_to_ghl' ? <ArrowRight className="w-3.5 h-3.5" /> : <ArrowLeft className="w-3.5 h-3.5" />}
-                            Confirm & Sync {detectedDirection === 'app_to_ghl' ? 'App → GHL' : 'GHL → App'}</>
-                        )}
-                      </Button>
+                      {/* Always show direction buttons — if detection parsed, highlight the recommended one */}
+                      <div className="flex gap-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={syncExecuting || !syncAgencyId}
+                          onClick={() => handleExecuteSync('ghl_to_app')}
+                          className={`flex-1 text-xs gap-1.5 ${
+                            detectedDirection === 'ghl_to_app'
+                              ? 'border-primary/50 bg-primary/10 ring-1 ring-primary/30'
+                              : 'border-border/50'
+                          }`}
+                        >
+                          {syncExecuting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <ArrowLeft className="w-3.5 h-3.5" />}
+                          GHL → App
+                          {detectedDirection === 'ghl_to_app' && <span className="text-[9px] opacity-60">recommended</span>}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={syncExecuting || !syncAgencyId}
+                          onClick={() => handleExecuteSync('app_to_ghl')}
+                          className={`flex-1 text-xs gap-1.5 ${
+                            detectedDirection === 'app_to_ghl'
+                              ? 'border-primary/50 bg-primary/10 ring-1 ring-primary/30'
+                              : 'border-border/50'
+                          }`}
+                        >
+                          {syncExecuting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <ArrowRight className="w-3.5 h-3.5" />}
+                          App → GHL
+                          {detectedDirection === 'app_to_ghl' && <span className="text-[9px] opacity-60">recommended</span>}
+                        </Button>
+                      </div>
+                      {(detectedDirection === 'empty' || !detectedDirection) && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={syncExecuting || !syncAgencyId}
+                          onClick={() => handleExecuteSync('empty')}
+                          className="w-full text-xs gap-1.5 border-primary/30 hover:bg-primary/10"
+                        >
+                          {syncExecuting ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" />Enabling…</> : <><Zap className="w-3.5 h-3.5" />Enable Two-Way Sync (no initial import)</>}
+                        </Button>
+                      )}
                     </div>
                   )}
 
