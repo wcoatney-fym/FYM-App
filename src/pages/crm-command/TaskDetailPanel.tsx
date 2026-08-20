@@ -3,9 +3,9 @@
  * Uses shadcn Select/Input/Textarea for visual consistency.
  * Toast confirmations are handled by the parent (CcTasksTab).
  */
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { X, Bot, Calendar, User, BarChart2, Trash2, CheckCircle2 } from 'lucide-react';
+import { X, Bot, Calendar, User, BarChart2, Trash2, CheckCircle2, ArrowRight, ArrowLeft, AlertTriangle, RefreshCw, Zap } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { suggestAssignee } from '@/lib/command-center/assignment';
@@ -17,6 +17,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { executeSyncDirection } from '@/lib/ghl-push';
+import { toast } from 'sonner';
 
 const priorityColors: Record<Priority, string> = {
   P1: 'bg-red-400/10 text-red-400 border-red-400/20',
@@ -59,8 +61,52 @@ export function TaskDetailPanel({ task, members, onClose, onUpdate, onDelete }: 
   });
   const [autoNote, setAutoNote] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [syncExecuting, setSyncExecuting] = useState(false);
+  const [syncDone, setSyncDone] = useState(false);
+
+  // Detect if this is a Pipeline Sync Direction task
+  const isSyncTask = useMemo(() => task.title.startsWith('Pipeline Sync Direction'), [task.title]);
+
+  // Parse the detected direction from the task description
+  const detectedDirection = useMemo(() => {
+    if (!isSyncTask || !task.description) return null;
+    const match = task.description.match(/\*\*Detected direction:\*\*\s*`(\w+)`/);
+    if (match) return match[1] as 'app_to_ghl' | 'ghl_to_app' | 'conflict' | 'empty';
+    // Fallback: check for markdown-stripped version
+    const fallback = task.description.match(/Detected direction:\s*(\w+)/);
+    if (fallback) return fallback[1] as 'app_to_ghl' | 'ghl_to_app' | 'conflict' | 'empty';
+    return null;
+  }, [isSyncTask, task.description]);
+
+  // Extract agency_id from task description (embedded as HTML comment or plain text)
+  const syncAgencyId = useMemo(() => {
+    if (!isSyncTask || !task.description) return null;
+    // Match HTML comment format: <!-- agency_id: uuid -->
+    const commentMatch = task.description.match(/agency_id:\s*([0-9a-f-]{36})/i);
+    if (commentMatch) return commentMatch[1];
+    return null;
+  }, [isSyncTask, task.description]);
 
   const getMemberName = (id: string) => members.find((m) => m.id === id)?.name ?? 'Unassigned';
+
+  const handleExecuteSync = async (dir: 'app_to_ghl' | 'ghl_to_app' | 'empty') => {
+    if (!syncAgencyId) return;
+    setSyncExecuting(true);
+    try {
+      const result = await executeSyncDirection(syncAgencyId, dir, task.id);
+      if (result?.success) {
+        setSyncDone(true);
+        onUpdate(task.id, { status: 'done', completedAt: new Date().toISOString(), onTime: true });
+        const label = dir === 'app_to_ghl' ? 'App → GHL' : dir === 'ghl_to_app' ? 'GHL → App' : 'two-way sync';
+        toast.success(`Sync complete (${label}) — pipeline enabled`);
+      } else {
+        toast.error(result?.error || 'Sync failed — check the CRM Ops Agency tab');
+      }
+    } catch {
+      toast.error('Sync failed to reach the server');
+    }
+    setSyncExecuting(false);
+  };
 
   const handleAutoAssign = () => {
     const pick = suggestAssignee({ skillCategory: form.skillCategory, difficulty: form.difficulty, members });
@@ -118,9 +164,99 @@ export function TaskDetailPanel({ task, members, onClose, onUpdate, onDelete }: 
               {task.description && (
                 <div>
                   <p className="text-[11px] text-muted-foreground font-medium mb-1">Description</p>
-                  <p className="text-xs leading-relaxed">{task.description}</p>
+                  <p className="text-xs leading-relaxed whitespace-pre-wrap">{task.description}</p>
                 </div>
               )}
+
+              {/* Pipeline Sync Direction — Confirm & Execute panel */}
+              {isSyncTask && task.status !== 'done' && !syncDone && (
+                <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-primary" />
+                    <span className="text-xs font-semibold text-primary">Sync Action Required</span>
+                  </div>
+
+                  {detectedDirection === 'conflict' ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-xs text-amber-400">
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                        <span>Both platforms have worked data. Choose which to preserve:</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={syncExecuting || !syncAgencyId}
+                          onClick={() => handleExecuteSync('app_to_ghl')}
+                          className="flex-1 text-xs gap-1.5 border-emerald-500/30 hover:bg-emerald-500/10"
+                        >
+                          <ArrowRight className="w-3.5 h-3.5" />App → GHL
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={syncExecuting || !syncAgencyId}
+                          onClick={() => handleExecuteSync('ghl_to_app')}
+                          className="flex-1 text-xs gap-1.5 border-cyan-500/30 hover:bg-cyan-500/10"
+                        >
+                          <ArrowLeft className="w-3.5 h-3.5" />GHL → App
+                        </Button>
+                      </div>
+                    </div>
+                  ) : detectedDirection === 'empty' ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground">No data on either side. Enable two-way sync for new at-risk policies.</p>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={syncExecuting || !syncAgencyId}
+                        onClick={() => handleExecuteSync('empty')}
+                        className="w-full text-xs gap-1.5 border-primary/30 hover:bg-primary/10"
+                      >
+                        {syncExecuting ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" />Enabling…</> : <><Zap className="w-3.5 h-3.5" />Enable Two-Way Sync</>}
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground">
+                        {detectedDirection === 'app_to_ghl'
+                          ? 'Agency has worked the App pipeline. Confirm seeding App → GHL.'
+                          : detectedDirection === 'ghl_to_app'
+                          ? 'Agency has worked in GHL. Confirm importing GHL → App.'
+                          : 'Confirm sync direction below.'}
+                      </p>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={syncExecuting || !syncAgencyId}
+                        onClick={() => handleExecuteSync(detectedDirection === 'app_to_ghl' ? 'app_to_ghl' : detectedDirection === 'ghl_to_app' ? 'ghl_to_app' : 'empty')}
+                        className="w-full text-xs gap-1.5 border-primary/30 hover:bg-primary/10"
+                      >
+                        {syncExecuting ? (
+                          <><RefreshCw className="w-3.5 h-3.5 animate-spin" />Syncing…</>
+                        ) : (
+                          <>{detectedDirection === 'app_to_ghl' ? <ArrowRight className="w-3.5 h-3.5" /> : <ArrowLeft className="w-3.5 h-3.5" />}
+                            Confirm & Sync {detectedDirection === 'app_to_ghl' ? 'App → GHL' : 'GHL → App'}</>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+
+                  {!syncAgencyId && (
+                    <p className="text-[10px] text-amber-400">
+                      ⚠️ Could not extract agency ID from task. Use the CRM Ops Agency tab to sync manually.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {isSyncTask && syncDone && (
+                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span className="text-xs font-medium text-emerald-400">Sync complete — pipeline enabled</span>
+                </div>
+              )}
+
               <div>
                 <p className="text-[11px] text-muted-foreground font-medium mb-2">Move to</p>
                 <div className="flex flex-wrap gap-1.5">

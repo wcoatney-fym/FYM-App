@@ -202,6 +202,64 @@ export async function createSyncTask(
   }
 }
 
+/** Result from execute_sync action */
+export interface ExecuteSyncResult {
+  success: boolean;
+  direction: string;
+  sync_result: {
+    success: boolean;
+    imported?: number;
+    seeded?: number;
+    skipped?: number;
+    total?: number;
+    message?: string;
+    error?: string;
+  };
+  pipeline_enabled: boolean;
+  error?: string;
+}
+
+/**
+ * Execute the confirmed sync direction and enable the pipeline.
+ *
+ * Called after the CRM team reviews the sync task and confirms direction.
+ * Runs the appropriate sync (seed or import), flips manager_pipeline_enabled
+ * to true, and marks the cc_tasks entry as done.
+ */
+export async function executeSyncDirection(
+  agencyId: string,
+  direction: 'app_to_ghl' | 'ghl_to_app' | 'empty',
+  taskId?: string
+): Promise<ExecuteSyncResult | null> {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
+
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/atrisk-ghl-push`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action: 'execute_sync',
+        agency_id: agencyId,
+        direction,
+        task_id: taskId || null,
+      }),
+    });
+
+    if (!res.ok) {
+      console.warn(`ghl-push: execute_sync returned ${res.status}`);
+      return null;
+    }
+
+    return await res.json();
+  } catch (err) {
+    console.warn('ghl-push: execute_sync failed', err);
+    return null;
+  }
+}
+
 /**
  * Seed all current pipeline state to GHL for an agency (one-time on opt-in).
  */
