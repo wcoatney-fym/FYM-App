@@ -189,7 +189,7 @@ export function AgentProductionPage() {
       byBucket.set(key, existing);
     });
     return Array.from(byBucket.entries())
-      .map(([bucket, v]) => ({ bucket, label: fmtBucketLabel(bucket, gran), policies: v.policies, ap: v.ap }))
+      .map(([bucket, v]) => ({ bucket, label: fmtBucketLabel(bucket, gran), policies: v.policies, ap: v.ap, issued: 0 }))
       .sort((a, b) => a.bucket.localeCompare(b.bucket));
   }, [policies, dateRange]);
 

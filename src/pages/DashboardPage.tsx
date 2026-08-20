@@ -438,12 +438,13 @@ export function DashboardPage() {
       const filtered = filterAgencyId
         ? rawDailyProd.filter((r) => r.agency_id === filterAgencyId)
         : rawDailyProd;
-      const byBucket = new Map<string, { policies: number; ap: number }>();
+      const byBucket = new Map<string, { policies: number; ap: number; issued: number }>();
       filtered.forEach((r) => {
         const key = bucketKey(r.day, gran);
-        const existing = byBucket.get(key) || { policies: 0, ap: 0 };
+        const existing = byBucket.get(key) || { policies: 0, ap: 0, issued: 0 };
         existing.policies += r.policies;
         existing.ap += r.annual_premium;
+        existing.issued += Number((r as any).issued || 0);
         byBucket.set(key, existing);
       });
       trendArr = Array.from(byBucket.entries())
@@ -452,15 +453,16 @@ export function DashboardPage() {
           label: fmtBucketLabel(b, gran),
           policies: v.policies,
           ap: v.ap,
+          issued: v.issued,
         }))
         .sort((a, b) => a.bucket.localeCompare(b.bucket));
     } else if (rawMonthlyProd.length > 0) {
       const filtered = filterAgencyId
         ? rawMonthlyProd.filter((r) => r.agency_id === filterAgencyId)
         : rawMonthlyProd;
-      const byMonth = new Map<string, { policies: number; ap: number }>();
+      const byMonth = new Map<string, { policies: number; ap: number; issued: number }>();
       for (const r of filtered) {
-        const existing = byMonth.get(r.month) || { policies: 0, ap: 0 };
+        const existing = byMonth.get(r.month) || { policies: 0, ap: 0, issued: 0 };
         existing.policies += r.policies;
         existing.ap += r.annual_premium;
         byMonth.set(r.month, existing);
@@ -471,6 +473,7 @@ export function DashboardPage() {
           label: fmtMonth(month),
           policies: v.policies,
           ap: v.ap,
+          issued: v.issued,
         }))
         .sort((a, b) => a.bucket.localeCompare(b.bucket))
         .slice(-12);

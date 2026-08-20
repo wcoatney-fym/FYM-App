@@ -292,7 +292,7 @@ Deno.serve(async (req) => {
       earliest_issue_date: string | null;
     }>();
 
-    const dailyMap = new Map<string, Map<string, { policies: number; annual_premium: number }>>();
+    const dailyMap = new Map<string, Map<string, { policies: number; annual_premium: number; issued: number }>>();
     const monthlyMap = new Map<string, Map<string, { policies: number; annual_premium: number }>>();
     const productMixMap = new Map<string, Map<string, number>>();
     // Overlay: submitted (app_recvd_date) vs issued (issue_date) per month
@@ -497,13 +497,24 @@ Deno.serve(async (req) => {
         }
 
         // ── Daily accumulation ──
-        if (type === "daily" && appRecvdDate) {
-          if (!dailyMap.has(agencyId)) dailyMap.set(agencyId, new Map());
-          const dm = dailyMap.get(agencyId)!;
-          const existing = dm.get(appRecvdDate) || { policies: 0, annual_premium: 0 };
-          existing.policies++;
-          existing.annual_premium += annualPremium;
-          dm.set(appRecvdDate, existing);
+        if (type === "daily") {
+          // Count submitted (by app_recvd_date)
+          if (appRecvdDate) {
+            if (!dailyMap.has(agencyId)) dailyMap.set(agencyId, new Map());
+            const dm = dailyMap.get(agencyId)!;
+            const existing = dm.get(appRecvdDate) || { policies: 0, annual_premium: 0, issued: 0 };
+            existing.policies++;
+            existing.annual_premium += annualPremium;
+            dm.set(appRecvdDate, existing);
+          }
+          // Count issued/effectuated (by issue_date)
+          if (issueDate) {
+            if (!dailyMap.has(agencyId)) dailyMap.set(agencyId, new Map());
+            const dm = dailyMap.get(agencyId)!;
+            const existing = dm.get(issueDate) || { policies: 0, annual_premium: 0, issued: 0 };
+            existing.issued++;
+            dm.set(issueDate, existing);
+          }
         }
 
         // ── Monthly accumulation ──
@@ -570,7 +581,7 @@ Deno.serve(async (req) => {
         break;
       }
       case "daily": {
-        const dailyRows: Array<{ agency_id: string; day: string; policies: number; annual_premium: number }> = [];
+        const dailyRows: Array<{ agency_id: string; day: string; policies: number; annual_premium: number; issued: number }> = [];
         for (const [agencyId, days] of dailyMap) {
           for (const [day, vals] of days) {
             dailyRows.push({ agency_id: agencyId, day, ...vals });
