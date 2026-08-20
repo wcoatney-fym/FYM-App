@@ -636,12 +636,90 @@ Deno.serve(async (req) => {
           agent_writing_number: string | null;
           client_name: string | null;
           days_idle: number;
+          task_id: string | null;
+          task_stage: string | null;
+          task_assigned_to: string | null;
+          task_due_date: string | null;
+          task_created_at: string | null;
+          ghl_contact_id: string | null;
+          ghl_opportunity_id: string | null;
         }> = [];
 
         for (const bucket of buckets.values()) {
           for (const p of bucket.at_risk_list) {
-            atRiskRows.push({ agency_id: bucket.agency_id, ...p });
+            atRiskRows.push({
+              agency_id: bucket.agency_id,
+              ...p,
+              task_id: null,
+              task_stage: null,
+              task_assigned_to: null,
+              task_due_date: null,
+              task_created_at: null,
+              ghl_contact_id: null,
+              ghl_opportunity_id: null,
+            });
           }
+        }
+
+        // Enrich with atrisk_tasks data (service role bypasses RLS)
+        // This eliminates the need for a separate frontend query that is
+        // subject to RLS restrictions.
+        try {
+          const appUrl = Deno.env.get("SUPABASE_URL")!;
+          const appKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+          const appClient = createClient(appUrl, appKey);
+
+          const taskMap = new Map<string, {
+            id: string; stage: string; assigned_to: string | null;
+            due_date: string | null; created_at: string;
+            ghl_contact_id: string | null; ghl_opportunity_id: string | null;
+          }>();
+
+          // Fetch ALL atrisk_tasks (no filter — simpler, avoids .in() issues)
+          const TASK_PAGE = 1000;
+          let taskOffset = 0;
+          while (true) {
+            const { data: tasks, error: taskErr } = await appClient
+              .from("atrisk_tasks")
+              .select("id, policy_number, stage, assigned_to, due_date, created_at, ghl_contact_id, ghl_opportunity_id")
+              .range(taskOffset, taskOffset + TASK_PAGE - 1);
+
+            if (taskErr) {
+              console.error("atrisk_tasks query error:", taskErr.message);
+              break;
+            }
+            if (!tasks || tasks.length === 0) break;
+            for (const t of tasks as any[]) {
+              taskMap.set(t.policy_number, {
+                id: t.id,
+                stage: t.stage,
+                assigned_to: t.assigned_to,
+                due_date: t.due_date,
+                created_at: t.created_at,
+                ghl_contact_id: t.ghl_contact_id,
+                ghl_opportunity_id: t.ghl_opportunity_id,
+              });
+            }
+            if (tasks.length < TASK_PAGE) break;
+            taskOffset += TASK_PAGE;
+          }
+
+          // Merge task data into policy rows
+          for (const row of atRiskRows) {
+            const task = taskMap.get(row.policy_number);
+            if (task) {
+              row.task_id = task.id;
+              row.task_stage = task.stage;
+              row.task_assigned_to = task.assigned_to;
+              row.task_due_date = task.due_date;
+              row.task_created_at = task.created_at;
+              row.ghl_contact_id = task.ghl_contact_id;
+              row.ghl_opportunity_id = task.ghl_opportunity_id;
+            }
+          }
+        } catch (taskErr: any) {
+          // Non-fatal — policies still returned without task data
+          console.error("Failed to enrich with atrisk_tasks:", taskErr?.message || taskErr);
         }
 
         // Sort by days idle descending (most urgent first)
@@ -650,6 +728,10 @@ Deno.serve(async (req) => {
         result = {
           total_at_risk: atRiskRows.length,
           policies: atRiskRows,
+          _task_enrichment: {
+            tasks_found: atRiskRows.filter(r => r.task_id !== null).length,
+            total_policies: atRiskRows.length,
+          },
         };
         break;
       }

@@ -350,6 +350,14 @@ export interface AtRiskPolicy {
   agent_writing_number: string | null;
   client_name: string | null;
   days_idle: number;
+  // Task data enriched server-side (bypasses RLS)
+  task_id: string | null;
+  task_stage: string | null;
+  task_assigned_to: string | null;
+  task_due_date: string | null;
+  task_created_at: string | null;
+  ghl_contact_id: string | null;
+  ghl_opportunity_id: string | null;
 }
 
 export interface AtRiskResponse {
