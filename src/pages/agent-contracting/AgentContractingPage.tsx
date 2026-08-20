@@ -25,6 +25,7 @@ import {
   isPreRTS,
   getStageIndex,
 } from '@/hooks/useAgentPipeline';
+import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { computeProgress } from '@/pages/contracting/pipeline/pipelineProgress';
 import { ContractingProgressBar } from './ContractingProgressBar';
 import { ContractingStepPanel } from './ContractingStepPanel';
@@ -35,6 +36,7 @@ import {
   Loader2,
   AlertCircle,
   Shield,
+  CheckCircle2,
   RefreshCw,
 } from 'lucide-react';
 
@@ -53,6 +55,7 @@ export function AgentContractingPage() {
     requestContracting,
   } = useAgentPipeline();
 
+  const { effectiveWritingNumber } = useEffectiveAuth();
   const [refreshing, setRefreshing] = useState(false);
 
   const handleRefresh = async () => {
@@ -109,6 +112,53 @@ export function AgentContractingPage() {
 
   // No pipeline record found
   if (!pipelineRecord) {
+    // If agent has a writing number, they're producing — show post-RTS view
+    // Most existing agents were contracted before the pipeline was built
+    if (effectiveWritingNumber) {
+      return (
+        <div className="p-6 space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <Header title="My Contracting" />
+              <p className="text-sm text-muted-foreground mt-1 px-6">
+                Manage your carrier appointments
+              </p>
+            </div>
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-background transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
+
+          <FadeIn>
+            <Card className="border-emerald-500/20 bg-emerald-500/5">
+              <CardContent className="p-4 flex items-center gap-3">
+                <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Active Agent</p>
+                  <p className="text-xs text-muted-foreground">
+                    You're fully contracted and producing. Use this page to manage your carrier appointments or request contracting with additional carriers.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </FadeIn>
+
+          <AgentCarrierManagement
+            lobAssignments={lobAssignments}
+            wnSubmissions={wnSubmissions}
+            onRequestContracting={requestContracting}
+            onSubmitWritingNumber={submitWritingNumber}
+          />
+        </div>
+      );
+    }
+
+    // Truly new agent with no writing number and no pipeline record
     return (
       <div className="p-6">
         <Header title="Contracting" />
