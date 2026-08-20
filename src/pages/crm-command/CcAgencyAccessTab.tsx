@@ -25,6 +25,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { supabase, ensurePortalAuth } from '@/lib/crm/portal-client';
+import { resolveSyncDirection, createSyncTask } from '@/lib/ghl-push';
 
 /* ── Types ─────────────────────────────────────────────────────────── */
 
@@ -184,7 +185,7 @@ export const CcAgencyAccessTab: React.FC = () => {
     setTogglingId(null);
   };
 
-  /* ── Modal Save & Sync (Manager Pipeline) ───────────────────────── */
+  /* ── Modal Save & Create Sync Task (Manager Pipeline) ─────────── */
 
   const handleModalSaveAndSync = async () => {
     if (!modalAgency || !modalApiKey.trim() || !modalLocationId.trim()) return;
@@ -195,16 +196,18 @@ export const CcAgencyAccessTab: React.FC = () => {
     const cfg = configs.get(modalAgency.id);
     let savedConfig: GhlConfig | null = null;
 
-    // Step 1: Save credentials + enable toggle
+    // Step 1: Save credentials — but do NOT enable manager_pipeline_enabled yet.
+    // Pipeline stays disabled until the CRM team confirms sync direction via
+    // the CRM Command task board.
     if (cfg) {
       const { data } = await supabase
         .from('agency_ghl_configs')
         .update({
           ghl_api_key: modalApiKey.trim(),
           ghl_location_id: modalLocationId.trim(),
-          manager_pipeline_enabled: true,
           connection_status: 'connected',
           updated_at: new Date().toISOString(),
+          // manager_pipeline_enabled stays as-is (false) until sync task is completed
         })
         .eq('id', cfg.id)
         .select()
@@ -218,7 +221,7 @@ export const CcAgencyAccessTab: React.FC = () => {
           ghl_api_key: modalApiKey.trim(),
           ghl_location_id: modalLocationId.trim(),
           connection_status: 'connected',
-          manager_pipeline_enabled: true,
+          manager_pipeline_enabled: false, // Stays false until sync task completed
           production_push_enabled: false,
         })
         .select()
@@ -234,46 +237,48 @@ export const CcAgencyAccessTab: React.FC = () => {
       });
     }
 
-    // Step 2: One-time import from GHL → App (atomic with save)
+    // Step 2: Detect sync direction (read-only)
     try {
-      setSyncProgress('Importing pipeline from GHL…');
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      setSyncProgress('Detecting sync direction…');
+      const directionResult = await resolveSyncDirection(modalAgency.id);
 
-      const res = await fetch(`${supabaseUrl}/functions/v1/atrisk-ghl-push`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: 'import',
-          agency_id: modalAgency.id,
-          api_key: modalApiKey.trim(),
-          location_id: modalLocationId.trim(),
-        }),
-      });
+      // Step 3: Create a CRM Command task for the team to review
+      setSyncProgress('Creating review task…');
+      const taskResult = await createSyncTask(
+        modalAgency.id,
+        modalAgency.name,
+        directionResult
+      );
 
-      const result = await res.json();
-      if (res.ok && result.success) {
-        setSyncProgress(`Imported ${result.imported || 0} of ${result.total || 0} items`);
+      if (taskResult?.success && !taskResult.skipped) {
+        const dirLabel = directionResult?.direction === 'app_to_ghl' ? 'App → GHL'
+          : directionResult?.direction === 'ghl_to_app' ? 'GHL → App'
+          : directionResult?.direction === 'conflict' ? 'Conflict — needs manual review'
+          : 'No data on either side';
+
         setModalTestResult({
           ok: true,
-          message: `Saved & synced — ${result.imported || 0} pipeline items imported from GHL${result.skipped ? ` (${result.skipped} skipped)` : ''}`,
+          message: `Credentials saved. Sync task created on CRM Command task board (${dirLabel}). Pipeline will activate after the team confirms the sync direction.`,
+        });
+      } else if (taskResult?.skipped) {
+        setModalTestResult({
+          ok: true,
+          message: 'Credentials saved. A sync review task already exists for this agency on the CRM Command task board.',
         });
       } else {
         setModalTestResult({
           ok: false,
-          message: `Credentials saved but sync failed: ${result.error || 'Unknown error'}. You can retry later.`,
+          message: 'Credentials saved but failed to create review task. Check the CRM Command task board manually.',
         });
       }
     } catch {
       setModalTestResult({
         ok: false,
-        message: 'Credentials saved but sync failed to reach the server. You can retry later.',
+        message: 'Credentials saved but sync detection failed to reach the server. The CRM team can create the sync task manually.',
       });
     }
 
+    setSyncProgress(null);
     setModalSaving(false);
   };
 
@@ -555,9 +560,9 @@ export const CcAgencyAccessTab: React.FC = () => {
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >
                   {modalSaving ? (
-                    <><RefreshCw className="w-4 h-4 animate-spin" /> Saving & Syncing…</>
+                    <><RefreshCw className="w-4 h-4 animate-spin" /> Saving…</>
                   ) : (
-                    'Save & Sync'
+                    'Save & Detect Sync'
                   )}
                 </button>
                 <button
