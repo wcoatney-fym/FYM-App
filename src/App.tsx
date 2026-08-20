@@ -39,6 +39,7 @@ import { QualityGroupPage } from '@/pages/groups/QualityGroupPage';
 import { RecruitingGroupPage, RecruitingDashboardTab, RecruitingLeadsTab, RecruitingAnalyticsTab } from '@/pages/recruiting';
 import { DailyPulsePage } from '@/pages/DailyPulsePage';
 import { CheckinMorePage } from '@/pages/CheckinMorePage';
+import { AgentContractingPage } from '@/pages/agent-contracting';
 import { Toaster } from 'sonner';
 import { LifeOnly } from '@/pages/forms/LifeOnly';
 import { Field as FieldForm } from '@/pages/forms/Field';
@@ -80,6 +81,7 @@ function App() {
             <Route path="/agents/:agentId/health" element={<RoleGuard allow={['admin', 'manager']}><AgentHealthPage /></RoleGuard>} />
             <Route path="/my-health" element={<AgentHealthPage />} />
             <Route path="/my-dashboard" element={<AgentDashboardPage />} />
+            <Route path="/my-contracting" element={<AgentContractingPage />} />
             <Route path="/manager-dashboard" element={<RoleGuard allow={['admin', 'manager']}><ManagerDashboardPage /></RoleGuard>} />
             <Route path="/my-production" element={<MyProductionPage />} />
             <Route path="/my-goal" element={<GoalPage />} />

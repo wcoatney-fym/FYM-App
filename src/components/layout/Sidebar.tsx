@@ -20,10 +20,12 @@ import {
   Target,
   Megaphone,
   Activity,
+  Briefcase,
 } from 'lucide-react';
 import { useAppStore } from '@/store/app-store';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
+import { useAgentContractingStage } from '@/hooks/useAgentContractingStage';
 import { cn } from '@/lib/utils';
 
 interface NavItem {
@@ -34,12 +36,21 @@ interface NavItem {
   activePrefix?: string;
 }
 
+/** Pre-RTS agent nav — contracting progress + training */
+const agentPreRtsNav: NavItem[] = [
+  { to: '/my-contracting', label: 'My Progress', icon: Briefcase },
+  { to: '/training', label: 'Training', icon: GraduationCap },
+  { to: '/settings', label: 'Settings', icon: Settings },
+];
+
+/** Post-RTS agent nav — full production experience + contracting management */
 const agentNav: NavItem[] = [
   { to: '/my-dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/my-production', label: 'My Production', icon: TrendingUp },
   { to: '/at-risk', label: 'Needs Attention', icon: AlertTriangle },
   { to: '/my-goal', label: 'My Goal', icon: Target },
   { to: '/my-health', label: 'Book Health', icon: ShieldCheck },
+  { to: '/my-contracting', label: 'Contracting', icon: Briefcase },
   { to: '/training', label: 'Training', icon: GraduationCap },
   { to: '/coaching', label: 'Coaching', icon: HeartPulse },
   { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
@@ -87,10 +98,12 @@ export function Sidebar() {
   const { sidebarCollapsed, toggleSidebar } = useAppStore();
   const { profile, signOut } = useAuth();
   const { effectiveRole, isFymAdmin, isViewingAs, isOrgWide } = useEffectiveAuth();
+  const { isPreRTS } = useAgentContractingStage();
 
   const location = useLocation();
 
   const navItems =
+    effectiveRole === 'agent' && isPreRTS ? agentPreRtsNav :
     effectiveRole === 'agent' ? agentNav :
     effectiveRole === 'manager' ? managerNav :
     isOrgWide ? fymAdminNav :
