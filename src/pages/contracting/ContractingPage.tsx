@@ -22,7 +22,8 @@
 import { useState, useEffect } from 'react';
 import { Header } from '@/components/layout/Header';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, FlaskConical } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { ContractingDashboardTab } from './ContractingDashboardTab';
 import { ContractingIntakeTab } from './ContractingIntakeTab';
 import { ContractingTrackingTab } from './ContractingTrackingTab';
@@ -98,6 +99,17 @@ export function ContractingPage() {
     <div>
       <Header title="Contracting" />
       <div className="p-6 space-y-6">
+        {/* Test Agent View link — admin demo tool */}
+        {isOrgWide && (
+          <Link
+            to="/contracting/test-agent-view"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-300 text-sm font-medium hover:bg-purple-500/20 transition-colors w-fit"
+          >
+            <FlaskConical size={16} />
+            Test Agent View
+          </Link>
+        )}
+
         {/* Portal bridge banner — visible during parallel-run period */}
         <div className="flex items-center justify-between bg-cyan-500/10 border border-blue-500/20 rounded-lg px-4 py-2.5">
           <p className="text-sm text-blue-300">
