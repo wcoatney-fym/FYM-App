@@ -17,6 +17,9 @@
  *                        Returns recommendation + counts for CRM team manual review.
  *   - create_sync_task:  Create a cc_tasks entry in the portal DB for CRM team to
  *                        manually confirm sync direction before enabling pipeline.
+ *   - execute_sync:      Execute the confirmed sync direction (seed or import) and
+ *                        flip manager_pipeline_enabled to true. Called after CRM team
+ *                        confirms direction via the task board.
  *
  * Auth: Requires FYM App authenticated session.
  * Secrets: CONTRACTING_SUPABASE_URL, CONTRACTING_SUPABASE_ANON_KEY (portal DB access),
@@ -942,6 +945,7 @@ async function handleCreateSyncTask(body: any): Promise<Response> {
   // Build task description from direction result
   const dir = direction_result;
   let description = `**Sync Direction Review** for ${name}\n\n`;
+  description += `<!-- agency_id: ${agency_id} -->\n\n`;
 
   if (dir) {
     description += `**Detected direction:** \`${dir.direction}\`\n`;
@@ -1015,6 +1019,90 @@ async function handleCreateSyncTask(body: any): Promise<Response> {
   });
 }
 
+// ── Execute sync handler ──────────────────────────────────────────────────
+
+/**
+ * Execute the confirmed sync direction and enable the pipeline.
+ *
+ * Called by the CRM team after reviewing the sync task. Runs the
+ * appropriate sync action (seed or import) then flips
+ * manager_pipeline_enabled to true.
+ *
+ * Also marks the cc_tasks entry as done.
+ */
+async function handleExecuteSync(body: any): Promise<Response> {
+  const { agency_id, direction, task_id } = body;
+  if (!agency_id || !direction) {
+    return json({ error: "Missing agency_id or direction" }, 400);
+  }
+
+  if (!['app_to_ghl', 'ghl_to_app', 'empty'].includes(direction)) {
+    return json({ error: `Invalid direction: ${direction}. Must be app_to_ghl, ghl_to_app, or empty.` }, 400);
+  }
+
+  const portal = getPortalClient();
+  const app = getAppClient();
+
+  // Step 1: Execute the sync based on confirmed direction
+  let syncResult: any = null;
+  if (direction === 'app_to_ghl') {
+    // Seed App → GHL
+    const seedRes = await handleSeed({ agency_id });
+    syncResult = await seedRes.json();
+  } else if (direction === 'ghl_to_app') {
+    // Import GHL → App
+    const importRes = await handleImport({ agency_id });
+    syncResult = await importRes.json();
+  } else {
+    // Empty — no sync needed, just enable
+    syncResult = { success: true, message: "No data to sync — enabling two-way sync for new data" };
+  }
+
+  if (!syncResult?.success) {
+    return json({
+      error: "Sync execution failed",
+      sync_result: syncResult,
+    }, 500);
+  }
+
+  // Step 2: Flip manager_pipeline_enabled to true
+  const { error: enableError } = await portal
+    .from("agency_ghl_configs")
+    .update({
+      manager_pipeline_enabled: true,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("agency_id", agency_id);
+
+  if (enableError) {
+    return json({
+      error: `Sync succeeded but failed to enable pipeline: ${enableError.message}`,
+      sync_result: syncResult,
+    }, 500);
+  }
+
+  // Step 3: Mark the cc_tasks entry as done (if provided)
+  if (task_id) {
+    const now = new Date().toISOString();
+    await portal
+      .from("cc_tasks")
+      .update({
+        status: "done",
+        completed_at: now,
+        on_time: true,
+        updated_at: now,
+      })
+      .eq("id", task_id);
+  }
+
+  return json({
+    success: true,
+    direction,
+    sync_result: syncResult,
+    pipeline_enabled: true,
+  });
+}
+
 // ── Main handler ─────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -1037,6 +1125,8 @@ Deno.serve(async (req) => {
         return await handleResolveDirection(body);
       case "create_sync_task":
         return await handleCreateSyncTask(body);
+      case "execute_sync":
+        return await handleExecuteSync(body);
       case "status": {
         const config = await getAgencyGhlConfig(body.agency_id);
         return json({ enabled: !!config, config: config ? { locationId: config.locationId } : null });
