@@ -27,6 +27,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createProdConnection, toTitleCase, FYM_MGA_WN } from "../_shared/prod-db.ts";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -485,7 +486,15 @@ async function handlePush(body: any): Promise<Response> {
   });
 }
 
-// ── Seed handler (one-time push of all app state → GHL on opt-in) ────────
+// ── Seed handler (one-time push of at-risk policies → GHL on opt-in) ────────
+//
+// Two-phase seed:
+//   Phase 1: If atrisk_tasks exist for this agency, push them to GHL (existing flow).
+//   Phase 2: If atrisk_tasks are empty, pull at-risk policies from Max's prod DB,
+//            match to existing GHL contacts/opportunities, create atrisk_tasks with
+//            real policy numbers, and link to GHL. This is the initial seed.
+//
+// The seed is one-time per agency. After the seed, two-way sync is ongoing.
 
 async function handleSeed(body: any): Promise<Response> {
   const { agency_id } = body;
@@ -499,8 +508,30 @@ async function handleSeed(body: any): Promise<Response> {
   }
 
   const app = getAppClient();
+  const { apiKey, locationId } = ghlConfig;
 
-  // Get all active tasks for this agency
+  // Check if tasks already exist for this agency
+  const { count: existingCount } = await app
+    .from("atrisk_tasks")
+    .select("id", { count: "exact", head: true })
+    .eq("agency_id", agency_id);
+
+  if (existingCount && existingCount > 0) {
+    // Phase 1: Push existing tasks to GHL
+    return await handleSeedExistingTasks(app, agency_id, ghlConfig, body._bypass_gate);
+  }
+
+  // Phase 2: Pull at-risk policies from Max's DB and seed both App + GHL
+  return await handleSeedFromProd(app, agency_id, ghlConfig, body._bypass_gate);
+}
+
+/** Phase 1: Push existing atrisk_tasks to GHL */
+async function handleSeedExistingTasks(
+  app: ReturnType<typeof getAppClient>,
+  agency_id: string,
+  ghlConfig: { apiKey: string; locationId: string },
+  bypassGate: boolean
+): Promise<Response> {
   const PAGE = 1000;
   let offset = 0;
   const tasks: any[] = [];
@@ -518,11 +549,6 @@ async function handleSeed(body: any): Promise<Response> {
     offset += PAGE;
   }
 
-  if (tasks.length === 0) {
-    return json({ success: true, seeded: 0, message: "No tasks to seed" });
-  }
-
-  // Push each task to GHL
   let seeded = 0;
   let skipped = 0;
   const errors: string[] = [];
@@ -538,15 +564,12 @@ async function handleSeed(body: any): Promise<Response> {
         ghl_contact_id: task.ghl_contact_id,
         ghl_opportunity_id: task.ghl_opportunity_id,
         task_id: task.id,
-        _bypass_gate: true, // Internal seed call — runs before pipeline is enabled
+        _bypass_gate: true,
       });
 
-      const body = await result.json();
-      if (body.success && !body.skipped) {
-        seeded++;
-      } else {
-        skipped++;
-      }
+      const pushResult = await result.json();
+      if (pushResult.success && !pushResult.skipped) seeded++;
+      else skipped++;
     } catch (err: any) {
       errors.push(`${task.policy_number}: ${err.message}`);
     }
@@ -557,6 +580,251 @@ async function handleSeed(body: any): Promise<Response> {
     seeded,
     skipped,
     total: tasks.length,
+    errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
+  });
+}
+
+/** Phase 2: Pull at-risk policies from Max's DB, match GHL contacts, create tasks + push */
+async function handleSeedFromProd(
+  app: ReturnType<typeof getAppClient>,
+  agency_id: string,
+  ghlConfig: { apiKey: string; locationId: string },
+  bypassGate: boolean
+): Promise<Response> {
+  const { apiKey, locationId } = ghlConfig;
+
+  // 1. Get the agency's writing number from the portal DB
+  const portal = getPortalClient();
+  const { data: agencyRow } = await portal
+    .from("hierarchy_agencies")
+    .select("unl_writing_number, name")
+    .eq("id", agency_id)
+    .maybeSingle();
+
+  const agencyWn = agencyRow?.unl_writing_number?.trim() || null;
+  const agencyName = agencyRow?.name || "Unknown";
+  const isFymDirect = !agencyWn || agencyName.toUpperCase() === "FYM";
+
+  // 2. Query Max's DB for at-risk policies for this agency
+  let sql: ReturnType<typeof createProdConnection> | null = null;
+  let atRiskPolicies: Array<{
+    policy_nbr: string;
+    first_name: string;
+    last_name: string;
+    client_name: string;
+    annual_premium: number;
+    plan_code: string;
+  }> = [];
+
+  try {
+    sql = createProdConnection();
+
+    const agencyFilter = isFymDirect
+      ? sql`(TRIM(ga) = ${FYM_MGA_WN} OR ga IS NULL OR TRIM(ga) = '')`
+      : sql`TRIM(ga) = ${agencyWn}`;
+
+    const rows = await sql`
+      SELECT
+        TRIM(policy_nbr) AS policy_nbr,
+        TRIM(first_name) AS first_name,
+        TRIM(last_name) AS last_name,
+        annual_premium,
+        TRIM(plan_code) AS plan_code,
+        TRIM(cntrct_code) AS cntrct_code
+      FROM typed.unl_fym_policy_latest_load
+      WHERE at_risk_policy = true
+        AND term_date IS NULL
+        AND cntrct_code = 'A'
+        AND ${agencyFilter}
+      ORDER BY policy_nbr
+    `;
+
+    for (const r of rows) {
+      const fn = (r.first_name as string || "").trim();
+      const ln = (r.last_name as string || "").trim();
+      atRiskPolicies.push({
+        policy_nbr: (r.policy_nbr as string).trim(),
+        first_name: fn,
+        last_name: ln,
+        client_name: toTitleCase([fn, ln].filter(Boolean).join(" ")),
+        annual_premium: Number(r.annual_premium) || 0,
+        plan_code: (r.plan_code as string || "").trim(),
+      });
+    }
+  } catch (err: any) {
+    return json({ error: `Failed to query production DB: ${err.message}` }, 500);
+  } finally {
+    if (sql) await sql.end().catch(() => {});
+  }
+
+  if (atRiskPolicies.length === 0) {
+    return json({ success: true, seeded: 0, message: "No at-risk policies found for this agency" });
+  }
+
+  // 3. Get the at-risk pipeline and all existing GHL opportunities
+  const pipeline = await getOrCreatePipeline(apiKey, locationId);
+  const pipelineId = pipeline.id;
+  const stages = pipeline.stages || [];
+
+  // Build name → GHL opportunity lookup from existing pipeline data
+  const ghlOppsByName = new Map<string, { id: string; contactId: string; stageName: string; stageId: string }>();
+
+  for (const stage of stages) {
+    let startAfter = "";
+    let stageHasMore = true;
+
+    while (stageHasMore) {
+      const params = new URLSearchParams({
+        location_id: locationId!,
+        pipeline_id: pipelineId,
+        pipeline_stage_id: stage.id,
+        limit: "100",
+      });
+      if (startAfter) params.set("startAfter", startAfter);
+
+      const res = await fetch(
+        `https://services.leadconnectorhq.com/opportunities/search?${params}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            Version: "2021-07-28",
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (!res.ok) break;
+
+      const data = await res.json();
+      const batch = data.opportunities || [];
+      for (const opp of batch) {
+        const contactName = opp.contact?.name || opp.name?.split("|")[0]?.trim() || "";
+        const normalized = contactName.replace(/\s+/g, " ").trim().toLowerCase();
+        if (normalized) {
+          ghlOppsByName.set(normalized, {
+            id: opp.id,
+            contactId: opp.contactId || opp.contact?.id || "",
+            stageName: stage.name,
+            stageId: stage.id,
+          });
+        }
+      }
+      if (batch.length < 100 || !data.meta?.nextPageUrl) {
+        stageHasMore = false;
+      } else {
+        startAfter = batch[batch.length - 1].id;
+      }
+    }
+  }
+
+  // Build stage name → app stage key reverse map
+  const stageNameToAppKey: Record<string, string> = {};
+  for (const [appKey, ghlName] of Object.entries(STAGE_MAP)) {
+    stageNameToAppKey[ghlName.toLowerCase()] = appKey;
+  }
+  // Add aliases for pipe-separated naming
+  for (const [alias, appKey] of Object.entries(REVERSE_STAGE_MAP)) {
+    stageNameToAppKey[alias] = appKey;
+  }
+
+  // 4. For each at-risk policy: create atrisk_task, link to GHL
+  let seeded = 0;
+  let matched = 0;
+  let created = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+
+  for (const policy of atRiskPolicies) {
+    try {
+      const normalizedName = policy.client_name.replace(/\s+/g, " ").trim().toLowerCase();
+      const ghlMatch = ghlOppsByName.get(normalizedName);
+
+      let taskStage = "new";
+      let ghlContactId: string | null = null;
+      let ghlOpportunityId: string | null = null;
+
+      if (ghlMatch) {
+        // Found existing GHL opportunity — preserve its stage
+        const appStage = stageNameToAppKey[ghlMatch.stageName.toLowerCase()];
+        taskStage = appStage || "new";
+        ghlContactId = ghlMatch.contactId;
+        ghlOpportunityId = ghlMatch.id;
+        matched++;
+      }
+
+      // Create atrisk_task with real policy number
+      const monthlyPremium = Math.round((policy.annual_premium / 12) * 100) / 100;
+      const { data: newTask, error: insertErr } = await app
+        .from("atrisk_tasks")
+        .insert({
+          agency_id,
+          policy_number: policy.policy_nbr,
+          stage: taskStage,
+          status: taskStage as any,
+          priority: "normal",
+          flag_type: "at_risk",
+          ghl_contact_id: ghlContactId,
+          ghl_opportunity_id: ghlOpportunityId,
+        })
+        .select("id")
+        .maybeSingle();
+
+      if (insertErr) {
+        errors.push(`${policy.policy_nbr}: ${insertErr.message}`);
+        skipped++;
+        continue;
+      }
+
+      if (!newTask) {
+        skipped++;
+        continue;
+      }
+
+      // Log stage entry
+      await app.from("atrisk_stage_history").insert({
+        task_id: newTask.id,
+        from_stage: null,
+        to_stage: taskStage,
+        source: ghlMatch ? "ghl" : "seed",
+      });
+
+      // If no GHL match, push to GHL to create opportunity
+      if (!ghlMatch) {
+        try {
+          const pushResult = await handlePush({
+            policy_number: policy.policy_nbr,
+            agency_id,
+            new_stage: taskStage,
+            client_name: policy.client_name,
+            plan_premium: monthlyPremium,
+            ghl_contact_id: null,
+            ghl_opportunity_id: null,
+            task_id: newTask.id,
+            _bypass_gate: true,
+          });
+          const pushBody = await pushResult.json();
+          if (pushBody.success) created++;
+        } catch {
+          // Non-fatal — task created, GHL push failed
+        }
+      }
+
+      seeded++;
+    } catch (err: any) {
+      errors.push(`${policy.policy_nbr}: ${err.message}`);
+      skipped++;
+    }
+  }
+
+  return json({
+    success: true,
+    seeded,
+    matched_ghl: matched,
+    created_ghl: created,
+    skipped,
+    total: atRiskPolicies.length,
+    ghl_existing: ghlOppsByName.size,
     errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
   });
 }
