@@ -96,7 +96,7 @@ async function getAgencyGhlConfig(agencyId: string) {
   // Get the GHL config
   const { data: config } = await portal
     .from("agency_ghl_configs")
-    .select("ghl_api_key, ghl_location_id, connection_status")
+    .select("ghl_api_key, ghl_location_id, connection_status, manager_pipeline_enabled")
     .eq("agency_id", agencyId)
     .maybeSingle();
 
@@ -107,6 +107,7 @@ async function getAgencyGhlConfig(agencyId: string) {
   return {
     apiKey: config.ghl_api_key,
     locationId: config.ghl_location_id,
+    managerPipelineEnabled: !!config.manager_pipeline_enabled,
   };
 }
 
@@ -346,6 +347,18 @@ async function handlePush(body: any): Promise<Response> {
     });
   }
 
+  // Gate: manager_pipeline_enabled must be true for live pushes.
+  // Pipeline stays disabled until CRM team confirms sync direction.
+  // Internal calls from handleSeed/handleExecuteSync pass _bypass_gate
+  // to skip this check (they run before the pipeline is enabled).
+  if (!ghlConfig.managerPipelineEnabled && !body._bypass_gate) {
+    return json({
+      success: true,
+      skipped: true,
+      reason: "Manager pipeline not yet enabled — awaiting CRM team sync confirmation",
+    });
+  }
+
   const { apiKey, locationId } = ghlConfig;
 
   // Get or create the at-risk pipeline
@@ -487,6 +500,7 @@ async function handleSeed(body: any): Promise<Response> {
         ghl_contact_id: task.ghl_contact_id,
         ghl_opportunity_id: task.ghl_opportunity_id,
         task_id: task.id,
+        _bypass_gate: true, // Internal seed call — runs before pipeline is enabled
       });
 
       const body = await result.json();
@@ -1117,10 +1131,30 @@ Deno.serve(async (req) => {
     switch (action) {
       case "push":
         return await handlePush(body);
-      case "seed":
+      case "seed": {
+        // Gate: external seed calls require pipeline to be enabled
+        const seedConfig = await getAgencyGhlConfig(body.agency_id);
+        if (seedConfig && !seedConfig.managerPipelineEnabled) {
+          return json({
+            success: true,
+            skipped: true,
+            reason: "Manager pipeline not yet enabled — awaiting CRM team sync confirmation",
+          });
+        }
         return await handleSeed(body);
-      case "import":
+      }
+      case "import": {
+        // Gate: external import calls require pipeline to be enabled
+        const importConfig = await getAgencyGhlConfig(body.agency_id);
+        if (importConfig && !importConfig.managerPipelineEnabled) {
+          return json({
+            success: true,
+            skipped: true,
+            reason: "Manager pipeline not yet enabled — awaiting CRM team sync confirmation",
+          });
+        }
         return await handleImport(body);
+      }
       case "resolve_direction":
         return await handleResolveDirection(body);
       case "create_sync_task":
@@ -1129,7 +1163,13 @@ Deno.serve(async (req) => {
         return await handleExecuteSync(body);
       case "status": {
         const config = await getAgencyGhlConfig(body.agency_id);
-        return json({ enabled: !!config, config: config ? { locationId: config.locationId } : null });
+        return json({
+          enabled: !!config,
+          config: config ? {
+            locationId: config.locationId,
+            managerPipelineEnabled: config.managerPipelineEnabled,
+          } : null,
+        });
       }
       default:
         return json({ error: `Unknown action: ${action}` }, 400);
