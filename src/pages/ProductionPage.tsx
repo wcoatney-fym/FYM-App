@@ -238,6 +238,7 @@ export function ProductionPage() {
         day: d.day,
         policies: d.policies,
         annual_premium: d.annual_premium,
+        issued: d.issued || 0,
       })));
       setLocalMonthly([]);
       return;
@@ -277,6 +278,7 @@ export function ProductionPage() {
         day: d.day,
         policies: d.policies,
         annual_premium: d.annual_premium,
+        issued: d.issued || 0,
       })));
       setLocalMonthly([]);
       setDateLoading(false);
@@ -347,7 +349,20 @@ export function ProductionPage() {
         writingNumber: filterAgentId,
       });
     }
-    // All-time fallback: use monthly view data
+    // All-time fallback: use overlay data (submitted vs issued by month)
+    if (overlayData.length > 0) {
+      return overlayData
+        .slice(-12)
+        .map(row => ({
+          bucket: row.month,
+          label: fmtMonth(row.month),
+          policies: row.submitted_policies,
+          ap: row.submitted_ap,
+          issued: row.issued_policies,
+        }))
+        .sort((a, b) => a.bucket.localeCompare(b.bucket));
+    }
+    // Final fallback: monthly production (no issued data available)
     let rows = rawMonthly;
     if (filterAgencyId) rows = rows.filter(r => r.agency_id === filterAgencyId);
     if (filterAgentId) rows = rows.filter(r => r.writing_number === filterAgentId);
@@ -364,24 +379,12 @@ export function ProductionPage() {
         label: fmtMonth(month),
         policies: v.policies,
         ap: v.ap,
+        issued: 0,
       }))
       .sort((a, b) => a.bucket.localeCompare(b.bucket))
       .slice(-12);
-  }, [dailyRows, rawMonthly, granularity, filterAgencyId, filterAgentId]);
+  }, [dailyRows, rawMonthly, overlayData, granularity, filterAgencyId, filterAgentId]);
 
-  // Overlay chart data: transform MonthlyOverlayRow[] into chart-ready format
-  const overlayChartData = useMemo(() => {
-    return overlayData
-      .slice(-12)
-      .map(row => ({
-        bucket: row.month,
-        label: fmtMonth(row.month),
-        submitted: row.submitted_policies,
-        issued: row.issued_policies,
-        submitted_ap: row.submitted_ap,
-        issued_ap: row.issued_ap,
-      }));
-  }, [overlayData]);
 
   const displayStats = useMemo((): OrgStats | null => {
     if (!stats) return null;
@@ -756,12 +759,15 @@ export function ProductionPage() {
           </CardContent>
         </Card>
 
-        {/* Production Trend Chart */}
+        {/* Production Trend Chart — Policies Sold vs Effectuated */}
         <Card className="border-border">
           <CardHeader>
-            <CardTitle className="text-base text-foreground">
-              Production — {dateRange.label}{granularity === 'day' ? ' (Daily)' : granularity === 'week' ? ' (Weekly)' : ' (Monthly)'}
-            </CardTitle>
+            <div>
+              <CardTitle className="text-base text-foreground">
+                Production — {dateRange.label}{granularity === 'day' ? ' (Daily)' : granularity === 'week' ? ' (Weekly)' : ' (Monthly)'}
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">Bars = policies sold (by app received date) · Line = policies effectuated (by issue date)</p>
+            </div>
           </CardHeader>
           <CardContent className="pb-2">
             <div className="h-72">
@@ -778,15 +784,6 @@ export function ProductionPage() {
                     height={filteredTrend.length > 12 ? 50 : 30}
                   />
                   <YAxis
-                    yAxisId="ap"
-                    orientation="left"
-                    stroke="hsl(215 20% 55%)"
-                    fontSize={11}
-                    tickFormatter={v => fmt$(v)}
-                  />
-                  <YAxis
-                    yAxisId="policies"
-                    orientation="right"
                     stroke="hsl(215 20% 55%)"
                     fontSize={11}
                   />
@@ -799,27 +796,25 @@ export function ProductionPage() {
                       fontSize: 12,
                     }}
                     formatter={(value: number, name: string) => [
-                      name === 'ap' ? fmt$(value) : fmtNum(value),
-                      name === 'ap' ? 'Annual Premium' : 'Policies',
+                      fmtNum(value),
+                      name === 'policies' ? 'Policies Sold' : 'Policies Effectuated',
                     ]}
                     labelFormatter={(label: string) => label}
                   />
                   <Legend
-                    formatter={(value: string) => value === 'ap' ? 'Annual Premium' : 'Policies'}
+                    formatter={(value: string) => value === 'policies' ? 'Policies Sold' : 'Policies Effectuated'}
                     wrapperStyle={{ color: 'hsl(215 20% 65%)' }}
                   />
                   <Bar
-                    yAxisId="ap"
-                    dataKey="ap"
+                    dataKey="policies"
                     fill="hsl(199 89% 48%)"
-                    fillOpacity={0.3}
+                    fillOpacity={0.4}
                     stroke="hsl(199 89% 48%)"
                     radius={[3, 3, 0, 0]}
                   />
                   <Line
-                    yAxisId="policies"
                     type="monotone"
-                    dataKey="policies"
+                    dataKey="issued"
                     stroke="hsl(142 71% 45%)"
                     strokeWidth={2.5}
                     dot={{ r: 3, fill: 'hsl(142 71% 45%)' }}
@@ -830,71 +825,7 @@ export function ProductionPage() {
           </CardContent>
         </Card>
 
-        {/* ── Submitted vs Issued Overlay Chart ── */}
-        {overlayData.length > 0 && (
-          <Card className="border-border">
-            <CardHeader>
-              <div>
-                <CardTitle className="text-base text-foreground">Apps Submitted vs Policies Issued</CardTitle>
-                <p className="text-xs text-muted-foreground mt-0.5">Monthly · Bars = issued (by issue date) · Line = submitted (by app received date)</p>
-              </div>
-            </CardHeader>
-            <CardContent className="pb-2">
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart data={overlayChartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 33% 17%)" />
-                    <XAxis
-                      dataKey="label"
-                      stroke="hsl(215 20% 55%)"
-                      fontSize={11}
-                      interval={overlayChartData.length > 12 ? 1 : 0}
-                      angle={overlayChartData.length > 10 ? -45 : 0}
-                      textAnchor={overlayChartData.length > 10 ? 'end' : 'middle'}
-                      height={overlayChartData.length > 10 ? 50 : 30}
-                    />
-                    <YAxis
-                      stroke="hsl(215 20% 55%)"
-                      fontSize={11}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        borderRadius: '8px',
-                        border: '1px solid hsl(217 33% 20%)',
-                        background: 'hsl(222 47% 9%)',
-                        color: 'hsl(210 40% 98%)',
-                        fontSize: 12,
-                      }}
-                      formatter={(value: number, name: string) => [
-                        fmtNum(value),
-                        name === 'issued' ? 'Issued (by issue date)' : 'Submitted (by app received date)',
-                      ]}
-                      labelFormatter={(label: string) => label}
-                    />
-                    <Legend
-                      formatter={(value: string) => value === 'issued' ? 'Policies Issued' : 'Apps Submitted'}
-                      wrapperStyle={{ color: 'hsl(215 20% 65%)' }}
-                    />
-                    <Bar
-                      dataKey="issued"
-                      fill="hsl(199 89% 48%)"
-                      fillOpacity={0.4}
-                      stroke="hsl(199 89% 48%)"
-                      radius={[3, 3, 0, 0]}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="submitted"
-                      stroke="hsl(38 92% 50%)"
-                      strokeWidth={2.5}
-                      dot={{ r: 3, fill: 'hsl(38 92% 50%)' }}
-                    />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+
 
         {/* ── Book Quality Section (migrated from Financials) ── */}
         {isOrgWide && (

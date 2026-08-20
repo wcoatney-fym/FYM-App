@@ -120,6 +120,8 @@ export interface DailyProduction {
   day: string;
   policies: number;
   annual_premium: number;
+  /** Policies effectuated (by issue_date) on this day */
+  issued: number;
 }
 
 export interface MonthlyProduction {

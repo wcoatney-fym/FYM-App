@@ -208,6 +208,8 @@ export interface DailyRow {
   product_type: string;
   policies: number;
   annual_premium: number;
+  /** Policies effectuated (by issue_date) on this day */
+  issued: number;
 }
 
 export interface TrendPoint {
@@ -215,6 +217,8 @@ export interface TrendPoint {
   label: string;
   policies: number;
   ap: number;
+  /** Policies effectuated (went active) in this bucket */
+  issued: number;
 }
 
 /**
@@ -230,12 +234,13 @@ export function aggregateTrend(
   if (filters?.agencyId) rows = rows.filter(r => r.agency_id === filters.agencyId);
   if (filters?.writingNumber) rows = rows.filter(r => r.writing_number === filters.writingNumber);
 
-  const byBucket = new Map<string, { policies: number; ap: number }>();
+  const byBucket = new Map<string, { policies: number; ap: number; issued: number }>();
   rows.forEach(r => {
     const key = bucketKey(r.day, granularity);
-    const existing = byBucket.get(key) || { policies: 0, ap: 0 };
+    const existing = byBucket.get(key) || { policies: 0, ap: 0, issued: 0 };
     existing.policies += Number(r.policies);
     existing.ap += Number(r.annual_premium);
+    existing.issued += Number(r.issued || 0);
     byBucket.set(key, existing);
   });
 
@@ -245,6 +250,7 @@ export function aggregateTrend(
       label: fmtBucketLabel(bucket, granularity),
       policies: v.policies,
       ap: v.ap,
+      issued: v.issued,
     }))
     .sort((a, b) => a.bucket.localeCompare(b.bucket));
 }
