@@ -157,6 +157,10 @@ export type PortalPipelineRecord = {
   updated_at: string;
   wn_pending_review: boolean;
   wn_pending_count: number;
+  /** Agent has submitted a step completion or writing number — needs admin review */
+  agent_action_pending?: boolean;
+  /** Timestamp of the most recent agent action */
+  agent_action_at?: string;
 };
 
 /** LOB / writing number assignment — `agent_lob_assignments` table */
