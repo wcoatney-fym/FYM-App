@@ -28,9 +28,12 @@ import {
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useViewAsStore } from '@/store/view-as-store';
+import { useTestViewStore } from '@/store/test-view-store';
+import { AGENT_STAGES } from '@/hooks/useAgentPipeline';
 import type { UserRole } from '@/contexts/AuthContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Eye, ShieldPlus, Trash2, UserPlus, CheckCircle2, AlertCircle, Users, Settings, KeyRound, Copy, RefreshCw, Search, Zap, Eye as EyeIcon, EyeOff } from 'lucide-react';
+import { Eye, ShieldPlus, Trash2, UserPlus, CheckCircle2, AlertCircle, Users, Settings, KeyRound, Copy, RefreshCw, Search, Zap, Eye as EyeIcon, EyeOff, FlaskConical } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { CoachingThresholdsCard } from '@/components/settings/CoachingThresholdsCard';
 
 interface ProfileOption {
@@ -834,6 +837,8 @@ type PivotView = 'admin' | 'manager' | 'agent';
 
 function ViewAsCard() {
   const { active, role, agencyName, agentName, activate, deactivate } = useViewAsStore();
+  const testViewStore = useTestViewStore();
+  const navigate = useNavigate();
 
   const [selectedRole, setSelectedRole] = useState<UserRole>('admin');
   const [agencies, setAgencies] = useState<AgencyOption[]>([]);
@@ -953,6 +958,48 @@ function ViewAsCard() {
               Viewing as {role === 'agent' ? 'Agent' : role === 'manager' ? 'Manager' : 'Agency Admin'}
               {agencyName && agencyName !== FYM_AGENCY_NAME ? ` — ${agencyName}` : ''}
               {agentName ? ` — ${agentName}` : ''}
+            </p>
+          )}
+        </div>
+
+        {/* ── Test Agent View ── */}
+        <div className="border-t border-border/30 pt-4">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <FlaskConical size={14} className="text-purple-400" />
+                Test Agent View
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Walk through what agents see during contracting. Uses Test Mitchell under FYM.
+              </p>
+            </div>
+          </div>
+          <Button
+            onClick={() => {
+              // Activate View As: Test Mitchell @ FYM as agent
+              activate({
+                role: 'agent',
+                agencyId: FYM_AGENCY_ID,
+                agencyName: FYM_AGENCY_NAME,
+                agentId: 'test-mitchell',
+                agentName: 'Test Mitchell',
+                writingNumber: 'TEST00001',
+              });
+              // Activate test view stage controls
+              testViewStore.activate(AGENT_STAGES[0].key, 0);
+              // Navigate to agent contracting page
+              navigate('/my-contracting');
+            }}
+            className="bg-purple-500 hover:bg-purple-600 text-white"
+          >
+            <FlaskConical size={14} className="mr-1.5" />
+            Launch Test Agent View
+          </Button>
+          {testViewStore.active && (
+            <p className="text-xs text-purple-400/80 mt-2 flex items-center gap-1.5">
+              <FlaskConical size={12} />
+              Test view active — use the floating toolbar on the contracting page to change stages
             </p>
           )}
         </div>
