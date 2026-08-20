@@ -148,6 +148,7 @@ export function AgencyProductionPage() {
         day: d.day,
         policies: d.policies,
         annual_premium: d.annual_premium,
+        issued: 0,
       }));
       return aggregateTrend(rows, gran);
     } else {
@@ -160,7 +161,7 @@ export function AgencyProductionPage() {
         byMonth.set(r.month, existing);
       });
       return Array.from(byMonth.entries())
-        .map(([month, v]) => ({ bucket: month, label: fmtMonth(month), policies: v.policies, ap: v.ap }))
+        .map(([month, v]) => ({ bucket: month, label: fmtMonth(month), policies: v.policies, ap: v.ap, issued: 0 }))
         .sort((a, b) => a.bucket.localeCompare(b.bucket))
         .slice(-12);
     }
