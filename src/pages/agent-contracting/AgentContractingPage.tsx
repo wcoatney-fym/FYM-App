@@ -27,6 +27,7 @@ import {
 } from '@/hooks/useAgentPipeline';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useAgentRosterData } from '@/hooks/useAgentRosterData';
+import { CarrierAvailabilityMap } from '@/components/maps/CarrierAvailabilityMap';
 import { useTestViewStore } from '@/store/test-view-store';
 import { TestViewToolbar } from '@/components/test-view/TestViewToolbar';
 import { computeProgress } from '@/pages/contracting/pipeline/pipelineProgress';
@@ -171,6 +172,9 @@ export function AgentContractingPage() {
               rosterCarriers={rosterData.carriers}
             />
           )}
+
+          {/* Carrier availability map */}
+          <CarrierAvailabilityMap />
         </div>
       );
     }
@@ -351,6 +355,9 @@ export function AgentContractingPage() {
               onSubmitWritingNumber={submitWritingNumber}
             />
           )}
+
+          {/* Carrier availability map — always visible */}
+          <CarrierAvailabilityMap />
         </div>
       </FadeIn>
 
