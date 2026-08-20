@@ -29,7 +29,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useViewAsStore } from '@/store/view-as-store';
 import { useTestViewStore } from '@/store/test-view-store';
-import { AGENT_STAGES } from '@/hooks/useAgentPipeline';
+
 import type { UserRole } from '@/contexts/AuthContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Eye, ShieldPlus, Trash2, UserPlus, CheckCircle2, AlertCircle, Users, Settings, KeyRound, Copy, RefreshCw, Search, Zap, Eye as EyeIcon, EyeOff, FlaskConical } from 'lucide-react';
@@ -971,23 +971,23 @@ function ViewAsCard() {
                 Test Agent View
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Walk through what agents see during contracting. Uses Test Mitchell under FYM.
+                Walk through what agents see during contracting. Uses Tester Mitchell under FYM.
               </p>
             </div>
           </div>
           <Button
             onClick={() => {
-              // Activate View As: Test Mitchell @ FYM as agent
+              // Activate View As: Tester Mitchell @ FYM as agent
               activate({
                 role: 'agent',
                 agencyId: FYM_AGENCY_ID,
                 agencyName: FYM_AGENCY_NAME,
-                agentId: 'test-mitchell',
-                agentName: 'Test Mitchell',
+                agentId: 'd6fe7763-adec-4acc-9d72-0f269be15025',
+                agentName: 'Tester Mitchell',
                 writingNumber: 'TEST00001',
               });
               // Activate test view stage controls
-              testViewStore.activate(AGENT_STAGES[0].key, 0);
+              testViewStore.activate();
               // Navigate to agent contracting page
               navigate('/my-contracting');
             }}
