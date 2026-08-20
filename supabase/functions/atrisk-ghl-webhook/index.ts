@@ -58,8 +58,8 @@ function getAppClient() {
 }
 
 function getPortalClient() {
-  const url = Deno.env.get("PORTAL_SUPABASE_URL")!;
-  const key = Deno.env.get("PORTAL_SUPABASE_SERVICE_ROLE_KEY")!;
+  const url = Deno.env.get("CONTRACTING_SUPABASE_URL")!;
+  const key = Deno.env.get("CONTRACTING_SUPABASE_SERVICE_KEY") || Deno.env.get("CONTRACTING_SUPABASE_ANON_KEY")!;
   return createClient(url, key);
 }
 
