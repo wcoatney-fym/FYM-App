@@ -123,66 +123,34 @@ export function AtRiskKanban({ filterAgencyId }: AtRiskKanbanProps) {
       const res = await fetchAtRiskPolicies(agencyParam ? { agency_id: agencyParam } : undefined);
       const edgePolicies: EdgeAtRiskPolicy[] = res.data.policies;
 
-      // 2. Fetch task/stage data from local Supabase (atrisk_tasks)
-      let taskMap = new Map<string, {
-        task_id: string; stage: string; assigned_to: string | null;
-        due_date: string | null; created_at: string;
-        ghl_contact_id: string | null; ghl_opportunity_id: string | null;
-      }>();
-      if (supabase) {
-        const PAGE_SIZE = 1000;
-        let offset = 0;
-        while (true) {
-          const { data: tasks } = await supabase
-            .from('atrisk_tasks')
-            .select('id, policy_number, stage, assigned_to, due_date, created_at, ghl_contact_id, ghl_opportunity_id')
-            .range(offset, offset + PAGE_SIZE - 1);
-          if (tasks) {
-            for (const t of tasks as any[]) {
-              taskMap.set(t.policy_number, {
-                task_id: t.id,
-                stage: t.stage,
-                assigned_to: t.assigned_to,
-                due_date: t.due_date,
-                created_at: t.created_at,
-                ghl_contact_id: t.ghl_contact_id,
-                ghl_opportunity_id: t.ghl_opportunity_id,
-              });
-            }
-          }
-          if (!tasks || tasks.length < PAGE_SIZE) break;
-          offset += PAGE_SIZE;
-        }
-      }
-
-      // 3. Merge edge + task data into component's AtRiskPolicy shape
-      let merged: AtRiskPolicy[] = edgePolicies.map(ep => {
-        const task = taskMap.get(ep.policy_number);
-        return {
-          policy_number: ep.policy_number,
-          client_name: ep.client_name,
-          agency_id: ep.agency_id,
-          agency_name: null,
-          agent_id: null,
-          agent_name: null,
-          writing_number: ep.agent_writing_number,
-          product_type: ep.product_type,
-          plan_premium: ep.plan_premium,
-          flag_type: ep.flag_type || 'at_risk',
-          paid_to_date: ep.paid_to_date || '',
-          policy_effective_date: ep.policy_effective_date || '',
-          draft_count: ep.draft_count,
-          is_at_risk: true,
-          days_since_draft: ep.days_idle,
-          task_id: task?.task_id ?? null,
-          task_status: (task?.stage as Stage) ?? null,
-          task_assigned_to: task?.assigned_to ?? null,
-          task_due_date: task?.due_date ?? null,
-          task_created_at: task?.created_at ?? null,
-          ghl_contact_id: task?.ghl_contact_id ?? null,
-          ghl_opportunity_id: task?.ghl_opportunity_id ?? null,
-        };
-      });
+      // 2. Map edge function response → component shape.
+      //    Task data (stage, assigned_to, ghl IDs) is enriched server-side
+      //    by the retention-data edge function using the service role key.
+      //    No separate atrisk_tasks query needed (avoids RLS issues).
+      let merged: AtRiskPolicy[] = edgePolicies.map(ep => ({
+        policy_number: ep.policy_number,
+        client_name: ep.client_name,
+        agency_id: ep.agency_id,
+        agency_name: null,
+        agent_id: null,
+        agent_name: null,
+        writing_number: ep.agent_writing_number,
+        product_type: ep.product_type,
+        plan_premium: ep.plan_premium,
+        flag_type: ep.flag_type || 'at_risk',
+        paid_to_date: ep.paid_to_date || '',
+        policy_effective_date: ep.policy_effective_date || '',
+        draft_count: ep.draft_count,
+        is_at_risk: true,
+        days_since_draft: ep.days_idle,
+        task_id: (ep as any).task_id ?? null,
+        task_status: ((ep as any).task_stage as Stage) ?? null,
+        task_assigned_to: (ep as any).task_assigned_to ?? null,
+        task_due_date: (ep as any).task_due_date ?? null,
+        task_created_at: (ep as any).task_created_at ?? null,
+        ghl_contact_id: (ep as any).ghl_contact_id ?? null,
+        ghl_opportunity_id: (ep as any).ghl_opportunity_id ?? null,
+      }));
 
       // 4. Agent-level scoping
       if (isAgent && effectiveWritingNumber) {
