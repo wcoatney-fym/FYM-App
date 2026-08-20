@@ -202,9 +202,15 @@ export function OrgDataProvider({ children }: { children: ReactNode }) {
           'retention_cohorts',
           'agency_production',
           'monthly_production',
+          'daily_production',
         ]);
 
         if (cache && cache.size >= 4) {
+          // Daily production from cache (includes issued/effectuated counts)
+          const dailyProdEntry = cache.get('daily_production');
+          if (dailyProdEntry) {
+            setDailyProduction(dailyProdEntry.payload as DailyProduction[]);
+          }
           const retPayload = cache.get('retention_summary')!.payload as RetentionSummaryResponse;
           const cohortPayload = cache.get('retention_cohorts')!.payload as {
             data: { cohorts: CohortEntry[]; product_cohorts?: ProductCohortEntry[]; agency_cohorts?: AgencyCohortEntry[] };

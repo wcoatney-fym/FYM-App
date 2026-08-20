@@ -85,8 +85,8 @@ Deno.serve(async (req) => {
     const productCohortMap = new Map<string, { eligible: number; retained: number }>();
     const agencyCohortMap = new Map<string, Map<string, { eligible: number; retained: number }>>();
 
-    // Daily production (issue_date bucketed by day)
-    const dailyProdMap = new Map<string, Map<string, { policies: number; annual_premium: number }>>();
+    // Daily production (app_recvd_date bucketed by day) + effectuated (issue_date for active policies)
+    const dailyProdMap = new Map<string, Map<string, { policies: number; annual_premium: number; issued: number }>>();
     // Monthly production
     const monthlyProdMap = new Map<string, Map<string, { policies: number; annual_premium: number }>>();
 
@@ -250,10 +250,10 @@ Deno.serve(async (req) => {
 
         // ── Production tracking (by issue date) ──
         if (appRecvdDate) {
-          // Daily
+          // Daily — submitted (by app_recvd_date)
           if (!dailyProdMap.has(agencyId)) dailyProdMap.set(agencyId, new Map());
           const dayMap = dailyProdMap.get(agencyId)!;
-          if (!dayMap.has(appRecvdDate)) dayMap.set(appRecvdDate, { policies: 0, annual_premium: 0 });
+          if (!dayMap.has(appRecvdDate)) dayMap.set(appRecvdDate, { policies: 0, annual_premium: 0, issued: 0 });
           const day = dayMap.get(appRecvdDate)!;
           day.policies++;
           day.annual_premium += annualPremium;
@@ -405,8 +405,52 @@ Deno.serve(async (req) => {
 
     // ── Build daily production payload (last 90 days only) ───────────
 
+    // ── Effectuated pass: count active policies by issue_date ───────
+    // Separate from the main loop because the main loop filters by
+    // app_recvd_date — policies submitted months ago that became active
+    // recently would be missed. This pass counts ALL active policies
+    // by their issue_date.
+    {
+      const EFF_PAGE = 5000;
+      let effOffset = 0;
+      while (true) {
+        const effRows = await sql`
+          SELECT
+            issue_date,
+            TRIM(ga) AS ga,
+            roster_hierarchy_json
+          FROM typed.unl_fym_policy_latest_load
+          WHERE issue_date IS NOT NULL
+            AND UPPER(TRIM(cntrct_code)) = 'A'
+            AND term_date IS NULL
+          ORDER BY policy_nbr
+          OFFSET ${effOffset}
+          LIMIT ${EFF_PAGE}
+        `;
+        if (effRows.length === 0) break;
+        for (const row of effRows) {
+          const iDate = row.issue_date
+            ? new Date(row.issue_date as string).toISOString().split("T")[0]
+            : null;
+          if (!iDate) continue;
+          const roster = row.roster_hierarchy_json as Array<{
+            writing_number: string; depth: string; is_person: boolean; name: string;
+          }> | null;
+          const hierarchyWn = resolveAgencyWn(row, roster);
+          const agWn = rosterMap.resolveAgencyFromHierarchy(roster, hierarchyWn);
+          const agId = agWn || "unknown";
+          if (!dailyProdMap.has(agId)) dailyProdMap.set(agId, new Map());
+          const dm = dailyProdMap.get(agId)!;
+          if (!dm.has(iDate)) dm.set(iDate, { policies: 0, annual_premium: 0, issued: 0 });
+          dm.get(iDate)!.issued++;
+        }
+        if (effRows.length < EFF_PAGE) break;
+        effOffset += EFF_PAGE;
+      }
+    }
+
     const dailyCutoff = new Date(now.getTime() - 90 * 86400000).toISOString().split("T")[0];
-    const dailyProduction: Array<{ day: string; agency_id: string; policies: number; annual_premium: number }> = [];
+    const dailyProduction: Array<{ day: string; agency_id: string; policies: number; annual_premium: number; issued: number }> = [];
     for (const [agencyId, dayMap] of dailyProdMap) {
       for (const [day, data] of dayMap) {
         if (day >= dailyCutoff) {
@@ -414,6 +458,7 @@ Deno.serve(async (req) => {
             day, agency_id: agencyId,
             policies: data.policies,
             annual_premium: Math.round(data.annual_premium * 100) / 100,
+            issued: data.issued,
           });
         }
       }
