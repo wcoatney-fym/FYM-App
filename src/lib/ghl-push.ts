@@ -95,6 +95,63 @@ export async function pushStageToGhl(
   }
 }
 
+/** Result from resolve_direction action */
+export interface SyncDirectionResult {
+  success: boolean;
+  agency_id: string;
+  direction: 'app_to_ghl' | 'ghl_to_app' | 'conflict' | 'empty';
+  reason: string;
+  app: {
+    task_count: number;
+    worked_stage_changes: number;
+    moved_tasks: number;
+    has_work: boolean;
+  };
+  ghl: {
+    total_opportunities: number;
+    worked_opportunities: number;
+    stage_breakdown: Record<string, number>;
+    has_work: boolean;
+    error: string | null;
+  };
+}
+
+/**
+ * Resolve sync direction for an agency (read-only detection).
+ *
+ * Checks both App and GHL for worked pipeline state and returns
+ * a recommendation without executing any sync.
+ */
+export async function resolveSyncDirection(
+  agencyId: string
+): Promise<SyncDirectionResult | null> {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
+
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/atrisk-ghl-push`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action: 'resolve_direction',
+        agency_id: agencyId,
+      }),
+    });
+
+    if (!res.ok) {
+      console.warn(`ghl-push: resolve_direction returned ${res.status}`);
+      return null;
+    }
+
+    return await res.json();
+  } catch (err) {
+    console.warn('ghl-push: resolve_direction failed', err);
+    return null;
+  }
+}
+
 /**
  * Seed all current pipeline state to GHL for an agency (one-time on opt-in).
  */

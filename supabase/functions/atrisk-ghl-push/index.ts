@@ -9,10 +9,12 @@
  *      (prevents the GHL webhook workflow from echoing back)
  *
  * Actions:
- *   - push:     Push a single stage change to GHL
- *   - seed:     One-time seed of all current app pipeline state → GHL (on opt-in)
- *   - import:   One-time pull of GHL pipeline state → App (initial sync on enable)
- *   - status:   Check GHL connection status for an agency
+ *   - push:              Push a single stage change to GHL
+ *   - seed:              One-time seed of all current app pipeline state → GHL (on opt-in)
+ *   - import:            One-time pull of GHL pipeline state → App (initial sync on enable)
+ *   - status:            Check GHL connection status for an agency
+ *   - resolve_direction: Detect sync direction (app→ghl or ghl→app) without executing.
+ *                        Returns recommendation + counts for CRM team manual review.
  *
  * Auth: Requires FYM App authenticated session.
  * Secrets: CONTRACTING_SUPABASE_URL, CONTRACTING_SUPABASE_ANON_KEY (portal DB access),
@@ -700,6 +702,204 @@ async function handleImport(body: any): Promise<Response> {
   });
 }
 
+// ── Resolve direction handler ────────────────────────────────────────────────
+
+/**
+ * Detect sync direction for an agency without executing anything.
+ *
+ * Checks:
+ *   1. App side: atrisk_tasks rows + atrisk_stage_history with source='app'
+ *   2. GHL side: pipeline opportunity count + any non-"New" stages
+ *
+ * Returns one of:
+ *   - app_to_ghl:  Agency has worked the App pipeline; seed App → GHL
+ *   - ghl_to_app:  Agency has worked GHL; import GHL → App
+ *   - conflict:    Both sides have worked state; needs manual decision
+ *   - empty:       Neither side has data; no sync needed yet
+ */
+async function handleResolveDirection(body: any): Promise<Response> {
+  const { agency_id } = body;
+  if (!agency_id) {
+    return json({ error: "Missing agency_id" }, 400);
+  }
+
+  // ── App side ───────────────────────────────────────────────────────
+  const app = getAppClient();
+
+  // Count tasks in atrisk_tasks for this agency
+  const { count: appTaskCount } = await app
+    .from("atrisk_tasks")
+    .select("*", { count: "exact", head: true })
+    .eq("agency_id", agency_id);
+
+  // Count app-sourced stage transitions (human work done in the App)
+  const { count: appWorkCount } = await app
+    .from("atrisk_stage_history")
+    .select("*", { count: "exact", head: true })
+    .eq("source", "app")
+    .in(
+      "task_id",
+      // subquery: get task IDs for this agency
+      // Supabase JS doesn't support subqueries, so we do it in two steps
+      [] // placeholder — handled below
+    );
+
+  // Actually: do the two-step approach
+  let appWorkedCount = 0;
+  if ((appTaskCount || 0) > 0) {
+    // Get task IDs for this agency
+    const { data: taskIds } = await app
+      .from("atrisk_tasks")
+      .select("id")
+      .eq("agency_id", agency_id);
+
+    if (taskIds && taskIds.length > 0) {
+      const ids = taskIds.map((t: any) => t.id);
+      // Count stage transitions with source='app' for these tasks
+      const { count } = await app
+        .from("atrisk_stage_history")
+        .select("*", { count: "exact", head: true })
+        .eq("source", "app")
+        .in("task_id", ids);
+      appWorkedCount = count || 0;
+    }
+  }
+
+  // Count non-"new" tasks in app (someone moved them)
+  const { count: appMovedCount } = await app
+    .from("atrisk_tasks")
+    .select("*", { count: "exact", head: true })
+    .eq("agency_id", agency_id)
+    .neq("stage", "new");
+
+  const appHasWork = appWorkedCount > 0 || (appMovedCount || 0) > 0;
+
+  // ── GHL side ──────────────────────────────────────────────────────
+  let ghlTotal = 0;
+  let ghlWorkedCount = 0;
+  let ghlStageBreakdown: Record<string, number> = {};
+  let ghlError: string | null = null;
+
+  // Try to get GHL creds — use stored config or check if agency has creds
+  // even if manager_pipeline_enabled is false (we're resolving BEFORE enabling)
+  const portal = getPortalClient();
+  const { data: config } = await portal
+    .from("agency_ghl_configs")
+    .select("ghl_api_key, ghl_location_id, connection_status")
+    .eq("agency_id", agency_id)
+    .maybeSingle();
+
+  if (config?.ghl_api_key && config?.ghl_location_id && config?.connection_status === "connected") {
+    try {
+      const pipeline = await getOrCreatePipeline(config.ghl_api_key, config.ghl_location_id);
+      const pipelineId = pipeline.id;
+      const stages = pipeline.stages || [];
+
+      // Build stage lookup
+      const stageIdToName: Record<string, string> = {};
+      for (const s of stages) {
+        stageIdToName[s.id] = s.name;
+      }
+
+      // Fetch all opportunities from this pipeline
+      const opportunities: any[] = [];
+      let hasMore = true;
+      let startAfterId: string | undefined;
+
+      while (hasMore) {
+        const url = new URL("https://services.leadconnectorhq.com/opportunities/search");
+        const searchBody: any = {
+          locationId: config.ghl_location_id,
+          pipelineId,
+          limit: 100,
+        };
+        if (startAfterId) searchBody.startAfterId = startAfterId;
+
+        const res = await fetch(url.toString(), {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${config.ghl_api_key}`,
+            Version: "2021-07-28",
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify(searchBody),
+        });
+
+        if (!res.ok) {
+          ghlError = `GHL API error: ${res.status}`;
+          break;
+        }
+
+        const data = await res.json();
+        const batch = data.opportunities || [];
+        opportunities.push(...batch);
+
+        if (batch.length < 100) {
+          hasMore = false;
+        } else {
+          startAfterId = batch[batch.length - 1].id;
+        }
+      }
+
+      ghlTotal = opportunities.length;
+
+      // Count non-"New" opportunities (someone moved them in GHL)
+      for (const opp of opportunities) {
+        const stageName = stageIdToName[opp.pipelineStageId] || "Unknown";
+        ghlStageBreakdown[stageName] = (ghlStageBreakdown[stageName] || 0) + 1;
+        if (stageName.toLowerCase() !== "new") {
+          ghlWorkedCount++;
+        }
+      }
+    } catch (err: any) {
+      ghlError = err.message;
+    }
+  } else {
+    ghlError = "No GHL credentials configured or not connected";
+  }
+
+  const ghlHasWork = ghlWorkedCount > 0;
+
+  // ── Determine direction ───────────────────────────────────────────
+  let direction: "app_to_ghl" | "ghl_to_app" | "conflict" | "empty";
+  let reason: string;
+
+  if (appHasWork && ghlHasWork) {
+    direction = "conflict";
+    reason = `Both platforms have worked state. App: ${appWorkedCount} stage changes + ${appMovedCount || 0} moved tasks. GHL: ${ghlWorkedCount} non-New opportunities out of ${ghlTotal}. Manual review required.`;
+  } else if (appHasWork && !ghlHasWork) {
+    direction = "app_to_ghl";
+    reason = `Agency has ${appWorkedCount} app stage changes and ${appMovedCount || 0} moved tasks. GHL has ${ghlTotal} total opportunities, all in New stage. Recommend seeding App → GHL.`;
+  } else if (!appHasWork && ghlHasWork) {
+    direction = "ghl_to_app";
+    reason = `App has no worked pipeline state. GHL has ${ghlWorkedCount} non-New opportunities out of ${ghlTotal}. Recommend importing GHL → App.`;
+  } else {
+    direction = "empty";
+    reason = `Neither platform has worked pipeline state. App tasks: ${appTaskCount || 0}. GHL opportunities: ${ghlTotal}. No sync needed — new at-risk policies will populate both sides once two-way sync is enabled.`;
+  }
+
+  return json({
+    success: true,
+    agency_id,
+    direction,
+    reason,
+    app: {
+      task_count: appTaskCount || 0,
+      worked_stage_changes: appWorkedCount,
+      moved_tasks: appMovedCount || 0,
+      has_work: appHasWork,
+    },
+    ghl: {
+      total_opportunities: ghlTotal,
+      worked_opportunities: ghlWorkedCount,
+      stage_breakdown: ghlStageBreakdown,
+      has_work: ghlHasWork,
+      error: ghlError,
+    },
+  });
+}
+
 // ── Main handler ─────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -718,6 +918,8 @@ Deno.serve(async (req) => {
         return await handleSeed(body);
       case "import":
         return await handleImport(body);
+      case "resolve_direction":
+        return await handleResolveDirection(body);
       case "status": {
         const config = await getAgencyGhlConfig(body.agency_id);
         return json({ enabled: !!config, config: config ? { locationId: config.locationId } : null });
