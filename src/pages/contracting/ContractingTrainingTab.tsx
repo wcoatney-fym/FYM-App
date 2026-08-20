@@ -34,12 +34,15 @@ import {
   FileDown,
   ChevronLeft,
   ChevronRight,
+  Upload,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { HudFrame } from '@/components/ui/hud-frame';
 import { StaggerContainer, StaggerItem } from '@/components/ui/animated';
 import { portalSupabase } from '@/lib/portal-supabase';
 import { timeAgo } from '@/lib/contracting/helpers';
+import { TrainingContentUploadModal } from './TrainingContentUploadModal';
+
 import type {
   PortalTrainingContent,
   PortalTrainingEvent,
@@ -104,7 +107,9 @@ export function ContractingTrainingTab() {
   const [expandedContent, setExpandedContent] = useState<string | null>(null);
   const [contentPage, setContentPage] = useState(1);
   const [exporting, setExporting] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
   const CONTENT_PAGE_SIZE = 20;
+
 
   // ─── Data fetch ──────────────────────────────────────────────────────────
 
@@ -451,6 +456,13 @@ export function ContractingTrainingTab() {
                 {exporting ? 'Exporting…' : 'CSV'}
               </button>
               <button
+                onClick={() => setUploadOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-semibold hover:bg-primary/80 transition-colors"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                Upload
+              </button>
+              <button
                 onClick={loadData}
                 className="p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-muted-foreground transition-colors"
                 title="Refresh"
@@ -606,6 +618,13 @@ export function ContractingTrainingTab() {
           )}
         </div>
       </div>
+      {/* Upload Modal */}
+      <TrainingContentUploadModal
+        open={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+        onSuccess={loadData}
+        existingContentCount={content.length}
+      />
     </div>
   );
 }
