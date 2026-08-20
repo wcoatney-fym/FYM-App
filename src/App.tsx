@@ -39,7 +39,7 @@ import { QualityGroupPage } from '@/pages/groups/QualityGroupPage';
 import { RecruitingGroupPage, RecruitingDashboardTab, RecruitingLeadsTab, RecruitingAnalyticsTab } from '@/pages/recruiting';
 import { DailyPulsePage } from '@/pages/DailyPulsePage';
 import { CheckinMorePage } from '@/pages/CheckinMorePage';
-import { AgentContractingPage, AgentContractingTestView } from '@/pages/agent-contracting';
+import { AgentContractingPage } from '@/pages/agent-contracting';
 import { Toaster } from 'sonner';
 import { LifeOnly } from '@/pages/forms/LifeOnly';
 import { Field as FieldForm } from '@/pages/forms/Field';
@@ -123,7 +123,6 @@ function App() {
             {/* Standalone pages */}
             <Route path="/workboard" element={<RoleGuard allow={['admin', 'manager']}><ManagerWorkboardPage /></RoleGuard>} />
             <Route path="/contracting" element={<RoleGuard allow={['admin']}><ContractingPage /></RoleGuard>} />
-            <Route path="/contracting/test-agent-view" element={<RoleGuard allow={['admin']}><AgentContractingTestView /></RoleGuard>} />
             <Route path="/crm-ops" element={<RoleGuard allow={['admin', 'manager']}><CrmOpsPage /></RoleGuard>} />
             <Route path="/crm-command" element={<RoleGuard allow={['admin']}><CrmCommandPage /></RoleGuard>} />
 

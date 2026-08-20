@@ -16,7 +16,7 @@
  * - Agent marks complete → admin approves/declines
  * - CRM Setup removed from agent-facing stages
  */
-import { useState } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent } from '@/components/ui/card';
 import { FadeIn, StaggerContainer, StaggerItem } from '@/components/ui/animated';
@@ -24,15 +24,25 @@ import {
   useAgentPipeline,
   isPreRTS,
   getStageIndex,
+  AGENT_STAGES,
 } from '@/hooks/useAgentPipeline';
+import type { StepCompletion, WritingNumberSubmission } from '@/hooks/useAgentPipeline';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useAgentRosterData } from '@/hooks/useAgentRosterData';
+import { useTestViewStore } from '@/store/test-view-store';
+import { TestViewToolbar } from '@/components/test-view/TestViewToolbar';
 import { computeProgress } from '@/pages/contracting/pipeline/pipelineProgress';
 import { ContractingProgressBar } from './ContractingProgressBar';
 import { ContractingStepPanel } from './ContractingStepPanel';
 import { AgentWritingNumberInput } from './AgentWritingNumberInput';
 import { AgentCarrierManagement } from './AgentCarrierManagement';
 import { TylerTestCard } from './TylerTestCard';
+import type {
+  AgentPipelineStage,
+  PortalPipelineRecord,
+  PortalPipelineStageStep,
+  PortalLobAssignment,
+} from '@/lib/contracting/types';
 import {
   Loader2,
   AlertCircle,
@@ -41,28 +51,159 @@ import {
   RefreshCw,
 } from 'lucide-react';
 
-export function AgentContractingPage() {
-  const {
-    pipelineRecord,
-    stageSteps,
-    lobAssignments,
-    wnSubmissions,
-    stepCompletions,
-    loading,
-    error,
-    refetch,
-    submitStepCompletion,
-    submitWritingNumber,
-    requestContracting,
-  } = useAgentPipeline();
+// ── Mock data for test view ──────────────────────────────────────────────────
 
-  const { effectiveWritingNumber } = useEffectiveAuth();
+function makeMockPipeline(
+  stage: AgentPipelineStage,
+  completedSteps: Record<string, string> = {},
+): PortalPipelineRecord {
+  return {
+    id: 'test-pipeline-001',
+    ghl_opportunity_id: 'test-opp-001',
+    ghl_contact_id: null,
+    ghl_pipeline_id: null,
+    ghl_stage_id: null,
+    stage,
+    agent_name: 'Test Mitchell',
+    first_name: 'Test',
+    last_name: 'Mitchell',
+    email: 'test@teamfym.com',
+    phone: '555-0100',
+    agency: 'FYM',
+    agency_id: null,
+    agent_id: 'test-agent-001',
+    writing_numbers: null,
+    notes: null,
+    tags: [],
+    custom_fields: {},
+    completed_steps: completedSteps,
+    last_updated_by: 'system',
+    last_updated_by_display: 'System',
+    updated_by_source: 'contracting_portal',
+    ghl_sync_status: 'synced',
+    stage_entered_at: new Date(Date.now() - 2 * 86_400_000).toISOString(),
+    created_at: new Date(Date.now() - 14 * 86_400_000).toISOString(),
+    updated_at: new Date().toISOString(),
+    wn_pending_review: false,
+    wn_pending_count: 0,
+    agent_action_pending: false,
+    agent_action_at: undefined,
+  };
+}
+
+const MOCK_STEPS: PortalPipelineStageStep[] = [
+  { id: 'step-intake-1', internal_stage: 'hip_broker', label: 'Complete intake form', display_order: 1, active: true, created_at: '' },
+  { id: 'step-iaa-1', internal_stage: 'iaa', label: 'Review Independent Agent Agreement', display_order: 1, active: true, created_at: '' },
+  { id: 'step-iaa-2', internal_stage: 'iaa', label: 'Download IAA document', display_order: 2, active: true, created_at: '' },
+  { id: 'step-signed-1', internal_stage: 'signed_iaa', label: 'Sign and upload IAA', display_order: 1, active: true, created_at: '' },
+  { id: 'step-signed-2', internal_stage: 'signed_iaa', label: 'Confirm W-9 information', display_order: 2, active: true, created_at: '' },
+  { id: 'step-bill-1', internal_stage: 'bill_com', label: 'Set up Bill.com account', display_order: 1, active: true, created_at: '' },
+  { id: 'step-bill-2', internal_stage: 'bill_com', label: 'Link bank account for direct deposit', display_order: 2, active: true, created_at: '' },
+  { id: 'step-contract-1', internal_stage: 'in_contracting', label: 'Submit carrier appointments', display_order: 1, active: true, created_at: '' },
+  { id: 'step-contract-2', internal_stage: 'in_contracting', label: 'Complete E&O verification', display_order: 2, active: true, created_at: '' },
+  { id: 'step-contract-3', internal_stage: 'in_contracting', label: 'Confirm state licenses', display_order: 3, active: true, created_at: '' },
+  { id: 'tyler_test', internal_stage: 'in_contracting', label: 'Test out with Tyler', display_order: 4, active: true, created_at: '' },
+];
+
+const MOCK_LOB_VERIFIED: PortalLobAssignment[] = [
+  {
+    id: 'lob-1', agent_id: 'test-agent-001', line_of_business: 'HIP',
+    carrier: 'UNL', writing_number: '202TEST01', verified: true,
+    verified_at: new Date().toISOString(), verified_by: 'admin',
+    submitted_by_agent: true, ai_extracted: false,
+    source_submission_id: null, created_at: '', updated_at: '',
+  },
+];
+
+export function AgentContractingPage() {
+  const realPipeline = useAgentPipeline();
+  const { effectiveWritingNumber, isFymAdmin } = useEffectiveAuth();
   const rosterData = useAgentRosterData();
+  const testView = useTestViewStore();
   const [refreshing, setRefreshing] = useState(false);
+  const [testCompletedSteps, setTestCompletedSteps] = useState<Record<string, string>>({});
+  const [testStepCompletions, setTestStepCompletions] = useState<StepCompletion[]>([]);
+  const [testWnSubmissions, setTestWnSubmissions] = useState<WritingNumberSubmission[]>([]);
+
+  // ── Test view mode: use mock data instead of real DB data ──────────────
+  const isTestMode = isFymAdmin && testView.active;
+  const testStageKey = testView.stage ?? AGENT_STAGES[0].key;
+  const testPreRTS = isPreRTS(testStageKey);
+
+  const testPipelineRecord = useMemo(
+    () => makeMockPipeline(testStageKey, testCompletedSteps),
+    [testStageKey, testCompletedSteps],
+  );
+
+  const testLobAssignments = useMemo(() => {
+    if (testStageKey === 'in_contracting') return MOCK_LOB_VERIFIED;
+    if (!testPreRTS) return MOCK_LOB_VERIFIED;
+    return [];
+  }, [testStageKey, testPreRTS]);
+
+  // Mock step completion handler
+  const handleTestStepComplete = useCallback(async (stepId: string): Promise<boolean> => {
+    const ts = new Date().toISOString();
+    setTestCompletedSteps((prev) => ({ ...prev, [stepId]: `pending:${ts}` }));
+    setTestStepCompletions((prev) => [{
+      id: `comp-${Date.now()}`,
+      pipeline_id: 'test-pipeline-001',
+      step_id: stepId,
+      completed_by: 'agent',
+      status: 'pending_review',
+      decline_reason: null,
+      created_at: ts,
+      updated_at: ts,
+    }, ...prev]);
+    return true;
+  }, []);
+
+  // Mock WN submission handler
+  const handleTestSubmitWN = useCallback(async (carrier: string, writingNumber: string): Promise<boolean> => {
+    setTestWnSubmissions((prev) => [{
+      id: `wn-${Date.now()}`,
+      agent_id: 'test-agent-001',
+      carrier,
+      writing_number: writingNumber,
+      ai_extracted_number: null,
+      source_image_url: null,
+      submission_method: 'typed',
+      status: 'pending',
+      review_note: null,
+      reviewed_by: null,
+      reviewed_at: null,
+      created_at: new Date().toISOString(),
+    }, ...prev]);
+    return true;
+  }, []);
+
+  const handleTestRequestContracting = useCallback(async (_carrier: string): Promise<boolean> => {
+    return true;
+  }, []);
+
+  // ── Resolve effective values (real or test) ────────────────────────────
+  const pipelineRecord = isTestMode ? testPipelineRecord : realPipeline.pipelineRecord;
+  const stageSteps = isTestMode ? MOCK_STEPS : realPipeline.stageSteps;
+  const lobAssignments = isTestMode ? testLobAssignments : realPipeline.lobAssignments;
+  const wnSubmissions = isTestMode ? testWnSubmissions : realPipeline.wnSubmissions;
+  const stepCompletions = isTestMode ? testStepCompletions : realPipeline.stepCompletions;
+  const loading = isTestMode ? false : realPipeline.loading;
+  const error = isTestMode ? null : realPipeline.error;
+  const refetch = realPipeline.refetch;
+  const submitStepCompletion = isTestMode ? handleTestStepComplete : realPipeline.submitStepCompletion;
+  const submitWritingNumber = isTestMode ? handleTestSubmitWN : realPipeline.submitWritingNumber;
+  const requestContracting = isTestMode ? handleTestRequestContracting : realPipeline.requestContracting;
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await refetch();
+    if (isTestMode) {
+      // Reset test state
+      setTestCompletedSteps({});
+      setTestStepCompletions([]);
+      setTestWnSubmissions([]);
+    } else {
+      await refetch();
+    }
     setRefreshing(false);
   };
 
@@ -112,8 +253,8 @@ export function AgentContractingPage() {
     );
   }
 
-  // No pipeline record found
-  if (!pipelineRecord) {
+  // No pipeline record found (skip in test mode — always have mock data)
+  if (!pipelineRecord && !isTestMode) {
     // If agent has a writing number, they're producing — show post-RTS view
     // Most existing agents were contracted before the pipeline was built
     if (effectiveWritingNumber) {
@@ -188,18 +329,23 @@ export function AgentContractingPage() {
     );
   }
 
+  // Past this point, pipelineRecord is guaranteed non-null:
+  // - In test mode, it's always the mock record
+  // - In real mode, the null guard above already returned
+  const pipeline = pipelineRecord!;
+
   // Compute step progress for current stage
-  const progress = computeProgress(pipelineRecord, stageSteps);
+  const progress = computeProgress(pipeline, stageSteps);
 
   // Check if agent is in the "additional contracting" flow (post-RTS but in_contracting)
   const isAdditionalContracting =
     currentStage === 'in_contracting' &&
-    (pipelineRecord.tags?.includes('active_agent_request') ||
-      pipelineRecord.tags?.includes('rts_agent_request'));
+    (pipeline.tags?.includes('active_agent_request') ||
+      pipeline.tags?.includes('rts_agent_request'));
 
-  const earnedStatusLabel = pipelineRecord.tags?.includes('active_agent_request')
+  const earnedStatusLabel = pipeline.tags?.includes('active_agent_request')
     ? 'Active'
-    : pipelineRecord.tags?.includes('rts_agent_request')
+    : pipeline.tags?.includes('rts_agent_request')
       ? 'RTS'
       : null;
 
@@ -243,7 +389,7 @@ export function AgentContractingPage() {
               {/* Current Step Panel */}
               <StaggerItem>
                 <ContractingStepPanel
-                  pipelineRecord={pipelineRecord}
+                  pipelineRecord={pipeline}
                   stepCompletions={stepCompletions}
                   progress={progress}
                   onSubmitStep={submitStepCompletion}
@@ -267,7 +413,7 @@ export function AgentContractingPage() {
                 hasVerifiedWN && (
                   <StaggerItem>
                     <TylerTestCard
-                      pipelineRecord={pipelineRecord}
+                      pipelineRecord={pipeline}
                       stepCompletions={stepCompletions}
                       onSubmitStep={submitStepCompletion}
                     />
@@ -341,6 +487,9 @@ export function AgentContractingPage() {
           )}
         </div>
       </FadeIn>
+
+      {/* Test view floating toolbar — only visible for admins in test mode */}
+      {isTestMode && <TestViewToolbar />}
     </div>
   );
 }
