@@ -345,50 +345,87 @@ export function useAgentPipeline(): AgentPipelineData {
 
   /**
    * Post-RTS agent requests contracting with a new carrier.
-   * Moves agent back to in_contracting with their earned status tag.
+   * Moves agent back to in_contracting with their earned status tag
+   * and a carrier:XXX tag so admins can see what was requested.
+   *
+   * For agents without a pipeline record (majority of the base —
+   * contracted before pipeline existed), creates a new record.
    */
   const requestContracting = useCallback(
     async (carrier: string): Promise<boolean> => {
-      if (!portalSupabase || !pipelineRecord) return false;
+      if (!portalSupabase) return false;
+      const now = new Date().toISOString();
+      const carrierTag = `carrier:${carrier}`;
+
       try {
-        // Determine the earned status tag based on current/previous stage
-        const earnedTag = POST_RTS_STAGES.has(pipelineRecord.stage)
-          ? pipelineRecord.stage === 'actively_selling'
-            ? 'active_agent_request'
-            : 'rts_agent_request'
-          : 'rts_agent_request';
+        if (pipelineRecord) {
+          // ── Existing pipeline record: update it ──
+          const earnedTag = POST_RTS_STAGES.has(pipelineRecord.stage)
+            ? pipelineRecord.stage === 'actively_selling'
+              ? 'active_agent_request'
+              : 'rts_agent_request'
+            : 'rts_agent_request';
 
-        // Update pipeline: move to in_contracting with tag
-        const currentTags = pipelineRecord.tags || [];
-        const newTags = [
-          ...currentTags.filter(
-            (t) => t !== 'active_agent_request' && t !== 'rts_agent_request'
-          ),
-          earnedTag,
-        ];
+          const currentTags = pipelineRecord.tags || [];
+          // Remove old status tags, keep existing carrier tags, add new ones
+          const newTags = [
+            ...currentTags.filter(
+              (t) => t !== 'active_agent_request' && t !== 'rts_agent_request'
+            ),
+            earnedTag,
+            // Add carrier tag if not already present
+            ...(currentTags.includes(carrierTag) ? [] : [carrierTag]),
+          ];
 
-        await portalSupabase
-          .from('agent_pipeline')
-          .update({
-            stage: 'in_contracting',
-            stage_entered_at: new Date().toISOString(),
-            tags: newTags,
-            agent_action_pending: true,
-            agent_action_at: new Date().toISOString(),
-            last_updated_by: 'agent',
-            updated_by_source: 'contracting_portal',
-          })
-          .eq('id', pipelineRecord.id);
+          const notes = pipelineRecord.notes
+            ? `${pipelineRecord.notes}\n[${now}] Agent requested contracting with ${carrier}`
+            : `[${now}] Agent requested contracting with ${carrier}`;
 
-        // Create a contracting request note
-        const notes = pipelineRecord.notes
-          ? `${pipelineRecord.notes}\n[${new Date().toISOString()}] Agent requested contracting with ${carrier}`
-          : `[${new Date().toISOString()}] Agent requested contracting with ${carrier}`;
+          await portalSupabase
+            .from('agent_pipeline')
+            .update({
+              stage: 'in_contracting',
+              stage_entered_at: now,
+              tags: newTags,
+              notes,
+              agent_action_pending: true,
+              agent_action_at: now,
+              last_updated_by: 'agent',
+              updated_by_source: 'contracting_portal',
+            })
+            .eq('id', pipelineRecord.id);
+        } else {
+          // ── No pipeline record: create one ──
+          // This handles producing agents contracted before the pipeline existed.
+          const agentName = profile?.full_name || 'Unknown Agent';
 
-        await portalSupabase
-          .from('agent_pipeline')
-          .update({ notes })
-          .eq('id', pipelineRecord.id);
+          const { error: insertErr } = await portalSupabase
+            .from('agent_pipeline')
+            .insert({
+              ghl_opportunity_id: `agent_request_${Date.now()}`,
+              stage: 'in_contracting' as AgentPipelineStage,
+              agent_name: agentName,
+              first_name: agentName.split(' ')[0] || null,
+              last_name: agentName.split(' ').slice(1).join(' ') || null,
+              email: null,
+              phone: null,
+              agency: null,
+              tags: ['active_agent_request', carrierTag],
+              custom_fields: {},
+              completed_steps: {},
+              stage_entered_at: now,
+              last_updated_by: 'agent',
+              updated_by_source: 'contracting_portal',
+              ghl_sync_status: 'synced',
+              notes: `[${now}] Agent requested contracting with ${carrier}`,
+              agent_action_pending: true,
+              agent_action_at: now,
+              wn_pending_review: false,
+              wn_pending_count: 0,
+            });
+
+          if (insertErr) throw insertErr;
+        }
 
         // Refetch to get updated state
         await fetchData();
@@ -397,7 +434,7 @@ export function useAgentPipeline(): AgentPipelineData {
         return false;
       }
     },
-    [pipelineRecord, fetchData]
+    [pipelineRecord, profile, fetchData]
   );
 
   return {

@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils';
 import { HIP_CARRIERS } from '@/lib/contracting/types';
 import type { PortalLobAssignment } from '@/lib/contracting/types';
 import type { WritingNumberSubmission } from '@/hooks/useAgentPipeline';
+import type { CarrierWritingNumber } from '@/hooks/useAgentRosterData';
 
 /** All carriers agents might work with */
 const ALL_CARRIERS = [...HIP_CARRIERS, 'AHL'] as const;
@@ -34,6 +35,8 @@ interface AgentCarrierManagementProps {
   wnSubmissions: WritingNumberSubmission[];
   onRequestContracting: (carrier: string) => Promise<boolean>;
   onSubmitWritingNumber: (carrier: string, writingNumber: string) => Promise<boolean>;
+  /** Verified carriers from agency_rosters (for agents without pipeline records) */
+  rosterCarriers?: CarrierWritingNumber[];
 }
 
 export function AgentCarrierManagement({
@@ -41,6 +44,7 @@ export function AgentCarrierManagement({
   wnSubmissions,
   onRequestContracting,
   onSubmitWritingNumber,
+  rosterCarriers = [],
 }: AgentCarrierManagementProps) {
   const [activeAction, setActiveAction] = useState<{
     carrier: string;
@@ -52,10 +56,12 @@ export function AgentCarrierManagement({
   const [success, setSuccess] = useState('');
 
   // Build a map of carrier → assignment status
+  // Merge roster carriers (from agency_rosters) with LOB assignments (from portal)
   const carrierMap = new Map<
     string,
     {
       assignment: PortalLobAssignment | null;
+      rosterWN: CarrierWritingNumber | null;
       pending: WritingNumberSubmission | null;
     }
   >();
@@ -64,10 +70,11 @@ export function AgentCarrierManagement({
     const assignment = lobAssignments.find(
       (l) => l.carrier === c && l.verified
     );
+    const rosterWN = rosterCarriers.find((r) => r.carrier === c) ?? null;
     const pending = wnSubmissions.find(
       (s) => s.carrier === c && s.status === 'pending'
     );
-    carrierMap.set(c, { assignment: assignment ?? null, pending: pending ?? null });
+    carrierMap.set(c, { assignment: assignment ?? null, rosterWN, pending: pending ?? null });
   }
 
   const handleBackfill = async () => {
@@ -122,14 +129,16 @@ export function AgentCarrierManagement({
           {/* Carrier list */}
           <div className="space-y-2">
             {ALL_CARRIERS.map((carrier) => {
-              const { assignment, pending } = carrierMap.get(carrier) || {};
+              const { assignment, rosterWN, pending } = carrierMap.get(carrier) || {};
+              const isVerified = !!assignment || !!rosterWN;
+              const verifiedWN = assignment?.writing_number || rosterWN?.writing_number;
 
               return (
                 <div
                   key={carrier}
                   className={cn(
                     'rounded-lg border p-4 transition-all',
-                    assignment
+                    isVerified
                       ? 'border-emerald-500/20 bg-emerald-500/5'
                       : pending
                         ? 'border-amber-500/20 bg-amber-500/5'
@@ -141,14 +150,14 @@ export function AgentCarrierManagement({
                       <div
                         className={cn(
                           'w-10 h-10 rounded-full flex items-center justify-center',
-                          assignment
+                          isVerified
                             ? 'bg-emerald-500/20'
                             : pending
                               ? 'bg-amber-500/20'
                               : 'bg-muted/20'
                         )}
                       >
-                        {assignment ? (
+                        {isVerified ? (
                           <CheckCircle2 className="w-5 h-5 text-emerald-400" />
                         ) : pending ? (
                           <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />
@@ -160,9 +169,9 @@ export function AgentCarrierManagement({
                         <p className="text-sm font-bold text-foreground">
                           {carrier}
                         </p>
-                        {assignment ? (
+                        {isVerified ? (
                           <p className="text-xs text-emerald-400 font-mono">
-                            WN: {assignment.writing_number}
+                            WN: {verifiedWN}
                           </p>
                         ) : pending ? (
                           <p className="text-xs text-amber-400">
@@ -170,14 +179,14 @@ export function AgentCarrierManagement({
                           </p>
                         ) : (
                           <p className="text-xs text-muted-foreground">
-                            No writing number on file
+                            Not contracted — request below
                           </p>
                         )}
                       </div>
                     </div>
 
                     {/* Action buttons */}
-                    {!assignment && !pending && (
+                    {!isVerified && !pending && (
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => {

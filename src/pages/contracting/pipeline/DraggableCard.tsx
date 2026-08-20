@@ -141,27 +141,77 @@ export function DraggableCard({
         </div>
       )}
 
-      {record.tags && record.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1 mt-2">
-          {record.tags.slice(0, 3).map((tag) => (
-            <span
-              key={tag}
-              className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium truncate max-w-[100px] ${
-                tag === 'active_agent_request'
-                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                  : 'bg-cyan-500/10 text-primary border border-blue-500/20'
-              }`}
-            >
-              {tag === 'active_agent_request' ? 'Agent Request' : tag}
-            </span>
-          ))}
-          {record.tags.length > 3 && (
-            <span className="text-[10px] text-muted-foreground">
-              +{record.tags.length - 3}
-            </span>
-          )}
-        </div>
-      )}
+      {record.tags && record.tags.length > 0 && (() => {
+        // Separate carrier tags from status tags for clear display
+        const carrierTags = record.tags.filter((t) => t.startsWith('carrier:'));
+        const statusTag = record.tags.find(
+          (t) => t === 'active_agent_request' || t === 'rts_agent_request'
+        );
+        const otherTags = record.tags.filter(
+          (t) => !t.startsWith('carrier:') && t !== 'active_agent_request' && t !== 'rts_agent_request'
+        );
+        const statusLabel = statusTag === 'active_agent_request'
+          ? 'Active'
+          : statusTag === 'rts_agent_request'
+            ? 'RTS'
+            : null;
+
+        return (
+          <div className="space-y-1.5 mt-2">
+            {/* Status + carrier request tags — prominent display */}
+            {statusLabel && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  {statusLabel} Agent
+                </span>
+                {carrierTags.length > 0 && (
+                  <span className="text-[10px] text-muted-foreground">requesting</span>
+                )}
+                {carrierTags.map((t) => (
+                  <span
+                    key={t}
+                    className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20"
+                  >
+                    {t.replace('carrier:', '')}
+                  </span>
+                ))}
+              </div>
+            )}
+            {/* Carrier tags without a status tag (shouldn't happen, but safe) */}
+            {!statusLabel && carrierTags.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] text-muted-foreground">Requesting:</span>
+                {carrierTags.map((t) => (
+                  <span
+                    key={t}
+                    className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20"
+                  >
+                    {t.replace('carrier:', '')}
+                  </span>
+                ))}
+              </div>
+            )}
+            {/* Other tags */}
+            {otherTags.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {otherTags.slice(0, 3).map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium truncate max-w-[100px] bg-cyan-500/10 text-primary border border-blue-500/20"
+                  >
+                    {tag}
+                  </span>
+                ))}
+                {otherTags.length > 3 && (
+                  <span className="text-[10px] text-muted-foreground">
+                    +{otherTags.length - 3}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Agent action pending badge */}
       {record.agent_action_pending && (

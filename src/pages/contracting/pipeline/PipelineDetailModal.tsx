@@ -261,24 +261,73 @@ export function PipelineDetailModal({
             </div>
           )}
 
-          {/* Tags */}
-          {record.tags && record.tags.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                <Tag className="w-3.5 h-3.5" /> Tags
-              </h3>
-              <div className="flex flex-wrap gap-1.5">
-                {record.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-cyan-500/10 text-primary border border-blue-500/20"
-                  >
-                    {tag}
-                  </span>
-                ))}
+          {/* Tags — with clear carrier request display */}
+          {record.tags && record.tags.length > 0 && (() => {
+            const carrierTags = record.tags.filter((t) => t.startsWith('carrier:'));
+            const statusTag = record.tags.find(
+              (t) => t === 'active_agent_request' || t === 'rts_agent_request'
+            );
+            const otherTags = record.tags.filter(
+              (t) => !t.startsWith('carrier:') && t !== 'active_agent_request' && t !== 'rts_agent_request'
+            );
+            const statusLabel = statusTag === 'active_agent_request'
+              ? 'Active Agent'
+              : statusTag === 'rts_agent_request'
+                ? 'RTS Agent'
+                : null;
+
+            return (
+              <div className="space-y-3">
+                {/* Carrier request banner — the most important info */}
+                {(statusLabel || carrierTags.length > 0) && (
+                  <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 space-y-2">
+                    <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-400">
+                      <Tag className="w-3.5 h-3.5" /> Contracting Request
+                    </h3>
+                    {statusLabel && (
+                      <p className="text-sm text-foreground">
+                        <span className="font-bold text-amber-400">{statusLabel}</span>
+                        {carrierTags.length > 0
+                          ? ' requesting additional contracting:'
+                          : ' — returned to contracting'}
+                      </p>
+                    )}
+                    {carrierTags.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {carrierTags.map((t) => (
+                          <span
+                            key={t}
+                            className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-bold bg-purple-500/10 text-purple-300 border border-purple-500/20"
+                          >
+                            {t.replace('carrier:', '')}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Other tags */}
+                {otherTags.length > 0 && (
+                  <div className="space-y-2">
+                    <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      <Tag className="w-3.5 h-3.5" /> Tags
+                    </h3>
+                    <div className="flex flex-wrap gap-1.5">
+                      {otherTags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-cyan-500/10 text-primary border border-blue-500/20"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Custom Fields */}
           {record.custom_fields &&
