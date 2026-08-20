@@ -496,7 +496,7 @@ Deno.serve(async (req) => {
           if (draftCount >= 3) agt.retained_policies++;
         }
 
-        // ── Daily accumulation ──
+        // ── Daily accumulation (submitted only — effectuated loaded separately) ──
         if (type === "daily") {
           // Count submitted (by app_recvd_date)
           if (appRecvdDate) {
@@ -507,14 +507,9 @@ Deno.serve(async (req) => {
             existing.annual_premium += annualPremium;
             dm.set(appRecvdDate, existing);
           }
-          // Count issued/effectuated (by issue_date)
-          if (issueDate) {
-            if (!dailyMap.has(agencyId)) dailyMap.set(agencyId, new Map());
-            const dm = dailyMap.get(agencyId)!;
-            const existing = dm.get(issueDate) || { policies: 0, annual_premium: 0, issued: 0 };
-            existing.issued++;
-            dm.set(issueDate, existing);
-          }
+          // NOTE: effectuated/issued counts are loaded via a separate query below
+          // (filtered by issue_date, not app_recvd_date) to capture policies
+          // submitted outside the window that became active within it.
         }
 
         // ── Monthly accumulation ──
@@ -554,6 +549,65 @@ Deno.serve(async (req) => {
 
       if (rows.length < PAGE_SIZE) break;
       offset += PAGE_SIZE;
+    }
+
+    // ── Effectuated query: separate pass filtered by issue_date ──────────
+    // The main loop above filters by app_recvd_date, which misses policies
+    // submitted outside the window that became active (effectuated) within it.
+    // This query counts active policies by issue_date in the selected range.
+    if (type === "daily" && startDate && endDate) {
+      const agF2 = agencyFilter
+        ? agencyFilter === FYM_MGA_WN
+          ? sql`AND (TRIM(ga) = ${agencyFilter} OR ga IS NULL OR TRIM(ga) = '')`
+          : sql`AND TRIM(ga) = ${agencyFilter}`
+        : sql``;
+      const atF2 = agentFilter ? sql`AND TRIM(wa) = ${agentFilter}` : sql``;
+
+      let effOffset = 0;
+      while (true) {
+        const effRows = await sql`
+          SELECT
+            issue_date,
+            TRIM(ga) AS ga,
+            roster_hierarchy_json
+          FROM typed.unl_fym_policy_latest_load
+          WHERE issue_date >= ${startDate}::date
+            AND issue_date < ${endDate}::date
+            AND UPPER(TRIM(cntrct_code)) = 'A'
+            AND term_date IS NULL
+            ${agF2} ${atF2}
+          ORDER BY policy_nbr
+          OFFSET ${effOffset}
+          LIMIT ${PAGE_SIZE}
+        `;
+
+        if (effRows.length === 0) break;
+
+        for (const row of effRows) {
+          const iDate = row.issue_date
+            ? new Date(row.issue_date as string).toISOString().split("T")[0]
+            : null;
+          if (!iDate) continue;
+
+          const roster = row.roster_hierarchy_json as Array<{
+            writing_number: string; depth: string; is_person: boolean; name: string;
+          }> | null;
+          const hierarchyAgencyWn2 = resolveAgencyWn(row, roster);
+          const agencyWn2 = rosterMap.resolveAgencyFromHierarchy(roster, hierarchyAgencyWn2);
+          const agencyId2 = agencyWn2 || "unknown";
+
+          if (agencyFilter && agencyId2 !== agencyFilter) continue;
+
+          if (!dailyMap.has(agencyId2)) dailyMap.set(agencyId2, new Map());
+          const dm = dailyMap.get(agencyId2)!;
+          const existing = dm.get(iDate) || { policies: 0, annual_premium: 0, issued: 0 };
+          existing.issued++;
+          dm.set(iDate, existing);
+        }
+
+        if (effRows.length < PAGE_SIZE) break;
+        effOffset += PAGE_SIZE;
+      }
     }
 
     // Build response based on type
