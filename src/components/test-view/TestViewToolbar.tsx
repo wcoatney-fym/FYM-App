@@ -27,9 +27,11 @@ import type { AgentPipelineStage } from '@/lib/contracting/types';
 interface TestViewToolbarProps {
   currentStage: AgentPipelineStage | undefined;
   onAdvanceStage: (newStage: AgentPipelineStage) => Promise<void>;
+  /** Full reset — wipes all test agent data (WNs, steps, LOBs) and resets to hip_broker */
+  onReset: () => Promise<void>;
 }
 
-export function TestViewToolbar({ currentStage, onAdvanceStage }: TestViewToolbarProps) {
+export function TestViewToolbar({ currentStage, onAdvanceStage, onReset }: TestViewToolbarProps) {
   const { active, deactivate } = useTestViewStore();
   const viewAs = useViewAsStore();
   const [updating, setUpdating] = useState(false);
@@ -56,7 +58,7 @@ export function TestViewToolbar({ currentStage, onAdvanceStage }: TestViewToolba
 
   const handleReset = async () => {
     setUpdating(true);
-    await onAdvanceStage('hip_broker');
+    await onReset();
     setUpdating(false);
   };
 
