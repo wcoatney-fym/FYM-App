@@ -152,6 +152,56 @@ export async function resolveSyncDirection(
   }
 }
 
+/** Result from create_sync_task action */
+export interface CreateSyncTaskResult {
+  success: boolean;
+  skipped?: boolean;
+  reason?: string;
+  task_id: string;
+  title?: string;
+  direction?: string;
+}
+
+/**
+ * Create a CRM Command task for sync direction review.
+ *
+ * Called after resolveSyncDirection() — bundles the detection results into
+ * a cc_tasks entry for the CRM team to review and confirm.
+ */
+export async function createSyncTask(
+  agencyId: string,
+  agencyName: string,
+  directionResult: SyncDirectionResult | null
+): Promise<CreateSyncTaskResult | null> {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
+
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/atrisk-ghl-push`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action: 'create_sync_task',
+        agency_id: agencyId,
+        agency_name: agencyName,
+        direction_result: directionResult,
+      }),
+    });
+
+    if (!res.ok) {
+      console.warn(`ghl-push: create_sync_task returned ${res.status}`);
+      return null;
+    }
+
+    return await res.json();
+  } catch (err) {
+    console.warn('ghl-push: create_sync_task failed', err);
+    return null;
+  }
+}
+
 /**
  * Seed all current pipeline state to GHL for an agency (one-time on opt-in).
  */

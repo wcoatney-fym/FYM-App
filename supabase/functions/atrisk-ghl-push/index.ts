@@ -15,6 +15,8 @@
  *   - status:            Check GHL connection status for an agency
  *   - resolve_direction: Detect sync direction (app→ghl or ghl→app) without executing.
  *                        Returns recommendation + counts for CRM team manual review.
+ *   - create_sync_task:  Create a cc_tasks entry in the portal DB for CRM team to
+ *                        manually confirm sync direction before enabling pipeline.
  *
  * Auth: Requires FYM App authenticated session.
  * Secrets: CONTRACTING_SUPABASE_URL, CONTRACTING_SUPABASE_ANON_KEY (portal DB access),
@@ -900,6 +902,119 @@ async function handleResolveDirection(body: any): Promise<Response> {
   });
 }
 
+// ── Create sync task handler ─────────────────────────────────────────────────
+
+/**
+ * Create a cc_tasks entry in the portal DB for CRM team review.
+ *
+ * Called after resolve_direction — bundles the detection results into a
+ * task description so the CRM team can review and confirm the sync direction.
+ *
+ * The task source is 'flag' (system-generated) with skill_category 'retention'
+ * and priority P2 (time-sensitive once the agency is onboarded).
+ */
+async function handleCreateSyncTask(body: any): Promise<Response> {
+  const { agency_id, agency_name, direction_result } = body;
+  if (!agency_id) {
+    return json({ error: "Missing agency_id" }, 400);
+  }
+
+  const portal = getPortalClient();
+  const name = agency_name || agency_id;
+
+  // Check for duplicate — don't create if one already exists and is open
+  const { data: existing } = await portal
+    .from("cc_tasks")
+    .select("id, status")
+    .like("title", `%Pipeline Sync%${name}%`)
+    .in("status", ["backlog", "todo", "in_progress", "review"])
+    .maybeSingle();
+
+  if (existing) {
+    return json({
+      success: true,
+      skipped: true,
+      reason: "A sync task already exists for this agency",
+      task_id: existing.id,
+    });
+  }
+
+  // Build task description from direction result
+  const dir = direction_result;
+  let description = `**Sync Direction Review** for ${name}\n\n`;
+
+  if (dir) {
+    description += `**Detected direction:** \`${dir.direction}\`\n`;
+    description += `**Reason:** ${dir.reason}\n\n`;
+    description += `**App side:**\n`;
+    description += `- Tasks: ${dir.app?.task_count ?? 0}\n`;
+    description += `- Worked stage changes: ${dir.app?.worked_stage_changes ?? 0}\n`;
+    description += `- Moved tasks: ${dir.app?.moved_tasks ?? 0}\n\n`;
+    description += `**GHL side:**\n`;
+    description += `- Total opportunities: ${dir.ghl?.total_opportunities ?? 0}\n`;
+    description += `- Worked (non-New): ${dir.ghl?.worked_opportunities ?? 0}\n`;
+
+    if (dir.ghl?.stage_breakdown) {
+      description += `- Stage breakdown: ${JSON.stringify(dir.ghl.stage_breakdown)}\n`;
+    }
+    if (dir.ghl?.error) {
+      description += `- ⚠️ GHL error: ${dir.ghl.error}\n`;
+    }
+
+    description += `\n**Action required:**\n`;
+    switch (dir.direction) {
+      case "app_to_ghl":
+        description += `Agency has worked the App pipeline. Confirm seeding App → GHL.`;
+        break;
+      case "ghl_to_app":
+        description += `Agency has worked in GHL. Confirm importing GHL → App.`;
+        break;
+      case "conflict":
+        description += `Both platforms have worked state. Review both sides and choose which to preserve.`;
+        break;
+      case "empty":
+        description += `Neither platform has data. Enable two-way sync — new at-risk policies will populate both.`;
+        break;
+    }
+  } else {
+    description += `Direction detection was not available. Run resolve_direction manually before syncing.`;
+  }
+
+  // Insert the task
+  const taskId = crypto.randomUUID();
+  const now = new Date().toISOString();
+
+  const { error: insertError } = await portal
+    .from("cc_tasks")
+    .insert({
+      id: taskId,
+      title: `Pipeline Sync Direction — ${name}`,
+      description,
+      assignee_id: null, // Unassigned — CRM team picks it up
+      source: "flag",
+      skill_category: "retention",
+      difficulty: 3,
+      priority: dir?.direction === "conflict" ? "P1" : "P2",
+      status: "todo",
+      due_at: null,
+      completed_at: null,
+      on_time: null,
+      reopened_count: 0,
+      created_at: now,
+    });
+
+  if (insertError) {
+    return json({ error: `Failed to create task: ${insertError.message}` }, 500);
+  }
+
+  return json({
+    success: true,
+    task_id: taskId,
+    title: `Pipeline Sync Direction — ${name}`,
+    direction: dir?.direction || "unknown",
+  });
+}
+
 // ── Main handler ─────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -920,6 +1035,8 @@ Deno.serve(async (req) => {
         return await handleImport(body);
       case "resolve_direction":
         return await handleResolveDirection(body);
+      case "create_sync_task":
+        return await handleCreateSyncTask(body);
       case "status": {
         const config = await getAgencyGhlConfig(body.agency_id);
         return json({ enabled: !!config, config: config ? { locationId: config.locationId } : null });
