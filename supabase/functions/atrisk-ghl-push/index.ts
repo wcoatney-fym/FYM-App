@@ -604,8 +604,10 @@ async function handleImport(body: any): Promise<Response> {
 
   // Build stage ID → app stage key lookup
   const stageIdToAppKey: Record<string, string> = {};
+  const _debugStageMapping: Record<string, string | null> = {};
   for (const s of stages) {
     const appKey = REVERSE_STAGE_MAP[s.name.toLowerCase()];
+    _debugStageMapping[`${s.name} (${s.id})`] = appKey || null;
     if (appKey) stageIdToAppKey[s.id] = appKey;
   }
 
@@ -666,11 +668,15 @@ async function handleImport(body: any): Promise<Response> {
   let skipped = 0;
   const errors: string[] = [];
 
+  const _debugSkipReasons: string[] = [];
   for (const opp of opportunities) {
     try {
       const ghlStageId = opp.pipelineStageId;
       const appStage = stageIdToAppKey[ghlStageId];
       if (!appStage) {
+        if (_debugSkipReasons.length < 5) {
+          _debugSkipReasons.push(`opp ${opp.id}: pipelineStageId=${ghlStageId}, _stageName=${opp._stageName}, lookup=${JSON.stringify(stageIdToAppKey)}`);
+        }
         skipped++;
         continue;
       }
@@ -738,18 +744,25 @@ async function handleImport(body: any): Promise<Response> {
       }
 
       // No match found — create a new task from GHL data
-      const { data: newTask } = await app
+      // policy_number is NOT NULL — use opp name or opp ID as fallback
+      const policyNum = oppName.replace(/^At-Risk:\s*/i, "").trim() || oppId;
+      const { data: newTask, error: insertErr } = await app
         .from("atrisk_tasks")
         .insert({
           agency_id,
           stage: appStage,
           ghl_contact_id: contactId || null,
           ghl_opportunity_id: oppId,
-          policy_number: oppName.replace(/^At-Risk:\s*/i, "").trim() || null,
-          source: "ghl",
+          policy_number: policyNum,
         })
         .select("id")
         .maybeSingle();
+
+      if (insertErr) {
+        errors.push(`${oppId} insert: ${insertErr.message}`);
+        skipped++;
+        continue;
+      }
 
       if (newTask) {
         await app.from("atrisk_stage_history").insert({
@@ -760,6 +773,7 @@ async function handleImport(body: any): Promise<Response> {
         });
         imported++;
       } else {
+        errors.push(`${oppId}: insert returned null`);
         skipped++;
       }
     } catch (err: any) {
@@ -773,6 +787,13 @@ async function handleImport(body: any): Promise<Response> {
     skipped,
     total: opportunities.length,
     errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
+    _debug: {
+      stageMapping: _debugStageMapping,
+      stageIdToAppKey,
+      skipReasons: _debugSkipReasons,
+      pipelineName: pipeline?.name,
+      pipelineId,
+    },
   });
 }
 
@@ -1159,14 +1180,15 @@ async function handleExecuteSync(body: any): Promise<Response> {
   const app = getAppClient();
 
   // Step 1: Execute the sync based on confirmed direction
+  // Pass _bypass_gate: true — this runs BEFORE we flip manager_pipeline_enabled
   let syncResult: any = null;
   if (direction === 'app_to_ghl') {
     // Seed App → GHL
-    const seedRes = await handleSeed({ agency_id });
+    const seedRes = await handleSeed({ agency_id, _bypass_gate: true });
     syncResult = await seedRes.json();
   } else if (direction === 'ghl_to_app') {
     // Import GHL → App
-    const importRes = await handleImport({ agency_id });
+    const importRes = await handleImport({ agency_id, _bypass_gate: true });
     syncResult = await importRes.json();
   } else {
     // Empty — no sync needed, just enable
