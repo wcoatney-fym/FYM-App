@@ -70,9 +70,17 @@ export function useAgentContractingStage(): AgentContractingStageResult {
           .maybeSingle();
 
         if (!intake?.agent_id) {
-          // No pipeline record — treat as pre-RTS (new agent)
-          setStage(null);
-          cacheStage(null);
+          // No pipeline record — check if this is a producing agent
+          // (has writing_number) vs a truly new agent. Producing agents
+          // who were contracted before the pipeline existed should be
+          // treated as post-RTS, not pre-RTS.
+          if (profile.writing_number) {
+            setStage('actively_selling');
+            cacheStage('actively_selling');
+          } else {
+            setStage(null);
+            cacheStage(null);
+          }
           setLoading(false);
           return;
         }
@@ -84,9 +92,15 @@ export function useAgentContractingStage(): AgentContractingStageResult {
           .eq('agent_id', intake.agent_id)
           .maybeSingle();
 
-        const s = (pipeline?.stage as AgentPipelineStage) ?? null;
-        setStage(s);
-        cacheStage(s);
+        if (!pipeline?.stage && profile.writing_number) {
+          // Has agent_id but no pipeline record — producing agent
+          setStage('actively_selling');
+          cacheStage('actively_selling');
+        } else {
+          const s = (pipeline?.stage as AgentPipelineStage) ?? null;
+          setStage(s);
+          cacheStage(s);
+        }
       } catch {
         // On error, don't block — assume post-RTS to show full nav
         setStage('rts');
