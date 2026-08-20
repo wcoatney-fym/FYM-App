@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   ArrowRight,
   FileCheck,
+  UserCheck,
 } from 'lucide-react';
 import type {
   PortalPipelineRecord,
@@ -159,6 +160,13 @@ export function DraggableCard({
               +{record.tags.length - 3}
             </span>
           )}
+        </div>
+      )}
+
+      {/* Agent action pending badge */}
+      {record.agent_action_pending && (
+        <div className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 rounded px-1.5 py-0.5 animate-pulse">
+          <UserCheck className="w-3 h-3" /> Agent action pending
         </div>
       )}
 

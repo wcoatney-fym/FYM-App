@@ -35,6 +35,7 @@ import type {
 import { STAGES } from './PipelineBoard';
 import { computeProgress } from './pipelineProgress';
 import { WritingNumberReviewPanel } from './WritingNumberReviewPanel';
+import { AgentStepReviewPanel } from './AgentStepReviewPanel';
 
 interface PipelineDetailModalProps {
   record: PortalPipelineRecord;
@@ -61,6 +62,7 @@ export function PipelineDetailModal({
   const [movingStage, setMovingStage] = useState(false);
   const [pendingStage, setPendingStage] = useState<AgentPipelineStage>(record.stage);
   const [wnPendingCount, setWnPendingCount] = useState(record.wn_pending_count ?? 0);
+  const [agentActionPending, setAgentActionPending] = useState(record.agent_action_pending ?? false);
 
   const isReadyStage = record.stage === 'hip_broker_ready' || record.stage === 'hip_career_ready';
   const hasChanges =
@@ -343,6 +345,23 @@ export function PipelineDetailModal({
               </div>
             </div>
           </div>
+
+          {/* Agent Step Completions Review */}
+          {agentActionPending && (
+            <AgentStepReviewPanel
+              record={record}
+              stageSteps={stageSteps}
+              onReviewComplete={(remaining) => {
+                const stillPending = remaining > 0;
+                setAgentActionPending(stillPending);
+                onRecordUpdated({
+                  ...record,
+                  agent_action_pending: stillPending,
+                  agent_action_at: stillPending ? record.agent_action_at : undefined,
+                });
+              }}
+            />
+          )}
 
           {/* Writing Number Review */}
           {record.agent_id && (wnPendingCount > 0 || record.wn_pending_review) && (

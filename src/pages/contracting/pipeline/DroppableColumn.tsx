@@ -3,7 +3,7 @@
  * Extracted from PipelineBoard for touch + pointer + keyboard drag-and-drop.
  */
 import { useDroppable } from '@dnd-kit/core';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, UserCheck } from 'lucide-react';
 import type {
   PortalPipelineRecord,
   AgentPipelineStage,
@@ -61,11 +61,18 @@ export function DroppableColumn({
             {records.length}
           </span>
         </div>
-        {readyCount > 0 && (
-          <div className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-400">
-            <CheckCircle2 className="w-3 h-3" /> {readyCount} ready
-          </div>
-        )}
+        <div className="flex items-center gap-2 mt-1.5">
+          {readyCount > 0 && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-400">
+              <CheckCircle2 className="w-3 h-3" /> {readyCount} ready
+            </span>
+          )}
+          {records.filter((r) => r.agent_action_pending).length > 0 && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-cyan-400 animate-pulse">
+              <UserCheck className="w-3 h-3" /> {records.filter((r) => r.agent_action_pending).length} pending
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Cards */}
