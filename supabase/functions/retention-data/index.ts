@@ -32,6 +32,7 @@ import {
   corsResponse,
 } from "../_shared/prod-db.ts";
 import { loadRosterMap } from "../_shared/roster-map.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return corsResponse();
@@ -622,7 +623,10 @@ Deno.serve(async (req) => {
       }
 
       case "at_risk": {
-        // Return at-risk policy lists, optionally scoped by agency
+        // Return at-risk policy lists, optionally scoped by agency.
+        // Task data (stage, ghl IDs) is enriched server-side using the
+        // service role key — this bypasses RLS so the frontend does not
+        // need a separate atrisk_tasks query.
         const atRiskRows: Array<{
           agency_id: string;
           policy_number: string;
@@ -636,6 +640,13 @@ Deno.serve(async (req) => {
           agent_writing_number: string | null;
           client_name: string | null;
           days_idle: number;
+          task_id?: string | null;
+          task_stage?: string | null;
+          task_assigned_to?: string | null;
+          task_due_date?: string | null;
+          task_created_at?: string | null;
+          ghl_contact_id?: string | null;
+          ghl_opportunity_id?: string | null;
         }> = [];
 
         for (const bucket of buckets.values()) {
@@ -644,12 +655,84 @@ Deno.serve(async (req) => {
           }
         }
 
+        // ── Server-side task enrichment ────────────────────────────────
+        const _dbg: Record<string, unknown> = {};
+        try {
+          const svcUrl = Deno.env.get("SUPABASE_URL") || "";
+          const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+          _dbg.has_url = !!svcUrl;
+          _dbg.has_key = !!svcKey;
+          _dbg.key_len = svcKey.length;
+
+          if (svcUrl && svcKey) {
+            const svc = createClient(svcUrl, svcKey, {
+              auth: { autoRefreshToken: false, persistSession: false },
+            });
+
+            // Quick probe — do we get rows at all?
+            const probe = await svc
+              .from("atrisk_tasks")
+              .select("id, policy_number, stage", { count: "exact" })
+              .limit(3);
+            _dbg.probe_count = probe.count;
+            _dbg.probe_rows = probe.data?.length ?? 0;
+            _dbg.probe_error = probe.error?.message ?? null;
+
+            if (probe.data && probe.data.length > 0) {
+              // Full paginated fetch
+              const taskMap = new Map<string, {
+                id: string; stage: string; assigned_to: string | null;
+                due_date: string | null; created_at: string;
+                ghl_contact_id: string | null; ghl_opportunity_id: string | null;
+              }>();
+              const PG = 1000;
+              let off = 0;
+              while (true) {
+                const { data: batch } = await svc
+                  .from("atrisk_tasks")
+                  .select("id, policy_number, stage, assigned_to, due_date, created_at, ghl_contact_id, ghl_opportunity_id")
+                  .range(off, off + PG - 1);
+                if (!batch || batch.length === 0) break;
+                for (const t of batch as any[]) {
+                  taskMap.set(t.policy_number, {
+                    id: t.id, stage: t.stage, assigned_to: t.assigned_to,
+                    due_date: t.due_date, created_at: t.created_at,
+                    ghl_contact_id: t.ghl_contact_id, ghl_opportunity_id: t.ghl_opportunity_id,
+                  });
+                }
+                if (batch.length < PG) break;
+                off += PG;
+              }
+              _dbg.task_map_size = taskMap.size;
+
+              let merged = 0;
+              for (const row of atRiskRows) {
+                const t = taskMap.get(row.policy_number);
+                if (t) {
+                  row.task_id = t.id;
+                  row.task_stage = t.stage;
+                  row.task_assigned_to = t.assigned_to;
+                  row.task_due_date = t.due_date;
+                  row.task_created_at = t.created_at;
+                  row.ghl_contact_id = t.ghl_contact_id;
+                  row.ghl_opportunity_id = t.ghl_opportunity_id;
+                  merged++;
+                }
+              }
+              _dbg.merged = merged;
+            }
+          }
+        } catch (err: any) {
+          _dbg.exception = err?.message || String(err);
+        }
+
         // Sort by days idle descending (most urgent first)
         atRiskRows.sort((a, b) => b.days_idle - a.days_idle);
 
         result = {
           total_at_risk: atRiskRows.length,
           policies: atRiskRows,
+          _task_debug: _dbg,
         };
         break;
       }
