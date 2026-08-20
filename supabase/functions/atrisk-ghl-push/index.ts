@@ -604,10 +604,8 @@ async function handleImport(body: any): Promise<Response> {
 
   // Build stage ID → app stage key lookup
   const stageIdToAppKey: Record<string, string> = {};
-  const _debugStageMapping: Record<string, string | null> = {};
   for (const s of stages) {
     const appKey = REVERSE_STAGE_MAP[s.name.toLowerCase()];
-    _debugStageMapping[`${s.name} (${s.id})`] = appKey || null;
     if (appKey) stageIdToAppKey[s.id] = appKey;
   }
 
@@ -668,15 +666,11 @@ async function handleImport(body: any): Promise<Response> {
   let skipped = 0;
   const errors: string[] = [];
 
-  const _debugSkipReasons: string[] = [];
   for (const opp of opportunities) {
     try {
       const ghlStageId = opp.pipelineStageId;
       const appStage = stageIdToAppKey[ghlStageId];
       if (!appStage) {
-        if (_debugSkipReasons.length < 5) {
-          _debugSkipReasons.push(`opp ${opp.id}: pipelineStageId=${ghlStageId}, _stageName=${opp._stageName}, lookup=${JSON.stringify(stageIdToAppKey)}`);
-        }
         skipped++;
         continue;
       }
@@ -787,13 +781,6 @@ async function handleImport(body: any): Promise<Response> {
     skipped,
     total: opportunities.length,
     errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
-    _debug: {
-      stageMapping: _debugStageMapping,
-      stageIdToAppKey,
-      skipReasons: _debugSkipReasons,
-      pipelineName: pipeline?.name,
-      pipelineId,
-    },
   });
 }
 
