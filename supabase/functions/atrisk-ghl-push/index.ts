@@ -67,12 +67,25 @@ function getAppClient() {
   return createClient(url, key);
 }
 
-/** Create Supabase client for Portal DB (akhojh) */
+// Per-agency GHL API key fallback map (env var → location ID)
+// Used when the key stored in agency_ghl_configs lacks pipeline/opportunities scope.
+// These are the CRM Ops API keys set as edge function secrets.
+const AGENCY_API_FALLBACK: Record<string, { envKey: string; locationId: string }> = {
+  "FYM": { envKey: "CRM_OPS_FYM_AGENCY_API", locationId: "YM9XmCanfO6p28b1sQOH" },
+  "Wisechoice": { envKey: "CRM_OPS_WISECHOICE_AGENCY_API", locationId: "I7Mw22ovq7fPgJWV5eWL" },
+  "Aspire": { envKey: "CRM_OPS_ASPIRE_AGENCY_API", locationId: "MrRGbMxuEFqc6y00tr5A" },
+  "MHA (IFG)": { envKey: "CRM_OPS_MHA_IFG_AGENCY_API", locationId: "W2d8rLlhu7zchstuX3m9" },
+  "MHA (YFMO)": { envKey: "CRM_OPS_MHA_YFMO_AGENCY_API", locationId: "OAd1PnliebjgodpEGuCI" },
+  "360 Insurance": { envKey: "CRM_OPS_360_INSURANCE_AGENCY_API", locationId: "Uc3AEjz4qy9D672Q4IsC" },
+};
+
+/** Create Supabase client for Portal DB (akhojh) — uses service key to bypass RLS */
 function getPortalClient() {
   const url = Deno.env.get("CONTRACTING_SUPABASE_URL");
-  const key = Deno.env.get("CONTRACTING_SUPABASE_ANON_KEY");
+  // Prefer service key (bypasses RLS on agency_ghl_configs which requires auth.uid())
+  const key = Deno.env.get("CONTRACTING_SUPABASE_SERVICE_KEY") || Deno.env.get("CONTRACTING_SUPABASE_ANON_KEY");
   if (!url || !key) {
-    throw new Error("Missing CONTRACTING_SUPABASE_URL or CONTRACTING_SUPABASE_ANON_KEY");
+    throw new Error("Missing CONTRACTING_SUPABASE_URL or CONTRACTING_SUPABASE_SERVICE_KEY");
   }
   return createClient(url, key);
 }
@@ -85,7 +98,7 @@ async function getAgencyGhlConfig(agencyId: string) {
   // (hierarchy_agencies in portal DB has ghl_api_enabled)
   const { data: agency } = await portal
     .from("hierarchy_agencies")
-    .select("id, ghl_api_enabled")
+    .select("id, name, ghl_api_enabled")
     .eq("id", agencyId)
     .maybeSingle();
 
@@ -100,14 +113,32 @@ async function getAgencyGhlConfig(agencyId: string) {
     .eq("agency_id", agencyId)
     .maybeSingle();
 
-  if (!config || config.connection_status !== "connected" || !config.ghl_api_key) {
+  if (!config || config.connection_status !== "connected") {
     return null;
   }
 
+  // Try CRM Ops API key fallback if the stored key is missing or known to lack scope
+  let apiKey = config.ghl_api_key;
+  let locationId = config.ghl_location_id;
+
+  if (agency.name) {
+    const fallback = AGENCY_API_FALLBACK[agency.name];
+    if (fallback) {
+      const envKey = Deno.env.get(fallback.envKey);
+      if (envKey) {
+        apiKey = envKey;
+        locationId = fallback.locationId;
+      }
+    }
+  }
+
+  if (!apiKey) return null;
+
   return {
-    apiKey: config.ghl_api_key,
-    locationId: config.ghl_location_id,
+    apiKey,
+    locationId,
     managerPipelineEnabled: !!config.manager_pipeline_enabled,
+    agencyName: agency.name || null,
   };
 }
 
@@ -134,10 +165,17 @@ async function getOrCreatePipeline(apiKey: string, locationId: string) {
   const data = await res.json();
   const pipelines = data.pipelines || [];
 
-  // Look for existing "At-Risk Pipeline" or "Manager Pipeline"
+  // Look for existing at-risk pipeline — match multiple known names
+  const AT_RISK_PIPELINE_NAMES = [
+    "At-Risk Pipeline",
+    "Manager Pipeline",
+    "Ancillary | At Risk Pipeline",
+    "Ancillary At Risk Pipeline",
+  ];
   const existing = pipelines.find(
-    (p: any) =>
-      p.name === "At-Risk Pipeline" || p.name === "Manager Pipeline"
+    (p: any) => AT_RISK_PIPELINE_NAMES.includes(p.name) ||
+      p.name.toLowerCase().includes("at risk") ||
+      p.name.toLowerCase().includes("at-risk")
   );
 
   if (existing) {
@@ -799,7 +837,7 @@ async function handleResolveDirection(body: any): Promise<Response> {
   let ghlStageBreakdown: Record<string, number> = {};
   let ghlError: string | null = null;
 
-  // Try to get GHL creds — use stored config or check if agency has creds
+  // Try to get GHL creds — use stored config or CRM Ops fallback keys
   // even if manager_pipeline_enabled is false (we're resolving BEFORE enabling)
   const portal = getPortalClient();
   const { data: config } = await portal
@@ -808,9 +846,31 @@ async function handleResolveDirection(body: any): Promise<Response> {
     .eq("agency_id", agency_id)
     .maybeSingle();
 
-  if (config?.ghl_api_key && config?.ghl_location_id && config?.connection_status === "connected") {
+  // Resolve credentials: prefer CRM Ops env key (has full scope), fall back to stored key
+  let ghlApiKey = config?.ghl_api_key || null;
+  let ghlLocationId = config?.ghl_location_id || null;
+
+  // Look up agency name for fallback
+  const { data: agencyRow } = await portal
+    .from("hierarchy_agencies")
+    .select("name")
+    .eq("id", agency_id)
+    .maybeSingle();
+
+  if (agencyRow?.name) {
+    const fallback = AGENCY_API_FALLBACK[agencyRow.name];
+    if (fallback) {
+      const envKey = Deno.env.get(fallback.envKey);
+      if (envKey) {
+        ghlApiKey = envKey;
+        ghlLocationId = fallback.locationId;
+      }
+    }
+  }
+
+  if (ghlApiKey && ghlLocationId && (config?.connection_status === "connected" || ghlApiKey !== config?.ghl_api_key)) {
     try {
-      const pipeline = await getOrCreatePipeline(config.ghl_api_key, config.ghl_location_id);
+      const pipeline = await getOrCreatePipeline(ghlApiKey, ghlLocationId);
       const pipelineId = pipeline.id;
       const stages = pipeline.stages || [];
 
@@ -820,52 +880,67 @@ async function handleResolveDirection(body: any): Promise<Response> {
         stageIdToName[s.id] = s.name;
       }
 
-      // Fetch all opportunities from this pipeline
+      // Fetch all opportunities from this pipeline via the search endpoint
+      // GHL search POST body: { location_id, pipeline_id, ... } but the API
+      // rejects snake_case and unknown fields. Use the pipelines/stages list
+      // approach instead: iterate through stages and count per stage.
       const opportunities: any[] = [];
-      let hasMore = true;
-      let startAfterId: string | undefined;
 
-      while (hasMore) {
-        const url = new URL("https://services.leadconnectorhq.com/opportunities/search");
-        const searchBody: any = {
-          locationId: config.ghl_location_id,
-          pipelineId,
-          limit: 100,
-        };
-        if (startAfterId) searchBody.startAfterId = startAfterId;
+      for (const stage of stages) {
+        let startAfter = "";
+        let stageHasMore = true;
 
-        const res = await fetch(url.toString(), {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${config.ghl_api_key}`,
-            Version: "2021-07-28",
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: JSON.stringify(searchBody),
-        });
+        while (stageHasMore) {
+          const params = new URLSearchParams({
+            location_id: ghlLocationId!,
+            pipeline_id: pipelineId,
+            pipeline_stage_id: stage.id,
+            limit: "100",
+          });
+          if (startAfter) params.set("startAfter", startAfter);
 
-        if (!res.ok) {
-          ghlError = `GHL API error: ${res.status}`;
-          break;
+          const res = await fetch(
+            `https://services.leadconnectorhq.com/opportunities/search?${params}`,
+            {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${ghlApiKey}`,
+                Version: "2021-07-28",
+                Accept: "application/json",
+              },
+            }
+          );
+
+          if (!res.ok) {
+            const errText = await res.text().catch(() => "");
+            ghlError = `GHL API error: ${res.status} ${errText}`;
+            stageHasMore = false;
+            break;
+          }
+
+          const data = await res.json();
+          const batch = data.opportunities || [];
+          // Tag each opportunity with its stage name for breakdown
+          for (const opp of batch) {
+            opp._stageName = stage.name;
+          }
+          opportunities.push(...batch);
+
+          if (batch.length < 100 || !data.meta?.nextPageUrl) {
+            stageHasMore = false;
+          } else {
+            startAfter = batch[batch.length - 1].id;
+          }
         }
 
-        const data = await res.json();
-        const batch = data.opportunities || [];
-        opportunities.push(...batch);
-
-        if (batch.length < 100) {
-          hasMore = false;
-        } else {
-          startAfterId = batch[batch.length - 1].id;
-        }
+        if (ghlError) break;
       }
 
       ghlTotal = opportunities.length;
 
       // Count non-"New" opportunities (someone moved them in GHL)
       for (const opp of opportunities) {
-        const stageName = stageIdToName[opp.pipelineStageId] || "Unknown";
+        const stageName = opp._stageName || stageIdToName[opp.pipelineStageId] || "Unknown";
         ghlStageBreakdown[stageName] = (ghlStageBreakdown[stageName] || 0) + 1;
         if (stageName.toLowerCase() !== "new") {
           ghlWorkedCount++;
