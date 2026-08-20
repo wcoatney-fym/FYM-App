@@ -150,55 +150,18 @@ export function AgentContractingPage() {
             </Card>
           </FadeIn>
 
-          {/* Show carrier data from agency roster */}
+          {/* Show carrier data from agency roster as verified carriers */}
           {rosterData.loading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="w-6 h-6 animate-spin text-primary" />
             </div>
-          ) : rosterData.carriers.length > 0 ? (
-            <FadeIn>
-              <Card>
-                <CardContent className="p-4 space-y-3">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-primary">
-                    My Carriers
-                  </p>
-                  <div className="space-y-2">
-                    {rosterData.carriers.map((c) => (
-                      <div
-                        key={c.carrier}
-                        className="flex items-center justify-between p-3 rounded-lg bg-background border border-border"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-semibold text-foreground">
-                              {c.carrier}
-                            </p>
-                            <p className="text-xs text-muted-foreground font-mono">
-                              {c.writing_number}
-                            </p>
-                          </div>
-                        </div>
-                        <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded px-2 py-0.5">
-                          Verified
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </FadeIn>
-          ) : null}
-
-          {/* Also show any LOB assignments from portal (if they exist) */}
-          {lobAssignments.length > 0 && (
+          ) : (
             <AgentCarrierManagement
               lobAssignments={lobAssignments}
               wnSubmissions={wnSubmissions}
               onRequestContracting={requestContracting}
               onSubmitWritingNumber={submitWritingNumber}
+              rosterCarriers={rosterData.carriers}
             />
           )}
         </div>
