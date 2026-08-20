@@ -37,9 +37,17 @@ interface NavItem {
 }
 
 /** Pre-RTS agent nav — contracting progress + training */
+/** Pre-RTS agent nav — full agent nav with My Progress at the top */
 const agentPreRtsNav: NavItem[] = [
   { to: '/my-contracting', label: 'My Progress', icon: Briefcase },
+  { to: '/my-dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/my-production', label: 'My Production', icon: TrendingUp },
+  { to: '/at-risk', label: 'Needs Attention', icon: AlertTriangle },
+  { to: '/my-goal', label: 'My Goal', icon: Target },
+  { to: '/my-health', label: 'Book Health', icon: ShieldCheck },
   { to: '/training', label: 'Training', icon: GraduationCap },
+  { to: '/coaching', label: 'Coaching', icon: HeartPulse },
+  { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 

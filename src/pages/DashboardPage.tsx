@@ -36,7 +36,7 @@ import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { DataFilters } from '@/components/filters/DataFilters';
 import { Navigate } from 'react-router-dom';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
-import { useAgentContractingStage } from '@/hooks/useAgentContractingStage';
+
 import { useOrgData } from '@/contexts/OrgDataCache';
 import { AlertTriangle, LayoutDashboard, Clock } from 'lucide-react';
 import { QualityCard } from '@/components/dashboard/QualityCard';
@@ -496,10 +496,9 @@ export function DashboardPage() {
   }, [loading, noDataAgency, filterAgencyId, rawAgencyProd, rawDailyProd, rawMonthlyProd, dateRange]);
 
   // Agents don't get the org/agency dashboard — redirect AFTER all hooks.
-  // Pre-RTS agents go to contracting progress; post-RTS to their dashboard.
-  const { isPreRTS: agentIsPreRTS } = useAgentContractingStage();
+  // All agents go to their dashboard.
   if (effectiveRole === 'agent') {
-    return <Navigate to={agentIsPreRTS ? '/my-contracting' : '/my-dashboard'} replace />;
+    return <Navigate to="/my-dashboard" replace />;
   }
 
   // Managers get their own team-focused dashboard.
