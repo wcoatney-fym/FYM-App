@@ -273,7 +273,21 @@ export function PipelineBoard() {
   });
 
   const groupedByStage = STAGES.map((stage) => {
-    const stageRecords = filtered.filter((r) => r.stage === stage.key);
+    const stageRecords = filtered
+      .filter((r) => r.stage === stage.key)
+      // Sort: agent_action_pending first (oldest pending first), then by stage_entered_at desc
+      .sort((a, b) => {
+        if (a.agent_action_pending && !b.agent_action_pending) return -1;
+        if (!a.agent_action_pending && b.agent_action_pending) return 1;
+        if (a.agent_action_pending && b.agent_action_pending) {
+          // Oldest pending first so nothing gets buried
+          const aTime = a.agent_action_at ? new Date(a.agent_action_at).getTime() : 0;
+          const bTime = b.agent_action_at ? new Date(b.agent_action_at).getTime() : 0;
+          return aTime - bTime;
+        }
+        // Non-pending: newest stage entry first
+        return new Date(b.stage_entered_at).getTime() - new Date(a.stage_entered_at).getTime();
+      });
     const readyCount = stageRecords.filter(
       (r) => computeProgress(r, stageSteps).allComplete
     ).length;
