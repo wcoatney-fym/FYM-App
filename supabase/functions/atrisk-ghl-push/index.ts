@@ -599,44 +599,51 @@ async function handleImport(body: any): Promise<Response> {
     if (appKey) stageIdToAppKey[s.id] = appKey;
   }
 
-  // Fetch all opportunities from this pipeline
+  // Fetch all opportunities from this pipeline (per-stage GET iteration)
   const opportunities: any[] = [];
-  let hasMore = true;
-  let startAfterId: string | undefined;
 
-  while (hasMore) {
-    const url = new URL("https://services.leadconnectorhq.com/opportunities/search");
-    const searchBody: any = {
-      locationId,
-      pipelineId,
-      limit: 100,
-    };
-    if (startAfterId) searchBody.startAfterId = startAfterId;
+  for (const stage of stages) {
+    let startAfter = "";
+    let stageHasMore = true;
 
-    const res = await fetch(url.toString(), {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        Version: "2021-07-28",
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify(searchBody),
-    });
+    while (stageHasMore) {
+      const params = new URLSearchParams({
+        location_id: locationId!,
+        pipeline_id: pipelineId,
+        pipeline_stage_id: stage.id,
+        limit: "100",
+      });
+      if (startAfter) params.set("startAfter", startAfter);
 
-    if (!res.ok) {
-      const errText = await res.text();
-      return json({ error: `GHL opportunity search failed: ${res.status} ${errText}` }, 500);
-    }
+      const res = await fetch(
+        `https://services.leadconnectorhq.com/opportunities/search?${params}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            Version: "2021-07-28",
+            Accept: "application/json",
+          },
+        }
+      );
 
-    const data = await res.json();
-    const batch = data.opportunities || [];
-    opportunities.push(...batch);
+      if (!res.ok) {
+        const errText = await res.text();
+        return json({ error: `GHL opportunity search failed: ${res.status} ${errText}` }, 500);
+      }
 
-    if (batch.length < 100) {
-      hasMore = false;
-    } else {
-      startAfterId = batch[batch.length - 1].id;
+      const data = await res.json();
+      const batch = data.opportunities || [];
+      for (const opp of batch) {
+        opp._stageName = stage.name;
+      }
+      opportunities.push(...batch);
+
+      if (batch.length < 100 || !data.meta?.nextPageUrl) {
+        stageHasMore = false;
+      } else {
+        startAfter = batch[batch.length - 1].id;
+      }
     }
   }
 
