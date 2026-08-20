@@ -12,7 +12,6 @@
  */
 import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { HudFrame } from '@/components/ui/hud-frame';
 import {
   CheckCircle2,
   Plus,
@@ -24,7 +23,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { HIP_CARRIERS } from '@/lib/contracting/types';
-import type { PortalPipelineRecord, PortalLobAssignment } from '@/lib/contracting/types';
+import type { PortalLobAssignment } from '@/lib/contracting/types';
 import type { WritingNumberSubmission } from '@/hooks/useAgentPipeline';
 
 /** All carriers agents might work with */
@@ -33,7 +32,6 @@ const ALL_CARRIERS = [...HIP_CARRIERS, 'AHL'] as const;
 interface AgentCarrierManagementProps {
   lobAssignments: PortalLobAssignment[];
   wnSubmissions: WritingNumberSubmission[];
-  pipelineRecord: PortalPipelineRecord;
   onRequestContracting: (carrier: string) => Promise<boolean>;
   onSubmitWritingNumber: (carrier: string, writingNumber: string) => Promise<boolean>;
 }
@@ -41,7 +39,6 @@ interface AgentCarrierManagementProps {
 export function AgentCarrierManagement({
   lobAssignments,
   wnSubmissions,
-  pipelineRecord,
   onRequestContracting,
   onSubmitWritingNumber,
 }: AgentCarrierManagementProps) {
@@ -114,8 +111,9 @@ export function AgentCarrierManagement({
 
   return (
     <div className="space-y-4">
-      <HudFrame label="My Carriers">
-        <div className="p-4 space-y-4">
+      <Card>
+        <CardContent className="p-4 space-y-4">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-primary">My Carriers</p>
           <p className="text-sm text-muted-foreground">
             Manage your carrier appointments. Add writing numbers you already have,
             or request contracting with new carriers.
@@ -284,8 +282,8 @@ export function AgentCarrierManagement({
               appointments are processed, then returned to your current status.
             </p>
           </div>
-        </div>
-      </HudFrame>
+        </CardContent>
+      </Card>
     </div>
   );
 }

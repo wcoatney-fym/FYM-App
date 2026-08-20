@@ -12,9 +12,8 @@ import { cn } from '@/lib/utils';
 import { Check, Lock, Circle, Badge } from 'lucide-react';
 import {
   AGENT_STAGES,
-  getStageIndex,
-  type AgentPipelineStage,
 } from '@/hooks/useAgentPipeline';
+import type { AgentPipelineStage } from '@/lib/contracting/types';
 
 interface ContractingProgressBarProps {
   currentStage: AgentPipelineStage;
@@ -24,11 +23,12 @@ interface ContractingProgressBarProps {
 }
 
 export function ContractingProgressBar({
-  currentStage,
+  currentStage: _currentStage,
   currentStageIndex,
   isAdditionalContracting,
   earnedStatusLabel,
 }: ContractingProgressBarProps) {
+  void _currentStage; // used via currentStageIndex for progress calculation
   return (
     <div className="relative">
       {/* Additional contracting banner */}

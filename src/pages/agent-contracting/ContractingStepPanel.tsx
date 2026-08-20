@@ -8,7 +8,6 @@
  */
 import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { HudFrame } from '@/components/ui/hud-frame';
 import {
   CheckCircle2,
   Circle,
@@ -25,7 +24,7 @@ import { AGENT_STAGES } from '@/hooks/useAgentPipeline';
 
 interface ContractingStepPanelProps {
   pipelineRecord: PortalPipelineRecord;
-  stageSteps: PortalPipelineStageStep[];
+  _stageSteps?: PortalPipelineStageStep[];
   stepCompletions: StepCompletion[];
   progress: StepProgress;
   onSubmitStep: (stepId: string) => Promise<boolean>;
@@ -61,7 +60,6 @@ function getStepStatus(
 
 export function ContractingStepPanel({
   pipelineRecord,
-  stageSteps,
   stepCompletions,
   progress,
   onSubmitStep,
@@ -79,8 +77,11 @@ export function ContractingStepPanel({
   };
 
   return (
-    <HudFrame label={`Current Step: ${stageLabel}`}>
-      <div className="p-4 space-y-4">
+    <Card>
+      <CardContent className="p-4 space-y-4">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-primary">
+          Current Step: {stageLabel}
+        </p>
         {/* Progress summary */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -192,7 +193,7 @@ export function ContractingStepPanel({
             </p>
           )}
         </div>
-      </div>
-    </HudFrame>
+      </CardContent>
+    </Card>
   );
 }

@@ -8,7 +8,7 @@
  * a "Test out with Tyler" option is shown.
  */
 import { useState } from 'react';
-import { HudFrame } from '@/components/ui/hud-frame';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   PenLine,
   Plus,
@@ -82,8 +82,9 @@ export function AgentWritingNumberInput({
   };
 
   return (
-    <HudFrame label="Writing Numbers">
-      <div className="p-4 space-y-4">
+    <Card>
+      <CardContent className="p-4 space-y-4">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-primary">Writing Numbers</p>
         <p className="text-sm text-muted-foreground">
           Enter your writing numbers for each carrier. Each submission will be
           verified by the admin team.
@@ -280,7 +281,7 @@ export function AgentWritingNumberInput({
             )}
           </div>
         )}
-      </div>
-    </HudFrame>
+      </CardContent>
+    </Card>
   );
 }

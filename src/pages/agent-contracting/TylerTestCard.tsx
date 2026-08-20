@@ -9,7 +9,7 @@
  * admin confirms → agent auto-promoted to RTS.
  */
 import { useState } from 'react';
-import { HudFrame } from '@/components/ui/hud-frame';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   GraduationCap,
   CheckCircle2,
@@ -54,8 +54,8 @@ export function TylerTestCard({
   };
 
   return (
-    <HudFrame label="Test Out with Tyler">
-      <div className="p-4">
+    <Card>
+      <CardContent className="p-4">
         <div className="flex items-start gap-4">
           <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
             <GraduationCap className="w-6 h-6 text-amber-400" />
@@ -114,7 +114,7 @@ export function TylerTestCard({
             )}
           </div>
         </div>
-      </div>
-    </HudFrame>
+      </CardContent>
+    </Card>
   );
 }

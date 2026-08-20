@@ -16,14 +16,12 @@
  * - Agent marks complete → admin approves/declines
  * - CRM Setup removed from agent-facing stages
  */
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent } from '@/components/ui/card';
 import { FadeIn, StaggerContainer, StaggerItem } from '@/components/ui/animated';
-import { HudFrame } from '@/components/ui/hud-frame';
 import {
   useAgentPipeline,
-  AGENT_STAGES,
   isPreRTS,
   getStageIndex,
 } from '@/hooks/useAgentPipeline';
@@ -34,10 +32,8 @@ import { AgentWritingNumberInput } from './AgentWritingNumberInput';
 import { AgentCarrierManagement } from './AgentCarrierManagement';
 import { TylerTestCard } from './TylerTestCard';
 import {
-  FileText,
   Loader2,
   AlertCircle,
-  CheckCircle2,
   Shield,
   RefreshCw,
 } from 'lucide-react';
@@ -82,7 +78,7 @@ export function AgentContractingPage() {
   if (loading) {
     return (
       <div className="p-6">
-        <Header title="Contracting" subtitle="Loading your progress..." />
+        <Header title="Contracting" />
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
@@ -94,7 +90,7 @@ export function AgentContractingPage() {
   if (error) {
     return (
       <div className="p-6">
-        <Header title="Contracting" subtitle="Something went wrong" />
+        <Header title="Contracting" />
         <Card className="max-w-lg mx-auto mt-8">
           <CardContent className="py-8 text-center">
             <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
@@ -115,7 +111,7 @@ export function AgentContractingPage() {
   if (!pipelineRecord) {
     return (
       <div className="p-6">
-        <Header title="Contracting" subtitle="Welcome to FYM" />
+        <Header title="Contracting" />
         <Card className="max-w-lg mx-auto mt-8">
           <CardContent className="py-8 text-center">
             <Shield className="w-10 h-10 text-primary mx-auto mb-3" />
@@ -147,18 +143,20 @@ export function AgentContractingPage() {
       ? 'RTS'
       : null;
 
+  const subtitleText =
+    preRTS && !isAdditionalContracting
+      ? 'Track your onboarding progress'
+      : isAdditionalContracting
+        ? `Additional Contracting · ${earnedStatusLabel} Agent`
+        : 'Manage your carrier appointments';
+
   return (
     <div className="p-6 space-y-6">
-      <Header
-        title="My Contracting"
-        subtitle={
-          preRTS && !isAdditionalContracting
-            ? 'Track your onboarding progress'
-            : isAdditionalContracting
-              ? `Additional Contracting · ${earnedStatusLabel} Agent`
-              : 'Manage your carrier appointments'
-        }
-      >
+      <div className="flex items-center justify-between">
+        <div>
+          <Header title="My Contracting" />
+          <p className="text-sm text-muted-foreground mt-1 px-6">{subtitleText}</p>
+        </div>
         <button
           onClick={handleRefresh}
           disabled={refreshing}
@@ -167,7 +165,7 @@ export function AgentContractingPage() {
           <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
           Refresh
         </button>
-      </Header>
+      </div>
 
       <FadeIn>
         {/* ── Progress Bar ── */}
@@ -186,7 +184,6 @@ export function AgentContractingPage() {
               <StaggerItem>
                 <ContractingStepPanel
                   pipelineRecord={pipelineRecord}
-                  stageSteps={stageSteps}
                   stepCompletions={stepCompletions}
                   progress={progress}
                   onSubmitStep={submitStepCompletion}
@@ -220,8 +217,9 @@ export function AgentContractingPage() {
               {/* Pending/Declined feedback */}
               {pendingWNs.length > 0 && (
                 <StaggerItem>
-                  <HudFrame label="Pending Review">
-                    <div className="p-4 space-y-2">
+                  <Card className="border-amber-500/20 bg-amber-500/5">
+                    <CardContent className="p-4 space-y-2">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-amber-400 mb-2">Pending Review</p>
                       {pendingWNs.map((sub) => (
                         <div
                           key={sub.id}
@@ -239,15 +237,16 @@ export function AgentContractingPage() {
                           </span>
                         </div>
                       ))}
-                    </div>
-                  </HudFrame>
+                    </CardContent>
+                  </Card>
                 </StaggerItem>
               )}
 
               {rejectedWNs.length > 0 && (
                 <StaggerItem>
-                  <HudFrame label="Action Required">
-                    <div className="p-4 space-y-2">
+                  <Card className="border-red-500/20 bg-red-500/5">
+                    <CardContent className="p-4 space-y-2">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-red-400 mb-2">Action Required</p>
                       {rejectedWNs.map((sub) => (
                         <div key={sub.id} className="space-y-1">
                           <div className="flex items-center gap-3 text-sm">
@@ -266,8 +265,8 @@ export function AgentContractingPage() {
                           )}
                         </div>
                       ))}
-                    </div>
-                  </HudFrame>
+                    </CardContent>
+                  </Card>
                 </StaggerItem>
               )}
             </StaggerContainer>
@@ -276,7 +275,6 @@ export function AgentContractingPage() {
             <AgentCarrierManagement
               lobAssignments={lobAssignments}
               wnSubmissions={wnSubmissions}
-              pipelineRecord={pipelineRecord}
               onRequestContracting={requestContracting}
               onSubmitWritingNumber={submitWritingNumber}
             />

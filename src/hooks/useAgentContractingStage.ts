@@ -9,10 +9,8 @@ import { useState, useEffect } from 'react';
 import { portalSupabase } from '@/lib/portal-supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
-import {
-  PRE_RTS_STAGES,
-  type AgentPipelineStage,
-} from '@/hooks/useAgentPipeline';
+import { PRE_RTS_STAGES } from '@/hooks/useAgentPipeline';
+import type { AgentPipelineStage } from '@/lib/contracting/types';
 
 const CACHE_KEY = 'fym_agent_contracting_stage';
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes

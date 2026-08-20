@@ -132,9 +132,7 @@ export function useAgentPipeline(): AgentPipelineData {
       if (data?.agent_id) return data.agent_id;
     }
 
-    // Fall back to pipeline record email match
-    const email = profile.full_name; // profile doesn't have email directly
-    // Try the agent_pipeline table by matching on the profiles table writing_number
+    // Fall back to pipeline record match via writing_number
     if (profile.writing_number) {
       const { data } = await portalSupabase
         .from('agent_pipeline')
