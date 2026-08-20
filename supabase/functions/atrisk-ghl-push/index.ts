@@ -563,10 +563,20 @@ async function handleSeed(body: any): Promise<Response> {
 
 // ── Import handler (one-time pull of GHL pipeline state → App) ──────────────
 
-// Reverse map: GHL stage name → app stage key
-const REVERSE_STAGE_MAP: Record<string, string> = Object.fromEntries(
-  Object.entries(STAGE_MAP).map(([k, v]) => [v.toLowerCase(), k])
-);
+// Reverse map: GHL stage name (lowercased) → app stage key
+// Built from STAGE_MAP + additional aliases for real pipeline naming variants
+const REVERSE_STAGE_MAP: Record<string, string> = {
+  ...Object.fromEntries(
+    Object.entries(STAGE_MAP).map(([k, v]) => [v.toLowerCase(), k])
+  ),
+  // Handle "Ancillary | At Risk Pipeline" actual stage names
+  "agent | outreach": "agent_outreach",
+  "agent outreach": "agent_outreach",
+  "manager | outreach": "manager_outreach",
+  "manager outreach": "manager_outreach",
+  "agent | saved pending": "agent_saved_pending",
+  "agent saved pending": "agent_saved_pending",
+};
 
 async function handleImport(body: any): Promise<Response> {
   const { agency_id, api_key, location_id } = body;
