@@ -1,40 +1,24 @@
 /**
- * Test View Store — controls the stage override for the agent
- * contracting test/demo mode.
+ * Test View Store — tracks whether the admin is in test-agent mode.
  *
- * When active, useAgentContractingStage and AgentContractingPage
- * use the overridden stage instead of querying the DB.
- *
- * Only used by FYM admins in View As mode to walk through the
- * agent contracting experience at each pipeline stage.
+ * When active, the floating toolbar appears on the agent contracting
+ * page. All data is REAL — reads and writes hit the actual DB through
+ * the normal useAgentPipeline hook. The toolbar provides stage
+ * navigation by updating the real pipeline record.
  */
 import { create } from 'zustand';
-import type { AgentPipelineStage } from '@/lib/contracting/types';
 
 interface TestViewState {
-  /** Whether test view stage override is active */
+  /** Whether test view mode is active */
   active: boolean;
-  /** The overridden pipeline stage */
-  stage: AgentPipelineStage | null;
-  /** Stage index for progress display */
-  stageIndex: number;
 
-  activate: (stage: AgentPipelineStage, stageIndex: number) => void;
-  setStage: (stage: AgentPipelineStage, stageIndex: number) => void;
+  activate: () => void;
   deactivate: () => void;
 }
 
 export const useTestViewStore = create<TestViewState>((set) => ({
   active: false,
-  stage: null,
-  stageIndex: 0,
 
-  activate: (stage, stageIndex) =>
-    set({ active: true, stage, stageIndex }),
-
-  setStage: (stage, stageIndex) =>
-    set({ stage, stageIndex }),
-
-  deactivate: () =>
-    set({ active: false, stage: null, stageIndex: 0 }),
+  activate: () => set({ active: true }),
+  deactivate: () => set({ active: false }),
 }));

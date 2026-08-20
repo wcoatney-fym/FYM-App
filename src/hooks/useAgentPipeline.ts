@@ -106,6 +106,8 @@ export interface AgentPipelineData {
   submitStepCompletion: (stepId: string) => Promise<boolean>;
   submitWritingNumber: (carrier: string, writingNumber: string) => Promise<boolean>;
   requestContracting: (carrier: string) => Promise<boolean>;
+  /** Admin test-view: update the real pipeline record's stage */
+  setStage: (stage: AgentPipelineStage) => Promise<void>;
 }
 
 export function useAgentPipeline(): AgentPipelineData {
@@ -437,6 +439,31 @@ export function useAgentPipeline(): AgentPipelineData {
     [pipelineRecord, profile, fetchData]
   );
 
+  /**
+   * Admin test-view: update the real pipeline record's stage.
+   * Used by the floating toolbar to walk Tester Mitchell through stages.
+   */
+  const setStage = useCallback(
+    async (newStage: AgentPipelineStage): Promise<void> => {
+      if (!portalSupabase || !pipelineRecord) return;
+      const now = new Date().toISOString();
+      await portalSupabase
+        .from('agent_pipeline')
+        .update({
+          stage: newStage,
+          stage_entered_at: now,
+          updated_at: now,
+          last_updated_by: 'admin_test',
+          last_updated_by_display: 'Test View',
+          updated_by_source: 'contracting_portal',
+        })
+        .eq('id', pipelineRecord.id);
+      // Refetch to reflect new stage
+      await fetchData();
+    },
+    [pipelineRecord, fetchData]
+  );
+
   return {
     pipelineRecord,
     stageSteps,
@@ -449,5 +476,6 @@ export function useAgentPipeline(): AgentPipelineData {
     submitStepCompletion,
     submitWritingNumber,
     requestContracting,
+    setStage,
   };
 }
