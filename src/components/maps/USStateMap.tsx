@@ -215,14 +215,13 @@ export const USStateMap: React.FC<USStateMapProps> = ({
                   .join(" ")}
                 style={{
                   fill,
-                  stroke: isSelected ? "#ffffff" : "#0f172a",
-                  strokeWidth: isSelected ? 2.5 : 0.75,
+                  stroke: "#0f172a",
+                  strokeWidth: 0.75,
                   filter: isHovered && !isSelected
                     ? "brightness(1.25)"
                     : "none",
-                  paintOrder: "stroke",
                   transition:
-                    "fill 150ms ease-out, stroke 150ms ease-out, filter 150ms ease-out, opacity 150ms ease-out",
+                    "fill 150ms ease-out, filter 150ms ease-out, opacity 150ms ease-out",
                 }}
                 onMouseEnter={() => handleMouseEnter(code)}
                 onMouseLeave={handleMouseLeave}
@@ -273,6 +272,21 @@ export const USStateMap: React.FC<USStateMapProps> = ({
               );
             })}
           </g>
+        )}
+
+        {/* Selected state outline — rendered last so it sits on top of all fills and labels */}
+        {selectedState && STATE_PATHS[selectedState] && (
+          <path
+            d={STATE_PATHS[selectedState].d}
+            className="us-state-map__selection-outline pointer-events-none"
+            style={{
+              fill: "none",
+              stroke: "#ffffff",
+              strokeWidth: 2.5,
+              strokeLinejoin: "round",
+              pointerEvents: "none",
+            }}
+          />
         )}
       </svg>
     </div>
