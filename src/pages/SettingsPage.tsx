@@ -839,17 +839,20 @@ const FYM_PIVOT_AGENT_NAME = 'Greg McLeod';
 type PivotView = 'admin' | 'manager' | 'agent';
 
 function ViewAsCard() {
-  const { active, role, agencyName, agentName, activate, deactivate } = useViewAsStore();
+  const { active, role, agencyName, agentName, agencyId: activeAgencyId, activate, deactivate } = useViewAsStore();
   const testViewStore = useTestViewStore();
   const navigate = useNavigate();
   const [launchModalOpen, setLaunchModalOpen] = useState(false);
 
-  const [selectedRole, setSelectedRole] = useState<UserRole>('admin');
   const [agencies, setAgencies] = useState<AgencyOption[]>([]);
-  const [selectedAgencyId, setSelectedAgencyId] = useState<string>('');
-  const [agents, setAgents] = useState<AgentOption[]>([]);
-  const [selectedAgentId, setSelectedAgentId] = useState<string>('');
   const [loadingAgencies, setLoadingAgencies] = useState(true);
+
+  // Downline agency pivot state
+  const [downlineAgencyId, setDownlineAgencyId] = useState<string>('');
+  const [downlineAgents, setDownlineAgents] = useState<AgentOption[]>([]);
+  const [downlineAgentId, setDownlineAgentId] = useState<string>('');
+  const [loadingDownlineAgents, setLoadingDownlineAgents] = useState(false);
+  const [showDownlineAgentPicker, setShowDownlineAgentPicker] = useState(false);
 
   useEffect(() => {
     if (!supabase) return;
@@ -863,37 +866,6 @@ function ViewAsCard() {
         setLoadingAgencies(false);
       });
   }, []);
-
-  useEffect(() => {
-    if (!supabase || selectedRole !== 'agent' || !selectedAgencyId) {
-      setAgents([]);
-      setSelectedAgentId('');
-      return;
-    }
-    supabase
-      .from('profiles')
-      .select('id, full_name, writing_number')
-      .eq('agency_id', selectedAgencyId)
-      .eq('role', 'agent')
-      .order('full_name', { ascending: true })
-      .then(({ data }) => {
-        if (data) setAgents(data as AgentOption[]);
-      });
-  }, [selectedRole, selectedAgencyId]);
-
-  function handleActivate() {
-    const agency = agencies.find((a) => a.id === selectedAgencyId);
-    if (!agency) return;
-    const agent = agents.find((a) => a.id === selectedAgentId);
-    activate({
-      role: selectedRole,
-      agencyId: agency.id,
-      agencyName: agency.name,
-      agentId: selectedRole === 'agent' ? selectedAgentId || undefined : undefined,
-      agentName: selectedRole === 'agent' ? agent?.full_name ?? undefined : undefined,
-      writingNumber: selectedRole === 'agent' ? agent?.writing_number ?? undefined : undefined,
-    });
-  }
 
   // Quick pivot — determine current view
   const currentPivot: PivotView = !active ? 'admin' : (role as PivotView) ?? 'admin';
@@ -919,8 +891,63 @@ function ViewAsCard() {
     }
   }
 
-  const canActivate =
-    !!selectedAgencyId && (selectedRole !== 'agent' || !!selectedAgentId);
+  // Downline agency pivot
+  const downlineAgencies = agencies.filter((a) => a.id !== FYM_AGENCY_ID);
+  const selectedDownlineAgency = downlineAgencies.find((a) => a.id === downlineAgencyId);
+
+  // Determine which downline pivot button is active
+  const downlinePivot: PivotView | null =
+    active && activeAgencyId && activeAgencyId === downlineAgencyId
+      ? (role as PivotView) ?? null
+      : null;
+
+  // Load agents when a downline agency is selected
+  useEffect(() => {
+    if (!supabase || !downlineAgencyId) {
+      setDownlineAgents([]);
+      setDownlineAgentId('');
+      return;
+    }
+    setLoadingDownlineAgents(true);
+    supabase
+      .from('profiles')
+      .select('id, full_name, writing_number')
+      .eq('agency_id', downlineAgencyId)
+      .eq('role', 'agent')
+      .order('full_name', { ascending: true })
+      .then(({ data }: { data: AgentOption[] | null }) => {
+        if (data) setDownlineAgents(data);
+        setLoadingDownlineAgents(false);
+      });
+  }, [downlineAgencyId]);
+
+  function handleDownlinePivot(view: PivotView) {
+    if (!selectedDownlineAgency) return;
+    if (view === 'agent') {
+      // Show agent picker if we don't have one selected yet
+      if (!downlineAgentId) {
+        setShowDownlineAgentPicker(true);
+        return;
+      }
+      const agent = downlineAgents.find((a) => a.id === downlineAgentId);
+      activate({
+        role: view,
+        agencyId: selectedDownlineAgency.id,
+        agencyName: selectedDownlineAgency.name,
+        agentId: downlineAgentId,
+        agentName: agent?.full_name ?? undefined,
+        writingNumber: agent?.writing_number ?? undefined,
+      });
+      setShowDownlineAgentPicker(false);
+    } else {
+      activate({
+        role: view,
+        agencyId: selectedDownlineAgency.id,
+        agencyName: selectedDownlineAgency.name,
+      });
+      setShowDownlineAgentPicker(false);
+    }
+  }
 
   return (
     <Card className="border-border" role="region" aria-label="View As Impersonation">
@@ -964,6 +991,116 @@ function ViewAsCard() {
               {agentName ? ` — ${agentName}` : ''}
             </p>
           )}
+        </div>
+
+        {/* ── Downline Agency Pivot ── */}
+        <div className="border-t border-border/30 pt-4">
+          <p className="text-xs font-semibold text-foreground mb-1">Downline Agency View</p>
+          <p className="text-xs text-muted-foreground mb-3">
+            View the app as any downline agency — admin, manager, or agent perspective.
+          </p>
+
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-foreground/80">Agency</Label>
+              <Select value={downlineAgencyId} onValueChange={(v) => {
+                setDownlineAgencyId(v);
+                setDownlineAgentId('');
+                setShowDownlineAgentPicker(false);
+              }}>
+                <SelectTrigger className="bg-secondary/20">
+                  <SelectValue placeholder={loadingAgencies ? 'Loading…' : 'Select a downline agency…'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {downlineAgencies.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {downlineAgencyId && (
+              <>
+                <div className="flex rounded-lg border border-border overflow-hidden">
+                  {([
+                    { key: 'admin' as PivotView, label: 'Admin' },
+                    { key: 'manager' as PivotView, label: 'Manager' },
+                    { key: 'agent' as PivotView, label: 'Agent' },
+                  ]).map(({ key, label }) => (
+                    <button
+                      key={key}
+                      onClick={() => handleDownlinePivot(key)}
+                      className={`flex-1 py-2.5 text-sm font-medium transition-all duration-200 ${
+                        downlinePivot === key
+                          ? 'bg-cyan-500 text-black'
+                          : 'bg-secondary/20 text-muted-foreground hover:bg-secondary/40 hover:text-foreground'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Agent picker — shown when Agent is clicked and no agent selected yet */}
+                {showDownlineAgentPicker && (
+                  <div className="space-y-2 bg-secondary/5 border border-border/40 rounded-lg p-3">
+                    <Label className="text-xs font-medium text-muted-foreground">Select an agent</Label>
+                    {loadingDownlineAgents ? (
+                      <p className="text-xs text-muted-foreground py-2">Loading agents…</p>
+                    ) : downlineAgents.length === 0 ? (
+                      <div className="flex flex-col items-center gap-1.5 py-4 text-center">
+                        <Users size={16} className="text-muted-foreground/60" />
+                        <p className="text-xs text-muted-foreground">No agents found for this agency</p>
+                      </div>
+                    ) : (
+                      <>
+                        <Select value={downlineAgentId} onValueChange={setDownlineAgentId}>
+                          <SelectTrigger className="bg-card">
+                            <SelectValue placeholder="Select agent…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {downlineAgents.map((a) => (
+                              <SelectItem key={a.id} value={a.id}>
+                                {a.full_name ?? a.writing_number ?? a.id}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          onClick={() => handleDownlinePivot('agent')}
+                          disabled={!downlineAgentId}
+                          size="sm"
+                          className="bg-cyan-500 hover:bg-cyan-600 text-black"
+                        >
+                          View as Agent
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* Active indicator */}
+                {downlinePivot && (
+                  <div className="flex items-center justify-between bg-cyan-500/10 border border-cyan-500/30 rounded-md px-3 py-2">
+                    <p className="text-xs text-cyan-400 flex items-center gap-1.5">
+                      <Eye size={12} />
+                      Viewing as {role === 'agent' ? `Agent — ${agentName ?? 'Unknown'}` : role === 'manager' ? 'Manager' : 'Admin'} @ {selectedDownlineAgency?.name}
+                    </p>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={deactivate}
+                      className="text-black bg-cyan-500 hover:bg-cyan-600 h-7 px-3"
+                    >
+                      Exit
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
 
         {/* ── Test Agent View ── */}
@@ -1014,112 +1151,7 @@ function ViewAsCard() {
           )}
         </div>
 
-        {/* ── Agency Impersonation (for outside agencies) ── */}
-        <div className="border-t border-border/30 pt-4">
-          <p className="text-xs font-semibold text-foreground mb-1">Agency Impersonation</p>
-          <p className="text-xs text-muted-foreground mb-3">
-            View as a specific outside agency admin, manager, or agent.
-          </p>
 
-          {active && agencyName && agencyName !== FYM_AGENCY_NAME && (
-            <div className="flex items-center justify-between bg-amber-500/10 border border-amber-500/30 rounded-md px-3 py-2 mb-3">
-              <div>
-                <Badge variant="outline" className="text-amber-400 border-amber-500/40 mb-1">
-                  Active
-                </Badge>
-                <p className="text-sm text-foreground">
-                  Viewing as{' '}
-                  <span className="font-medium">
-                    {role === 'agent'
-                      ? `Agent — ${agentName ?? 'Unknown'} @ ${agencyName}`
-                      : role === 'manager'
-                        ? `Manager — ${agencyName}`
-                        : `Agency Admin — ${agencyName}`}
-                  </span>
-                </p>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={deactivate}
-                className="text-black bg-amber-500 hover:bg-amber-600 h-7 px-3"
-              >
-                Exit
-              </Button>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-foreground/80">Role</Label>
-              <Select value={selectedRole} onValueChange={(v) => setSelectedRole(v as UserRole)}>
-                <SelectTrigger className="bg-secondary/20">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">Agency Admin</SelectItem>
-                  <SelectItem value="manager">Manager</SelectItem>
-                  <SelectItem value="agent">Agent</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-sm font-medium text-foreground/80">Agency</Label>
-              <Select value={selectedAgencyId} onValueChange={setSelectedAgencyId}>
-                <SelectTrigger className="bg-secondary/20">
-                  <SelectValue placeholder={loadingAgencies ? 'Loading agencies…' : 'Select agency…'} />
-                </SelectTrigger>
-                <SelectContent>
-                  {agencies.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {selectedRole === 'agent' && (
-              <div className="space-y-2 sm:col-span-2">
-                <Label className="text-sm font-medium text-foreground/80">Agent</Label>
-                <Select
-                  value={selectedAgentId}
-                  onValueChange={setSelectedAgentId}
-                  disabled={!selectedAgencyId}
-                >
-                  <SelectTrigger className="bg-secondary/20">
-                    <SelectValue
-                      placeholder={!selectedAgencyId ? 'Select an agency first…' : 'Select agent…'}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {selectedAgencyId && agents.length === 0 ? (
-                      <div className="flex flex-col items-center gap-1.5 py-4 px-3 text-center">
-                        <Users size={16} className="text-muted-foreground/60" />
-                        <p className="text-xs text-muted-foreground">No agents found for this agency</p>
-                      </div>
-                    ) : (
-                      agents.map((a) => (
-                        <SelectItem key={a.id} value={a.id}>
-                          {a.full_name ?? a.writing_number ?? a.id}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-          </div>
-
-          <Button
-            onClick={handleActivate}
-            disabled={!canActivate}
-            className="bg-amber-500 hover:bg-amber-600 text-black mt-3"
-          >
-            Activate
-          </Button>
-        </div>
       </CardContent>
     </Card>
   );
