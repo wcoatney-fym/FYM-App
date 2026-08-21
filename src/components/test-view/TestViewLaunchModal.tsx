@@ -30,8 +30,6 @@ import { AGENT_STAGES } from '@/hooks/useAgentPipeline';
 import { portalSupabase } from '@/lib/portal-supabase';
 import type { AgentPipelineStage } from '@/lib/contracting/types';
 
-/** Tester Mitchell's profile ID in FYM App DB */
-const TEST_AGENT_PROFILE_ID = 'd6fe7763-adec-4acc-9d72-0f269be15025';
 const TEST_AGENT_WN = 'TEST00001';
 
 interface TestViewLaunchModalProps {
