@@ -36,6 +36,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Eye, ShieldPlus, Trash2, UserPlus, CheckCircle2, AlertCircle, Users, Settings, KeyRound, Copy, RefreshCw, Search, Zap, Eye as EyeIcon, EyeOff, FlaskConical } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { CoachingThresholdsCard } from '@/components/settings/CoachingThresholdsCard';
+import { AdminCalendarsCard } from '@/components/settings/AdminCalendarsCard';
 
 interface ProfileOption {
   id: string;
@@ -172,6 +173,7 @@ export function SettingsPage() {
 
                 <StaggerItem><FymAdminManagementCard currentUserId={user?.id ?? null} /></StaggerItem>
                 <StaggerItem><CoachingThresholdsCard /></StaggerItem>
+                <StaggerItem><AdminCalendarsCard /></StaggerItem>
                 <StaggerItem><ViewAsCard /></StaggerItem>
               </StaggerContainer>
             </TabsContent>
