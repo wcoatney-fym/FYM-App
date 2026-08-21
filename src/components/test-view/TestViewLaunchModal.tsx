@@ -30,7 +30,9 @@ import { AGENT_STAGES } from '@/hooks/useAgentPipeline';
 import { portalSupabase } from '@/lib/portal-supabase';
 import type { AgentPipelineStage } from '@/lib/contracting/types';
 
-const TEST_AGENT_WN = 'TEST00001';
+/** Tester Mitchell's stable IDs in the portal DB */
+const TEST_AGENT_ID = 'd6fe7763-adec-4acc-9d72-0f269be15025';
+const TEST_AGENCY_ID = '723620b6-0297-4690-a9ad-52c18945fdb4';
 
 interface TestViewLaunchModalProps {
   open: boolean;
@@ -59,11 +61,11 @@ export function TestViewLaunchModal({
 
     (async () => {
       setLoading(true);
-      // Look up by writing number (agent_pipeline stores writing_number)
+      // Look up by agent_id (stable across resets)
       const { data, error: fetchErr } = await portalSupabase
         .from('agent_pipeline')
         .select('id, stage')
-        .eq('writing_number', TEST_AGENT_WN)
+        .eq('agent_id', TEST_AGENT_ID)
         .maybeSingle();
 
       if (fetchErr) {
@@ -85,6 +87,8 @@ export function TestViewLaunchModal({
     setError(null);
 
     const now = new Date().toISOString();
+
+    // Reset pipeline record: stage, tags, completed_steps
     const { error: updateErr } = await portalSupabase
       .from('agent_pipeline')
       .update({
@@ -94,17 +98,88 @@ export function TestViewLaunchModal({
         last_updated_by: 'admin_test',
         last_updated_by_display: 'Test View Reset',
         updated_by_source: 'contracting_portal',
+        completed_steps: {},
+        tags: [],
+        writing_numbers: null,
+        wn_pending_review: false,
+        wn_pending_count: 0,
+        agent_action_pending: false,
+        agent_action_at: null,
       })
       .eq('id', pipelineId);
 
     if (updateErr) {
       setError(`Reset failed: ${updateErr.message}`);
-    } else {
-      setCurrentStage('hip_broker');
-      setSelectedStage('hip_broker');
-      setResetDone(true);
-      setTimeout(() => setResetDone(false), 2000);
+      setResetting(false);
+      return;
     }
+
+    // Clear step completions for this pipeline
+    await portalSupabase
+      .from('agent_step_completions')
+      .delete()
+      .eq('pipeline_id', pipelineId);
+
+    // Clear writing number submissions
+    await portalSupabase
+      .from('agent_writing_number_submissions')
+      .delete()
+      .eq('agent_id', TEST_AGENT_ID);
+
+    // Re-seed mock intake form data so it's always present
+    await portalSupabase
+      .from('agent_intake')
+      .upsert({
+        agent_id: TEST_AGENT_ID,
+        date_of_birth: '1990-01-15',
+        address: '456 Mock Ave',
+        city: 'Dallas',
+        state: 'TX',
+        postal_code: '75201',
+        ssn: '000-00-0000',
+        resident_license_number: 'TEST000',
+        npn: '99999999',
+        resident_state: 'TX',
+        release_needed: 'no',
+        state_licenses: [],
+        submitted_at: now,
+        agent_type: 'hip_career',
+      }, { onConflict: 'agent_id' });
+
+    // Seed mock production data (visible if agent reaches Actively Selling)
+    const mockPeriods = [
+      { start: '2026-07-01', end: '2026-07-31', written: 12, active: 11, cancelled: 1, premium: 6380 },
+      { start: '2026-08-01', end: '2026-08-31', written: 8, active: 8, cancelled: 0, premium: 4520 },
+    ];
+
+    // Clear old mock production first
+    await portalSupabase
+      .from('agent_production')
+      .delete()
+      .eq('agent_id', TEST_AGENT_ID);
+
+    // Insert fresh mock production
+    await portalSupabase
+      .from('agent_production')
+      .insert(
+        mockPeriods.map((p) => ({
+          agency_id: TEST_AGENCY_ID,
+          agent_id: TEST_AGENT_ID,
+          period_start: p.start,
+          period_end: p.end,
+          policies_written: p.written,
+          policies_active: p.active,
+          policies_cancelled: p.cancelled,
+          total_premium: p.premium,
+          carrier: 'UNL',
+          computed_at: now,
+        }))
+      );
+
+    setCurrentStage('hip_broker');
+    setSelectedStage('hip_broker');
+    setResetDone(true);
+    setTimeout(() => setResetDone(false), 2000);
     setResetting(false);
   }
 
