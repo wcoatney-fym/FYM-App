@@ -18,7 +18,7 @@ export interface USStateMapProps {
   onStateHover: (stateCode: string | null) => void;
   /** Called with the 2-letter state code when a state is clicked. */
   onStateClick: (stateCode: string) => void;
-  /** Currently selected state code (gets cyan stroke/glow), or null. */
+  /** Currently selected state code (gets white outline), or null. */
   selectedState: string | null;
   /** Returns the fill color for a given state code. */
   getStateFill: (stateCode: string) => string;
@@ -215,11 +215,9 @@ export const USStateMap: React.FC<USStateMapProps> = ({
                   .join(" ")}
                 style={{
                   fill,
-                  stroke: isSelected ? "#22d3ee" : "#0f172a",
+                  stroke: isSelected ? "#ffffff" : "#0f172a",
                   strokeWidth: isSelected ? 2.5 : 0.75,
-                  filter: isSelected
-                    ? "drop-shadow(0 0 4px rgba(34, 211, 238, 0.7)) drop-shadow(0 0 8px rgba(34, 211, 238, 0.4))"
-                    : isHovered
+                  filter: isHovered && !isSelected
                     ? "brightness(1.25)"
                     : "none",
                   paintOrder: "stroke",
@@ -257,7 +255,7 @@ export const USStateMap: React.FC<USStateMapProps> = ({
                     fontSize: isHovered || isSelected ? 10.5 : 9,
                     fontWeight: isSelected ? 700 : 500,
                     fill: isSelected
-                      ? "#22d3ee"
+                      ? "#ffffff"
                       : isHovered
                       ? "#f8fafc"
                       : "rgba(248, 250, 252, 0.75)",
