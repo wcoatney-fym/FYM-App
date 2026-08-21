@@ -110,7 +110,7 @@ export interface AgentPipelineData {
   requestContracting: (carrier: string) => Promise<boolean>;
   /** Admin test-view: update the real pipeline record's stage */
   setStage: (stage: AgentPipelineStage) => Promise<void>;
-  /** Admin test-view: full reset — wipes WN submissions, step completions, LOB assignments, resets to hip_broker */
+  /** Admin test-view: full reset — wipes WN submissions, step completions, LOB assignments, resets to iaa (Intake is always completed for test agent) */
   resetTestAgent: () => Promise<void>;
 }
 
@@ -495,7 +495,8 @@ export function useAgentPipeline(): AgentPipelineData {
    * - Deletes all writing number submissions
    * - Deletes all step completions
    * - Deletes all LOB assignments
-   * - Resets pipeline record to hip_broker with clean state
+   * - Resets pipeline record to iaa (Agreement) with clean state
+   *   Intake is always completed — the test agent's intake form is submitted.
    * - Clears writing_number from App DB profile
    */
   const resetTestAgent = useCallback(
@@ -527,16 +528,17 @@ export function useAgentPipeline(): AgentPipelineData {
           .eq('agent_id', agentId);
       }
 
-      // 4. Reset pipeline record to hip_broker with clean state
+      // 4. Reset pipeline record to iaa (Agreement) — Intake is always
+      //    completed because the test agent already submitted the intake form.
       await portalSupabase
         .from('agent_pipeline')
         .update({
-          stage: 'hip_broker' as AgentPipelineStage,
+          stage: 'iaa' as AgentPipelineStage,
           stage_entered_at: now,
           updated_at: now,
           completed_steps: {},
           tags: [],
-          notes: `[${now}] Test agent reset to hip_broker (full data wipe)`,
+          notes: `[${now}] Test agent reset to iaa (full data wipe, intake always complete)`,
           wn_pending_review: false,
           wn_pending_count: 0,
           agent_action_pending: false,

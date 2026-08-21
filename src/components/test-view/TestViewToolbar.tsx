@@ -7,7 +7,7 @@
  * Features:
  * - Stage indicator showing current position
  * - Previous / Next buttons (update real DB)
- * - Reset to hip_broker button
+ * - Reset to iaa (Agreement) button — Intake is always completed
  * - Close button (exits test mode)
  */
 import { useState } from 'react';
@@ -27,7 +27,7 @@ import type { AgentPipelineStage } from '@/lib/contracting/types';
 interface TestViewToolbarProps {
   currentStage: AgentPipelineStage | undefined;
   onAdvanceStage: (newStage: AgentPipelineStage) => Promise<void>;
-  /** Full reset — wipes all test agent data (WNs, steps, LOBs) and resets to hip_broker */
+  /** Full reset — wipes all test agent data (WNs, steps, LOBs) and resets to iaa (Agreement) */
   onReset: () => Promise<void>;
 }
 
