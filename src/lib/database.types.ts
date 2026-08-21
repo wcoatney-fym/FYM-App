@@ -315,6 +315,39 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['agency_rosters']['Insert']>;
         Relationships: [];
       };
+      admin_calendars: {
+        Row: {
+          id: string;
+          user_id: string;
+          label: string;
+          calendar_url: string;
+          is_primary: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          label?: string;
+          calendar_url: string;
+          is_primary?: boolean;
+        };
+        Update: Partial<Database['public']['Tables']['admin_calendars']['Insert']>;
+        Relationships: [];
+      };
+      fym_admins: {
+        Row: {
+          id: string;
+          user_id: string;
+          added_by: string | null;
+          created_at: string | null;
+        };
+        Insert: {
+          user_id: string;
+          added_by?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['fym_admins']['Insert']>;
+        Relationships: [];
+      };
       manager_notes: {
         Row: {
           id: string;
