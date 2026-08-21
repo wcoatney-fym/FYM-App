@@ -91,7 +91,7 @@ export function AdminCalendarsCard() {
     if (error) {
       setFeedback({ type: 'error', message: error.message });
     } else {
-      setCalendars(data ?? []);
+      setCalendars((data as CalendarEntry[]) ?? []);
     }
     setLoading(false);
   }, []);
