@@ -34,6 +34,13 @@ import type { AgentPipelineStage } from '@/lib/contracting/types';
 const TEST_AGENT_ID = 'd6fe7763-adec-4acc-9d72-0f269be15025';
 const TEST_AGENCY_ID = '723620b6-0297-4690-a9ad-52c18945fdb4';
 
+/**
+ * The test agent's intake form is always submitted (that's how they got their
+ * NPN and login). So the baseline reset stage is 'iaa' (Agreement), not
+ * 'hip_broker' (Intake). Intake is always completed for the test agent.
+ */
+const RESET_STAGE: AgentPipelineStage = 'iaa';
+
 interface TestViewLaunchModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -45,7 +52,7 @@ export function TestViewLaunchModal({
   onOpenChange,
   onLaunch,
 }: TestViewLaunchModalProps) {
-  const [selectedStage, setSelectedStage] = useState<AgentPipelineStage>('hip_broker');
+  const [selectedStage, setSelectedStage] = useState<AgentPipelineStage>(RESET_STAGE);
   const [currentStage, setCurrentStage] = useState<AgentPipelineStage | null>(null);
   const [pipelineId, setPipelineId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -92,7 +99,7 @@ export function TestViewLaunchModal({
     const { error: updateErr } = await portalSupabase
       .from('agent_pipeline')
       .update({
-        stage: 'hip_broker',
+        stage: RESET_STAGE,
         stage_entered_at: now,
         updated_at: now,
         last_updated_by: 'admin_test',
@@ -176,8 +183,8 @@ export function TestViewLaunchModal({
         }))
       );
 
-    setCurrentStage('hip_broker');
-    setSelectedStage('hip_broker');
+    setCurrentStage(RESET_STAGE);
+    setSelectedStage(RESET_STAGE);
     setResetDone(true);
     setTimeout(() => setResetDone(false), 2000);
     setResetting(false);
@@ -307,7 +314,7 @@ export function TestViewLaunchModal({
             ) : (
               <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
             )}
-            {resetDone ? 'Reset!' : 'Reset to Intake'}
+            {resetDone ? 'Reset!' : 'Reset to Agreement'}
           </Button>
           <Button
             onClick={handleLaunch}
