@@ -220,6 +220,7 @@ export const USStateMap: React.FC<USStateMapProps> = ({
                   filter: isHovered && !isSelected
                     ? "brightness(1.25)"
                     : "none",
+                  outline: "none",
                   transition:
                     "fill 150ms ease-out, filter 150ms ease-out, opacity 150ms ease-out",
                 }}
