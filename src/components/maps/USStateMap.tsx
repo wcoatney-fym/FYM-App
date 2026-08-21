@@ -189,15 +189,6 @@ export const USStateMap: React.FC<USStateMapProps> = ({
         className="us-state-map select-none"
         style={{ display: "block", overflow: "visible" }}
       >
-        <defs>
-          <filter id="us-state-map-glow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="3.5" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
 
         <g className="us-state-map__states">
           {stateCodes.map((code) => {
@@ -225,9 +216,9 @@ export const USStateMap: React.FC<USStateMapProps> = ({
                 style={{
                   fill,
                   stroke: isSelected ? "#22d3ee" : "#0f172a",
-                  strokeWidth: isSelected ? 2 : 0.75,
+                  strokeWidth: isSelected ? 2.5 : 0.75,
                   filter: isSelected
-                    ? "url(#us-state-map-glow) drop-shadow(0 0 6px rgba(34, 211, 238, 0.85))"
+                    ? "drop-shadow(0 0 4px rgba(34, 211, 238, 0.7)) drop-shadow(0 0 8px rgba(34, 211, 238, 0.4))"
                     : isHovered
                     ? "brightness(1.25)"
                     : "none",
