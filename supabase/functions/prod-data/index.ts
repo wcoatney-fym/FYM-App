@@ -7,12 +7,14 @@
  * - Daily production for trend charts
  * - Monthly production aggregates
  * - Product mix breakdowns
+ * - Monthly overlay (submitted vs issued)
+ * - Recruiting ROI matching
  *
- * Replaces: policy_cache table reads + agency_production / agent_production /
- *           monthly_production / filtered_* RPC views
+ * ALL aggregation is pushed to SQL GROUP BY to avoid OOM.
+ * Only aggregate result rows are held in memory — never the full policy table.
  *
  * Query params:
- *   type:       "agency" | "agent" | "daily" | "monthly" | "product_mix"
+ *   type:       "agency" | "agent" | "daily" | "monthly" | "monthly_overlay" | "product_mix" | "recruiting_roi"
  *   agency_id:  filter by agency (tracker_id / writing_number)
  *   agent_id:   filter by agent writing number
  *   start_date: YYYY-MM-DD
@@ -21,19 +23,10 @@
 
 import {
   createProdConnection,
-  CONTRACT_STATUS,
   FYM_MGA_WN,
-  planToProductType,
-  extractAgencyWritingNumber,
-  extractAgentWritingNumber,
-  resolveAgencyWn,
-  resolveAgentWn,
-  resolveRiskFlag,
-  estimateDraftCount,
   jsonResponse,
   corsResponse,
 } from "../_shared/prod-db.ts";
-import { loadRosterMap } from "../_shared/roster-map.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return corsResponse();
@@ -51,650 +44,390 @@ Deno.serve(async (req) => {
   try {
     sql = createProdConnection();
 
-    // ── FAST PATH: Recruiting ROI — match recruited agents to production ──
-    // Accepts POST body with { names: string[], npns: string[] }
-    // Returns per-agent production data (policies, AP) matched by name or NPN.
-    if (type === "recruiting_roi") {
-      let names: string[] = [];
-      let npns: string[] = [];
-      try {
-        const body = await req.json();
-        names = (body.names ?? []).map((n: string) => n.trim().toUpperCase()).filter(Boolean);
-        npns = (body.npns ?? []).filter((n: string) => n && n.trim());
-      } catch { /* query-param only is fine — will return all producing */ }
+    // ── Build common WHERE fragments ──────────────────────────────────
+    // Product filter — HI/HHC only (applied to all types)
+    const productWhere = `(
+      UPPER(TRIM(plan_code)) LIKE '%HHC%' OR UPPER(TRIM(plan_code)) LIKE '%AHH%'
+      OR UPPER(TRIM(plan_code)) LIKE '%HI%' OR UPPER(TRIM(plan_code)) LIKE '%HIP%'
+      OR UPPER(TRIM(plan_code)) LIKE '%UHL%'
+    )`;
 
-      // Build WHERE clause for name/NPN matching
-      const conditions: string[] = [];
-      if (names.length > 0) {
-        conditions.push(`UPPER(TRIM(wa_name)) IN (${names.map(n => `'${n.replace(/'/g, "''")}'`).join(',')})`);
-      }
-      if (npns.length > 0) {
-        // NPN isn't directly in Max's DB — we match by name only
-        // NPNs are used client-side for enrichment
-      }
+    const dateWhere = startDate && endDate
+      ? `AND app_recvd_date >= '${startDate}'::date AND app_recvd_date < '${endDate}'::date`
+      : "";
 
-      const whereClause = conditions.length > 0 ? conditions.join(' OR ') : '1=1';
-
-      const rows = await sql.unsafe(`
-        SELECT
-          TRIM(wa) AS writing_number,
-          TRIM(wa_name) AS agent_name,
-          COALESCE(NULLIF(TRIM(ga), ''), '202JVV00') AS agency_wn,
-          COALESCE(TRIM(ga_name), '') AS agency_name,
-          COUNT(*) AS total_policies,
-          COUNT(CASE WHEN UPPER(TRIM(cntrct_code)) = 'A' AND term_date IS NULL THEN 1 END) AS active_policies,
-          ROUND(SUM(CASE WHEN term_date IS NULL THEN COALESCE(annual_premium, 0) ELSE 0 END)::numeric, 2) AS active_ap,
-          ROUND(SUM(COALESCE(annual_premium, 0))::numeric, 2) AS total_ap,
-          MIN(issue_date) AS first_issue_date,
-          MAX(issue_date) AS last_issue_date
-        FROM typed.unl_fym_policy_latest_load
-        WHERE (${whereClause})
-          AND TRIM(wa) IS NOT NULL AND TRIM(wa) != ''
-        GROUP BY TRIM(wa), TRIM(wa_name), COALESCE(NULLIF(TRIM(ga), ''), '202JVV00'), COALESCE(TRIM(ga_name), '')
-        ORDER BY active_ap DESC
-      `);
-
-      const elapsedMs = Math.round(performance.now() - started);
-      return jsonResponse({ data: rows, _source: "prod_direct", _elapsed_ms: elapsedMs });
-    }
-
-    // ── FAST PATH: SQL-level aggregation for filtered queries ──────────
-    // When filtering to a specific agency/agent, push ALL aggregation to
-    // Postgres in a single query instead of streaming rows to JS.
-    // Skips roster map load and pagination loop entirely.
-    if (type === "agent" && (agencyFilter || agentFilter)) {
-      const dateF = startDate && endDate
-        ? sql`AND app_recvd_date >= ${startDate}::date AND app_recvd_date < ${endDate}::date`
-        : sql``;
-      const agF = agencyFilter
-        ? agencyFilter === FYM_MGA_WN
-          ? sql`AND (TRIM(ga) = ${agencyFilter} OR ga IS NULL OR TRIM(ga) = '')`
-          : sql`AND TRIM(ga) = ${agencyFilter}`
-        : sql``;
-      const atF = agentFilter ? sql`AND TRIM(wa) = ${agentFilter}` : sql``;
-
-      const now = new Date();
-      const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-
-      const rows = await sql`
-        WITH filtered AS (
-          SELECT
-            TRIM(wa) AS agent_wn,
-            TRIM(wa_name) AS wa_name,
-            COALESCE(NULLIF(TRIM(ga), ''), '202JVV00') AS agency_wn,
-            UPPER(TRIM(cntrct_code)) AS status_code,
-            COALESCE(annual_premium, 0) AS annual_premium,
-            COALESCE(at_risk_policy, false) AS at_risk_policy,
-            app_recvd_date,
-            paid_to_date,
-            COALESCE(billing_mode, 1) AS billing_mode,
-            TRIM(plan_code) AS plan_code
-          FROM typed.unl_fym_policy_latest_load
-          WHERE 1=1 ${dateF} ${agF} ${atF}
-            AND TRIM(wa) IS NOT NULL AND TRIM(wa) != ''
-            AND (
-              UPPER(TRIM(plan_code)) LIKE '%HHC%' OR UPPER(TRIM(plan_code)) LIKE '%AHH%'
-              OR UPPER(TRIM(plan_code)) NOT LIKE '%HHC%'
-            )
-        ),
-        with_status AS (
-          SELECT *,
-            CASE status_code
-              WHEN 'A' THEN 'active'
-              WHEN 'T' THEN 'terminated'
-              WHEN 'P' THEN 'pending'
-              WHEN 'S' THEN 'suspended'
-              ELSE 'pending'
-            END AS status,
-            CASE
-              WHEN UPPER(plan_code) LIKE '%HHC%' OR UPPER(plan_code) LIKE '%AHH%' THEN 'HHC'
-              ELSE 'HI'
-            END AS product_type,
-            CASE
-              WHEN paid_to_date IS NOT NULL AND app_recvd_date IS NOT NULL
-                AND paid_to_date >= app_recvd_date
-              THEN GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (paid_to_date::timestamp - app_recvd_date::timestamp)) / 86400 /
-                CASE WHEN billing_mode = 12 THEN 365
-                     WHEN billing_mode = 6 THEN 182
-                     WHEN billing_mode = 3 THEN 91
-                     ELSE 30 END))
-              ELSE 0
-            END AS draft_count
-          FROM filtered
-          WHERE (
-            UPPER(plan_code) LIKE '%HHC%' OR UPPER(plan_code) LIKE '%AHH%'
-            OR UPPER(plan_code) LIKE '%HI%' OR UPPER(plan_code) LIKE '%HIP%'
-            OR UPPER(plan_code) LIKE '%UHL%' OR plan_code IS NOT NULL
-          )
-        )
-        SELECT
-          agent_wn AS agent_id,
-          MIN(wa_name) AS wa_name,
-          MIN(agency_wn) AS agency_id,
-          COUNT(*) AS total_policies,
-          COUNT(*) FILTER (WHERE status = 'active') AS active_policies,
-          COUNT(*) FILTER (WHERE status = 'terminated') AS terminated_policies,
-          COUNT(*) FILTER (WHERE status = 'pending') AS pending_policies,
-          COUNT(*) FILTER (WHERE at_risk_policy = true AND status = 'active') AS at_risk_policies,
-          COALESCE(SUM(annual_premium / 12) FILTER (WHERE status = 'active'), 0) AS active_monthly_premium,
-          COALESCE(SUM(annual_premium) FILTER (WHERE status = 'active'), 0) AS active_annual_premium,
-          COUNT(*) FILTER (WHERE TO_CHAR(app_recvd_date, 'YYYY-MM') = ${thisMonth}) AS policies_this_month,
-          COALESCE(SUM(annual_premium) FILTER (WHERE TO_CHAR(app_recvd_date, 'YYYY-MM') = ${thisMonth}), 0) AS ap_this_month,
-          COUNT(*) FILTER (WHERE draft_count >= 1) AS ever_drafted,
-          COUNT(*) FILTER (WHERE draft_count >= 3) AS retained_policies,
-          MIN(app_recvd_date) AS earliest_issue_date
-        FROM with_status
-        WHERE product_type IN ('HI', 'HHC')
-        GROUP BY agent_wn
-        ORDER BY active_annual_premium DESC
-      `;
-
-      const agents = rows.map((r: Record<string, unknown>) => {
-        const rawWaName = (r.wa_name as string | null)?.trim() || null;
-        const agentName = rawWaName
-          ? rawWaName.replace(/\b\w+/g, (w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-          : null;
-        const activePolicies = Number(r.active_policies) || 0;
-        const activeAP = Number(r.active_annual_premium) || 0;
-        const everDrafted = Number(r.ever_drafted) || 0;
-        const retained = Number(r.retained_policies) || 0;
-        return {
-          agent_id: r.agent_id as string,
-          agent_name: agentName,
-          writing_number: r.agent_id as string,
-          agency_id: r.agency_id as string,
-          total_policies: Number(r.total_policies) || 0,
-          active_policies: activePolicies,
-          terminated_policies: Number(r.terminated_policies) || 0,
-          pending_policies: Number(r.pending_policies) || 0,
-          at_risk_policies: Number(r.at_risk_policies) || 0,
-          active_monthly_premium: Math.round((Number(r.active_monthly_premium) || 0) * 100) / 100,
-          active_annual_premium: activeAP,
-          policies_this_month: Number(r.policies_this_month) || 0,
-          ap_this_month: Number(r.ap_this_month) || 0,
-          retained_policies: retained,
-          ever_drafted: everDrafted,
-          avg_annual_premium: activePolicies > 0 ? Math.round((activeAP / activePolicies) * 100) / 100 : 0,
-          retention_pct: everDrafted > 0 ? Math.round((retained / everDrafted) * 1000) / 10 : null,
-          earliest_issue_date: r.earliest_issue_date
-            ? new Date(r.earliest_issue_date as string).toISOString().split("T")[0]
-            : null,
-        };
-      });
-
-      const elapsedMs = Math.round(performance.now() - started);
-      return jsonResponse({ data: agents, _source: "prod_direct_sql_agg", _elapsed_ms: elapsedMs });
-    }
-
-    // ── STANDARD PATH: row-by-row scan (org-wide or unfiltered) ────────
-    // Load roster-based agent→agency overrides from FYM App DB.
-    const rosterMap = await loadRosterMap();
-
-    // Build the base query with optional date/agency/agent SQL filters
-    const dateFilter = startDate && endDate
-      ? sql`AND app_recvd_date >= ${startDate}::date AND app_recvd_date < ${endDate}::date`
-      : sql``;
-    // Push agency filter to SQL level (ga = agency writing number).
-    // Roster remapping may reassign some policies, so JS-level filtering
-    // remains as a second pass — but the SQL filter eliminates ~90% of rows
-    // for single-agency queries, making it dramatically faster.
-    // FYM direct agents have null/empty ga — include those when filtering for FYM.
-    const agencySQL = agencyFilter
+    const agencyWhere = agencyFilter
       ? agencyFilter === FYM_MGA_WN
-        ? sql`AND (TRIM(ga) = ${agencyFilter} OR ga IS NULL OR TRIM(ga) = '')`
-        : sql`AND TRIM(ga) = ${agencyFilter}`
-      : sql``;
-    const agentSQL = agentFilter
-      ? sql`AND TRIM(wa) = ${agentFilter}`
-      : sql``;
+        ? `AND (TRIM(ga) = '${agencyFilter}' OR ga IS NULL OR TRIM(ga) = '')`
+        : `AND TRIM(ga) = '${agencyFilter}'`
+      : "";
 
-    // Fetch all policies in one sweep (paginated for memory safety)
-    const PAGE_SIZE = 5000;
-    let offset = 0;
+    const agentWhere = agentFilter
+      ? `AND TRIM(wa) = '${agentFilter}'`
+      : "";
 
-    // Accumulators by type
-    const agencyMap = new Map<string, {
-      agency_id: string;
-      agency_name: string | null;
-      total_policies: number;
-      total_annual_premium: number;
-      active_policies: number;
-      terminated_policies: number;
-      pending_policies: number;
-      at_risk_policies: number;
-      active_monthly_premium: number;
-      active_annual_premium: number;
-      terminated_annual_premium: number;
-      pending_annual_premium: number;
-      at_risk_annual_premium: number;
-      policies_this_month: number;
-      ap_this_month: number;
-      policies_last_month: number;
-      ap_last_month: number;
-    }>();
-
-    const agentMap = new Map<string, {
-      agent_id: string;
-      agent_name: string | null;
-      writing_number: string | null;
-      agency_id: string;
-      total_policies: number;
-      active_policies: number;
-      terminated_policies: number;
-      pending_policies: number;
-      at_risk_policies: number;
-      active_monthly_premium: number;
-      active_annual_premium: number;
-      policies_this_month: number;
-      ap_this_month: number;
-      retained_policies: number;
-      ever_drafted: number;
-      earliest_issue_date: string | null;
-    }>();
-
-    const dailyMap = new Map<string, Map<string, { policies: number; annual_premium: number; issued: number }>>();
-    const monthlyMap = new Map<string, Map<string, { policies: number; annual_premium: number }>>();
-    const productMixMap = new Map<string, Map<string, number>>();
-    // Overlay: submitted (app_recvd_date) vs issued (issue_date) per month
-    const overlaySubmittedMap = new Map<string, { policies: number; annual_premium: number }>();
-    const overlayIssuedMap = new Map<string, { policies: number; annual_premium: number }>();
+    const baseWhere = `WHERE ${productWhere} ${dateWhere} ${agencyWhere} ${agentWhere}`;
 
     const now = new Date();
-    const thisMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const lastMonthKey = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, "0")}`;
 
-    while (true) {
-      const rows = await sql`
-        SELECT
-          TRIM(policy_nbr) AS policy_nbr,
-          TRIM(plan_code) AS plan_code,
-          TRIM(cntrct_code) AS cntrct_code,
-          app_recvd_date,
-          issue_date,
-          paid_to_date,
-          term_date,
-          annual_premium,
-          billing_mode,
-          at_risk_policy,
-          TRIM(first_name) AS first_name,
-          TRIM(last_name) AS last_name,
-          TRIM(ga) AS ga,
-          TRIM(ga_name) AS ga_name,
-          TRIM(wa) AS wa,
-          TRIM(wa_name) AS wa_name,
-          roster_hierarchy_json
-        FROM typed.unl_fym_policy_latest_load
-        WHERE 1=1 ${dateFilter} ${agencySQL} ${agentSQL}
-        ORDER BY policy_nbr
-        OFFSET ${offset}
-        LIMIT ${PAGE_SIZE}
-      `;
-
-      if (rows.length === 0) break;
-
-      for (const row of rows) {
-        const planCode = (row.plan_code as string) || "";
-        const productType = planToProductType(planCode);
-        if (productType !== "HI" && productType !== "HHC") continue;
-
-        const cntrctCode = ((row.cntrct_code as string) || "").toUpperCase();
-        const status = CONTRACT_STATUS[cntrctCode] || "pending";
-
-        const annualPremium = Number(row.annual_premium) || 0;
-        const monthlyPremium = Math.round((annualPremium / 12) * 100) / 100;
-
-        const appRecvdDate = row.app_recvd_date
-          ? new Date(row.app_recvd_date as string).toISOString().split("T")[0]
-          : null;
-        const issueDate = row.issue_date
-          ? new Date(row.issue_date as string).toISOString().split("T")[0]
-          : null;
-        const paidToDate = row.paid_to_date
-          ? new Date(row.paid_to_date as string).toISOString().split("T")[0]
-          : null;
-
-        const roster = row.roster_hierarchy_json as Array<{
-          writing_number: string;
-          depth: string;
-          is_person: boolean;
-          name: string;
-        }> | null;
-
-        // Primary path: flattened ga/wa fields (always populated)
-        // Fallback: roster_hierarchy_json (currently empty in Max's DB)
-        const hierarchyAgencyWn = resolveAgencyWn(row, roster);
-        const agentWn = resolveAgentWn(row, roster);
-
-        // Roster override: scan ALL hierarchy writing numbers for a roster match.
-        const agencyWn = rosterMap.resolveAgencyFromHierarchy(roster, hierarchyAgencyWn);
-        const agencyId = agencyWn || "unknown";
-
-        // Apply agency filter if set
-        if (agencyFilter && agencyId !== agencyFilter) continue;
-
-        // Apply agent filter if set
-        if (agentFilter && agentWn !== agentFilter) continue;
-
-        const { isAtRisk } = resolveRiskFlag(
-          row.at_risk_policy as boolean | null,
-          status,
-          paidToDate
-        );
-
-        const draftCount = estimateDraftCount(appRecvdDate, paidToDate, row.billing_mode as number | null);
-        const appRecvdDateMonth = appRecvdDate ? appRecvdDate.slice(0, 7) : null;
-        const clientName = [row.first_name as string, row.last_name as string]
-          .filter(Boolean)
-          .map((s) => s.trim())
-          .join(" ") || null;
-
-        // Agent name from wa_name (writing agent name) — proper agent identity,
-        // not the policyholder (clientName). Title Case for display.
-        const rawWaName = (row.wa_name as string | null)?.trim() || null;
-        const agentName = rawWaName
-          ? rawWaName.replace(/\b\w+/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-          : null;
-
-        // ── Agency accumulation ──
-        if (type === "agency" || type === "daily" || type === "monthly" || type === "monthly_overlay" || type === "product_mix") {
-          // FYM house production has blank ga_name — hardcode it
-          const rawGaName = agencyId === '202JVV00' ? 'FYM' : ((row.ga_name as string | null)?.trim() || null);
-
-          if (!agencyMap.has(agencyId)) {
-            agencyMap.set(agencyId, {
-              agency_id: agencyId,
-              agency_name: rawGaName,
-              total_policies: 0,
-              total_annual_premium: 0,
-              active_policies: 0,
-              terminated_policies: 0,
-              pending_policies: 0,
-              at_risk_policies: 0,
-              active_monthly_premium: 0,
-              active_annual_premium: 0,
-              terminated_annual_premium: 0,
-              pending_annual_premium: 0,
-              at_risk_annual_premium: 0,
-              policies_this_month: 0,
-              ap_this_month: 0,
-              policies_last_month: 0,
-              ap_last_month: 0,
-            });
-          }
-          const ag = agencyMap.get(agencyId)!;
-          ag.total_policies++;
-          ag.total_annual_premium += annualPremium;
-          if (status === "active") {
-            ag.active_policies++;
-            ag.active_monthly_premium += monthlyPremium;
-            ag.active_annual_premium += annualPremium;
-          }
-          if (status === "terminated") {
-            ag.terminated_policies++;
-            ag.terminated_annual_premium += annualPremium;
-          }
-          if (status === "pending") {
-            ag.pending_policies++;
-            ag.pending_annual_premium += annualPremium;
-          }
-          if (isAtRisk) {
-            ag.at_risk_policies++;
-            ag.at_risk_annual_premium += annualPremium;
-          }
-          if (appRecvdDateMonth === thisMonthKey) {
-            ag.policies_this_month++;
-            ag.ap_this_month += annualPremium;
-          }
-          if (appRecvdDateMonth === lastMonthKey) {
-            ag.policies_last_month++;
-            ag.ap_last_month += annualPremium;
-          }
-        }
-
-        // ── Agent accumulation ──
-        if (type === "agent" && agentWn) {
-          if (!agentMap.has(agentWn)) {
-            agentMap.set(agentWn, {
-              agent_id: agentWn,
-              agent_name: agentName,
-              writing_number: agentWn,
-              agency_id: agencyId,
-              total_policies: 0,
-              active_policies: 0,
-              terminated_policies: 0,
-              pending_policies: 0,
-              at_risk_policies: 0,
-              active_monthly_premium: 0,
-              active_annual_premium: 0,
-              policies_this_month: 0,
-              ap_this_month: 0,
-              retained_policies: 0,
-              ever_drafted: 0,
-              earliest_issue_date: null,
-            });
-          }
-          const agt = agentMap.get(agentWn)!;
-          agt.total_policies++;
-          // Track earliest app_recvd_date for tenure calculation
-          if (appRecvdDate && (!agt.earliest_issue_date || appRecvdDate < agt.earliest_issue_date)) {
-            agt.earliest_issue_date = appRecvdDate;
-          }
-          if (status === "active") {
-            agt.active_policies++;
-            agt.active_monthly_premium += monthlyPremium;
-            agt.active_annual_premium += annualPremium;
-          }
-          if (status === "terminated") agt.terminated_policies++;
-          if (status === "pending") agt.pending_policies++;
-          if (isAtRisk) agt.at_risk_policies++;
-          if (appRecvdDateMonth === thisMonthKey) {
-            agt.policies_this_month++;
-            agt.ap_this_month += annualPremium;
-          }
-          if (draftCount >= 1) agt.ever_drafted++;
-          if (draftCount >= 3) agt.retained_policies++;
-        }
-
-        // ── Daily accumulation (submitted only — effectuated loaded separately) ──
-        if (type === "daily") {
-          // Count submitted (by app_recvd_date)
-          if (appRecvdDate) {
-            if (!dailyMap.has(agencyId)) dailyMap.set(agencyId, new Map());
-            const dm = dailyMap.get(agencyId)!;
-            const existing = dm.get(appRecvdDate) || { policies: 0, annual_premium: 0, issued: 0 };
-            existing.policies++;
-            existing.annual_premium += annualPremium;
-            dm.set(appRecvdDate, existing);
-          }
-          // NOTE: effectuated/issued counts are loaded via a separate query below
-          // (filtered by issue_date, not app_recvd_date) to capture policies
-          // submitted outside the window that became active within it.
-        }
-
-        // ── Monthly accumulation ──
-        if (type === "monthly" && appRecvdDateMonth) {
-          if (!monthlyMap.has(agencyId)) monthlyMap.set(agencyId, new Map());
-          const mm = monthlyMap.get(agencyId)!;
-          const existing = mm.get(appRecvdDateMonth) || { policies: 0, annual_premium: 0 };
-          existing.policies++;
-          existing.annual_premium += annualPremium;
-          mm.set(appRecvdDateMonth, existing);
-        }
-
-        // ── Monthly overlay accumulation (submitted vs issued) ──
-        if (type === "monthly_overlay") {
-          if (appRecvdDateMonth) {
-            const existing = overlaySubmittedMap.get(appRecvdDateMonth) || { policies: 0, annual_premium: 0 };
-            existing.policies++;
-            existing.annual_premium += annualPremium;
-            overlaySubmittedMap.set(appRecvdDateMonth, existing);
-          }
-          const issueDateMonth = issueDate ? issueDate.slice(0, 7) : null;
-          if (issueDateMonth) {
-            const existing = overlayIssuedMap.get(issueDateMonth) || { policies: 0, annual_premium: 0 };
-            existing.policies++;
-            existing.annual_premium += annualPremium;
-            overlayIssuedMap.set(issueDateMonth, existing);
-          }
-        }
-
-        // ── Product mix ──
-        if (type === "product_mix" && status === "active") {
-          if (!productMixMap.has(agencyId)) productMixMap.set(agencyId, new Map());
-          const pm = productMixMap.get(agencyId)!;
-          pm.set(productType, (pm.get(productType) || 0) + 1);
-        }
-      }
-
-      if (rows.length < PAGE_SIZE) break;
-      offset += PAGE_SIZE;
-    }
-
-    // ── Effectuated query: separate pass filtered by issue_date ──────────
-    // The main loop above filters by app_recvd_date, which misses policies
-    // submitted outside the window that became active (effectuated) within it.
-    // This query counts active policies by issue_date in the selected range.
-    if (type === "daily" && startDate && endDate) {
-      const agF2 = agencyFilter
-        ? agencyFilter === FYM_MGA_WN
-          ? sql`AND (TRIM(ga) = ${agencyFilter} OR ga IS NULL OR TRIM(ga) = '')`
-          : sql`AND TRIM(ga) = ${agencyFilter}`
-        : sql``;
-      const atF2 = agentFilter ? sql`AND TRIM(wa) = ${agentFilter}` : sql``;
-
-      let effOffset = 0;
-      while (true) {
-        const effRows = await sql`
-          SELECT
-            issue_date,
-            TRIM(ga) AS ga,
-            roster_hierarchy_json
-          FROM typed.unl_fym_policy_latest_load
-          WHERE issue_date >= ${startDate}::date
-            AND issue_date < ${endDate}::date
-            AND UPPER(TRIM(cntrct_code)) = 'A'
-            AND term_date IS NULL
-            ${agF2} ${atF2}
-          ORDER BY policy_nbr
-          OFFSET ${effOffset}
-          LIMIT ${PAGE_SIZE}
-        `;
-
-        if (effRows.length === 0) break;
-
-        for (const row of effRows) {
-          const iDate = row.issue_date
-            ? new Date(row.issue_date as string).toISOString().split("T")[0]
-            : null;
-          if (!iDate) continue;
-
-          const roster = row.roster_hierarchy_json as Array<{
-            writing_number: string; depth: string; is_person: boolean; name: string;
-          }> | null;
-          const hierarchyAgencyWn2 = resolveAgencyWn(row, roster);
-          const agencyWn2 = rosterMap.resolveAgencyFromHierarchy(roster, hierarchyAgencyWn2);
-          const agencyId2 = agencyWn2 || "unknown";
-
-          if (agencyFilter && agencyId2 !== agencyFilter) continue;
-
-          if (!dailyMap.has(agencyId2)) dailyMap.set(agencyId2, new Map());
-          const dm = dailyMap.get(agencyId2)!;
-          const existing = dm.get(iDate) || { policies: 0, annual_premium: 0, issued: 0 };
-          existing.issued++;
-          dm.set(iDate, existing);
-        }
-
-        if (effRows.length < PAGE_SIZE) break;
-        effOffset += PAGE_SIZE;
-      }
-    }
-
-    // Build response based on type
     let result: unknown;
 
     switch (type) {
+      // ── RECRUITING ROI ──────────────────────────────────────────────
+      case "recruiting_roi": {
+        let names: string[] = [];
+        try {
+          const body = await req.json();
+          names = (body.names ?? []).map((n: string) => n.trim().toUpperCase()).filter(Boolean);
+        } catch { /* query-param only is fine */ }
+
+        const whereClause = names.length > 0
+          ? `WHERE UPPER(TRIM(wa_name)) IN (${names.map(n => `'${n.replace(/'/g, "''")}'`).join(",")})`
+          : `WHERE 1=1`;
+
+        const rows = await sql.unsafe(`
+          SELECT
+            TRIM(wa) AS writing_number,
+            TRIM(wa_name) AS agent_name,
+            COALESCE(NULLIF(TRIM(ga), ''), '${FYM_MGA_WN}') AS agency_wn,
+            COALESCE(TRIM(ga_name), '') AS agency_name,
+            COUNT(*) AS total_policies,
+            COUNT(CASE WHEN UPPER(TRIM(cntrct_code)) = 'A' AND term_date IS NULL THEN 1 END) AS active_policies,
+            ROUND(SUM(CASE WHEN term_date IS NULL THEN COALESCE(annual_premium, 0) ELSE 0 END)::numeric, 2) AS active_ap,
+            ROUND(SUM(COALESCE(annual_premium, 0))::numeric, 2) AS total_ap,
+            MIN(issue_date) AS first_issue_date,
+            MAX(issue_date) AS last_issue_date
+          FROM typed.unl_fym_policy_latest_load
+          ${whereClause}
+            AND TRIM(wa) IS NOT NULL AND TRIM(wa) != ''
+          GROUP BY TRIM(wa), TRIM(wa_name), COALESCE(NULLIF(TRIM(ga), ''), '${FYM_MGA_WN}'), COALESCE(TRIM(ga_name), '')
+          ORDER BY active_ap DESC
+        `);
+
+        const elapsedMs = Math.round(performance.now() - started);
+        return jsonResponse({ data: rows, _source: "prod_direct", _elapsed_ms: elapsedMs });
+      }
+
+      // ── AGENCY ──────────────────────────────────────────────────────
       case "agency": {
-        const agencies = Array.from(agencyMap.values()).map((a) => ({
-          ...a,
-          avg_annual_premium:
-            a.active_policies > 0 ? Math.round((a.active_annual_premium / a.active_policies) * 100) / 100 : 0,
+        const rows = await sql.unsafe(`
+          SELECT
+            COALESCE(NULLIF(TRIM(ga), ''), '${FYM_MGA_WN}') AS agency_id,
+            MIN(CASE WHEN COALESCE(NULLIF(TRIM(ga), ''), '${FYM_MGA_WN}') = '${FYM_MGA_WN}' THEN 'FYM' ELSE TRIM(ga_name) END) AS agency_name,
+            COUNT(*) AS total_policies,
+            ROUND(SUM(COALESCE(annual_premium, 0))::numeric, 2) AS total_annual_premium,
+            COUNT(*) FILTER (WHERE UPPER(TRIM(cntrct_code)) = 'A' AND term_date IS NULL) AS active_policies,
+            COUNT(*) FILTER (WHERE UPPER(TRIM(cntrct_code)) = 'T') AS terminated_policies,
+            COUNT(*) FILTER (WHERE UPPER(TRIM(cntrct_code)) NOT IN ('A', 'T', 'S')) AS pending_policies,
+            COUNT(*) FILTER (WHERE COALESCE(at_risk_policy, false) = true AND UPPER(TRIM(cntrct_code)) = 'A') AS at_risk_policies,
+            ROUND(SUM(CASE WHEN UPPER(TRIM(cntrct_code)) = 'A' AND term_date IS NULL THEN COALESCE(annual_premium, 0) / 12 ELSE 0 END)::numeric, 2) AS active_monthly_premium,
+            ROUND(SUM(CASE WHEN UPPER(TRIM(cntrct_code)) = 'A' AND term_date IS NULL THEN COALESCE(annual_premium, 0) ELSE 0 END)::numeric, 2) AS active_annual_premium,
+            ROUND(SUM(CASE WHEN UPPER(TRIM(cntrct_code)) = 'T' THEN COALESCE(annual_premium, 0) ELSE 0 END)::numeric, 2) AS terminated_annual_premium,
+            ROUND(SUM(CASE WHEN UPPER(TRIM(cntrct_code)) NOT IN ('A', 'T', 'S') THEN COALESCE(annual_premium, 0) ELSE 0 END)::numeric, 2) AS pending_annual_premium,
+            ROUND(SUM(CASE WHEN COALESCE(at_risk_policy, false) = true AND UPPER(TRIM(cntrct_code)) = 'A' THEN COALESCE(annual_premium, 0) ELSE 0 END)::numeric, 2) AS at_risk_annual_premium,
+            COUNT(*) FILTER (WHERE TO_CHAR(app_recvd_date, 'YYYY-MM') = '${thisMonth}') AS policies_this_month,
+            ROUND(SUM(CASE WHEN TO_CHAR(app_recvd_date, 'YYYY-MM') = '${thisMonth}' THEN COALESCE(annual_premium, 0) ELSE 0 END)::numeric, 2) AS ap_this_month,
+            COUNT(*) FILTER (WHERE TO_CHAR(app_recvd_date, 'YYYY-MM') = '${lastMonthKey}') AS policies_last_month,
+            ROUND(SUM(CASE WHEN TO_CHAR(app_recvd_date, 'YYYY-MM') = '${lastMonthKey}' THEN COALESCE(annual_premium, 0) ELSE 0 END)::numeric, 2) AS ap_last_month
+          FROM typed.unl_fym_policy_latest_load
+          ${baseWhere}
+          GROUP BY COALESCE(NULLIF(TRIM(ga), ''), '${FYM_MGA_WN}')
+          ORDER BY active_annual_premium DESC
+        `);
+
+        const agencies = rows.map((r: Record<string, unknown>) => ({
+          agency_id: r.agency_id as string,
+          agency_name: r.agency_name as string | null,
+          total_policies: Number(r.total_policies) || 0,
+          total_annual_premium: Number(r.total_annual_premium) || 0,
+          active_policies: Number(r.active_policies) || 0,
+          terminated_policies: Number(r.terminated_policies) || 0,
+          pending_policies: Number(r.pending_policies) || 0,
+          at_risk_policies: Number(r.at_risk_policies) || 0,
+          active_monthly_premium: Number(r.active_monthly_premium) || 0,
+          active_annual_premium: Number(r.active_annual_premium) || 0,
+          terminated_annual_premium: Number(r.terminated_annual_premium) || 0,
+          pending_annual_premium: Number(r.pending_annual_premium) || 0,
+          at_risk_annual_premium: Number(r.at_risk_annual_premium) || 0,
+          policies_this_month: Number(r.policies_this_month) || 0,
+          ap_this_month: Number(r.ap_this_month) || 0,
+          policies_last_month: Number(r.policies_last_month) || 0,
+          ap_last_month: Number(r.ap_last_month) || 0,
+          avg_annual_premium: Number(r.active_policies) > 0
+            ? Math.round((Number(r.active_annual_premium) / Number(r.active_policies)) * 100) / 100
+            : 0,
         }));
         result = agencies;
         break;
       }
+
+      // ── AGENT ───────────────────────────────────────────────────────
       case "agent": {
-        const agents = Array.from(agentMap.values()).map((a) => ({
-          ...a,
-          avg_annual_premium:
-            a.active_policies > 0 ? Math.round((a.active_annual_premium / a.active_policies) * 100) / 100 : 0,
-          retention_pct:
-            a.ever_drafted > 0 ? Math.round((a.retained_policies / a.ever_drafted) * 1000) / 10 : null,
-        }));
+        const rows = await sql.unsafe(`
+          WITH policy_data AS (
+            SELECT
+              TRIM(wa) AS agent_wn,
+              TRIM(wa_name) AS wa_name,
+              COALESCE(NULLIF(TRIM(ga), ''), '${FYM_MGA_WN}') AS agency_wn,
+              UPPER(TRIM(cntrct_code)) AS status_code,
+              COALESCE(annual_premium, 0) AS annual_premium,
+              COALESCE(at_risk_policy, false) AS at_risk_policy,
+              app_recvd_date,
+              paid_to_date,
+              COALESCE(billing_mode, 1) AS billing_mode,
+              term_date
+            FROM typed.unl_fym_policy_latest_load
+            ${baseWhere}
+              AND TRIM(wa) IS NOT NULL AND TRIM(wa) != ''
+          ),
+          with_draft AS (
+            SELECT *,
+              CASE status_code
+                WHEN 'A' THEN 'active'
+                WHEN 'T' THEN 'terminated'
+                WHEN 'P' THEN 'pending'
+                WHEN 'S' THEN 'suspended'
+                ELSE 'pending'
+              END AS status,
+              CASE
+                WHEN paid_to_date IS NOT NULL AND app_recvd_date IS NOT NULL
+                  AND paid_to_date >= app_recvd_date
+                THEN GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (paid_to_date::timestamp - app_recvd_date::timestamp)) / 86400 /
+                  CASE WHEN billing_mode = 12 THEN 365
+                       WHEN billing_mode = 6 THEN 182
+                       WHEN billing_mode = 3 THEN 91
+                       ELSE 30 END))
+                ELSE 0
+              END AS draft_count
+            FROM policy_data
+          )
+          SELECT
+            agent_wn AS agent_id,
+            MIN(wa_name) AS wa_name,
+            MIN(agency_wn) AS agency_id,
+            COUNT(*) AS total_policies,
+            COUNT(*) FILTER (WHERE status = 'active') AS active_policies,
+            COUNT(*) FILTER (WHERE status = 'terminated') AS terminated_policies,
+            COUNT(*) FILTER (WHERE status = 'pending') AS pending_policies,
+            COUNT(*) FILTER (WHERE at_risk_policy = true AND status = 'active') AS at_risk_policies,
+            COALESCE(SUM(annual_premium / 12) FILTER (WHERE status = 'active'), 0) AS active_monthly_premium,
+            COALESCE(SUM(annual_premium) FILTER (WHERE status = 'active'), 0) AS active_annual_premium,
+            COUNT(*) FILTER (WHERE TO_CHAR(app_recvd_date, 'YYYY-MM') = '${thisMonth}') AS policies_this_month,
+            COALESCE(SUM(annual_premium) FILTER (WHERE TO_CHAR(app_recvd_date, 'YYYY-MM') = '${thisMonth}'), 0) AS ap_this_month,
+            COUNT(*) FILTER (WHERE draft_count >= 1) AS ever_drafted,
+            COUNT(*) FILTER (WHERE draft_count >= 3) AS retained_policies,
+            MIN(app_recvd_date) AS earliest_issue_date
+          FROM with_draft
+          GROUP BY agent_wn
+          ORDER BY active_annual_premium DESC
+        `);
+
+        const agents = rows.map((r: Record<string, unknown>) => {
+          const rawWaName = (r.wa_name as string | null)?.trim() || null;
+          const agentName = rawWaName
+            ? rawWaName.replace(/\b\w+/g, (w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+            : null;
+          const activePolicies = Number(r.active_policies) || 0;
+          const activeAP = Number(r.active_annual_premium) || 0;
+          const everDrafted = Number(r.ever_drafted) || 0;
+          const retained = Number(r.retained_policies) || 0;
+          return {
+            agent_id: r.agent_id as string,
+            agent_name: agentName,
+            writing_number: r.agent_id as string,
+            agency_id: r.agency_id as string,
+            total_policies: Number(r.total_policies) || 0,
+            active_policies: activePolicies,
+            terminated_policies: Number(r.terminated_policies) || 0,
+            pending_policies: Number(r.pending_policies) || 0,
+            at_risk_policies: Number(r.at_risk_policies) || 0,
+            active_monthly_premium: Math.round((Number(r.active_monthly_premium) || 0) * 100) / 100,
+            active_annual_premium: activeAP,
+            policies_this_month: Number(r.policies_this_month) || 0,
+            ap_this_month: Number(r.ap_this_month) || 0,
+            retained_policies: retained,
+            ever_drafted: everDrafted,
+            avg_annual_premium: activePolicies > 0 ? Math.round((activeAP / activePolicies) * 100) / 100 : 0,
+            retention_pct: everDrafted > 0 ? Math.round((retained / everDrafted) * 1000) / 10 : null,
+            earliest_issue_date: r.earliest_issue_date
+              ? new Date(r.earliest_issue_date as string).toISOString().split("T")[0]
+              : null,
+          };
+        });
         result = agents;
         break;
       }
+
+      // ── DAILY ───────────────────────────────────────────────────────
       case "daily": {
-        const dailyRows: Array<{ agency_id: string; day: string; policies: number; annual_premium: number; issued: number }> = [];
-        for (const [agencyId, days] of dailyMap) {
-          for (const [day, vals] of days) {
-            dailyRows.push({ agency_id: agencyId, day, ...vals });
+        // Submitted (by app_recvd_date)
+        const submittedRows = await sql.unsafe(`
+          SELECT
+            COALESCE(NULLIF(TRIM(ga), ''), '${FYM_MGA_WN}') AS agency_id,
+            TO_CHAR(app_recvd_date, 'YYYY-MM-DD') AS day,
+            COUNT(*) AS policies,
+            ROUND(SUM(COALESCE(annual_premium, 0))::numeric, 2) AS annual_premium
+          FROM typed.unl_fym_policy_latest_load
+          ${baseWhere}
+            AND app_recvd_date IS NOT NULL
+          GROUP BY COALESCE(NULLIF(TRIM(ga), ''), '${FYM_MGA_WN}'), TO_CHAR(app_recvd_date, 'YYYY-MM-DD')
+          ORDER BY day
+        `);
+
+        // Effectuated (by issue_date) — separate query for policies that became
+        // active within the window, regardless of when submitted
+        let effectuatedMap: Record<string, Record<string, number>> = {};
+        if (startDate && endDate) {
+          const effRows = await sql.unsafe(`
+            SELECT
+              COALESCE(NULLIF(TRIM(ga), ''), '${FYM_MGA_WN}') AS agency_id,
+              TO_CHAR(issue_date, 'YYYY-MM-DD') AS day,
+              COUNT(*) AS issued
+            FROM typed.unl_fym_policy_latest_load
+            WHERE issue_date >= '${startDate}'::date
+              AND issue_date < '${endDate}'::date
+              AND UPPER(TRIM(cntrct_code)) = 'A'
+              AND term_date IS NULL
+              ${agencyWhere} ${agentWhere}
+              AND ${productWhere}
+            GROUP BY COALESCE(NULLIF(TRIM(ga), ''), '${FYM_MGA_WN}'), TO_CHAR(issue_date, 'YYYY-MM-DD')
+          `);
+          for (const r of effRows) {
+            const aid = r.agency_id as string;
+            const day = r.day as string;
+            if (!effectuatedMap[aid]) effectuatedMap[aid] = {};
+            effectuatedMap[aid][day] = Number(r.issued) || 0;
           }
         }
+
+        // Merge submitted + effectuated
+        const dailyRows = submittedRows.map((r: Record<string, unknown>) => ({
+          agency_id: r.agency_id as string,
+          day: r.day as string,
+          policies: Number(r.policies) || 0,
+          annual_premium: Number(r.annual_premium) || 0,
+          issued: effectuatedMap[r.agency_id as string]?.[r.day as string] || 0,
+        }));
+
+        // Add effectuated-only days (issued but not submitted in same window)
+        for (const [agencyId, days] of Object.entries(effectuatedMap)) {
+          for (const [day, issued] of Object.entries(days)) {
+            const exists = dailyRows.some(
+              (r: { agency_id: string; day: string }) => r.agency_id === agencyId && r.day === day
+            );
+            if (!exists) {
+              dailyRows.push({ agency_id: agencyId, day, policies: 0, annual_premium: 0, issued });
+            }
+          }
+        }
+
         result = dailyRows;
         break;
       }
+
+      // ── MONTHLY ─────────────────────────────────────────────────────
       case "monthly": {
-        const monthlyRows: Array<{ agency_id: string; month: string; policies: number; annual_premium: number }> = [];
-        for (const [agencyId, months] of monthlyMap) {
-          for (const [month, vals] of months) {
-            monthlyRows.push({ agency_id: agencyId, month, ...vals });
-          }
-        }
-        result = monthlyRows;
+        const rows = await sql.unsafe(`
+          SELECT
+            COALESCE(NULLIF(TRIM(ga), ''), '${FYM_MGA_WN}') AS agency_id,
+            TO_CHAR(app_recvd_date, 'YYYY-MM') AS month,
+            COUNT(*) AS policies,
+            ROUND(SUM(COALESCE(annual_premium, 0))::numeric, 2) AS annual_premium
+          FROM typed.unl_fym_policy_latest_load
+          ${baseWhere}
+            AND app_recvd_date IS NOT NULL
+          GROUP BY COALESCE(NULLIF(TRIM(ga), ''), '${FYM_MGA_WN}'), TO_CHAR(app_recvd_date, 'YYYY-MM')
+          ORDER BY month
+        `);
+
+        result = rows.map((r: Record<string, unknown>) => ({
+          agency_id: r.agency_id as string,
+          month: r.month as string,
+          policies: Number(r.policies) || 0,
+          annual_premium: Number(r.annual_premium) || 0,
+        }));
         break;
       }
+
+      // ── MONTHLY OVERLAY (submitted vs issued) ───────────────────────
       case "monthly_overlay": {
-        // Merge submitted + issued into a single array keyed by month
-        const allMonths = new Set([...overlaySubmittedMap.keys(), ...overlayIssuedMap.keys()]);
-        const overlayRows: Array<{
-          month: string;
-          submitted_policies: number;
-          submitted_ap: number;
-          issued_policies: number;
-          issued_ap: number;
-        }> = [];
-        for (const month of allMonths) {
-          const sub = overlaySubmittedMap.get(month);
-          const iss = overlayIssuedMap.get(month);
-          overlayRows.push({
-            month,
-            submitted_policies: sub?.policies ?? 0,
-            submitted_ap: Math.round((sub?.annual_premium ?? 0) * 100) / 100,
-            issued_policies: iss?.policies ?? 0,
-            issued_ap: Math.round((iss?.annual_premium ?? 0) * 100) / 100,
-          });
-        }
-        overlayRows.sort((a, b) => a.month.localeCompare(b.month));
-        result = overlayRows;
+        const rows = await sql.unsafe(`
+          WITH submitted AS (
+            SELECT
+              TO_CHAR(app_recvd_date, 'YYYY-MM') AS month,
+              COUNT(*) AS policies,
+              ROUND(SUM(COALESCE(annual_premium, 0))::numeric, 2) AS annual_premium
+            FROM typed.unl_fym_policy_latest_load
+            ${baseWhere}
+              AND app_recvd_date IS NOT NULL
+            GROUP BY TO_CHAR(app_recvd_date, 'YYYY-MM')
+          ),
+          issued AS (
+            SELECT
+              TO_CHAR(issue_date, 'YYYY-MM') AS month,
+              COUNT(*) AS policies,
+              ROUND(SUM(COALESCE(annual_premium, 0))::numeric, 2) AS annual_premium
+            FROM typed.unl_fym_policy_latest_load
+            ${baseWhere}
+              AND issue_date IS NOT NULL
+            GROUP BY TO_CHAR(issue_date, 'YYYY-MM')
+          )
+          SELECT
+            COALESCE(s.month, i.month) AS month,
+            COALESCE(s.policies, 0) AS submitted_policies,
+            COALESCE(s.annual_premium, 0) AS submitted_ap,
+            COALESCE(i.policies, 0) AS issued_policies,
+            COALESCE(i.annual_premium, 0) AS issued_ap
+          FROM submitted s
+          FULL OUTER JOIN issued i ON s.month = i.month
+          ORDER BY COALESCE(s.month, i.month)
+        `);
+
+        result = rows.map((r: Record<string, unknown>) => ({
+          month: r.month as string,
+          submitted_policies: Number(r.submitted_policies) || 0,
+          submitted_ap: Number(r.submitted_ap) || 0,
+          issued_policies: Number(r.issued_policies) || 0,
+          issued_ap: Number(r.issued_ap) || 0,
+        }));
         break;
       }
+
+      // ── PRODUCT MIX ─────────────────────────────────────────────────
       case "product_mix": {
-        const mixRows: Array<{ agency_id: string; product_type: string; count: number }> = [];
-        for (const [agencyId, products] of productMixMap) {
-          for (const [productType, count] of products) {
-            mixRows.push({ agency_id: agencyId, product_type: productType, count });
-          }
-        }
-        result = mixRows;
+        const rows = await sql.unsafe(`
+          SELECT
+            COALESCE(NULLIF(TRIM(ga), ''), '${FYM_MGA_WN}') AS agency_id,
+            CASE
+              WHEN UPPER(TRIM(plan_code)) LIKE '%HHC%' OR UPPER(TRIM(plan_code)) LIKE '%AHH%' THEN 'HHC'
+              ELSE 'HI'
+            END AS product_type,
+            COUNT(*) AS count
+          FROM typed.unl_fym_policy_latest_load
+          ${baseWhere}
+            AND UPPER(TRIM(cntrct_code)) = 'A'
+            AND term_date IS NULL
+          GROUP BY COALESCE(NULLIF(TRIM(ga), ''), '${FYM_MGA_WN}'),
+            CASE WHEN UPPER(TRIM(plan_code)) LIKE '%HHC%' OR UPPER(TRIM(plan_code)) LIKE '%AHH%' THEN 'HHC' ELSE 'HI' END
+        `);
+
+        result = rows.map((r: Record<string, unknown>) => ({
+          agency_id: r.agency_id as string,
+          product_type: r.product_type as string,
+          count: Number(r.count) || 0,
+        }));
         break;
       }
+
       default:
         return jsonResponse({ error: `Unknown type: ${type}` }, 400);
     }
 
     const elapsedMs = Math.round(performance.now() - started);
-    return jsonResponse({ data: result, _source: "prod_direct", _elapsed_ms: elapsedMs });
+    return jsonResponse({ data: result, _source: "prod_direct_sql", _elapsed_ms: elapsedMs });
   } catch (err) {
     console.error("prod-data error:", err);
     return jsonResponse({ error: String(err) }, 500);
