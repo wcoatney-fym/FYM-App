@@ -10,6 +10,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { portalSupabase } from '@/lib/portal-supabase';
 import { supabase } from '@/lib/supabase';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
+import { useViewAsStore } from '@/store/view-as-store';
 import type {
   PortalPipelineRecord,
   PortalPipelineStageStep,
@@ -114,7 +115,8 @@ export interface AgentPipelineData {
 }
 
 export function useAgentPipeline(): AgentPipelineData {
-  const { profile } = useEffectiveAuth();
+  const { profile, isViewingAs } = useEffectiveAuth();
+  const viewAs = useViewAsStore();
   const [pipelineRecord, setPipelineRecord] = useState<PortalPipelineRecord | null>(null);
   const [stageSteps, setStageSteps] = useState<PortalPipelineStageStep[]>([]);
   const [lobAssignments, setLobAssignments] = useState<PortalLobAssignment[]>([]);
@@ -161,21 +163,13 @@ export function useAgentPipeline(): AgentPipelineData {
 
     try {
       // First, find the agent's pipeline record
-      // Try by NPN match through agent_intake → agent_pipeline
       let agentId: string | null = null;
-
-      if (profile.npn) {
-        const { data: intake } = await portalSupabase
-          .from('agent_intake')
-          .select('agent_id')
-          .eq('npn', profile.npn)
-          .maybeSingle();
-        agentId = intake?.agent_id ?? null;
-      }
-
-      // If we found an agent_id, fetch their pipeline record
       let pipeline: PortalPipelineRecord | null = null;
-      if (agentId) {
+
+      // In View As mode, use the View As agent ID directly — this is the
+      // portal DB agent_id (e.g. Tester Mitchell), not the admin's profile.
+      if (isViewingAs && viewAs.agentId) {
+        agentId = viewAs.agentId;
         const { data } = await portalSupabase
           .from('agent_pipeline')
           .select('*')
@@ -184,9 +178,27 @@ export function useAgentPipeline(): AgentPipelineData {
         pipeline = data as PortalPipelineRecord | null;
       }
 
+      // Normal flow: try NPN match through agent_intake → agent_pipeline
+      if (!pipeline && profile.npn) {
+        const { data: intake } = await portalSupabase
+          .from('agent_intake')
+          .select('agent_id')
+          .eq('npn', profile.npn)
+          .maybeSingle();
+        if (intake?.agent_id) {
+          agentId = intake.agent_id;
+          const { data } = await portalSupabase
+            .from('agent_pipeline')
+            .select('*')
+            .eq('agent_id', agentId)
+            .maybeSingle();
+          pipeline = data as PortalPipelineRecord | null;
+        }
+      }
+
       // Fallback: try matching agent_pipeline.agent_id directly against
-      // the profile ID. Handles test agents and cases where agent_intake
-      // doesn't exist but pipeline record references the App DB profile ID.
+      // the profile ID. Handles cases where agent_intake doesn't exist
+      // but pipeline record references the App DB profile ID.
       if (!pipeline && profile.id) {
         const { data } = await portalSupabase
           .from('agent_pipeline')
@@ -239,7 +251,7 @@ export function useAgentPipeline(): AgentPipelineData {
     } finally {
       setLoading(false);
     }
-  }, [profile, resolveAgentId]);
+  }, [profile, resolveAgentId, isViewingAs, viewAs.agentId]);
 
   useEffect(() => {
     fetchData();

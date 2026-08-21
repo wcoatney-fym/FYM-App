@@ -9,6 +9,7 @@ import { useState, useEffect } from 'react';
 import { portalSupabase } from '@/lib/portal-supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
+import { useViewAsStore } from '@/store/view-as-store';
 import { PRE_RTS_STAGES } from '@/hooks/useAgentPipeline';
 import type { AgentPipelineStage } from '@/lib/contracting/types';
 
@@ -28,77 +29,91 @@ interface AgentContractingStageResult {
 
 export function useAgentContractingStage(): AgentContractingStageResult {
   const { profile } = useAuth();
-  const { effectiveRole } = useEffectiveAuth();
+  const { effectiveRole, isViewingAs } = useEffectiveAuth();
+  const viewAs = useViewAsStore();
   const [stage, setStage] = useState<AgentPipelineStage | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Only fetch for agents
+    // Only fetch for agents (or admins viewing as agent)
     if (effectiveRole !== 'agent' || !profile) {
       setLoading(false);
       return;
     }
 
-    // Check sessionStorage cache first
-    try {
-      const cached = sessionStorage.getItem(CACHE_KEY);
-      if (cached) {
-        const parsed: CachedStage = JSON.parse(cached);
-        if (Date.now() - parsed.ts < CACHE_TTL_MS) {
-          setStage(parsed.stage);
-          setLoading(false);
-          return;
+    // Skip cache in View As mode — always fetch fresh
+    if (!isViewingAs) {
+      try {
+        const cached = sessionStorage.getItem(CACHE_KEY);
+        if (cached) {
+          const parsed: CachedStage = JSON.parse(cached);
+          if (Date.now() - parsed.ts < CACHE_TTL_MS) {
+            setStage(parsed.stage);
+            setLoading(false);
+            return;
+          }
         }
+      } catch {
+        // Ignore parse errors
       }
-    } catch {
-      // Ignore parse errors
     }
 
     // Fetch from portal DB
     async function fetchStage() {
-      if (!portalSupabase || !profile?.npn) {
+      if (!portalSupabase) {
         setLoading(false);
         return;
       }
 
       try {
-        // Resolve agent_id from NPN via agent_intake
-        const { data: intake } = await portalSupabase
-          .from('agent_intake')
-          .select('agent_id')
-          .eq('npn', profile.npn)
-          .maybeSingle();
-
-        let agentId = intake?.agent_id ?? null;
-
-        // Get pipeline stage by agent_id from intake
         let pipeline: { stage: string } | null = null;
-        if (agentId) {
+
+        // In View As mode, use the View As agent ID directly
+        if (isViewingAs && viewAs.agentId) {
           const { data } = await portalSupabase
             .from('agent_pipeline')
             .select('stage')
-            .eq('agent_id', agentId)
+            .eq('agent_id', viewAs.agentId)
             .maybeSingle();
           pipeline = data;
         }
 
-        // Fallback: try matching agent_pipeline.agent_id against profile ID
-        // Handles test agents and cases where agent_intake doesn't exist
-        if (!pipeline && profile.id) {
-          const { data } = await portalSupabase
-            .from('agent_pipeline')
-            .select('stage')
-            .eq('agent_id', profile.id)
+        // Normal flow: resolve agent_id from NPN via agent_intake
+        if (!pipeline && profile?.npn) {
+          const { data: intake } = await portalSupabase
+            .from('agent_intake')
+            .select('agent_id')
+            .eq('npn', profile.npn)
             .maybeSingle();
-          if (data) {
+
+          let agentId = intake?.agent_id ?? null;
+
+          if (agentId) {
+            const { data } = await portalSupabase
+              .from('agent_pipeline')
+              .select('stage')
+              .eq('agent_id', agentId)
+              .maybeSingle();
             pipeline = data;
-            agentId = profile.id;
+          }
+
+          // Fallback: try matching agent_pipeline.agent_id against profile ID
+          if (!pipeline && profile.id) {
+            const { data } = await portalSupabase
+              .from('agent_pipeline')
+              .select('stage')
+              .eq('agent_id', profile.id)
+              .maybeSingle();
+            if (data) {
+              pipeline = data;
+            }
           }
         }
 
         if (!pipeline?.stage) {
-          // No pipeline record at all — check if producing agent
-          if (profile.writing_number) {
+          // No pipeline record — if in View As mode, don't infer actively_selling
+          // from the admin's writing number
+          if (!isViewingAs && profile?.writing_number) {
             setStage('actively_selling');
             cacheStage('actively_selling');
           } else {
@@ -121,7 +136,7 @@ export function useAgentContractingStage(): AgentContractingStageResult {
     }
 
     fetchStage();
-  }, [effectiveRole, profile]);
+  }, [effectiveRole, profile, isViewingAs, viewAs.agentId]);
 
   function cacheStage(s: AgentPipelineStage | null) {
     try {

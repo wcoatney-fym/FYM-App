@@ -297,7 +297,7 @@ export function TestViewLaunchModal({
           <Button
             variant="outline"
             onClick={handleReset}
-            disabled={loading || resetting || currentStage === 'hip_broker'}
+            disabled={loading || resetting}
             className="border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300"
           >
             {resetting ? (
