@@ -69,11 +69,35 @@ export function useAgentContractingStage(): AgentContractingStageResult {
           .eq('npn', profile.npn)
           .maybeSingle();
 
-        if (!intake?.agent_id) {
-          // No pipeline record — check if this is a producing agent
-          // (has writing_number) vs a truly new agent. Producing agents
-          // who were contracted before the pipeline existed should be
-          // treated as post-RTS, not pre-RTS.
+        let agentId = intake?.agent_id ?? null;
+
+        // Get pipeline stage by agent_id from intake
+        let pipeline: { stage: string } | null = null;
+        if (agentId) {
+          const { data } = await portalSupabase
+            .from('agent_pipeline')
+            .select('stage')
+            .eq('agent_id', agentId)
+            .maybeSingle();
+          pipeline = data;
+        }
+
+        // Fallback: try matching agent_pipeline.agent_id against profile ID
+        // Handles test agents and cases where agent_intake doesn't exist
+        if (!pipeline && profile.id) {
+          const { data } = await portalSupabase
+            .from('agent_pipeline')
+            .select('stage')
+            .eq('agent_id', profile.id)
+            .maybeSingle();
+          if (data) {
+            pipeline = data;
+            agentId = profile.id;
+          }
+        }
+
+        if (!pipeline?.stage) {
+          // No pipeline record at all — check if producing agent
           if (profile.writing_number) {
             setStage('actively_selling');
             cacheStage('actively_selling');
@@ -85,22 +109,9 @@ export function useAgentContractingStage(): AgentContractingStageResult {
           return;
         }
 
-        // Get pipeline stage
-        const { data: pipeline } = await portalSupabase
-          .from('agent_pipeline')
-          .select('stage')
-          .eq('agent_id', intake.agent_id)
-          .maybeSingle();
-
-        if (!pipeline?.stage && profile.writing_number) {
-          // Has agent_id but no pipeline record — producing agent
-          setStage('actively_selling');
-          cacheStage('actively_selling');
-        } else {
-          const s = (pipeline?.stage as AgentPipelineStage) ?? null;
-          setStage(s);
-          cacheStage(s);
-        }
+        const s = (pipeline.stage as AgentPipelineStage) ?? null;
+        setStage(s);
+        cacheStage(s);
       } catch {
         // On error, don't block — assume post-RTS to show full nav
         setStage('rts');

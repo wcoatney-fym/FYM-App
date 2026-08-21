@@ -58,6 +58,7 @@ export function AgentContractingPage() {
     submitWritingNumber,
     requestContracting,
     setStage,
+    resetTestAgent,
   } = useAgentPipeline();
 
   const { effectiveWritingNumber, isFymAdmin } = useEffectiveAuth();
@@ -367,6 +368,7 @@ export function AgentContractingPage() {
         <TestViewToolbar
           currentStage={currentStage}
           onAdvanceStage={setStage}
+          onReset={resetTestAgent}
         />
       )}
     </div>

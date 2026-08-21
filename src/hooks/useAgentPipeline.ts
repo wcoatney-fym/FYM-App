@@ -8,6 +8,7 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { portalSupabase } from '@/lib/portal-supabase';
+import { supabase } from '@/lib/supabase';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import type {
   PortalPipelineRecord,
@@ -108,6 +109,8 @@ export interface AgentPipelineData {
   requestContracting: (carrier: string) => Promise<boolean>;
   /** Admin test-view: update the real pipeline record's stage */
   setStage: (stage: AgentPipelineStage) => Promise<void>;
+  /** Admin test-view: full reset — wipes WN submissions, step completions, LOB assignments, resets to hip_broker */
+  resetTestAgent: () => Promise<void>;
 }
 
 export function useAgentPipeline(): AgentPipelineData {
@@ -181,10 +184,19 @@ export function useAgentPipeline(): AgentPipelineData {
         pipeline = data as PortalPipelineRecord | null;
       }
 
-      // If no match by agent_id, try email match on pipeline
-      if (!pipeline && profile.full_name) {
-        // Fall back — search by email in agent_pipeline
-        // This handles cases where agent_id isn't populated yet
+      // Fallback: try matching agent_pipeline.agent_id directly against
+      // the profile ID. Handles test agents and cases where agent_intake
+      // doesn't exist but pipeline record references the App DB profile ID.
+      if (!pipeline && profile.id) {
+        const { data } = await portalSupabase
+          .from('agent_pipeline')
+          .select('*')
+          .eq('agent_id', profile.id)
+          .maybeSingle();
+        if (data) {
+          pipeline = data as PortalPipelineRecord;
+          agentId = profile.id;
+        }
       }
 
       setPipelineRecord(pipeline);
@@ -464,6 +476,92 @@ export function useAgentPipeline(): AgentPipelineData {
     [pipelineRecord, fetchData]
   );
 
+  /**
+   * Admin test-view: full reset of Tester Mitchell.
+   * Wipes all accumulated test data so the test can be run
+   * cleanly from scratch multiple times:
+   * - Deletes all writing number submissions
+   * - Deletes all step completions
+   * - Deletes all LOB assignments
+   * - Resets pipeline record to hip_broker with clean state
+   * - Clears writing_number from App DB profile
+   */
+  const resetTestAgent = useCallback(
+    async (): Promise<void> => {
+      if (!portalSupabase || !pipelineRecord) return;
+      const agentId = pipelineRecord.agent_id;
+      const pipelineId = pipelineRecord.id;
+      const now = new Date().toISOString();
+
+      // 1. Delete all writing number submissions for this agent
+      if (agentId) {
+        await portalSupabase
+          .from('agent_writing_number_submissions')
+          .delete()
+          .eq('agent_id', agentId);
+      }
+
+      // 2. Delete all step completions for this pipeline record
+      await portalSupabase
+        .from('agent_step_completions')
+        .delete()
+        .eq('pipeline_id', pipelineId);
+
+      // 3. Delete all LOB assignments for this agent
+      if (agentId) {
+        await portalSupabase
+          .from('agent_lob_assignments')
+          .delete()
+          .eq('agent_id', agentId);
+      }
+
+      // 4. Reset pipeline record to hip_broker with clean state
+      await portalSupabase
+        .from('agent_pipeline')
+        .update({
+          stage: 'hip_broker' as AgentPipelineStage,
+          stage_entered_at: now,
+          updated_at: now,
+          completed_steps: {},
+          tags: [],
+          notes: `[${now}] Test agent reset to hip_broker (full data wipe)`,
+          wn_pending_review: false,
+          wn_pending_count: 0,
+          agent_action_pending: false,
+          agent_action_at: null,
+          last_updated_by: 'admin_test',
+          last_updated_by_display: 'Test View Reset',
+          updated_by_source: 'contracting_portal',
+        })
+        .eq('id', pipelineId);
+
+      // 5. Clear writing_number from App DB profile
+      //    (WN is earned during in_contracting, shouldn't persist after reset)
+      if (profile?.id && supabase) {
+        await supabase
+          .from('profiles')
+          .update({ writing_number: null })
+          .eq('id', profile.id);
+      }
+
+      // Clear local state
+      setWnSubmissions([]);
+      setStepCompletions([]);
+      setLobAssignments([]);
+
+      // Clear sessionStorage cache so stage hook re-resolves
+      try {
+        sessionStorage.removeItem('fym_agent_contracting_stage');
+      } catch {
+        // ignore
+      }
+
+      // Refetch everything
+      await fetchData();
+    },
+    [pipelineRecord, profile, fetchData]
+  );
+
   return {
     pipelineRecord,
     stageSteps,
@@ -477,5 +575,6 @@ export function useAgentPipeline(): AgentPipelineData {
     submitWritingNumber,
     requestContracting,
     setStage,
+    resetTestAgent,
   };
 }
