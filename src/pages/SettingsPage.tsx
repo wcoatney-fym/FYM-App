@@ -29,6 +29,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useViewAsStore } from '@/store/view-as-store';
 import { useTestViewStore } from '@/store/test-view-store';
+import { TestViewLaunchModal } from '@/components/test-view/TestViewLaunchModal';
 
 import type { UserRole } from '@/contexts/AuthContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -839,6 +840,7 @@ function ViewAsCard() {
   const { active, role, agencyName, agentName, activate, deactivate } = useViewAsStore();
   const testViewStore = useTestViewStore();
   const navigate = useNavigate();
+  const [launchModalOpen, setLaunchModalOpen] = useState(false);
 
   const [selectedRole, setSelectedRole] = useState<UserRole>('admin');
   const [agencies, setAgencies] = useState<AgencyOption[]>([]);
@@ -976,7 +978,17 @@ function ViewAsCard() {
             </div>
           </div>
           <Button
-            onClick={() => {
+            onClick={() => setLaunchModalOpen(true)}
+            className="bg-purple-500 hover:bg-purple-600 text-white"
+          >
+            <FlaskConical size={14} className="mr-1.5" />
+            Launch Test Agent View
+          </Button>
+          <TestViewLaunchModal
+            open={launchModalOpen}
+            onOpenChange={setLaunchModalOpen}
+            onLaunch={() => {
+              setLaunchModalOpen(false);
               // Activate View As: Tester Mitchell @ FYM as agent
               activate({
                 role: 'agent',
@@ -991,11 +1003,7 @@ function ViewAsCard() {
               // Navigate to agent contracting page
               navigate('/my-contracting');
             }}
-            className="bg-purple-500 hover:bg-purple-600 text-white"
-          >
-            <FlaskConical size={14} className="mr-1.5" />
-            Launch Test Agent View
-          </Button>
+          />
           {testViewStore.active && (
             <p className="text-xs text-purple-400/80 mt-2 flex items-center gap-1.5">
               <FlaskConical size={12} />
