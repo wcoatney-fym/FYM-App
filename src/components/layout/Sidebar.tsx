@@ -46,7 +46,7 @@ const agentNav: NavItem[] = [
   { to: '/my-goal', label: 'My Goal', icon: Target },
   { to: '/my-health', label: 'Book Health', icon: ShieldCheck },
   { to: '/training', label: 'Training', icon: GraduationCap },
-  { to: '/coaching', label: 'Coaching', icon: HeartPulse },
+  { to: '/quality/coaching-pipeline', label: 'Coaching', icon: HeartPulse, activePrefix: '/quality/coaching' },
   { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
