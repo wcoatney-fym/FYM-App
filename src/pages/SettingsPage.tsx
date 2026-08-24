@@ -1324,10 +1324,10 @@ function RosterLoginProvisionCard() {
         {/* Credential rules */}
         <div className="bg-muted/30 rounded-lg p-3 text-xs text-muted-foreground space-y-1">
           <p className="font-medium text-foreground/70">Credential rules:</p>
-          <p>• <span className="text-amber-400 font-medium">Admin</span> — email + admin password (from FYM_ADMIN_DEFAULT_PASSWORD secret)</p>
-          <p>• <span className="text-blue-400 font-medium">Manager</span> — email + manager password (from FYM_MANAGER_DEFAULT_PASSWORD secret)</p>
-          <p>• <span className="text-foreground/60 font-medium">Agent</span> — email + NPN as password</p>
-          <p className="pt-1 text-muted-foreground/70">Agents without email or NPN are skipped. Existing auth users are not modified.</p>
+          <p>• <span className="text-amber-400 font-medium">Admin</span> — logs in with <strong>email</strong> + admin password</p>
+          <p>• <span className="text-blue-400 font-medium">Manager</span> — logs in with <strong>last name</strong> + manager password</p>
+          <p>• <span className="text-foreground/60 font-medium">Agent</span> — logs in with <strong>last name</strong> + NPN as password</p>
+          <p className="pt-1 text-muted-foreground/70">Admins without email, and agents without NPN, are skipped. Existing auth users are not modified.</p>
         </div>
 
         {/* Error */}
@@ -1366,7 +1366,7 @@ function RosterLoginProvisionCard() {
                   <thead className="bg-muted sticky top-0">
                     <tr>
                       <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Name</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Email</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Username</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Role</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Status</th>
                       <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Reason</th>
@@ -1376,7 +1376,7 @@ function RosterLoginProvisionCard() {
                     {results.map((r, i) => (
                       <tr key={i} className="border-t border-border hover:bg-muted/30">
                         <td className="px-3 py-2 text-sm text-foreground">{r.name}</td>
-                        <td className="px-3 py-2 text-sm text-muted-foreground font-mono text-xs">{r.email || '—'}</td>
+                        <td className="px-3 py-2 text-sm text-muted-foreground font-mono text-xs">{(r as any).username || r.email || '—'}</td>
                         <td className="px-3 py-2">
                           <Badge variant="outline" className={`text-xs ${
                             r.role === 'admin' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
