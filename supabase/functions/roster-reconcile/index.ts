@@ -24,6 +24,40 @@ import {
   CONTRACT_STATUS,
 } from "../_shared/prod-db.ts";
 
+// ── Lifecycle integration types ──────────────────────────────────────
+
+interface LifecycleRecord {
+  id: string;
+  portal_agent_id: string;
+  lifecycle_status: string;
+  writing_number: string | null;
+  first_name: string;
+  last_name: string;
+  is_producing: boolean;
+  rts_confirmed: boolean;
+  crm_active: boolean;
+  app_access: boolean;
+  checkin_active: boolean;
+  offboarding_steps: Array<{
+    key: string;
+    label: string;
+    auto: boolean;
+    completed: boolean;
+    completed_at: string | null;
+  }> | null;
+}
+
+// Offboarding substeps — must match lifecycle-sync's definition
+const OFFBOARDING_STEPS = [
+  { key: "remove_ghl_crm", label: "Remove from GHL CRM", auto: false },
+  { key: "revoke_app_access", label: "Revoke app access", auto: true },
+  { key: "remove_daily_pulse", label: "Remove from Daily Pulse", auto: true },
+  { key: "remove_agency_roster", label: "Remove from agency roster", auto: true },
+  { key: "post_slack_notice", label: "Post Slack offboarding notice", auto: true },
+  { key: "notify_agency_owner", label: "Notify agency owner", auto: false },
+  { key: "archive_production", label: "Archive production data", auto: false },
+];
+
 // ── Helpers ──────────────────────────────────────────────────────────
 
 function corsHeaders(): Record<string, string> {
@@ -156,6 +190,185 @@ interface ReconcileIssue {
   prod_status: string | null;
   prod_term_date: string | null;
   action_taken: string | null;
+  lifecycle_action: string | null;
+}
+
+// ── Lifecycle cascade helpers ────────────────────────────────────────
+
+/**
+ * Find lifecycle record by writing number (any carrier column).
+ * Falls back to name+agency match if WN doesn't resolve.
+ */
+async function findLifecycleByWn(
+  supabase: ReturnType<typeof createClient>,
+  writingNumber: string,
+  agencyId: string,
+  agentName: string
+): Promise<LifecycleRecord | null> {
+  // Try by writing_number first
+  const { data: byWn } = await supabase
+    .from("agent_lifecycle")
+    .select(
+      "id, portal_agent_id, lifecycle_status, writing_number, first_name, last_name, is_producing, rts_confirmed, crm_active, app_access, checkin_active, offboarding_steps"
+    )
+    .eq("writing_number", writingNumber)
+    .maybeSingle();
+
+  if (byWn) return byWn as LifecycleRecord;
+
+  // Fallback: name + agency match
+  const [firstName, ...lastParts] = agentName.split(" ");
+  const lastName = lastParts.join(" ");
+  if (!firstName || !lastName) return null;
+
+  const { data: byName } = await supabase
+    .from("agent_lifecycle")
+    .select(
+      "id, portal_agent_id, lifecycle_status, writing_number, first_name, last_name, is_producing, rts_confirmed, crm_active, app_access, checkin_active, offboarding_steps"
+    )
+    .ilike("first_name", firstName)
+    .ilike("last_name", lastName)
+    .eq("agency_id", agencyId)
+    .maybeSingle();
+
+  return (byName as LifecycleRecord) || null;
+}
+
+/**
+ * Cascade a roster termination into agent_lifecycle:
+ * - Set lifecycle_status = 'terminated'
+ * - Revoke app_access, disable Daily Pulse
+ * - Initialize offboarding substeps
+ * - Log the event
+ */
+async function cascadeTermination(
+  supabase: ReturnType<typeof createClient>,
+  lifecycle: LifecycleRecord,
+  termDate: string | null,
+  carrier: string,
+  writingNumber: string
+): Promise<string> {
+  if (lifecycle.lifecycle_status === "terminated") {
+    return "already_terminated";
+  }
+
+  const now = new Date().toISOString();
+  const oldStatus = lifecycle.lifecycle_status;
+
+  const offboardingInit = OFFBOARDING_STEPS.map((s) => ({
+    ...s,
+    completed: false,
+    completed_at: null as string | null,
+  }));
+
+  const { error } = await supabase
+    .from("agent_lifecycle")
+    .update({
+      lifecycle_status: "terminated",
+      terminated_at: termDate || now,
+      termination_reason: `roster_reconciliation:${carrier}`,
+      app_access: false,
+      checkin_active: false,
+      offboarding_steps: offboardingInit,
+      offboarding_complete: false,
+      last_synced_at: now,
+    })
+    .eq("id", lifecycle.id);
+
+  if (error) {
+    return `error: ${error.message}`;
+  }
+
+  // Audit log
+  await supabase.from("agent_lifecycle_log").insert({
+    lifecycle_id: lifecycle.id,
+    action: "status_change",
+    old_status: oldStatus,
+    new_status: "terminated",
+    details: {
+      source: "roster_reconciliation",
+      carrier,
+      writing_number: writingNumber,
+      term_date: termDate,
+    },
+    performed_by: "system:roster-reconcile",
+  });
+
+  // Auto-complete the automated offboarding steps
+  const autoCompleted = offboardingInit.map((s) =>
+    s.auto ? { ...s, completed: true, completed_at: now } : s
+  );
+  const allComplete = autoCompleted.every((s) => s.completed);
+
+  await supabase
+    .from("agent_lifecycle")
+    .update({
+      offboarding_steps: autoCompleted,
+      offboarding_complete: allComplete,
+    })
+    .eq("id", lifecycle.id);
+
+  // Deactivate from Daily Pulse
+  if (lifecycle.portal_agent_id) {
+    await supabase
+      .from("checkin_recipients")
+      .update({ active: false })
+      .eq("portal_agent_id", lifecycle.portal_agent_id);
+  }
+
+  // Log auto-offboarding
+  await supabase.from("agent_lifecycle_log").insert({
+    lifecycle_id: lifecycle.id,
+    action: "auto_offboarding",
+    old_status: "terminated",
+    new_status: "terminated",
+    details: {
+      source: "roster_reconciliation",
+      agent_name: `${lifecycle.first_name} ${lifecycle.last_name}`,
+      auto_steps_completed: OFFBOARDING_STEPS.filter((s) => s.auto).map(
+        (s) => s.key
+      ),
+    },
+    performed_by: "system:roster-reconcile",
+  });
+
+  return "terminated";
+}
+
+/**
+ * Handle reinstatement: a roster-terminated agent is still active in prod.
+ * Flags for review — does NOT auto-reactivate (requires human decision).
+ * Logs the detection so it shows up in the lifecycle audit trail.
+ */
+async function flagReinstatement(
+  supabase: ReturnType<typeof createClient>,
+  lifecycle: LifecycleRecord,
+  carrier: string,
+  writingNumber: string,
+  prodStatus: string
+): Promise<string> {
+  // Don't flag if already non-terminated
+  if (lifecycle.lifecycle_status !== "terminated") {
+    return "not_terminated";
+  }
+
+  // Log the reinstatement signal for human review
+  await supabase.from("agent_lifecycle_log").insert({
+    lifecycle_id: lifecycle.id,
+    action: "reinstatement_detected",
+    old_status: "terminated",
+    new_status: null, // No auto-change — human review required
+    details: {
+      source: "roster_reconciliation",
+      carrier,
+      writing_number: writingNumber,
+      prod_status: prodStatus,
+      note: "Agent terminated in roster but active in prod DB. Requires human review for reinstatement.",
+    },
+    performed_by: "system:roster-reconcile",
+  });
+
+  return "reinstatement_flagged";
 }
 
 // ── Main ─────────────────────────────────────────────────────────────
@@ -345,6 +558,7 @@ Deno.serve(async (req) => {
           prod_status: null,
           prod_term_date: null,
           action_taken: null,
+          lifecycle_action: null,
         });
       } else if (isTerminatedCode(prod.cntrct_code)) {
         // Active in roster, terminated in prod
@@ -359,6 +573,7 @@ Deno.serve(async (req) => {
           prod_status: CONTRACT_STATUS[prod.cntrct_code] || prod.cntrct_code,
           prod_term_date: prod.term_date,
           action_taken: null,
+          lifecycle_action: null,
         });
       }
     }
@@ -384,6 +599,7 @@ Deno.serve(async (req) => {
           prod_status: CONTRACT_STATUS[prod.cntrct_code] || prod.cntrct_code,
           prod_term_date: null,
           action_taken: null,
+          lifecycle_action: null,
         });
       }
     }
@@ -391,6 +607,8 @@ Deno.serve(async (req) => {
     // ── 4. Apply changes (if mode=apply) ──
 
     let applied = 0;
+    let lifecycleCascades = 0;
+    let reinstatementFlags = 0;
     const applyErrors: string[] = [];
 
     if (mode === "apply") {
@@ -418,10 +636,62 @@ Deno.serve(async (req) => {
           } else {
             applied++;
             issue.action_taken = "terminated";
+
+            // ── Lifecycle cascade: terminate in agent_lifecycle ──
+            try {
+              const lifecycle = await findLifecycleByWn(
+                supabase,
+                issue.writing_number,
+                issue.agency_id,
+                issue.agent_name
+              );
+              if (lifecycle) {
+                const result = await cascadeTermination(
+                  supabase,
+                  lifecycle,
+                  issue.prod_term_date,
+                  issue.carrier,
+                  issue.writing_number
+                );
+                issue.lifecycle_action = result;
+                if (result === "terminated") lifecycleCascades++;
+              } else {
+                issue.lifecycle_action = "no_lifecycle_record";
+              }
+            } catch (err) {
+              issue.lifecycle_action = `error: ${(err as Error).message}`;
+              applyErrors.push(
+                `Lifecycle cascade failed for ${issue.agent_name}: ${(err as Error).message}`
+              );
+            }
+          }
+        } else if (issue.issue_type === "roster_terminated_prod_active") {
+          // ── Lifecycle: flag reinstatement for human review ──
+          try {
+            const lifecycle = await findLifecycleByWn(
+              supabase,
+              issue.writing_number,
+              issue.agency_id,
+              issue.agent_name
+            );
+            if (lifecycle) {
+              const result = await flagReinstatement(
+                supabase,
+                lifecycle,
+                issue.carrier,
+                issue.writing_number,
+                issue.prod_status || "active"
+              );
+              issue.lifecycle_action = result;
+              if (result === "reinstatement_flagged") reinstatementFlags++;
+            } else {
+              issue.lifecycle_action = "no_lifecycle_record";
+            }
+          } catch (err) {
+            issue.lifecycle_action = `error: ${(err as Error).message}`;
           }
         }
-        // Note: roster_terminated_prod_active and roster_active_prod_missing
-        // are flagged for human review only — no auto-action
+        // roster_active_prod_missing: flagged for human review only — no lifecycle action
       }
     }
 
@@ -471,6 +741,8 @@ Deno.serve(async (req) => {
         ).length,
       },
       applied: mode === "apply" ? applied : undefined,
+      lifecycle_cascades: mode === "apply" ? lifecycleCascades : undefined,
+      reinstatement_flags: mode === "apply" ? reinstatementFlags : undefined,
       apply_errors:
         mode === "apply" && applyErrors.length > 0
           ? applyErrors
