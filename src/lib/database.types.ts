@@ -3,6 +3,11 @@ export type AtRiskStatus = 'new' | 'assigned' | 'contacted' | 'saved' | 'lost';
 export type FlagType = 'at_risk' | null;
 export type AgencyVariant = 'brent_melanie' | 'fym_direct';
 export type CompTier = '60' | '65' | '70' | '75';
+
+// Coaching pipeline enums
+export type CoachingFlagType = 'production' | 'quality' | 'rts_watch';
+export type CoachingStage = 'flagged' | 'assigned' | 'action_plan' | 'in_progress' | 'review' | 'resolved' | 'escalated';
+export type CoachingRequirementType = 'training' | 'coaching_meeting' | 'live_attendance' | 'custom_task';
 export type BattleType = 'agent_vs_agent' | 'agency_vs_agency';
 export type GamificationMetric = 'policies' | 'ap' | 'retention';
 export type BattleStatus = 'upcoming' | 'active' | 'completed';
@@ -593,6 +598,98 @@ export interface Database {
         Relationships: [];
       };
       // coaching_pipeline: DROPPED in migration 20260731000001_drop_policy_cache_layer.sql
+
+      // ── Coaching Pipeline (added 20260824300001) ──────────────────────
+      coaching_plans: {
+        Row: {
+          id: string;
+          agency_id: string;
+          roster_agent_id: string;
+          flag_type: CoachingFlagType;
+          stage: CoachingStage;
+          assigned_to: string | null;
+          assigned_at: string | null;
+          flagged_at: string;
+          deadline: string;
+          resolved_at: string | null;
+          escalated_at: string | null;
+          trigger_metric: Record<string, unknown> | null;
+          target_metric: Record<string, unknown> | null;
+          resolution_note: string | null;
+          resolution_type: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['coaching_plans']['Row'],
+          'id' | 'created_at' | 'updated_at' | 'flagged_at'> & {
+          id?: string;
+          flagged_at?: string;
+          stage?: CoachingStage;
+        };
+        Update: Partial<Database['public']['Tables']['coaching_plans']['Insert']>;
+        Relationships: [];
+      };
+      coaching_requirements: {
+        Row: {
+          id: string;
+          plan_id: string;
+          requirement_type: CoachingRequirementType;
+          training_content_id: string | null;
+          meeting_scheduled_at: string | null;
+          meeting_attended: boolean;
+          meeting_notes: string | null;
+          required_count: number | null;
+          completed_count: number;
+          title: string;
+          description: string | null;
+          is_completed: boolean;
+          completed_at: string | null;
+          completed_by: string | null;
+          sort_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['coaching_requirements']['Row'],
+          'id' | 'created_at' | 'updated_at'> & {
+          id?: string;
+          meeting_attended?: boolean;
+          completed_count?: number;
+          is_completed?: boolean;
+          sort_order?: number;
+        };
+        Update: Partial<Database['public']['Tables']['coaching_requirements']['Insert']>;
+        Relationships: [];
+      };
+      coaching_notes: {
+        Row: {
+          id: string;
+          plan_id: string;
+          author_id: string;
+          body: string;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['coaching_notes']['Row'], 'id' | 'created_at'> & {
+          id?: string;
+        };
+        Update: Partial<Database['public']['Tables']['coaching_notes']['Insert']>;
+        Relationships: [];
+      };
+      coaching_stage_history: {
+        Row: {
+          id: string;
+          plan_id: string;
+          from_stage: CoachingStage | null;
+          to_stage: CoachingStage;
+          changed_by: string | null;
+          note: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['coaching_stage_history']['Row'], 'id' | 'created_at'> & {
+          id?: string;
+        };
+        Update: Partial<Database['public']['Tables']['coaching_stage_history']['Insert']>;
+        Relationships: [];
+      };
     };
     // Functions dropped in migration 20260731000001_drop_policy_cache_layer.sql:
     // filtered_agency_production, filtered_agent_production,
