@@ -105,6 +105,10 @@ export function SettingsPage() {
                 <KeyRound size={14} />
                 Agency Access
               </TabsTrigger>
+              <TabsTrigger value="roster-logins" className="gap-1.5">
+                <Users size={14} />
+                Roster Logins
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="general">
@@ -180,6 +184,10 @@ export function SettingsPage() {
 
             <TabsContent value="agency-access">
               <AgencyCredentialsCard />
+            </TabsContent>
+
+            <TabsContent value="roster-logins">
+              <RosterLoginProvisionCard />
             </TabsContent>
           </Tabs>
         ) : (
@@ -1152,6 +1160,251 @@ function ViewAsCard() {
         </div>
 
 
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Roster Login Provisioning ───────────────────────────────────────────────
+
+interface ProvisionResult {
+  name: string;
+  email: string;
+  role: string;
+  action: 'created' | 'skipped' | 'updated' | 'error';
+  reason?: string;
+}
+
+interface ProvisionSummary {
+  total: number;
+  created: number;
+  skipped: number;
+  errors: number;
+}
+
+function RosterLoginProvisionCard() {
+  const [agencies, setAgencies] = useState<{ id: string; name: string }[]>([]);
+  const [selectedAgency, setSelectedAgency] = useState<string>('');
+  const [loading, setLoading] = useState(true);
+  const [provisioning, setProvisioning] = useState(false);
+  const [dryRunning, setDryRunning] = useState(false);
+  const [results, setResults] = useState<ProvisionResult[] | null>(null);
+  const [summary, setSummary] = useState<ProvisionSummary | null>(null);
+  const [isDryRun, setIsDryRun] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadAgencies() {
+      if (!supabase) { setLoading(false); return; }
+      const { data } = await (supabase as any)
+        .from('agencies')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name');
+      if (data) setAgencies(data);
+      setLoading(false);
+    }
+    loadAgencies();
+  }, []);
+
+  async function runProvision(dryRun: boolean) {
+    if (!supabase) return;
+    if (dryRun) setDryRunning(true);
+    else setProvisioning(true);
+    setError(null);
+    setResults(null);
+    setSummary(null);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+
+      const body: Record<string, unknown> = { dry_run: dryRun };
+      if (selectedAgency === 'all') {
+        body.action = 'bulk';
+      } else if (selectedAgency) {
+        body.agency_id = selectedAgency;
+      } else {
+        throw new Error('Select an agency first');
+      }
+
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/provision-roster-logins`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify(body),
+        },
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+
+      setResults(json.results ?? []);
+      setSummary(json.summary ?? null);
+      setIsDryRun(dryRun);
+    } catch (err: any) {
+      setError(err.message ?? 'Provisioning failed');
+    } finally {
+      setProvisioning(false);
+      setDryRunning(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <Card className="border-border">
+        <CardContent className="py-8 flex justify-center">
+          <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="border-border">
+      <CardHeader>
+        <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
+          <Users size={18} className="text-primary" />
+          Roster Login Provisioning
+        </CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Create app logins for agents in the roster. Admins get the standard admin password,
+          managers get the manager password, and agents log in with their NPN.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Agency selector */}
+        <div className="flex items-end gap-3">
+          <div className="flex-1 space-y-1.5">
+            <Label className="text-sm font-medium text-foreground/80">Agency</Label>
+            <Select value={selectedAgency} onValueChange={setSelectedAgency}>
+              <SelectTrigger className="bg-card">
+                <SelectValue placeholder="Select agency..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Agencies (bulk)</SelectItem>
+                {agencies.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Button
+            variant="outline"
+            onClick={() => runProvision(true)}
+            disabled={!selectedAgency || dryRunning || provisioning}
+            className="gap-1.5"
+          >
+            {dryRunning ? (
+              <><span className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />Running...</>
+            ) : (
+              <><Search size={14} />Dry Run</>
+            )}
+          </Button>
+
+          <Button
+            onClick={() => runProvision(false)}
+            disabled={!selectedAgency || provisioning || dryRunning}
+            className="gap-1.5 bg-emerald-600 hover:bg-emerald-700"
+          >
+            {provisioning ? (
+              <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Provisioning...</>
+            ) : (
+              <><Zap size={14} />Provision Logins</>
+            )}
+          </Button>
+        </div>
+
+        {/* Credential rules */}
+        <div className="bg-muted/30 rounded-lg p-3 text-xs text-muted-foreground space-y-1">
+          <p className="font-medium text-foreground/70">Credential rules:</p>
+          <p>• <span className="text-amber-400 font-medium">Admin</span> — email + admin password (from FYM_ADMIN_DEFAULT_PASSWORD secret)</p>
+          <p>• <span className="text-blue-400 font-medium">Manager</span> — email + manager password (from FYM_MANAGER_DEFAULT_PASSWORD secret)</p>
+          <p>• <span className="text-foreground/60 font-medium">Agent</span> — email + NPN as password</p>
+          <p className="pt-1 text-muted-foreground/70">Agents without email or NPN are skipped. Existing auth users are not modified.</p>
+        </div>
+
+        {/* Error */}
+        {error && (
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400">
+            <AlertCircle size={16} />
+            {error}
+          </div>
+        )}
+
+        {/* Summary */}
+        {summary && (
+          <div className="space-y-3">
+            <div className={`flex items-center gap-4 p-3 rounded-lg border ${
+              isDryRun ? 'bg-blue-500/5 border-blue-500/20' : 'bg-emerald-500/5 border-emerald-500/20'
+            }`}>
+              <div className="flex items-center gap-1.5 text-sm font-medium">
+                {isDryRun ? (
+                  <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/30">Dry Run</Badge>
+                ) : (
+                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30">Provisioned</Badge>
+                )}
+              </div>
+              <div className="flex gap-6 text-sm">
+                <span className="text-foreground">{summary.total} total</span>
+                <span className="text-emerald-400">{summary.created} {isDryRun ? 'would create' : 'created'}</span>
+                <span className="text-muted-foreground">{summary.skipped} skipped</span>
+                {summary.errors > 0 && <span className="text-red-400">{summary.errors} errors</span>}
+              </div>
+            </div>
+
+            {/* Results table */}
+            {results && results.length > 0 && (
+              <div className="rounded-lg border border-border overflow-hidden max-h-80 overflow-y-auto">
+                <table className="w-full">
+                  <thead className="bg-muted sticky top-0">
+                    <tr>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Name</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Email</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Role</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Status</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Reason</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {results.map((r, i) => (
+                      <tr key={i} className="border-t border-border hover:bg-muted/30">
+                        <td className="px-3 py-2 text-sm text-foreground">{r.name}</td>
+                        <td className="px-3 py-2 text-sm text-muted-foreground font-mono text-xs">{r.email || '—'}</td>
+                        <td className="px-3 py-2">
+                          <Badge variant="outline" className={`text-xs ${
+                            r.role === 'admin' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
+                            r.role === 'manager' ? 'bg-blue-500/10 text-blue-400 border-blue-500/30' :
+                            'bg-muted text-muted-foreground border-border'
+                          }`}>
+                            {r.role}
+                          </Badge>
+                        </td>
+                        <td className="px-3 py-2">
+                          <Badge variant="outline" className={`text-xs ${
+                            r.action === 'created' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' :
+                            r.action === 'skipped' ? 'bg-muted text-muted-foreground border-border' :
+                            r.action === 'error' ? 'bg-red-500/10 text-red-400 border-red-500/30' :
+                            'bg-blue-500/10 text-blue-400 border-blue-500/30'
+                          }`}>
+                            {r.action}
+                          </Badge>
+                        </td>
+                        <td className="px-3 py-2 text-xs text-muted-foreground">{r.reason || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
