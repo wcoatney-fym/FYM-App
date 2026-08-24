@@ -145,6 +145,7 @@ function App() {
             <Route path="/financials" element={<Navigate to="/production" replace />} />
             <Route path="/at-risk" element={<Navigate to="/quality/at-risk" replace />} />
             <Route path="/coaching" element={<Navigate to="/quality/coaching" replace />} />
+            <Route path="/coaching-pipeline" element={<Navigate to="/quality/coaching-pipeline" replace />} />
             <Route path="/retention" element={<Navigate to="/quality/retention" replace />} />
           </Route>
         </Routes>
