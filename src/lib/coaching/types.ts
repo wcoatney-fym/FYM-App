@@ -2,9 +2,9 @@
  * Coaching Pipeline — Types & Constants
  *
  * Three flag types, one shared pipeline:
- *   🟡 production  — low production, 30-day window
- *   🔴 quality     — high at-risk/terminated %, 30-day window
- *   🟢 rts_watch   — moved to RTS in contracting, 7-day window
+ *   🟡 production  — low production in trailing 14-day lookback, 30-day deadline
+ *   🔴 quality     — high at-risk/terminated % over 60-day lookback + full book, 30-day deadline
+ *   🟢 rts_watch   — moved to RTS in contracting, 30-day deadline
  *
  * Pipeline: flagged → assigned → action_plan → in_progress → review → resolved | escalated
  */
@@ -229,30 +229,53 @@ export interface CoachingThresholds {
   terminated_pct_max: number;
   min_eligible_policies: number;
   production_min_policies: number;
-  production_window_days: number;
-  quality_window_days: number;
-  rts_window_days: number;
+  /** Trailing days to evaluate production (default 14 = bi-weekly) */
+  production_lookback_days: number;
+  /** Days agent has to resolve a production flag (default 30) */
+  production_deadline_days: number;
+  /** Trailing days to evaluate quality metrics (default 60) */
+  quality_lookback_days: number;
+  /** Days agent has to resolve a quality flag (default 30) */
+  quality_deadline_days: number;
+  /** Days agent has to resolve an RTS watch flag (default 30) */
+  rts_deadline_days: number;
   updated_at: string;
   updated_by: string | null;
 }
 
 /** Default window in days per flag type */
-export function getDefaultWindowDays(
+/** Get the resolution deadline in days for a flag type */
+export function getDeadlineDays(
   flagType: CoachingFlagType,
   thresholds?: CoachingThresholds,
 ): number {
   if (thresholds) {
     switch (flagType) {
-      case 'production': return thresholds.production_window_days;
-      case 'quality': return thresholds.quality_window_days;
-      case 'rts_watch': return thresholds.rts_window_days;
+      case 'production': return thresholds.production_deadline_days;
+      case 'quality': return thresholds.quality_deadline_days;
+      case 'rts_watch': return thresholds.rts_deadline_days;
     }
   }
-  // Defaults if thresholds not loaded yet
+  // Defaults if thresholds not loaded yet — all 30 days
+  return 30;
+}
+
+/** Get the evaluation lookback window in days for a flag type */
+export function getLookbackDays(
+  flagType: CoachingFlagType,
+  thresholds?: CoachingThresholds,
+): number {
+  if (thresholds) {
+    switch (flagType) {
+      case 'production': return thresholds.production_lookback_days;
+      case 'quality': return thresholds.quality_lookback_days;
+      case 'rts_watch': return 0; // RTS is event-driven, no lookback
+    }
+  }
   switch (flagType) {
-    case 'production': return 30;
-    case 'quality': return 30;
-    case 'rts_watch': return 7;
+    case 'production': return 14;
+    case 'quality': return 60;
+    case 'rts_watch': return 0;
   }
 }
 
@@ -263,7 +286,7 @@ export function calculateDeadline(
   thresholds?: CoachingThresholds,
 ): Date {
   const d = new Date(flaggedAt);
-  d.setDate(d.getDate() + getDefaultWindowDays(flagType, thresholds));
+  d.setDate(d.getDate() + getDeadlineDays(flagType, thresholds));
   return d;
 }
 

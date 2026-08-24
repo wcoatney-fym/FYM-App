@@ -13,9 +13,16 @@ interface Thresholds {
   terminated_pct_max: number;
   min_eligible_policies: number;
   production_min_policies: number;
-  production_window_days: number;
-  quality_window_days: number;
-  rts_window_days: number;
+  /** Trailing days to evaluate production (default 14 = bi-weekly) */
+  production_lookback_days: number;
+  /** Days agent has to resolve a production flag (default 30) */
+  production_deadline_days: number;
+  /** Trailing days to evaluate quality metrics (default 60) */
+  quality_lookback_days: number;
+  /** Days agent has to resolve a quality flag (default 30) */
+  quality_deadline_days: number;
+  /** Days agent has to resolve an RTS watch flag (default 30) */
+  rts_deadline_days: number;
 }
 
 const DEFAULTS: Thresholds = {
@@ -23,10 +30,12 @@ const DEFAULTS: Thresholds = {
   at_risk_pct_max: 15.0,
   terminated_pct_max: 20.0,
   min_eligible_policies: 5,
-  production_min_policies: 3,
-  production_window_days: 30,
-  quality_window_days: 30,
-  rts_window_days: 7,
+  production_min_policies: 10,
+  production_lookback_days: 14,
+  production_deadline_days: 30,
+  quality_lookback_days: 60,
+  quality_deadline_days: 30,
+  rts_deadline_days: 30,
 };
 
 export function CoachingThresholdsCard() {
@@ -44,7 +53,7 @@ export function CoachingThresholdsCard() {
     if (!supabase) { setLoading(false); return; }
     const { data, error } = await (supabase as any)
       .from('coaching_thresholds')
-      .select('retention_pct_min, at_risk_pct_max, terminated_pct_max, min_eligible_policies, production_min_policies, production_window_days, quality_window_days, rts_window_days')
+      .select('retention_pct_min, at_risk_pct_max, terminated_pct_max, min_eligible_policies, production_min_policies, production_lookback_days, production_deadline_days, quality_lookback_days, quality_deadline_days, rts_deadline_days')
       .eq('id', 1)
       .maybeSingle();
     if (error) {
@@ -58,10 +67,12 @@ export function CoachingThresholdsCard() {
         at_risk_pct_max: Number(data.at_risk_pct_max),
         terminated_pct_max: Number(data.terminated_pct_max),
         min_eligible_policies: Number(data.min_eligible_policies),
-        production_min_policies: Number(data.production_min_policies ?? 3),
-        production_window_days: Number(data.production_window_days ?? 30),
-        quality_window_days: Number(data.quality_window_days ?? 30),
-        rts_window_days: Number(data.rts_window_days ?? 7),
+        production_min_policies: Number(data.production_min_policies ?? 10),
+        production_lookback_days: Number(data.production_lookback_days ?? 14),
+        production_deadline_days: Number(data.production_deadline_days ?? 30),
+        quality_lookback_days: Number(data.quality_lookback_days ?? 60),
+        quality_deadline_days: Number(data.quality_deadline_days ?? 30),
+        rts_deadline_days: Number(data.rts_deadline_days ?? 30),
       };
       setThresholds(loaded);
       setOriginal(loaded);
@@ -85,9 +96,11 @@ export function CoachingThresholdsCard() {
         terminated_pct_max: thresholds.terminated_pct_max,
         min_eligible_policies: thresholds.min_eligible_policies,
         production_min_policies: thresholds.production_min_policies,
-        production_window_days: thresholds.production_window_days,
-        quality_window_days: thresholds.quality_window_days,
-        rts_window_days: thresholds.rts_window_days,
+        production_lookback_days: thresholds.production_lookback_days,
+        production_deadline_days: thresholds.production_deadline_days,
+        quality_lookback_days: thresholds.quality_lookback_days,
+        quality_deadline_days: thresholds.quality_deadline_days,
+        rts_deadline_days: thresholds.rts_deadline_days,
         updated_at: new Date().toISOString(),
       })
       .eq('id', 1);
@@ -149,6 +162,7 @@ export function CoachingThresholdsCard() {
           Agents whose book metrics breach any threshold appear in the "Needs Coaching" table.
         </p>
 
+        {/* ── Book Health Thresholds ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <Label className="text-sm font-medium text-foreground/80">
@@ -244,16 +258,16 @@ export function CoachingThresholdsCard() {
           </div>
         </div>
 
-        {/* ── Coaching Pipeline Thresholds ──────────────────── */}
+        {/* ── Production Flag Settings ── */}
         <div className="pt-3 border-t border-border">
           <h4 className="text-sm font-medium text-foreground/80 mb-3 flex items-center gap-2">
-            Pipeline Settings
-            <Badge variant="outline" className="text-[10px] border-border text-muted-foreground">Coaching Pipeline</Badge>
+            <span className="text-amber-400">🟡</span> Production Flag
+            <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400">Bi-Weekly</Badge>
           </h4>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-foreground/80 flex items-center gap-1.5">
-                <span className="text-amber-400">🟡</span> Production Minimum
+              <Label className="text-sm font-medium text-foreground/80">
+                Minimum Policies
               </Label>
               <div className="flex items-center gap-2">
                 <Input
@@ -271,13 +285,13 @@ export function CoachingThresholdsCard() {
                 <span className="text-sm text-muted-foreground">policies</span>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Agents below this count in the trailing window are flagged for production coaching.
+                Flag if ≤ this many policies in the lookback window.
               </p>
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-foreground/80 flex items-center gap-1.5">
-                <span className="text-amber-400">🟡</span> Production Window
+              <Label className="text-sm font-medium text-foreground/80">
+                Lookback Window
               </Label>
               <div className="flex items-center gap-2">
                 <Input
@@ -285,23 +299,23 @@ export function CoachingThresholdsCard() {
                   step="1"
                   min="7"
                   max="90"
-                  value={thresholds.production_window_days}
+                  value={thresholds.production_lookback_days}
                   onChange={(e) => setThresholds(prev => ({
                     ...prev,
-                    production_window_days: parseInt(e.target.value) || 30,
+                    production_lookback_days: parseInt(e.target.value) || 14,
                   }))}
                   className="bg-card font-data w-24"
                 />
                 <span className="text-sm text-muted-foreground">days</span>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Coaching deadline for production flags.
+                How far back to check production (default 14 = bi-weekly).
               </p>
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-foreground/80 flex items-center gap-1.5">
-                <span className="text-red-400">🔴</span> Quality Window
+              <Label className="text-sm font-medium text-foreground/80">
+                Resolution Deadline
               </Label>
               <div className="flex items-center gap-2">
                 <Input
@@ -309,41 +323,107 @@ export function CoachingThresholdsCard() {
                   step="1"
                   min="7"
                   max="90"
-                  value={thresholds.quality_window_days}
+                  value={thresholds.production_deadline_days}
                   onChange={(e) => setThresholds(prev => ({
                     ...prev,
-                    quality_window_days: parseInt(e.target.value) || 30,
+                    production_deadline_days: parseInt(e.target.value) || 30,
                   }))}
                   className="bg-card font-data w-24"
                 />
                 <span className="text-sm text-muted-foreground">days</span>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Coaching deadline for quality flags (at-risk / terminated %).
+                Days the agent has to increase production above the threshold.
               </p>
             </div>
+          </div>
+        </div>
 
+        {/* ── Quality Flag Settings ── */}
+        <div className="pt-3 border-t border-border">
+          <h4 className="text-sm font-medium text-foreground/80 mb-3 flex items-center gap-2">
+            <span className="text-red-400">🔴</span> Quality Flag
+            <Badge variant="outline" className="text-[10px] border-red-500/30 text-red-400">Book Health</Badge>
+          </h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-foreground/80 flex items-center gap-1.5">
-                <span className="text-emerald-400">🟢</span> RTS Watch Window
+              <Label className="text-sm font-medium text-foreground/80">
+                Lookback Window
               </Label>
               <div className="flex items-center gap-2">
                 <Input
                   type="number"
                   step="1"
-                  min="1"
-                  max="30"
-                  value={thresholds.rts_window_days}
+                  min="14"
+                  max="180"
+                  value={thresholds.quality_lookback_days}
                   onChange={(e) => setThresholds(prev => ({
                     ...prev,
-                    rts_window_days: parseInt(e.target.value) || 7,
+                    quality_lookback_days: parseInt(e.target.value) || 60,
                   }))}
                   className="bg-card font-data w-24"
                 />
                 <span className="text-sm text-muted-foreground">days</span>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Observation window when an agent moves to RTS.
+                Recent production window for quality evaluation. At-risk and terminated percentages are evaluated against the full book.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium text-foreground/80">
+                Resolution Deadline
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  step="1"
+                  min="7"
+                  max="90"
+                  value={thresholds.quality_deadline_days}
+                  onChange={(e) => setThresholds(prev => ({
+                    ...prev,
+                    quality_deadline_days: parseInt(e.target.value) || 30,
+                  }))}
+                  className="bg-card font-data w-24"
+                />
+                <span className="text-sm text-muted-foreground">days</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Days the agent has to correct quality metrics or show meaningful improvement.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* ── RTS Watch Settings ── */}
+        <div className="pt-3 border-t border-border">
+          <h4 className="text-sm font-medium text-foreground/80 mb-3 flex items-center gap-2">
+            <span className="text-emerald-400">🟢</span> RTS Watch
+            <Badge variant="outline" className="text-[10px] border-emerald-500/30 text-emerald-400">Contracting</Badge>
+          </h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium text-foreground/80">
+                Resolution Deadline
+              </Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  step="1"
+                  min="7"
+                  max="90"
+                  value={thresholds.rts_deadline_days}
+                  onChange={(e) => setThresholds(prev => ({
+                    ...prev,
+                    rts_deadline_days: parseInt(e.target.value) || 30,
+                  }))}
+                  className="bg-card font-data w-24"
+                />
+                <span className="text-sm text-muted-foreground">days</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Days the agent has to resolve an RTS watch flag. Triggered by the contracting pipeline, not by metric lookback.
               </p>
             </div>
           </div>

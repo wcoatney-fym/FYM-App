@@ -12,15 +12,19 @@
 -- ═══════════════════════════════════════════════════════════════════════
 
 ALTER TABLE coaching_thresholds
-  ADD COLUMN IF NOT EXISTS production_min_policies integer NOT NULL DEFAULT 3,
-  ADD COLUMN IF NOT EXISTS production_window_days  integer NOT NULL DEFAULT 30,
-  ADD COLUMN IF NOT EXISTS quality_window_days     integer NOT NULL DEFAULT 30,
-  ADD COLUMN IF NOT EXISTS rts_window_days         integer NOT NULL DEFAULT 7;
+  ADD COLUMN IF NOT EXISTS production_min_policies    integer NOT NULL DEFAULT 10,
+  ADD COLUMN IF NOT EXISTS production_lookback_days   integer NOT NULL DEFAULT 14,
+  ADD COLUMN IF NOT EXISTS production_deadline_days   integer NOT NULL DEFAULT 30,
+  ADD COLUMN IF NOT EXISTS quality_lookback_days      integer NOT NULL DEFAULT 60,
+  ADD COLUMN IF NOT EXISTS quality_deadline_days      integer NOT NULL DEFAULT 30,
+  ADD COLUMN IF NOT EXISTS rts_deadline_days          integer NOT NULL DEFAULT 30;
 
-COMMENT ON COLUMN coaching_thresholds.production_min_policies IS 'Minimum policies written in trailing window to avoid a production flag';
-COMMENT ON COLUMN coaching_thresholds.production_window_days IS 'Trailing days for production threshold evaluation (default 30)';
-COMMENT ON COLUMN coaching_thresholds.quality_window_days IS 'Coaching window in days for quality flags (default 30)';
-COMMENT ON COLUMN coaching_thresholds.rts_window_days IS 'Coaching window in days for RTS watch flags (default 7)';
+COMMENT ON COLUMN coaching_thresholds.production_min_policies IS 'Minimum policies in trailing lookback window to avoid a production flag';
+COMMENT ON COLUMN coaching_thresholds.production_lookback_days IS 'Trailing days to evaluate production (default 14 = bi-weekly)';
+COMMENT ON COLUMN coaching_thresholds.production_deadline_days IS 'Days the agent has to resolve a production flag (default 30)';
+COMMENT ON COLUMN coaching_thresholds.quality_lookback_days IS 'Trailing days to evaluate quality metrics — at-risk %, terminated % (default 60)';
+COMMENT ON COLUMN coaching_thresholds.quality_deadline_days IS 'Days the agent has to resolve a quality flag (default 30)';
+COMMENT ON COLUMN coaching_thresholds.rts_deadline_days IS 'Days the agent has to resolve an RTS watch flag (default 30)';
 
 -- ═══════════════════════════════════════════════════════════════════════
 -- 2. Enum types
