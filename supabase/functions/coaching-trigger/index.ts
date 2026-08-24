@@ -59,9 +59,16 @@ interface Thresholds {
   terminated_pct_max: number;
   min_eligible_policies: number;
   production_min_policies: number;
-  production_window_days: number;
-  quality_window_days: number;
-  rts_window_days: number;
+  /** Trailing days to evaluate production (default 14 = bi-weekly) */
+  production_lookback_days: number;
+  /** Days agent has to resolve a production flag (default 30) */
+  production_deadline_days: number;
+  /** Trailing days to evaluate quality metrics (default 60) */
+  quality_lookback_days: number;
+  /** Days agent has to resolve a quality flag (default 30) */
+  quality_deadline_days: number;
+  /** Days agent has to resolve an RTS watch flag (default 30) */
+  rts_deadline_days: number;
 }
 
 interface FlagResult {
@@ -119,10 +126,12 @@ Deno.serve(async (req) => {
       at_risk_pct_max: Number(thresholdRow?.at_risk_pct_max ?? 15),
       terminated_pct_max: Number(thresholdRow?.terminated_pct_max ?? 20),
       min_eligible_policies: Number(thresholdRow?.min_eligible_policies ?? 5),
-      production_min_policies: Number(thresholdRow?.production_min_policies ?? 3),
-      production_window_days: Number(thresholdRow?.production_window_days ?? 30),
-      quality_window_days: Number(thresholdRow?.quality_window_days ?? 30),
-      rts_window_days: Number(thresholdRow?.rts_window_days ?? 7),
+      production_min_policies: Number(thresholdRow?.production_min_policies ?? 10),
+      production_lookback_days: Number(thresholdRow?.production_lookback_days ?? 14),
+      production_deadline_days: Number(thresholdRow?.production_deadline_days ?? 30),
+      quality_lookback_days: Number(thresholdRow?.quality_lookback_days ?? 60),
+      quality_deadline_days: Number(thresholdRow?.quality_deadline_days ?? 30),
+      rts_deadline_days: Number(thresholdRow?.rts_deadline_days ?? 30),
     };
 
     // ── 3. Load agency roster mapping (writing_number → roster id + agency_id) ──
@@ -205,7 +214,7 @@ Deno.serve(async (req) => {
     const threeMonthsAgoStr = threeMonthsAgo.toISOString().slice(0, 10);
 
     const prodWindowDaysAgo = new Date(now);
-    prodWindowDaysAgo.setDate(prodWindowDaysAgo.getDate() - thresholds.production_window_days);
+    prodWindowDaysAgo.setDate(prodWindowDaysAgo.getDate() - thresholds.production_lookback_days);
     const prodWindowStr = prodWindowDaysAgo.toISOString().slice(0, 10);
 
     const rows = await sql`
@@ -300,12 +309,12 @@ Deno.serve(async (req) => {
           trigger_metric: {
             policies_in_window: agent.recent_policies_30d,
             threshold: thresholds.production_min_policies,
-            window_days: thresholds.production_window_days,
+            lookback_days: thresholds.production_lookback_days,
           },
           target_metric: {
             metric: "policies_in_window",
             target: thresholds.production_min_policies,
-            window_days: thresholds.production_window_days,
+            lookback_days: thresholds.production_lookback_days,
           },
         });
       }
@@ -381,15 +390,15 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Calculate deadline based on flag type window
-        const windowDays = flag.flag_type === "production"
-          ? thresholds.production_window_days
+        // Calculate deadline — how long the agent has to resolve the flag
+        const deadlineDays = flag.flag_type === "production"
+          ? thresholds.production_deadline_days
           : flag.flag_type === "quality"
-            ? thresholds.quality_window_days
-            : thresholds.rts_window_days;
+            ? thresholds.quality_deadline_days
+            : thresholds.rts_deadline_days;
 
         const deadline = new Date();
-        deadline.setDate(deadline.getDate() + windowDays);
+        deadline.setDate(deadline.getDate() + deadlineDays);
 
         const { data: newPlan, error: insertErr } = await supabase
           .from("coaching_plans")

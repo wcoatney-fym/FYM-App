@@ -401,9 +401,11 @@ export interface Database {
           terminated_pct_max: number;
           min_eligible_policies: number;
           production_min_policies: number;
-          production_window_days: number;
-          quality_window_days: number;
-          rts_window_days: number;
+          production_lookback_days: number;
+          production_deadline_days: number;
+          quality_lookback_days: number;
+          quality_deadline_days: number;
+          rts_deadline_days: number;
           updated_at: string;
           updated_by: string | null;
         };
