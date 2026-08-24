@@ -292,6 +292,10 @@ export interface Database {
           manhattan_writing_number: string | null;
           is_manager: boolean;
           status: string;
+          termination_date: string | null;
+          termination_reason: string | null;
+          status_changed_at: string | null;
+          status_changed_by: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -311,6 +315,10 @@ export interface Database {
           manhattan_writing_number?: string | null;
           is_manager?: boolean;
           status?: string;
+          termination_date?: string | null;
+          termination_reason?: string | null;
+          status_changed_at?: string | null;
+          status_changed_by?: string | null;
         };
         Update: Partial<Database['public']['Tables']['agency_rosters']['Insert']>;
         Relationships: [];
