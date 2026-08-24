@@ -710,6 +710,20 @@ export interface Database {
         Relationships: [];
       };
       // coaching_pipeline: DROPPED in migration 20260731000001_drop_policy_cache_layer.sql
+      coaching_pipeline_summary: {
+        Row: {
+          agency_id: string;
+          agency_name: string;
+          agency_writing_number: string | null;
+          flag_type: CoachingFlagType;
+          stage: CoachingStage;
+          plan_count: number;
+          overdue_count: number;
+          due_this_week_count: number;
+          active_count: number;
+        };
+        Relationships: [];
+      };
     };
     // Functions dropped in migration 20260731000001_drop_policy_cache_layer.sql:
     // filtered_agency_production, filtered_agent_production,
