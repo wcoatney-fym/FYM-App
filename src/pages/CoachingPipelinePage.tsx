@@ -6,23 +6,21 @@
  *
  * Route: /quality/coaching-pipeline
  */
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { Header } from '@/components/layout/Header';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { useAgencyFilter } from '@/hooks/useAgencyFilter';
 import { CoachingKanban } from '@/components/coaching/CoachingKanban';
 import { CoachingPlanDrawer } from '@/components/coaching/CoachingPlanDrawer';
 import { AgentCoachingPlanView } from '@/components/coaching/AgentCoachingPlanView';
-import { fetchCoachingSummary, type CoachingSummary } from '@/lib/coaching/api';
 import { Link } from 'react-router-dom';
 import {
-  Zap, BarChart3, Users, HeartPulse,
+  Zap, HeartPulse,
 } from 'lucide-react';
 
 export function CoachingPipelinePage() {
-  const { effectiveAgencyId, effectiveRole, isOrgWide, isAgent } = useEffectiveAuth();
+  const { effectiveAgencyId, isOrgWide, isAgent } = useEffectiveAuth();
   const { filterAgencyId } = useAgencyFilter();
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);

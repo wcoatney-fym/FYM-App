@@ -15,7 +15,7 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   RefreshCw, Search, Clock, Users, AlertTriangle, Loader2,
-  ChevronRight, GripVertical, User, Target, CheckCircle2,
+  GripVertical, User, Target,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';

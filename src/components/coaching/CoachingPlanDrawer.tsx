@@ -11,8 +11,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   X, Clock, User, Target, CheckCircle2, Plus, Trash2,
-  MessageSquare, ChevronRight, GraduationCap, Calendar,
-  Users, ListChecks, Send, History, AlertTriangle, ArrowRight,
+  ListChecks, Send, AlertTriangle, ArrowRight,
   Loader2,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -676,7 +675,7 @@ function HistoryTab({ history }: { history: CoachingStageHistoryEntry[] }) {
           {/* Timeline line */}
           <div className="absolute left-1.5 top-2 bottom-2 w-px bg-border" />
 
-          {history.map((entry, i) => (
+          {history.map((entry) => (
             <div key={entry.id} className="relative pb-4 last:pb-0">
               {/* Dot */}
               <div className={`absolute -left-2.5 top-1.5 w-2 h-2 rounded-full ${

@@ -20,7 +20,7 @@ import {
   ArrowLeft, ArrowRight, RefreshCw, Calendar, User, Building2,
   Zap,
 } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { fmt$, fmtDate } from '@/lib/formatUtils';
 import { AgentCoachingTable, type AgentCoachingFlag } from '@/components/coaching/AgentCoachingTable';
 import { fetchCoachingFlags } from '@/lib/prod-api';
