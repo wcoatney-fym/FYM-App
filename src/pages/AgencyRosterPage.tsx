@@ -15,6 +15,12 @@ import {
   Mail,
   Hash,
   Users,
+  UserPlus,
+  Pencil,
+  Save,
+  Crown,
+  Shield,
+  Check,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
@@ -44,6 +50,8 @@ interface RosterUpload {
   status: string;
 }
 
+type AgentRole = 'agent' | 'manager' | 'admin';
+
 interface RosterAgent {
   id: string;
   upload_id: string;
@@ -60,6 +68,7 @@ interface RosterAgent {
   heartland_writing_number: string | null;
   manhattan_writing_number: string | null;
   is_manager: boolean;
+  role: AgentRole;
   status: string;
   created_at: string;
   updated_at: string;
@@ -70,6 +79,12 @@ interface RosterAgent {
   total_annual_premium: number;
   active_annual_premium: number;
 }
+
+const ROLE_CONFIG: Record<AgentRole, { label: string; color: string; bg: string; icon: typeof User }> = {
+  admin: { label: 'Admin', color: 'text-amber-400', bg: 'bg-amber-500/15 border-amber-500/30', icon: Crown },
+  manager: { label: 'Manager', color: 'text-blue-400', bg: 'bg-blue-500/15 border-blue-500/30', icon: Shield },
+  agent: { label: 'Agent', color: 'text-muted-foreground', bg: 'bg-muted border-border', icon: User },
+};
 
 const PAGE_SIZE = 25;
 
@@ -88,6 +103,8 @@ export function AgencyRosterPage() {
   const [selectedAgent, setSelectedAgent] = useState<RosterAgent | null>(null);
   const [agentPolicies, setAgentPolicies] = useState<PolicyRow[]>([]);
   const [loadingPolicies, setLoadingPolicies] = useState(false);
+  const [addAgentOpen, setAddAgentOpen] = useState(false);
+  const [editingAgent, setEditingAgent] = useState<RosterAgent | null>(null);
 
   const { isFymAdmin } = useEffectiveAuth();
 
@@ -292,6 +309,104 @@ export function AgencyRosterPage() {
     }
   };
 
+  const handleAddAgent = async (data: AddAgentFormData) => {
+    if (!supabase || !selectedAgencyId) return;
+
+    // Get the current active upload to link to
+    const currentUpload = uploads.find((u) => u.status === 'active');
+
+    const { error } = await supabase.from('agency_rosters').insert({
+      upload_id: currentUpload?.id || null,
+      agency_id: selectedAgencyId,
+      first_name: data.first_name.trim(),
+      last_name: data.last_name.trim(),
+      email: data.email.trim(),
+      phone: data.phone.trim(),
+      agent_npn: data.agent_npn.trim(),
+      gender: data.gender || null,
+      unl_writing_number: data.unl_writing_number?.trim() || null,
+      gtl_writing_number: data.gtl_writing_number?.trim() || null,
+      ahl_writing_number: data.ahl_writing_number?.trim() || null,
+      heartland_writing_number: data.heartland_writing_number?.trim() || null,
+      manhattan_writing_number: data.manhattan_writing_number?.trim() || null,
+      role: data.role || 'agent',
+      is_manager: data.role === 'manager' || data.role === 'admin',
+      status: 'active',
+    } as any);
+
+    if (error) throw error;
+
+    // Update upload row count
+    if (currentUpload) {
+      await supabase
+        .from('agency_roster_uploads')
+        .update({ row_count: (currentUpload.row_count || 0) + 1 })
+        .eq('id', currentUpload.id);
+    }
+
+    await loadRosterData(selectedAgencyId);
+    setAddAgentOpen(false);
+  };
+
+  const handleEditAgent = async (id: string, data: Partial<AddAgentFormData>) => {
+    if (!supabase) return;
+
+    const updatePayload: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (data.first_name !== undefined) updatePayload.first_name = data.first_name.trim();
+    if (data.last_name !== undefined) updatePayload.last_name = data.last_name.trim();
+    if (data.email !== undefined) updatePayload.email = data.email.trim();
+    if (data.phone !== undefined) updatePayload.phone = data.phone.trim();
+    if (data.agent_npn !== undefined) updatePayload.agent_npn = data.agent_npn.trim();
+    if (data.gender !== undefined) updatePayload.gender = data.gender || null;
+    if (data.unl_writing_number !== undefined) updatePayload.unl_writing_number = data.unl_writing_number?.trim() || null;
+    if (data.gtl_writing_number !== undefined) updatePayload.gtl_writing_number = data.gtl_writing_number?.trim() || null;
+    if (data.ahl_writing_number !== undefined) updatePayload.ahl_writing_number = data.ahl_writing_number?.trim() || null;
+    if (data.heartland_writing_number !== undefined) updatePayload.heartland_writing_number = data.heartland_writing_number?.trim() || null;
+    if (data.manhattan_writing_number !== undefined) updatePayload.manhattan_writing_number = data.manhattan_writing_number?.trim() || null;
+    if (data.role !== undefined) {
+      updatePayload.role = data.role;
+      updatePayload.is_manager = data.role === 'manager' || data.role === 'admin';
+    }
+
+    const { error } = await supabase
+      .from('agency_rosters')
+      .update(updatePayload)
+      .eq('id', id);
+
+    if (error) throw error;
+
+    await loadRosterData(selectedAgencyId);
+    setEditingAgent(null);
+  };
+
+  const handleRoleChange = async (agentId: string, newRole: AgentRole) => {
+    if (!supabase) return;
+    const { error } = await supabase
+      .from('agency_rosters')
+      .update({
+        role: newRole,
+        is_manager: newRole === 'manager' || newRole === 'admin',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', agentId);
+
+    if (error) {
+      console.error('Failed to update role:', error);
+      return;
+    }
+
+    // Update local state without full reload
+    setAgents((prev) =>
+      prev.map((a) =>
+        a.id === agentId
+          ? { ...a, role: newRole, is_manager: newRole === 'manager' || newRole === 'admin' }
+          : a
+      )
+    );
+  };
+
   const handleDownloadTemplate = () => {
     const csv = generateTemplateCSV();
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -414,21 +529,30 @@ export function AgencyRosterPage() {
           </select>
 
           {selectedAgencyId && (
-            <label className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors cursor-pointer disabled:opacity-50">
-              <Upload className="w-4 h-4" />
-              {uploading ? 'Uploading...' : 'Upload CSV'}
-              <input
-                type="file"
-                accept=".csv"
-                className="hidden"
-                disabled={uploading}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleUpload(file);
-                  e.target.value = '';
-                }}
-              />
-            </label>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setAddAgentOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors"
+              >
+                <UserPlus className="w-4 h-4" />
+                Add Agent
+              </button>
+              <label className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors cursor-pointer disabled:opacity-50">
+                <Upload className="w-4 h-4" />
+                {uploading ? 'Uploading...' : 'Upload CSV'}
+                <input
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleUpload(file);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+            </div>
           )}
         </div>
 
@@ -501,50 +625,77 @@ export function AgencyRosterPage() {
                         {h}
                       </th>
                     ))}
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Role
+                    </th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       Policies
                     </th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
                       At Risk
                     </th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {paginatedAgents.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
+                      <td colSpan={9} className="px-4 py-12 text-center text-muted-foreground">
                         {agents.length === 0
                           ? 'No roster uploaded yet. Upload a CSV to get started.'
                           : 'No agents match your search.'}
                       </td>
                     </tr>
                   ) : (
-                    paginatedAgents.map((agent) => (
-                      <tr
-                        key={agent.id}
-                        onClick={() => handleAgentClick(agent)}
-                        className="hover:bg-muted/50 cursor-pointer transition-colors"
-                      >
-                        <td className="px-4 py-3 text-sm text-foreground font-medium">{agent.first_name}</td>
-                        <td className="px-4 py-3 text-sm text-foreground">{agent.last_name}</td>
-                        <td className="px-4 py-3 text-sm text-muted-foreground">{agent.email}</td>
-                        <td className="px-4 py-3 text-sm text-muted-foreground">{agent.phone}</td>
-                        <td className="px-4 py-3 text-sm text-muted-foreground font-mono">{agent.agent_npn}</td>
-                        <td className="px-4 py-3 text-sm text-right font-medium text-foreground">
-                          {agent.active_policies}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-right">
-                          {agent.at_risk_policies > 0 ? (
-                            <span className="inline-flex items-center gap-1 text-red-400 font-medium">
-                              <AlertTriangle className="w-3.5 h-3.5" />
-                              {agent.at_risk_policies}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">0</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))
+                    paginatedAgents.map((agent) => {
+                      return (
+                        <tr
+                          key={agent.id}
+                          onClick={() => handleAgentClick(agent)}
+                          className="hover:bg-muted/50 cursor-pointer transition-colors"
+                        >
+                          <td className="px-4 py-3 text-sm text-foreground font-medium">{agent.first_name}</td>
+                          <td className="px-4 py-3 text-sm text-foreground">{agent.last_name}</td>
+                          <td className="px-4 py-3 text-sm text-muted-foreground">{agent.email}</td>
+                          <td className="px-4 py-3 text-sm text-muted-foreground">{agent.phone}</td>
+                          <td className="px-4 py-3 text-sm text-muted-foreground font-mono">{agent.agent_npn}</td>
+                          <td className="px-4 py-3 text-sm">
+                            <RoleBadge
+                              role={agent.role || 'agent'}
+                              agentId={agent.id}
+                              onRoleChange={handleRoleChange}
+                            />
+                          </td>
+                          <td className="px-4 py-3 text-sm text-right font-medium text-foreground">
+                            {agent.active_policies}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-right">
+                            {agent.at_risk_policies > 0 ? (
+                              <span className="inline-flex items-center gap-1 text-red-400 font-medium">
+                                <AlertTriangle className="w-3.5 h-3.5" />
+                                {agent.at_risk_policies}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">0</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-center">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingAgent(agent);
+                              }}
+                              className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+                              title="Edit agent"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -595,6 +746,23 @@ export function AgencyRosterPage() {
           policies={agentPolicies}
           loadingPolicies={loadingPolicies}
           onClose={() => { setSelectedAgent(null); setAgentPolicies([]); }}
+        />
+      )}
+
+      {/* Add Agent Modal */}
+      {addAgentOpen && (
+        <AddAgentModal
+          onClose={() => setAddAgentOpen(false)}
+          onSave={handleAddAgent}
+        />
+      )}
+
+      {/* Edit Agent Modal */}
+      {editingAgent && (
+        <EditAgentModal
+          agent={editingAgent}
+          onClose={() => setEditingAgent(null)}
+          onSave={(data) => handleEditAgent(editingAgent.id, data)}
         />
       )}
     </div>
@@ -766,6 +934,415 @@ function AgentDetailDialog({ agent, policies, loadingPolicies, onClose }: AgentD
               ))}
             </div>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Role Badge (inline dropdown) ───────────────────────────────────── */
+
+interface RoleBadgeProps {
+  role: AgentRole;
+  agentId: string;
+  onRoleChange: (agentId: string, newRole: AgentRole) => void;
+}
+
+function RoleBadge({ role, agentId, onRoleChange }: RoleBadgeProps) {
+  const [open, setOpen] = useState(false);
+  const config = ROLE_CONFIG[role];
+  const Icon = config.icon;
+
+  return (
+    <div className="relative">
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(!open);
+        }}
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors hover:opacity-80 ${config.bg} ${config.color}`}
+      >
+        <Icon className="w-3 h-3" />
+        {config.label}
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpen(false); }} />
+          <div className="absolute left-0 top-full mt-1 z-50 bg-card border border-border rounded-lg shadow-lg py-1 min-w-[140px] animate-in fade-in">
+            {(['agent', 'manager', 'admin'] as AgentRole[]).map((r) => {
+              const rc = ROLE_CONFIG[r];
+              const RIcon = rc.icon;
+              return (
+                <button
+                  key={r}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRoleChange(agentId, r);
+                    setOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors ${
+                    r === role ? 'font-semibold' : ''
+                  }`}
+                >
+                  <RIcon className={`w-4 h-4 ${rc.color}`} />
+                  <span className="text-foreground">{rc.label}</span>
+                  {r === role && <Check className="w-3.5 h-3.5 ml-auto text-primary" />}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ── Add / Edit Form Types ──────────────────────────────────────────── */
+
+interface AddAgentFormData {
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  agent_npn: string;
+  gender: string;
+  unl_writing_number: string;
+  gtl_writing_number: string;
+  ahl_writing_number: string;
+  heartland_writing_number: string;
+  manhattan_writing_number: string;
+  role: AgentRole;
+}
+
+const EMPTY_FORM: AddAgentFormData = {
+  first_name: '',
+  last_name: '',
+  email: '',
+  phone: '',
+  agent_npn: '',
+  gender: '',
+  unl_writing_number: '',
+  gtl_writing_number: '',
+  ahl_writing_number: '',
+  heartland_writing_number: '',
+  manhattan_writing_number: '',
+  role: 'agent',
+};
+
+/* ── Shared Form Fields ─────────────────────────────────────────────── */
+
+interface AgentFormFieldsProps {
+  form: AddAgentFormData;
+  onChange: (field: keyof AddAgentFormData, value: string) => void;
+}
+
+function AgentFormFields({ form, onChange }: AgentFormFieldsProps) {
+  return (
+    <div className="space-y-4">
+      {/* Name */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-xs font-medium text-foreground/80 mb-1">
+            First Name <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            value={form.first_name}
+            onChange={(e) => onChange('first_name', e.target.value)}
+            placeholder="Jane"
+            className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-ring"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-foreground/80 mb-1">
+            Last Name <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            value={form.last_name}
+            onChange={(e) => onChange('last_name', e.target.value)}
+            placeholder="Smith"
+            className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-ring"
+          />
+        </div>
+      </div>
+
+      {/* Contact */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-xs font-medium text-foreground/80 mb-1">Email</label>
+          <input
+            type="email"
+            value={form.email}
+            onChange={(e) => onChange('email', e.target.value)}
+            placeholder="jane@email.com"
+            className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-ring"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-foreground/80 mb-1">Phone</label>
+          <input
+            type="tel"
+            value={form.phone}
+            onChange={(e) => onChange('phone', e.target.value)}
+            placeholder="(555) 123-4567"
+            className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-ring"
+          />
+        </div>
+      </div>
+
+      {/* NPN + Gender */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-xs font-medium text-foreground/80 mb-1">Agent NPN</label>
+          <input
+            type="text"
+            value={form.agent_npn}
+            onChange={(e) => onChange('agent_npn', e.target.value)}
+            placeholder="12345678"
+            className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-ring"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-foreground/80 mb-1">Gender</label>
+          <div className="flex gap-2">
+            {['Male', 'Female'].map((g) => (
+              <button
+                key={g}
+                type="button"
+                onClick={() => onChange('gender', g)}
+                className={`flex-1 py-2 text-sm font-medium border rounded-lg transition-colors ${
+                  form.gender === g
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border text-muted-foreground hover:border-muted-foreground/50 hover:bg-muted'
+                }`}
+              >
+                {g}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Role */}
+      <div>
+        <label className="block text-xs font-medium text-foreground/80 mb-2">Role</label>
+        <div className="flex gap-2">
+          {(['agent', 'manager', 'admin'] as AgentRole[]).map((r) => {
+            const rc = ROLE_CONFIG[r];
+            const RIcon = rc.icon;
+            return (
+              <button
+                key={r}
+                type="button"
+                onClick={() => onChange('role', r)}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium border rounded-lg transition-colors ${
+                  form.role === r
+                    ? `border-primary bg-primary/10 ${rc.color}`
+                    : 'border-border text-muted-foreground hover:border-muted-foreground/50 hover:bg-muted'
+                }`}
+              >
+                <RIcon className="w-4 h-4" />
+                {rc.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Writing Numbers */}
+      <div>
+        <label className="block text-xs font-medium text-foreground/80 mb-2">Writing Numbers</label>
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            { key: 'unl_writing_number' as const, label: 'UNL' },
+            { key: 'gtl_writing_number' as const, label: 'GTL' },
+            { key: 'ahl_writing_number' as const, label: 'AHL' },
+            { key: 'heartland_writing_number' as const, label: 'Heartland' },
+            { key: 'manhattan_writing_number' as const, label: 'Manhattan' },
+          ].map(({ key, label }) => (
+            <div key={key} className="flex items-center gap-2">
+              <span className="text-xs font-medium text-muted-foreground w-20">{label}</span>
+              <input
+                type="text"
+                value={form[key]}
+                onChange={(e) => onChange(key, e.target.value)}
+                placeholder={`${label} #`}
+                className="flex-1 px-3 py-1.5 border border-border rounded-lg text-sm bg-background text-foreground font-mono focus:ring-2 focus:ring-ring focus:border-ring"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Add Agent Modal ────────────────────────────────────────────────── */
+
+interface AddAgentModalProps {
+  onClose: () => void;
+  onSave: (data: AddAgentFormData) => Promise<void>;
+}
+
+function AddAgentModal({ onClose, onSave }: AddAgentModalProps) {
+  const [form, setForm] = useState<AddAgentFormData>({ ...EMPTY_FORM });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleChange = (field: keyof AddAgentFormData, value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    setError('');
+  };
+
+  const handleSubmit = async () => {
+    if (!form.first_name.trim()) { setError('First name is required.'); return; }
+    if (!form.last_name.trim()) { setError('Last name is required.'); return; }
+
+    setSubmitting(true);
+    setError('');
+    try {
+      await onSave(form);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add agent.');
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-card rounded-xl shadow-none max-w-lg w-full max-h-[85vh] overflow-y-auto animate-in fade-in">
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-foreground">Add Agent</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">Add a new agent to the roster</p>
+          </div>
+          <button onClick={onClose} disabled={submitting} className="p-1.5 hover:bg-muted rounded-lg transition-colors">
+            <X className="w-5 h-5 text-muted-foreground" />
+          </button>
+        </div>
+
+        <div className="px-6 py-5">
+          <AgentFormFields form={form} onChange={handleChange} />
+
+          {error && (
+            <p className="mt-4 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</p>
+          )}
+        </div>
+
+        <div className="px-6 py-4 bg-muted rounded-b-xl flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            disabled={submitting}
+            className="px-4 py-2 text-sm font-medium text-foreground/80 glass rounded-lg hover:bg-muted transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+          >
+            {submitting ? (
+              <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Adding...</>
+            ) : (
+              <><UserPlus className="w-4 h-4" />Add Agent</>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Edit Agent Modal ───────────────────────────────────────────────── */
+
+interface EditAgentModalProps {
+  agent: RosterAgent;
+  onClose: () => void;
+  onSave: (data: Partial<AddAgentFormData>) => Promise<void>;
+}
+
+function EditAgentModal({ agent, onClose, onSave }: EditAgentModalProps) {
+  const [form, setForm] = useState<AddAgentFormData>({
+    first_name: agent.first_name || '',
+    last_name: agent.last_name || '',
+    email: agent.email || '',
+    phone: agent.phone || '',
+    agent_npn: agent.agent_npn || '',
+    gender: agent.gender || '',
+    unl_writing_number: agent.unl_writing_number || '',
+    gtl_writing_number: agent.gtl_writing_number || '',
+    ahl_writing_number: agent.ahl_writing_number || '',
+    heartland_writing_number: agent.heartland_writing_number || '',
+    manhattan_writing_number: agent.manhattan_writing_number || '',
+    role: agent.role || 'agent',
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleChange = (field: keyof AddAgentFormData, value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    setError('');
+  };
+
+  const handleSubmit = async () => {
+    if (!form.first_name.trim()) { setError('First name is required.'); return; }
+    if (!form.last_name.trim()) { setError('Last name is required.'); return; }
+
+    setSubmitting(true);
+    setError('');
+    try {
+      await onSave(form);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save changes.');
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-card rounded-xl shadow-none max-w-lg w-full max-h-[85vh] overflow-y-auto animate-in fade-in">
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-foreground">Edit Agent</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {agent.first_name} {agent.last_name}
+            </p>
+          </div>
+          <button onClick={onClose} disabled={submitting} className="p-1.5 hover:bg-muted rounded-lg transition-colors">
+            <X className="w-5 h-5 text-muted-foreground" />
+          </button>
+        </div>
+
+        <div className="px-6 py-5">
+          <AgentFormFields form={form} onChange={handleChange} />
+
+          {error && (
+            <p className="mt-4 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</p>
+          )}
+        </div>
+
+        <div className="px-6 py-4 bg-muted rounded-b-xl flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            disabled={submitting}
+            className="px-4 py-2 text-sm font-medium text-foreground/80 glass rounded-lg hover:bg-muted transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-2"
+          >
+            {submitting ? (
+              <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving...</>
+            ) : (
+              <><Save className="w-4 h-4" />Save Changes</>
+            )}
+          </button>
         </div>
       </div>
     </div>
