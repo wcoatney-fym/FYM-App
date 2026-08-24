@@ -30,6 +30,7 @@ import { MyProductionPage } from '@/pages/my-production';
 import { BookOfBusinessPage } from '@/pages/BookOfBusinessPage';
 import { RetentionPage } from '@/pages/RetentionPage';
 import { CoachingPage } from '@/pages/CoachingPage';
+import { CoachingPipelinePage } from '@/pages/CoachingPipelinePage';
 import { AtRiskPage } from '@/pages/AtRiskPage';
 // GamificationPage removed — Compete content merged into LeaderboardPage
 import { AgencyRosterPage } from '@/pages/AgencyRosterPage';
@@ -118,6 +119,7 @@ function App() {
               <Route path="retention" element={<RoleGuard allow={['admin', 'manager']}><RetentionPage /></RoleGuard>} />
               <Route path="at-risk" element={<AtRiskPage />} />
               <Route path="coaching" element={<CoachingPage />} />
+              <Route path="coaching-pipeline" element={<CoachingPipelinePage />} />
             </Route>
 
             {/* Standalone pages */}
