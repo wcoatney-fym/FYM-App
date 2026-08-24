@@ -47,6 +47,7 @@ import { StageStepsEditor } from './StageStepsEditor';
 import { DroppableColumn } from './DroppableColumn';
 import { DraggableCard } from './DraggableCard';
 import { computeProgress } from './pipelineProgress';
+import { useAuth } from '@/contexts/AuthContext';
 
 // ─── Stage definitions ───────────────────────────────────────────────────────
 
@@ -71,6 +72,7 @@ async function pushStageChange(
   recordId: string,
   newStage: AgentPipelineStage,
   updatedBy = 'FYM App',
+  changedByUserId?: string,
 ): Promise<{
   success: boolean;
   record?: PortalPipelineRecord;
@@ -88,6 +90,7 @@ async function pushStageChange(
       new_stage: newStage,
       updated_by: updatedBy,
       updated_by_source: 'contracting_portal',
+      changed_by_user_id: changedByUserId || null,
     }),
   });
   if (!res.ok) return { success: false, error: `Request failed (${res.status})` };
@@ -136,6 +139,9 @@ function useScrollIndicators(ref: React.RefObject<HTMLDivElement | null>) {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function PipelineBoard() {
+  const { user, profile } = useAuth();
+  const adminName = profile?.full_name || user?.email || 'FYM App';
+  const adminUserId = user?.id;
   const [records, setRecords] = useState<PortalPipelineRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -338,7 +344,7 @@ export function PipelineBoard() {
         )
       );
 
-      const result = await pushStageChange(id, newStage);
+      const result = await pushStageChange(id, newStage, adminName, adminUserId);
       if (result.success && result.record) {
         setRecords((prev) =>
           prev.map((r) => (r.id === id ? result.record! : r))
@@ -384,7 +390,7 @@ export function PipelineBoard() {
       )
     );
 
-    const result = await pushStageChange(recordId, newStage);
+    const result = await pushStageChange(recordId, newStage, adminName, adminUserId);
 
     if (result.success && result.record) {
       setRecords((prev) =>

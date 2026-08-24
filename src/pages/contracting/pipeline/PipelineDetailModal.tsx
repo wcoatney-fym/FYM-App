@@ -2,7 +2,7 @@
  * PipelineDetailModal — detail/edit modal for a single agent pipeline record.
  * Ported from CRM Portal's AgentPipelineDetailModal.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   User,
   Mail,
@@ -18,6 +18,9 @@ import {
   FileText,
   ListChecks,
   Check,
+  History,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import {
   Dialog,
@@ -392,8 +395,19 @@ export function PipelineDetailModal({
                   In stage since {stageEnteredDate}
                 </span>
               </div>
+              {record.last_updated_by_display && (
+                <div className="flex items-center gap-3 p-3 bg-background rounded-lg">
+                  <User className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm text-foreground/80">
+                    Last updated by: <span className="font-medium text-foreground">{record.last_updated_by_display}</span>
+                  </span>
+                </div>
+              )}
             </div>
           </div>
+
+          {/* Stage History */}
+          <StageHistorySection pipelineId={record.id} />
 
           {/* Agent Step Completions Review */}
           {agentActionPending && (
@@ -492,5 +506,102 @@ export function PipelineDetailModal({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ── Stage History Section ────────────────────────────────────────────────────
+
+interface StageHistoryEntry {
+  id: string;
+  from_stage: string | null;
+  to_stage: string;
+  changed_by_name: string;
+  source: string;
+  created_at: string;
+}
+
+function StageHistorySection({ pipelineId }: { pipelineId: string }) {
+  const [history, setHistory] = useState<StageHistoryEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!expanded || loaded || !portalSupabase) return;
+    setLoading(true);
+    portalSupabase
+      .from('pipeline_stage_history')
+      .select('id, from_stage, to_stage, changed_by_name, source, created_at')
+      .eq('pipeline_id', pipelineId)
+      .order('created_at', { ascending: false })
+      .limit(50)
+      .then(({ data }) => {
+        setHistory((data as StageHistoryEntry[]) || []);
+        setLoaded(true);
+        setLoading(false);
+      });
+  }, [expanded, loaded, pipelineId]);
+
+  const getStageLabel = (stage: string | null) => {
+    if (!stage) return '—';
+    return STAGES.find((s) => s.key === stage)?.label || stage;
+  };
+
+  const formatDate = (iso: string) => {
+    return new Date(iso).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  };
+
+  return (
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors w-full"
+      >
+        <History className="w-3.5 h-3.5" />
+        Stage History
+        {expanded ? <ChevronUp className="w-3.5 h-3.5 ml-auto" /> : <ChevronDown className="w-3.5 h-3.5 ml-auto" />}
+      </button>
+
+      {expanded && (
+        <div className="space-y-1">
+          {loading ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : history.length === 0 ? (
+            <p className="text-xs text-muted-foreground py-2">No stage changes recorded yet.</p>
+          ) : (
+            <div className="max-h-48 overflow-y-auto space-y-1">
+              {history.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="flex items-center gap-2 px-3 py-2 bg-background rounded-lg text-xs"
+                >
+                  <span className="text-muted-foreground whitespace-nowrap">
+                    {formatDate(entry.created_at)}
+                  </span>
+                  <span className="text-foreground/60">
+                    {getStageLabel(entry.from_stage)}
+                  </span>
+                  <ArrowRightLeft className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                  <span className="text-foreground font-medium">
+                    {getStageLabel(entry.to_stage)}
+                  </span>
+                  <span className="ml-auto text-muted-foreground whitespace-nowrap">
+                    by {entry.changed_by_name}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
