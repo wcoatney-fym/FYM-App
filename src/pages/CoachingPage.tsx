@@ -18,7 +18,9 @@ import { type DatePreset, type DateRange, DEFAULT_PRESET, getDateRange } from '@
 import {
   AlertTriangle, TrendingUp, DollarSign, ShieldCheck,
   ArrowLeft, ArrowRight, RefreshCw, Calendar, User, Building2,
+  Zap,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { fmt$, fmtDate } from '@/lib/formatUtils';
 import { AgentCoachingTable, type AgentCoachingFlag } from '@/components/coaching/AgentCoachingTable';
 import { fetchCoachingFlags } from '@/lib/prod-api';
@@ -403,6 +405,25 @@ export function CoachingPage() {
     <>
       <Header title="Coaching" />
       <div className="p-6 space-y-6">
+
+        {/* ── Sub-navigation tabs ── */}
+        {!isAgent && (
+          <div className="flex gap-1 border-b border-border -mt-2 mb-2">
+            <Link
+              to="/quality/coaching"
+              className="px-4 py-2 text-sm font-medium border-b-2 border-primary text-foreground"
+            >
+              Policy Pipeline
+            </Link>
+            <Link
+              to="/quality/coaching-pipeline"
+              className="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5"
+            >
+              <Zap size={13} />
+              Agent Coaching
+            </Link>
+          </div>
+        )}
 
         {/* Filters — time period always visible, agency/agent for admins */}
         <DataFilters
