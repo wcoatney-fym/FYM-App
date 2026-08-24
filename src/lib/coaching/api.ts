@@ -465,3 +465,91 @@ export async function fetchCoachingSummary(agencyId?: string): Promise<CoachingS
 
   return summary;
 }
+
+// ── Trigger API ────────────────────────────────────────────────────────
+
+export interface CoachingTriggerResult {
+  dry_run: boolean;
+  agents_scanned: number;
+  agents_flagged: number;
+  flags_total: number;
+  flags_by_type: Record<CoachingFlagType, number>;
+  roster_coverage: number;
+  thresholds: CoachingThresholds;
+  elapsed_ms: number;
+  actions?: {
+    created: number;
+    skipped: number;
+    auto_resolved: number;
+    no_roster_match: number;
+  };
+  details?: Array<{
+    action: string;
+    writing_number: string;
+    flag_type: string;
+    plan_id?: string;
+    reason?: string;
+  }>;
+}
+
+/**
+ * Invoke the coaching-trigger edge function.
+ * Pass dryRun=true to preview without writing.
+ */
+export async function runCoachingTrigger(params?: {
+  dryRun?: boolean;
+  agencyId?: string;
+}): Promise<CoachingTriggerResult | null> {
+  if (!supabase) return null;
+
+  const queryParams = new URLSearchParams();
+  if (params?.dryRun) queryParams.set('dry_run', 'true');
+  if (params?.agencyId) queryParams.set('agency_id', params.agencyId);
+
+  const qs = queryParams.toString();
+  const { data, error } = await supabase.functions.invoke(
+    `coaching-trigger${qs ? `?${qs}` : ''}`,
+    { method: 'POST' },
+  );
+
+  if (error) {
+    console.error('runCoachingTrigger error:', error);
+    return null;
+  }
+  return data as CoachingTriggerResult;
+}
+
+// ── Pipeline Summary (from DB view) ───────────────────────────────────
+
+export interface CoachingPipelineSummaryRow {
+  agency_id: string;
+  agency_name: string;
+  agency_writing_number: string | null;
+  flag_type: CoachingFlagType;
+  stage: CoachingStage;
+  plan_count: number;
+  overdue_count: number;
+  due_this_week_count: number;
+  active_count: number;
+}
+
+export async function fetchPipelineSummary(
+  agencyId?: string,
+): Promise<CoachingPipelineSummaryRow[]> {
+  if (!supabase) return [];
+
+  let query = supabase
+    .from('coaching_pipeline_summary')
+    .select('*');
+
+  if (agencyId) {
+    query = query.eq('agency_id', agencyId);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error('fetchPipelineSummary error:', error);
+    return [];
+  }
+  return (data as unknown as CoachingPipelineSummaryRow[]) || [];
+}
