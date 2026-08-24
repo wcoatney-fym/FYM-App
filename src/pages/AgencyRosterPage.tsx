@@ -19,6 +19,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { parseCSV } from '@/lib/contracting/csvParser';
+import { RosterReconcilePanel } from '@/components/roster/RosterReconcilePanel';
 import {
   normalizeRosterRows,
   generateTemplateCSV,
@@ -389,6 +390,13 @@ export function AgencyRosterPage() {
           Download Template
         </button>
       </div>
+
+      {/* ── Reconciliation Panel (admin only) ── */}
+      {isFymAdmin && (
+        <div className="bg-card rounded-xl border border-border p-5">
+          <RosterReconcilePanel />
+        </div>
+      )}
 
       {/* Agency selector */}
       <div className="bg-card rounded-xl border border-border p-4">

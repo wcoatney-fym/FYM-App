@@ -386,6 +386,8 @@ Deno.serve(async (req) => {
     const mode = url.searchParams.get("mode") || "dry-run";
     const agencyFilter = url.searchParams.get("agency_id");
     const carrier = (url.searchParams.get("carrier") || "unl").toLowerCase();
+    const persist = url.searchParams.get("persist") === "true";
+    const triggeredBy = url.searchParams.get("triggered_by") || "api";
 
     // Validate carrier
     const cfg = CARRIER_CONFIG[carrier];
@@ -719,7 +721,7 @@ Deno.serve(async (req) => {
       if (agg) agg.issues++;
     }
 
-    return jsonResponse({
+    const responseData = {
       success: true,
       mode,
       carrier,
@@ -750,7 +752,39 @@ Deno.serve(async (req) => {
       agency_summary: Object.fromEntries(agencySummary),
       issues,
       elapsed_ms: elapsed,
-    });
+    };
+
+    // ── Persist run to roster_reconcile_runs if requested ──
+    if (persist) {
+      try {
+        await supabase.from("roster_reconcile_runs").insert({
+          carrier,
+          mode,
+          agency_id: agencyFilter || null,
+          roster_total: allRoster.length,
+          roster_active: activeRoster.length,
+          roster_terminated: terminatedRoster.length,
+          writing_numbers_checked: allWns.size,
+          prod_agents_found: prodMap.size,
+          issues_found: issues.length,
+          active_prod_terminated: responseData.issues_by_type.roster_active_prod_terminated,
+          active_prod_missing: responseData.issues_by_type.roster_active_prod_missing,
+          terminated_prod_active: responseData.issues_by_type.roster_terminated_prod_active,
+          applied: mode === "apply" ? applied : null,
+          lifecycle_cascades: mode === "apply" ? lifecycleCascades : null,
+          reinstatement_flags: mode === "apply" ? reinstatementFlags : null,
+          issues: issues,
+          errors: applyErrors.length > 0 ? applyErrors : null,
+          elapsed_ms: elapsed,
+          triggered_by: triggeredBy,
+          completed_at: new Date().toISOString(),
+        });
+      } catch (persistErr) {
+        console.error("[roster-reconcile] Failed to persist run:", (persistErr as Error).message);
+      }
+    }
+
+    return jsonResponse(responseData);
   } catch (err) {
     return jsonResponse(
       { error: `Unexpected error: ${(err as Error).message}` },
