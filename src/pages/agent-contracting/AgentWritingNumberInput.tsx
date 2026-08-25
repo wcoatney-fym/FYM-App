@@ -20,12 +20,13 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { HIP_CARRIERS } from '@/lib/contracting/types';
+// HIP_CARRIERS import removed — carrier list is now inline (8-stage pipeline)
 import type { PortalLobAssignment } from '@/lib/contracting/types';
 import type { WritingNumberSubmission } from '@/hooks/useAgentPipeline';
 
-/** All carriers an agent might need writing numbers for */
-const ALL_CARRIERS = [...HIP_CARRIERS, 'AHL'] as const;
+/** All carriers an agent might need writing numbers for.
+ * Charlie (2026-08-25): Manhattan, AHL, UNL, GTL */
+const ALL_CARRIERS = ['Manhattan', 'AHL', 'UNL', 'GTL'] as const;
 
 interface AgentWritingNumberInputProps {
   lobAssignments: PortalLobAssignment[];

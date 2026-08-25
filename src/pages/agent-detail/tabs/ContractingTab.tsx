@@ -49,12 +49,11 @@ const STAGE_ORDER: { key: AgentPipelineStage; label: string }[] = [
   { key: 'hip_broker', label: 'HIP Broker' },
   { key: 'hip_career', label: 'HIP Career' },
   { key: 'iaa', label: 'IAA' },
-  { key: 'signed_iaa', label: 'Signed IAA' },
-  { key: 'bill_com', label: 'Bill.com' },
   { key: 'in_contracting', label: 'In Contracting' },
+  { key: 'waiting_for_numbers', label: 'Waiting for Numbers' },
   { key: 'rts', label: 'Ready to Sell' },
-  { key: 'crm', label: 'CRM Onboarding' },
   { key: 'actively_selling', label: 'Actively Selling' },
+  { key: 'terminated', label: 'Terminated' },
 ];
 
 type WnSubmission = {
@@ -70,8 +69,6 @@ type WnSubmission = {
 const POST_RTS_STAGES: AgentPipelineStage[] = [
   'rts',
   'actively_selling',
-  'hip_broker_ready',
-  'hip_career_ready',
 ];
 
 interface ContractingTabProps {

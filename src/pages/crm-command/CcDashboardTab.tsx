@@ -36,11 +36,13 @@ interface ActivityRow {
   created_at: string;
 }
 
-const RECRUITING_STAGES = ['hip_broker', 'hip_career', 'iaa', 'signed_iaa'];
+const RECRUITING_STAGES = ['hip_broker', 'hip_career', 'iaa'];
 /** Inclusion list — new stages won't silently inflate the active lead count. */
 const ACTIVE_LEAD_STAGES = [
-  'hip_broker', 'hip_career', 'iaa', 'signed_iaa',
-  'bill_com', 'in_contracting', 'rts', 'crm',
+  'hip_broker', 'hip_career', 'iaa',
+  'in_contracting', 'waiting_for_numbers', 'rts',
+  // Legacy stages still present in data:
+  'signed_iaa', 'bill_com', 'crm',
   'hip_broker_ready', 'hip_career_ready',
 ];
 
