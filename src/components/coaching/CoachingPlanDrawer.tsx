@@ -154,7 +154,7 @@ export function CoachingPlanDrawer({ planId, onClose, onStageChanged }: Coaching
 
   if (!planId) return null;
 
-  const flagColors = plan ? FLAG_TYPE_COLORS[plan.flag_type] : null;
+  const activeFlags = plan?.active_flag_types ?? [];
   const days = plan ? daysRemaining(plan.deadline) : 0;
   const isOverdue = days < 0;
   const nextStages = plan ? validNextStages(plan.stage) : [];
@@ -181,9 +181,11 @@ export function CoachingPlanDrawer({ planId, onClose, onStageChanged }: Coaching
                   <h2 className="text-lg font-semibold text-foreground truncate">
                     {plan.agent_first_name} {plan.agent_last_name}
                   </h2>
-                  <Badge variant="outline" className={`text-[10px] shrink-0 ${flagColors?.badge}`}>
-                    {flagColors?.icon} {FLAG_TYPE_LABELS[plan.flag_type]}
-                  </Badge>
+                  {activeFlags.map(ft => (
+                    <Badge key={ft} variant="outline" className={`text-[10px] shrink-0 ${FLAG_TYPE_COLORS[ft].badge}`}>
+                      {FLAG_TYPE_COLORS[ft].icon} {FLAG_TYPE_LABELS[ft]}
+                    </Badge>
+                  ))}
                 </div>
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
                   {plan.agent_writing_number && (
@@ -333,56 +335,54 @@ function ActionPlanTab({
   onCompleteReq: (id: string) => void;
   onDeleteReq: (id: string) => void;
 }) {
-  const flagColors = FLAG_TYPE_COLORS[plan.flag_type];
   const progress = plan.requirements_total > 0
     ? Math.round((plan.requirements_completed / plan.requirements_total) * 100)
     : 0;
 
   return (
     <div className="space-y-4">
-      {/* Trigger context */}
-      {plan.trigger_metric && (
-        <Card className={`border ${flagColors.border}`}>
-          <CardContent className="p-3">
-            <p className="text-xs font-medium text-foreground mb-1 flex items-center gap-1.5">
-              <AlertTriangle size={12} className={flagColors.text} />
-              Trigger Reason
-            </p>
-            <div className="text-xs text-muted-foreground space-y-0.5">
-              {Object.entries(plan.trigger_metric).map(([k, v]) => (
-                <div key={k} className="flex justify-between">
-                  <span>{k.replace(/_/g, ' ')}</span>
-                  <span className="font-mono font-medium text-foreground">
-                    {typeof v === 'number' ? (k.includes('pct') ? `${v}%` : v) : String(v)}
-                  </span>
+      {/* Per-flag trigger & target context */}
+      {plan.flags.filter(f => !f.resolved).map((flag, idx) => {
+        const fc = FLAG_TYPE_COLORS[flag.type];
+        return (
+          <Card key={`${flag.type}-${idx}`} className={`border ${fc.border}`}>
+            <CardContent className="p-3">
+              <p className="text-xs font-medium text-foreground mb-1 flex items-center gap-1.5">
+                <AlertTriangle size={12} className={fc.text} />
+                {fc.icon} {FLAG_TYPE_LABELS[flag.type]} — Trigger
+              </p>
+              <div className="text-xs text-muted-foreground space-y-0.5">
+                {Object.entries(flag.trigger_metric || {}).map(([k, v]) => (
+                  <div key={k} className="flex justify-between">
+                    <span>{k.replace(/_/g, ' ')}</span>
+                    <span className="font-mono font-medium text-foreground">
+                      {typeof v === 'number' ? (k.includes('pct') ? `${v}%` : v) : String(v)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {flag.target_metric && Object.keys(flag.target_metric).length > 0 && (
+                <div className="mt-2 pt-2 border-t border-border/30">
+                  <p className="text-[10px] font-medium text-foreground mb-1 flex items-center gap-1">
+                    <Target size={10} className="text-primary" />
+                    Target
+                  </p>
+                  <div className="text-xs text-muted-foreground space-y-0.5">
+                    {Object.entries(flag.target_metric).map(([k, v]) => (
+                      <div key={k} className="flex justify-between">
+                        <span>{k.replace(/_/g, ' ')}</span>
+                        <span className="font-mono font-medium text-foreground">
+                          {typeof v === 'number' ? (k.includes('pct') ? `${v}%` : v) : String(v)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Target metric */}
-      {plan.target_metric && (
-        <Card className="border-border">
-          <CardContent className="p-3">
-            <p className="text-xs font-medium text-foreground mb-1 flex items-center gap-1.5">
-              <Target size={12} className="text-primary" />
-              Target to Resolve
-            </p>
-            <div className="text-xs text-muted-foreground space-y-0.5">
-              {Object.entries(plan.target_metric).map(([k, v]) => (
-                <div key={k} className="flex justify-between">
-                  <span>{k.replace(/_/g, ' ')}</span>
-                  <span className="font-mono font-medium text-foreground">
-                    {typeof v === 'number' ? (k.includes('pct') ? `${v}%` : v) : String(v)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
 
       {/* Progress summary */}
       {plan.requirements_total > 0 && (

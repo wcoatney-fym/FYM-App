@@ -161,7 +161,10 @@ function PlanCard({
   profileId: string | null;
   onRequirementUpdated: () => void;
 }) {
-  const flagColors = FLAG_TYPE_COLORS[plan.flag_type];
+  // Multi-flag: derive active flags and use first for border color
+  const activeFlags = plan.active_flag_types.length > 0 ? plan.active_flag_types : (plan.flag_type ? [plan.flag_type] : []);
+  const primaryFlagType = activeFlags[0] || 'production';
+  const flagColors = FLAG_TYPE_COLORS[primaryFlagType];
   const days = daysRemaining(plan.deadline);
   const isOverdue = days < 0;
   const progress = plan.requirements_total > 0
@@ -219,9 +222,11 @@ function PlanCard({
         <div className="flex items-start justify-between mb-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <Badge variant="outline" className={`text-xs ${flagColors.badge}`}>
-                {flagColors.icon} {FLAG_TYPE_LABELS[plan.flag_type]}
-              </Badge>
+              {activeFlags.map(ft => (
+                <Badge key={ft} variant="outline" className={`text-xs ${FLAG_TYPE_COLORS[ft].badge}`}>
+                  {FLAG_TYPE_COLORS[ft].icon} {FLAG_TYPE_LABELS[ft]}
+                </Badge>
+              ))}
               <Badge variant="outline" className={`text-[10px] ${COACHING_STAGE_COLORS[plan.stage].badge}`}>
                 {COACHING_STAGE_LABELS[plan.stage]}
               </Badge>
@@ -232,9 +237,9 @@ function PlanCard({
               )}
             </div>
             <p className="text-sm text-muted-foreground mt-1">
-              {plan.flag_type === 'production' && 'Your production is below the required threshold.'}
-              {plan.flag_type === 'quality' && 'Your at-risk or terminated policy percentage is too high.'}
-              {plan.flag_type === 'rts_watch' && 'You\'ve been moved to RTS — this is your observation period.'}
+              {activeFlags.includes('production') && 'Your production is below the required threshold. '}
+              {activeFlags.includes('quality') && 'Your at-risk or terminated policy percentage is too high. '}
+              {activeFlags.includes('rts_watch') && 'You\'ve been moved to RTS — this is your observation period. '}
             </p>
           </div>
           {!isTerminal && (
@@ -259,44 +264,48 @@ function PlanCard({
         </div>
 
         {/* Trigger context */}
-        {plan.trigger_metric && (
-          <div className={`p-3 rounded-lg border mb-4 ${flagColors.border} ${flagColors.bg}`}>
-            <p className="text-xs font-medium text-foreground mb-1 flex items-center gap-1.5">
-              <AlertTriangle size={12} className={flagColors.text} />
-              Why you were flagged
-            </p>
-            <div className="text-xs text-muted-foreground grid grid-cols-2 gap-1">
-              {Object.entries(plan.trigger_metric).map(([k, v]) => (
-                <div key={k} className="flex justify-between">
-                  <span>{k.replace(/_/g, ' ')}</span>
-                  <span className="font-mono font-medium text-foreground">
-                    {typeof v === 'number' ? (k.includes('pct') ? `${v}%` : v) : String(v)}
-                  </span>
+        {/* Per-flag trigger & target context */}
+        {plan.flags.filter(f => !f.resolved).map((flag, idx) => {
+          const fc = FLAG_TYPE_COLORS[flag.type];
+          return (
+            <div key={`${flag.type}-${idx}`} className="mb-4">
+              <div className={`p-3 rounded-lg border ${fc.border} ${fc.bg}`}>
+                <p className="text-xs font-medium text-foreground mb-1 flex items-center gap-1.5">
+                  <AlertTriangle size={12} className={fc.text} />
+                  {fc.icon} {FLAG_TYPE_LABELS[flag.type]} — Why you were flagged
+                </p>
+                <div className="text-xs text-muted-foreground grid grid-cols-2 gap-1">
+                  {Object.entries(flag.trigger_metric || {}).map(([k, v]) => (
+                    <div key={k} className="flex justify-between">
+                      <span>{k.replace(/_/g, ' ')}</span>
+                      <span className="font-mono font-medium text-foreground">
+                        {typeof v === 'number' ? (k.includes('pct') ? `${v}%` : v) : String(v)}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              ))}
+                {flag.target_metric && Object.keys(flag.target_metric).length > 0 && !isTerminal && (
+                  <div className="mt-2 pt-2 border-t border-border/30">
+                    <p className="text-[10px] font-medium text-foreground mb-1 flex items-center gap-1">
+                      <Target size={10} className="text-primary" />
+                      Target to resolve
+                    </p>
+                    <div className="text-xs text-muted-foreground grid grid-cols-2 gap-1">
+                      {Object.entries(flag.target_metric).map(([k, v]) => (
+                        <div key={k} className="flex justify-between">
+                          <span>{k.replace(/_/g, ' ')}</span>
+                          <span className="font-mono font-medium text-foreground">
+                            {typeof v === 'number' ? (k.includes('pct') ? `${v}%` : v) : String(v)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        )}
-
-        {/* Target */}
-        {plan.target_metric && !isTerminal && (
-          <div className="p-3 rounded-lg border border-border mb-4">
-            <p className="text-xs font-medium text-foreground mb-1 flex items-center gap-1.5">
-              <Target size={12} className="text-primary" />
-              Target to resolve
-            </p>
-            <div className="text-xs text-muted-foreground grid grid-cols-2 gap-1">
-              {Object.entries(plan.target_metric).map(([k, v]) => (
-                <div key={k} className="flex justify-between">
-                  <span>{k.replace(/_/g, ' ')}</span>
-                  <span className="font-mono font-medium text-foreground">
-                    {typeof v === 'number' ? (k.includes('pct') ? `${v}%` : v) : String(v)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+          );
+        })}
 
         {/* Progress */}
         {plan.requirements_total > 0 && (
