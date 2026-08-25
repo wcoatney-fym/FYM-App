@@ -37,6 +37,14 @@ import {
 
 import { createClient } from "npm:@supabase/supabase-js@2.39.3";
 
+/**
+ * Coaching pipeline scope: FYM Direct agents only.
+ * Only agents rostered under this agency are eligible for coaching flags.
+ * Sub-agencies are excluded — they manage their own agents.
+ */
+const FYM_DIRECT_AGENCY_ID = "338230f2-2058-407c-9507-5aa88d6d5e14";
+const FYM_DIRECT_AGENCY_WN = "202JVV00";
+
 interface AgentStats {
   writing_number: string;
   agent_name: string | null;
@@ -135,6 +143,7 @@ Deno.serve(async (req) => {
     };
 
     // ── 3. Load agency roster mapping (writing_number → roster id + agency_id) ──
+    //    SCOPED TO FYM DIRECT ONLY — only agents rostered under FYM are eligible
     const rosterMap = new Map<string, { roster_id: string; agency_id: string }>();
     const PAGE_SIZE = 500;
     let offset = 0;
@@ -143,6 +152,7 @@ Deno.serve(async (req) => {
       const { data: rosterPage, error: rosterErr } = await supabase
         .from("agency_rosters")
         .select("id, agency_id, unl_writing_number")
+        .eq("agency_id", FYM_DIRECT_AGENCY_ID)
         .not("unl_writing_number", "is", null)
         .neq("unl_writing_number", "")
         .range(offset, offset + PAGE_SIZE - 1);
@@ -202,7 +212,23 @@ Deno.serve(async (req) => {
     }
 
     // ── 6. Query Max's prod DB for per-agent stats ────────────────────
+    //    Only query agents whose writing numbers are in the FYM Direct roster.
+    //    This ensures we never flag sub-agency agents.
     sql = createProdConnection();
+
+    const rosterWritingNumbers = [...rosterMap.keys()];
+    if (rosterWritingNumbers.length === 0) {
+      return jsonResponse({
+        dry_run: dryRun,
+        agents_scanned: 0,
+        agents_flagged: 0,
+        flags_total: 0,
+        flags_by_type: { production: 0, quality: 0, rts_watch: 0 },
+        roster_coverage: 0,
+        note: "No FYM Direct roster agents found — nothing to scan",
+        elapsed_ms: Math.round(performance.now() - started),
+      });
+    }
 
     const agencyWhere = agencyFilter
       ? sql`AND agency_wn = ${agencyFilter}`
@@ -233,8 +259,12 @@ Deno.serve(async (req) => {
         WHERE TRIM(wa) IS NOT NULL
           AND TRIM(wa) != ''
       ),
+      roster_wns AS (
+        SELECT unnest(${rosterWritingNumbers}::text[]) AS wn
+      ),
       filtered AS (
-        SELECT * FROM base
+        SELECT base.* FROM base
+        JOIN roster_wns ON base.writing_number = roster_wns.wn
         WHERE 1=1
           ${agencyWhere}
       ),
