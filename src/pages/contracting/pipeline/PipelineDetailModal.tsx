@@ -42,15 +42,23 @@ import { AgentStepReviewPanel } from './AgentStepReviewPanel';
 import { CannedMessageList } from '@/components/contracting/CannedMessageButton';
 import { getMessagesForStage } from '@/lib/contracting/canned-messages';
 
-/** All stages for the move-to dropdown (active + legacy for backward compat) */
-const ALL_MOVE_STAGES = [
-  ...STAGES,
-  ...LEGACY_STAGES.map((key) => ({
-    key,
-    label: `${key} (legacy)`,
-    color: 'bg-secondary/10 border-border',
-  })),
-];
+/**
+ * Build the move-to dropdown stages lazily inside the component — NOT at module level.
+ * PipelineBoard ↔ PipelineDetailModal is a circular import. LEGACY_STAGES is defined
+ * AFTER PipelineBoard imports this file, so at module-evaluation time it's undefined.
+ * Accessing it inside the component function is safe because by then all modules
+ * have finished initializing.
+ */
+function getAllMoveStages() {
+  return [
+    ...STAGES,
+    ...(LEGACY_STAGES || []).map((key) => ({
+      key,
+      label: `${key} (legacy)`,
+      color: 'bg-secondary/10 border-border',
+    })),
+  ];
+}
 
 interface PipelineDetailModalProps {
   record: PortalPipelineRecord;
@@ -189,7 +197,7 @@ export function PipelineDetailModal({
                 disabled={movingStage}
                 className="w-full px-4 py-2.5 border border-border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent appearance-none bg-card disabled:opacity-50"
               >
-                {ALL_MOVE_STAGES.map((s) => (
+                {getAllMoveStages().map((s) => (
                   <option key={s.key} value={s.key}>
                     {s.label}
                     {s.key === record.stage ? ' (current)' : ''}
