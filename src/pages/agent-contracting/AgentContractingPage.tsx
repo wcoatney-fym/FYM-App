@@ -36,6 +36,7 @@ import { ContractingStepPanel } from './ContractingStepPanel';
 import { AgentWritingNumberInput } from './AgentWritingNumberInput';
 import { AgentCarrierManagement } from './AgentCarrierManagement';
 import { TylerTestCard } from './TylerTestCard';
+import { WritingNumberScreenshotUpload } from './WritingNumberScreenshotUpload';
 import {
   Loader2,
   AlertCircle,
@@ -267,8 +268,8 @@ export function AgentContractingPage() {
                 />
               </StaggerItem>
 
-              {/* Writing Number Input — shown during In Contracting */}
-              {(currentStage === 'in_contracting' || isAdditionalContracting) && (
+              {/* Writing Number Input — shown during Waiting for Numbers */}
+              {(currentStage === 'waiting_for_numbers' || currentStage === 'in_contracting' || isAdditionalContracting) && (
                 <StaggerItem>
                   <AgentWritingNumberInput
                     lobAssignments={lobAssignments}
@@ -278,10 +279,20 @@ export function AgentContractingPage() {
                 </StaggerItem>
               )}
 
-              {/* Tyler Test Card — unlocked when at least one WN is verified */}
-              {currentStage === 'in_contracting' &&
-                !isAdditionalContracting &&
-                hasVerifiedWN && (
+              {/* Screenshot upload for writing numbers */}
+              {(currentStage === 'waiting_for_numbers' || currentStage === 'in_contracting' || isAdditionalContracting) && (
+                <StaggerItem>
+                  <WritingNumberScreenshotUpload
+                    agentId={pipeline.agent_id}
+                    wnSubmissions={wnSubmissions}
+                    onUploadComplete={refetch}
+                  />
+                </StaggerItem>
+              )}
+
+              {/* Tyler Test Card — shown in RTS stage */}
+              {currentStage === 'rts' &&
+                !isAdditionalContracting && (
                   <StaggerItem>
                     <TylerTestCard
                       pipelineRecord={pipeline}

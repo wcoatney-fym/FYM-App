@@ -27,8 +27,9 @@ import type { PortalLobAssignment } from '@/lib/contracting/types';
 import type { WritingNumberSubmission } from '@/hooks/useAgentPipeline';
 import type { CarrierWritingNumber } from '@/hooks/useAgentRosterData';
 
-/** All carriers agents might work with */
-const ALL_CARRIERS = [...HIP_CARRIERS, 'AHL'] as const;
+/** All carriers agents might work with.
+ * Charlie (2026-08-25): Manhattan, AHL, UNL, GTL, Heartland */
+const ALL_CARRIERS = ['Manhattan', 'AHL', 'UNL', 'GTL', 'Heartland'] as const;
 
 interface AgentCarrierManagementProps {
   lobAssignments: PortalLobAssignment[];

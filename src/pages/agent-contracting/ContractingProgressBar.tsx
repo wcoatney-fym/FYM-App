@@ -15,6 +15,9 @@ import {
 } from '@/hooks/useAgentPipeline';
 import type { AgentPipelineStage } from '@/lib/contracting/types';
 
+/** Agent-visible stages for the progress bar (excludes terminated) */
+const PROGRESS_STAGES = AGENT_STAGES.filter((s) => s.key !== 'terminated');
+
 interface ContractingProgressBarProps {
   currentStage: AgentPipelineStage;
   currentStageIndex: number;
@@ -28,7 +31,30 @@ export function ContractingProgressBar({
   isAdditionalContracting,
   earnedStatusLabel,
 }: ContractingProgressBarProps) {
-  void _currentStage; // used via currentStageIndex for progress calculation
+  // Build the visible stages for the progress bar:
+  // - Show the agent's entry stage (hip_broker OR hip_career), not both
+  // - Exclude terminated (not part of forward progress)
+  const entryStage = _currentStage === 'hip_career' || _currentStage === 'hip_career'
+    ? 'hip_career' : 'hip_broker';
+  // If agent is past the entry stages, use whichever one they came from
+  const resolvedEntry = (() => {
+    // If currently in hip_career, use it
+    if (_currentStage === 'hip_career') return 'hip_career';
+    // Default to hip_broker (most common path)
+    return 'hip_broker';
+  })();
+
+  const visibleStages = PROGRESS_STAGES.filter((s) => {
+    // Show only the agent's entry stage, not the other
+    if (s.key === 'hip_broker' && resolvedEntry === 'hip_career') return false;
+    if (s.key === 'hip_career' && resolvedEntry === 'hip_broker') return false;
+    return true;
+  });
+
+  // Recalculate index within visible stages
+  const visibleIndex = visibleStages.findIndex((s) => s.key === _currentStage);
+  const effectiveIndex = visibleIndex >= 0 ? visibleIndex : currentStageIndex;
+
   return (
     <div className="relative">
       {/* Additional contracting banner */}
@@ -52,14 +78,14 @@ export function ContractingProgressBar({
           <div
             className="absolute top-5 left-0 h-0.5 bg-emerald-500/60 z-0 transition-all duration-700"
             style={{
-              width: `${Math.max(0, (currentStageIndex / (AGENT_STAGES.length - 1)) * 100)}%`,
+              width: `${Math.max(0, (effectiveIndex / (visibleStages.length - 1)) * 100)}%`,
             }}
           />
 
-          {AGENT_STAGES.map((stage, idx) => {
-            const isCompleted = idx < currentStageIndex;
-            const isCurrent = idx === currentStageIndex;
-            const isLocked = idx > currentStageIndex;
+          {visibleStages.map((stage, idx) => {
+            const isCompleted = idx < effectiveIndex;
+            const isCurrent = idx === effectiveIndex;
+            const isLocked = idx > effectiveIndex;
 
             return (
               <div

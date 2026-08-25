@@ -55,15 +55,24 @@ export const STAGES: { key: AgentPipelineStage; label: string; color: string }[]
   { key: 'hip_broker', label: 'HIP Broker', color: 'bg-cyan-500/10 border-blue-500/20' },
   { key: 'hip_career', label: 'HIP Career', color: 'bg-indigo-500/10 border-indigo-500/20' },
   { key: 'iaa', label: 'IAA', color: 'bg-violet-500/10 border-violet-500/20' },
-  { key: 'signed_iaa', label: 'Signed IAA', color: 'bg-purple-500/10 border-purple-500/20' },
-  { key: 'bill_com', label: 'Bill.com', color: 'bg-fuchsia-500/10 border-fuchsia-500/20' },
   { key: 'in_contracting', label: 'In Contracting', color: 'bg-teal-500/10 border-teal-500/20' },
+  { key: 'waiting_for_numbers', label: 'Waiting for Numbers', color: 'bg-orange-500/10 border-orange-500/20' },
   { key: 'rts', label: 'RTS', color: 'bg-emerald-500/10 border-emerald-500/20' },
-  { key: 'crm', label: 'CRM Onboarding', color: 'bg-cyan-500/10 border-cyan-500/20' },
-  { key: 'hip_broker_ready', label: 'HIP Broker READY', color: 'bg-emerald-500/10 border-green-500/20' },
-  { key: 'hip_career_ready', label: 'HIP Career READY', color: 'bg-lime-500/10 border-lime-500/20' },
   { key: 'actively_selling', label: 'Actively Selling', color: 'bg-amber-500/10 border-amber-500/20' },
   { key: 'terminated', label: 'Terminated', color: 'bg-red-500/10 border-red-500/20' },
+];
+
+/**
+ * Legacy stages — kept for backward compatibility with existing pipeline records.
+ * These stages no longer appear as columns but records in them are still loaded
+ * and displayed in the first matching active column.
+ */
+export const LEGACY_STAGES: AgentPipelineStage[] = [
+  'signed_iaa',
+  'bill_com',
+  'crm',
+  'hip_broker_ready',
+  'hip_career_ready',
 ];
 
 // ─── Edge function calls (portal Supabase) ─────────────────────────────────
@@ -278,9 +287,23 @@ export function PipelineBoard() {
     return true;
   });
 
+  // Map legacy stages to their new column homes
+  const legacyStageMap: Record<string, AgentPipelineStage> = {
+    signed_iaa: 'iaa',
+    bill_com: 'in_contracting',
+    crm: 'in_contracting',
+    hip_broker_ready: 'rts',
+    hip_career_ready: 'rts',
+  };
+
   const groupedByStage = STAGES.map((stage) => {
     const stageRecords = filtered
-      .filter((r) => r.stage === stage.key)
+      .filter((r) => {
+        if (r.stage === stage.key) return true;
+        // Legacy records fall into their mapped column
+        const mapped = legacyStageMap[r.stage];
+        return mapped === stage.key;
+      })
       // Sort: agent_action_pending first (oldest pending first), then by stage_entered_at desc
       .sort((a, b) => {
         if (a.agent_action_pending && !b.agent_action_pending) return -1;
