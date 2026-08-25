@@ -64,14 +64,6 @@ export function ContractingStepPanel({
   progress,
   onSubmitStep,
 }: ContractingStepPanelProps) {
-  // Filter steps to only show agent-visible ones
-  const agentVisibleSteps = progress.steps.filter((s) => s.agent_visible !== false);
-  const agentCompletedCount = agentVisibleSteps.filter(
-    (s) => (pipelineRecord.completed_steps || {})[s.id]
-  ).length;
-  const agentTotal = agentVisibleSteps.length;
-  const agentFraction = agentTotal > 0 ? agentCompletedCount / agentTotal : 0;
-  const agentAllComplete = agentTotal > 0 && agentCompletedCount === agentTotal;
   const [submittingStep, setSubmittingStep] = useState<string | null>(null);
 
   const stageLabel =
@@ -90,20 +82,20 @@ export function ContractingStepPanel({
         <p className="text-[11px] font-bold uppercase tracking-wider text-primary">
           Current Step: {stageLabel}
         </p>
-        {/* Progress summary — agent sees only their visible steps */}
+        {/* Progress summary */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-full max-w-[200px] h-2 rounded-full bg-muted/30 overflow-hidden">
               <div
                 className="h-full rounded-full bg-emerald-500 transition-all duration-500"
-                style={{ width: `${agentFraction * 100}%` }}
+                style={{ width: `${progress.fraction * 100}%` }}
               />
             </div>
             <span className="text-xs text-muted-foreground font-mono">
-              {agentCompletedCount}/{agentTotal}
+              {progress.completedCount}/{progress.total}
             </span>
           </div>
-          {agentAllComplete && (
+          {progress.allComplete && (
             <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
               <CheckCircle2 className="w-3.5 h-3.5" />
               All steps complete
@@ -111,9 +103,9 @@ export function ContractingStepPanel({
           )}
         </div>
 
-        {/* Step checklist — agent-visible steps only */}
+        {/* Step checklist */}
         <div className="space-y-2">
-          {agentVisibleSteps.map((step) => {
+          {progress.steps.map((step) => {
             const status = getStepStatus(
               step,
               pipelineRecord.completed_steps || {},
@@ -195,7 +187,7 @@ export function ContractingStepPanel({
             );
           })}
 
-          {agentVisibleSteps.length === 0 && (
+          {progress.steps.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-4">
               No checklist items for this stage yet. Your admin is setting things up.
             </p>

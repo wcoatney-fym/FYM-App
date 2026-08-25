@@ -23,8 +23,8 @@ const AGENT_COMPLETABLE_KEYS: Record<
   string,
   { label: string; icon: typeof PenLine; stage: string }
 > = {
-  iaa_signed: { label: 'IAA Signed', icon: FileSignature, stage: 'iaa' },
-  iaa_slack_joined: { label: 'Slack Joined', icon: FileCheck, stage: 'iaa' },
+  iaa_signed_by_agent: { label: 'IAA Signed', icon: FileSignature, stage: 'iaa' },
+  bill_com_done_by_agent: { label: 'Bill.com Done', icon: FileCheck, stage: 'bill_com' },
 };
 
 interface PipelineSummaryBarProps {

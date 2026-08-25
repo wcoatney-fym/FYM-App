@@ -36,7 +36,6 @@ import { ContractingStepPanel } from './ContractingStepPanel';
 import { AgentWritingNumberInput } from './AgentWritingNumberInput';
 import { AgentCarrierManagement } from './AgentCarrierManagement';
 import { TylerTestCard } from './TylerTestCard';
-import { WritingNumberScreenshotUpload } from './WritingNumberScreenshotUpload';
 import {
   Loader2,
   AlertCircle,
@@ -81,7 +80,11 @@ export function AgentContractingPage() {
   const preRTS = currentStage ? isPreRTS(currentStage) : true;
   const currentStageIndex = currentStage ? getStageIndex(currentStage) : 0;
 
-  // Check for pending/rejected submissions
+  // Check if agent has any verified writing numbers (unlocks Tyler Test)
+  const verifiedWNs = lobAssignments.filter((l) => l.verified);
+  const hasVerifiedWN = verifiedWNs.length > 0;
+
+  // Check for pending submissions
   const pendingWNs = wnSubmissions.filter((s) => s.status === 'pending');
   const rejectedWNs = wnSubmissions.filter((s) => s.status === 'rejected');
 
@@ -264,8 +267,8 @@ export function AgentContractingPage() {
                 />
               </StaggerItem>
 
-              {/* Writing Number Input — shown during Waiting for Numbers */}
-              {(currentStage === 'waiting_for_numbers' || currentStage === 'in_contracting' || isAdditionalContracting) && (
+              {/* Writing Number Input — shown during In Contracting */}
+              {(currentStage === 'in_contracting' || isAdditionalContracting) && (
                 <StaggerItem>
                   <AgentWritingNumberInput
                     lobAssignments={lobAssignments}
@@ -275,20 +278,10 @@ export function AgentContractingPage() {
                 </StaggerItem>
               )}
 
-              {/* Screenshot upload for writing numbers */}
-              {(currentStage === 'waiting_for_numbers' || currentStage === 'in_contracting' || isAdditionalContracting) && (
-                <StaggerItem>
-                  <WritingNumberScreenshotUpload
-                    agentId={pipeline.agent_id}
-                    wnSubmissions={wnSubmissions}
-                    onUploadComplete={refetch}
-                  />
-                </StaggerItem>
-              )}
-
-              {/* Tyler Test Card — shown in RTS stage */}
-              {currentStage === 'rts' &&
-                !isAdditionalContracting && (
+              {/* Tyler Test Card — unlocked when at least one WN is verified */}
+              {currentStage === 'in_contracting' &&
+                !isAdditionalContracting &&
+                hasVerifiedWN && (
                   <StaggerItem>
                     <TylerTestCard
                       pipelineRecord={pipeline}

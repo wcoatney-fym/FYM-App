@@ -35,22 +35,10 @@ import type {
   AgentPipelineStage,
   PortalPipelineStageStep,
 } from '@/lib/contracting/types';
-import { STAGES, LEGACY_STAGES } from './PipelineBoard';
+import { STAGES } from './PipelineBoard';
 import { computeProgress } from './pipelineProgress';
 import { WritingNumberReviewPanel } from './WritingNumberReviewPanel';
 import { AgentStepReviewPanel } from './AgentStepReviewPanel';
-import { CannedMessageList } from '@/components/contracting/CannedMessageButton';
-import { getMessagesForStage } from '@/lib/contracting/canned-messages';
-
-/** All stages for the move-to dropdown (active + legacy for backward compat) */
-const ALL_MOVE_STAGES = [
-  ...STAGES,
-  ...LEGACY_STAGES.map((key) => ({
-    key,
-    label: `${key} (legacy)`,
-    color: 'bg-secondary/10 border-border',
-  })),
-];
 
 interface PipelineDetailModalProps {
   record: PortalPipelineRecord;
@@ -189,7 +177,7 @@ export function PipelineDetailModal({
                 disabled={movingStage}
                 className="w-full px-4 py-2.5 border border-border rounded-lg text-sm focus:ring-2 focus:ring-blue-400 focus:border-transparent appearance-none bg-card disabled:opacity-50"
               >
-                {ALL_MOVE_STAGES.map((s) => (
+                {STAGES.map((s) => (
                   <option key={s.key} value={s.key}>
                     {s.label}
                     {s.key === record.stage ? ' (current)' : ''}
@@ -203,14 +191,6 @@ export function PipelineDetailModal({
               )}
             </div>
           </div>
-
-          {/* Canned Messages — show templates relevant to current stage */}
-          {(() => {
-            const stageMessages = getMessagesForStage(record.stage);
-            return stageMessages.length > 0 ? (
-              <CannedMessageList messages={stageMessages} />
-            ) : null;
-          })()}
 
           {/* Step Checklist */}
           {progress.total > 0 && (

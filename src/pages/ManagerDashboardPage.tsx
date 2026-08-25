@@ -861,7 +861,6 @@ const PIPELINE_STAGE_META: Record<string, { label: string; color: string }> = {
   signed_iaa: { label: 'Signed IAA', color: 'bg-purple-500/20 text-purple-400' },
   bill_com: { label: 'Bill.com', color: 'bg-fuchsia-500/20 text-fuchsia-400' },
   in_contracting: { label: 'In Contracting', color: 'bg-teal-500/20 text-teal-400' },
-  waiting_for_numbers: { label: 'Waiting for Numbers', color: 'bg-orange-500/20 text-orange-400' },
   rts: { label: 'RTS', color: 'bg-emerald-500/20 text-emerald-400' },
   crm: { label: 'CRM Onboarding', color: 'bg-cyan-500/20 text-cyan-400' },
   hip_broker_ready: { label: 'HIP Broker READY', color: 'bg-emerald-500/20 text-emerald-400' },
