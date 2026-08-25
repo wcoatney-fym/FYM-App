@@ -3,22 +3,23 @@
  *
  * Shows the agent's active coaching plans with:
  * - Flag type badge + deadline countdown
- * - Action plan checklist with completion status
+ * - Action plan checklist with self-completion for eligible types
  * - Progress bar
- * - Expandable detail: notes from manager + stage history timeline
+ * - Two-way notes thread (agent can post notes back to manager)
  * - "Why you were flagged" trigger context
  * - Target metrics to resolve
- *
- * Read-only for agents — managers modify via the CoachingPlanDrawer.
+ * - Stage history timeline
  */
 import { useState, useEffect, useCallback } from 'react';
 import {
   Clock, Target, CheckCircle2, AlertTriangle, Loader2,
   ListChecks, ChevronDown, ChevronUp, MessageSquare,
-  History,
+  History, Send,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { supabase } from '@/lib/supabase';
 import {
@@ -31,15 +32,25 @@ import {
   type CoachingCard,
   type CoachingNote,
   type CoachingStageHistoryEntry,
+  type CoachingRequirement,
 } from '@/lib/coaching/types';
 import {
   fetchCoachingPlans,
   fetchCoachingNotes,
   fetchStageHistory,
+  addCoachingNote,
+  completeRequirement,
+  updateRequirement,
 } from '@/lib/coaching/api';
 
+/** Requirement types the agent can self-mark as complete */
+const AGENT_COMPLETABLE_TYPES = new Set(['custom_task', 'training']);
+
+/** Requirement types where the agent can increment completed_count */
+const AGENT_INCREMENTABLE_TYPES = new Set(['live_attendance']);
+
 export function AgentCoachingPlanView() {
-  const { effectiveAgencyId, effectiveWritingNumber } = useEffectiveAuth();
+  const { effectiveAgencyId, effectiveWritingNumber, profile } = useEffectiveAuth();
   const [plans, setPlans] = useState<CoachingCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [rosterAgentId, setRosterAgentId] = useState<string | null>(null);
@@ -70,12 +81,11 @@ export function AgentCoachingPlanView() {
     const data = await fetchCoachingPlans({
       rosterAgentId,
     });
-    // Show active plans only (not resolved/escalated) — but also show recently resolved (last 30d)
+    // Show active plans only — but also show recently resolved (last 30d)
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     setPlans(data.filter(p => {
       if (!['resolved', 'escalated'].includes(p.stage)) return true;
-      // Show resolved/escalated if within last 30 days
       const resolvedDate = p.resolved_at || p.escalated_at;
       return resolvedDate && new Date(resolvedDate) >= thirtyDaysAgo;
     }));
@@ -125,6 +135,8 @@ export function AgentCoachingPlanView() {
             isExpanded={isExpanded}
             isTerminal={isTerminal}
             onToggle={() => toggleExpand(plan.id)}
+            profileId={profile?.id ?? null}
+            onRequirementUpdated={loadPlans}
           />
         );
       })}
@@ -139,11 +151,15 @@ function PlanCard({
   isExpanded,
   isTerminal,
   onToggle,
+  profileId,
+  onRequirementUpdated,
 }: {
   plan: CoachingCard;
   isExpanded: boolean;
   isTerminal: boolean;
   onToggle: () => void;
+  profileId: string | null;
+  onRequirementUpdated: () => void;
 }) {
   const flagColors = FLAG_TYPE_COLORS[plan.flag_type];
   const days = daysRemaining(plan.deadline);
@@ -151,6 +167,50 @@ function PlanCard({
   const progress = plan.requirements_total > 0
     ? Math.round((plan.requirements_completed / plan.requirements_total) * 100)
     : 0;
+
+  // Track in-flight self-completions
+  const [completing, setCompleting] = useState<Set<string>>(new Set());
+
+  const handleSelfComplete = async (req: CoachingRequirement) => {
+    if (!profileId || req.is_completed || completing.has(req.id)) return;
+
+    setCompleting(prev => new Set(prev).add(req.id));
+    try {
+      await completeRequirement(req.id, profileId);
+      onRequirementUpdated();
+    } finally {
+      setCompleting(prev => {
+        const next = new Set(prev);
+        next.delete(req.id);
+        return next;
+      });
+    }
+  };
+
+  const handleIncrementAttendance = async (req: CoachingRequirement) => {
+    if (!profileId || completing.has(req.id)) return;
+    const newCount = (req.completed_count || 0) + 1;
+    const isNowComplete = req.required_count ? newCount >= req.required_count : false;
+
+    setCompleting(prev => new Set(prev).add(req.id));
+    try {
+      await updateRequirement(req.id, {
+        completed_count: newCount,
+        ...(isNowComplete ? {
+          is_completed: true,
+          completed_at: new Date().toISOString(),
+          completed_by: profileId,
+        } : {}),
+      });
+      onRequirementUpdated();
+    } finally {
+      setCompleting(prev => {
+        const next = new Set(prev);
+        next.delete(req.id);
+        return next;
+      });
+    }
+  };
 
   return (
     <Card className={`border ${isTerminal ? 'border-border opacity-75' : flagColors.border}`}>
@@ -188,7 +248,7 @@ function PlanCard({
               </p>
             </div>
           )}
-          {isTerminal && plan.resolved_at && (
+          {isTerminal && (plan.resolved_at || plan.escalated_at) && (
             <div className="text-right text-muted-foreground">
               <p className="text-xs">
                 {plan.stage === 'resolved' ? 'Resolved' : 'Escalated'}{' '}
@@ -259,32 +319,94 @@ function PlanCard({
           </div>
         )}
 
-        {/* Requirements list */}
+        {/* Requirements list — with self-completion for eligible types */}
         {plan.requirements.length > 0 && (
           <div className="space-y-1.5">
-            {plan.requirements.map(req => (
-              <div
-                key={req.id}
-                className={`flex items-center gap-2 p-2 rounded border text-sm ${
-                  req.is_completed
-                    ? 'border-emerald-500/20 bg-emerald-500/5 text-muted-foreground'
-                    : 'border-border text-foreground'
-                }`}
-              >
-                <CheckCircle2
-                  size={14}
-                  className={req.is_completed ? 'text-emerald-400 fill-emerald-500/20' : 'text-muted-foreground'}
-                />
-                <span className={req.is_completed ? 'line-through' : ''}>
-                  {REQUIREMENT_TYPE_ICONS[req.requirement_type]} {req.title}
-                </span>
-                {req.is_completed && req.completed_at && (
-                  <span className="ml-auto text-[10px] text-muted-foreground">
-                    {new Date(req.completed_at).toLocaleDateString('en-US', { timeZone: 'America/Chicago' })}
+            {plan.requirements.map(req => {
+              const canSelfComplete = !isTerminal
+                && !req.is_completed
+                && AGENT_COMPLETABLE_TYPES.has(req.requirement_type);
+              const canIncrement = !isTerminal
+                && !req.is_completed
+                && AGENT_INCREMENTABLE_TYPES.has(req.requirement_type)
+                && req.required_count
+                && req.completed_count < req.required_count;
+              const isProcessing = completing.has(req.id);
+
+              return (
+                <div
+                  key={req.id}
+                  className={`flex items-center gap-2 p-2 rounded border text-sm ${
+                    req.is_completed
+                      ? 'border-emerald-500/20 bg-emerald-500/5 text-muted-foreground'
+                      : 'border-border text-foreground'
+                  }`}
+                >
+                  {/* Self-complete button or status icon */}
+                  {canSelfComplete ? (
+                    <button
+                      onClick={() => handleSelfComplete(req)}
+                      disabled={isProcessing}
+                      className="flex-shrink-0 text-muted-foreground hover:text-emerald-400 transition-colors disabled:opacity-50"
+                      title="Mark as complete"
+                    >
+                      {isProcessing
+                        ? <Loader2 size={14} className="animate-spin" />
+                        : <CheckCircle2 size={14} />
+                      }
+                    </button>
+                  ) : (
+                    <CheckCircle2
+                      size={14}
+                      className={`flex-shrink-0 ${req.is_completed ? 'text-emerald-400 fill-emerald-500/20' : 'text-muted-foreground'}`}
+                    />
+                  )}
+
+                  <span className={`flex-1 ${req.is_completed ? 'line-through' : ''}`}>
+                    {REQUIREMENT_TYPE_ICONS[req.requirement_type]} {req.title}
                   </span>
-                )}
-              </div>
-            ))}
+
+                  {/* Live attendance: show count + increment button */}
+                  {req.requirement_type === 'live_attendance' && req.required_count && (
+                    <div className="flex items-center gap-1.5 ml-auto">
+                      <span className="text-xs text-muted-foreground font-mono">
+                        {req.completed_count}/{req.required_count}
+                      </span>
+                      {canIncrement && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 px-2 text-[10px]"
+                          onClick={() => handleIncrementAttendance(req)}
+                          disabled={isProcessing}
+                        >
+                          {isProcessing ? <Loader2 size={10} className="animate-spin" /> : '+1 Attended'}
+                        </Button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Coaching meeting: show scheduled date */}
+                  {req.requirement_type === 'coaching_meeting' && req.meeting_scheduled_at && !req.is_completed && (
+                    <span className="ml-auto text-[10px] text-muted-foreground">
+                      {new Date(req.meeting_scheduled_at).toLocaleDateString('en-US', {
+                        timeZone: 'America/Chicago',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                      })} CT
+                    </span>
+                  )}
+
+                  {req.is_completed && req.completed_at && (
+                    <span className="ml-auto text-[10px] text-muted-foreground">
+                      {new Date(req.completed_at).toLocaleDateString('en-US', { timeZone: 'America/Chicago' })}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -307,24 +429,41 @@ function PlanCard({
           className="mt-3 flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors w-full justify-center py-1"
         >
           {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          {isExpanded ? 'Hide details' : `View notes & history${plan.notes_count > 0 ? ` (${plan.notes_count})` : ''}`}
+          {isExpanded ? 'Hide details' : `Notes & history${plan.notes_count > 0 ? ` (${plan.notes_count})` : ''}`}
         </button>
 
-        {/* Expanded detail section */}
+        {/* Expanded detail section — now with agent note posting */}
         {isExpanded && (
-          <PlanDetail planId={plan.id} />
+          <PlanDetail
+            planId={plan.id}
+            profileId={profileId}
+            isTerminal={isTerminal}
+            onNoteAdded={onRequirementUpdated}
+          />
         )}
       </CardContent>
     </Card>
   );
 }
 
-// ── Expandable Detail: Notes + History ────────────────────────────────────
+// ── Expandable Detail: Notes (two-way) + History ──────────────────────────
 
-function PlanDetail({ planId }: { planId: string }) {
+function PlanDetail({
+  planId,
+  profileId,
+  isTerminal,
+  onNoteAdded,
+}: {
+  planId: string;
+  profileId: string | null;
+  isTerminal: boolean;
+  onNoteAdded: () => void;
+}) {
   const [notes, setNotes] = useState<CoachingNote[]>([]);
   const [history, setHistory] = useState<CoachingStageHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [sendingNote, setSendingNote] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -344,6 +483,28 @@ function PlanDetail({ planId }: { planId: string }) {
     return () => { cancelled = true; };
   }, [planId]);
 
+  const handleSendNote = async () => {
+    if (!profileId || !noteDraft.trim() || sendingNote) return;
+    setSendingNote(true);
+    try {
+      await addCoachingNote(planId, profileId, noteDraft.trim());
+      setNoteDraft('');
+      // Refresh notes
+      const updatedNotes = await fetchCoachingNotes(planId);
+      setNotes(updatedNotes);
+      onNoteAdded();
+    } finally {
+      setSendingNote(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      handleSendNote();
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-6">
@@ -354,31 +515,69 @@ function PlanDetail({ planId }: { planId: string }) {
 
   return (
     <div className="mt-4 border-t border-border/30 pt-4 space-y-5">
-      {/* Notes from manager */}
+      {/* Two-way notes thread */}
       <div>
         <h4 className="text-xs font-semibold text-foreground flex items-center gap-1.5 mb-2">
           <MessageSquare size={13} />
           Coaching Notes
         </h4>
-        {notes.length === 0 ? (
-          <p className="text-xs text-muted-foreground italic">No coaching notes yet.</p>
-        ) : (
-          <div className="space-y-2">
-            {notes.map(note => (
-              <div key={note.id} className="p-2.5 rounded-lg border border-border bg-secondary/30">
-                <p className="text-sm text-foreground/90 whitespace-pre-wrap">{note.body}</p>
-                <p className="text-[10px] text-muted-foreground mt-1.5">
-                  {new Date(note.created_at).toLocaleString('en-US', {
-                    timeZone: 'America/Chicago',
-                    month: 'short',
-                    day: 'numeric',
-                    hour: 'numeric',
-                    minute: '2-digit',
-                  })} CT
-                </p>
-              </div>
-            ))}
+        {notes.length === 0 && (
+          <p className="text-xs text-muted-foreground italic mb-3">No coaching notes yet. Start the conversation below.</p>
+        )}
+        {notes.length > 0 && (
+          <div className="space-y-2 mb-3">
+            {notes.map(note => {
+              const isOwnNote = note.author_id === profileId;
+              return (
+                <div
+                  key={note.id}
+                  className={`p-2.5 rounded-lg border ${
+                    isOwnNote
+                      ? 'border-primary/30 bg-primary/5 ml-4'
+                      : 'border-border bg-secondary/30 mr-4'
+                  }`}
+                >
+                  <p className="text-sm text-foreground/90 whitespace-pre-wrap">{note.body}</p>
+                  <p className="text-[10px] text-muted-foreground mt-1.5 flex items-center gap-1.5">
+                    {isOwnNote ? 'You' : 'Manager'}
+                    {' · '}
+                    {new Date(note.created_at).toLocaleString('en-US', {
+                      timeZone: 'America/Chicago',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })} CT
+                  </p>
+                </div>
+              );
+            })}
           </div>
+        )}
+
+        {/* Agent note input — always visible unless terminal */}
+        {!isTerminal && profileId && (
+          <div className="flex gap-2">
+            <Textarea
+              placeholder="Reply to your manager…"
+              value={noteDraft}
+              onChange={(e) => setNoteDraft(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="min-h-[60px] text-sm resize-none flex-1"
+              rows={2}
+            />
+            <Button
+              size="sm"
+              onClick={handleSendNote}
+              disabled={!noteDraft.trim() || sendingNote}
+              className="self-end h-8 px-3"
+            >
+              {sendingNote ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+            </Button>
+          </div>
+        )}
+        {!isTerminal && profileId && (
+          <p className="text-[10px] text-muted-foreground mt-1">⌘+Enter to send</p>
         )}
       </div>
 
