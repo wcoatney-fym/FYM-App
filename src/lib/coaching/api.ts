@@ -533,6 +533,60 @@ export interface CoachingPipelineSummaryRow {
   active_count: number;
 }
 
+// ── Completion Engine API ──────────────────────────────────────────────
+
+export interface CoachingCompletionResult {
+  dry_run: boolean;
+  plans_checked: number;
+  requirements_checked: number;
+  roster_to_portal_mappings: number;
+  portal_agents_with_attendance: number;
+  actions_summary: {
+    incremented: number;
+    completed: number;
+    advanced: number;
+    skipped: number;
+  };
+  actions: Array<{
+    action: string;
+    requirement_id?: string;
+    plan_id: string;
+    detail: string;
+  }>;
+  elapsed_ms: number;
+}
+
+/**
+ * Invoke the coaching-completion edge function.
+ * Syncs portal live attendance → coaching requirements,
+ * auto-completes requirements, auto-advances plans.
+ * Pass dryRun=true to preview without writing.
+ */
+export async function runCoachingCompletion(params?: {
+  dryRun?: boolean;
+  planId?: string;
+}): Promise<CoachingCompletionResult | null> {
+  if (!supabase) return null;
+
+  const queryParams = new URLSearchParams();
+  if (params?.dryRun) queryParams.set('dry_run', 'true');
+  if (params?.planId) queryParams.set('plan_id', params.planId);
+
+  const qs = queryParams.toString();
+  const { data, error } = await supabase.functions.invoke(
+    `coaching-completion${qs ? `?${qs}` : ''}`,
+    { method: 'POST' },
+  );
+
+  if (error) {
+    console.error('runCoachingCompletion error:', error);
+    return null;
+  }
+  return data as CoachingCompletionResult;
+}
+
+// ── Pipeline Summary (from DB view) ───────────────────────────────────
+
 export async function fetchPipelineSummary(
   agencyId?: string,
 ): Promise<CoachingPipelineSummaryRow[]> {
