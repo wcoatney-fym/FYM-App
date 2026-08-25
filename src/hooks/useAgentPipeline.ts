@@ -54,12 +54,14 @@ export const AGENT_STAGES: {
   label: string;
   agentCanComplete: boolean;
 }[] = [
-  { key: 'hip_broker', label: 'Intake', agentCanComplete: false }, // auto-completed on intake form submission
+  { key: 'hip_broker', label: 'HIP Broker', agentCanComplete: false }, // auto — intake form
+  { key: 'hip_career', label: 'HIP Career', agentCanComplete: false }, // auto — intake form
   { key: 'iaa', label: 'Agreement', agentCanComplete: true },
-  { key: 'signed_iaa', label: 'Signed', agentCanComplete: true },
-  { key: 'bill_com', label: 'Billing Setup', agentCanComplete: true },
-  { key: 'in_contracting', label: 'In Contracting', agentCanComplete: true },
-  { key: 'rts', label: 'RTS', agentCanComplete: false }, // auto-granted after Tyler test
+  { key: 'in_contracting', label: 'In Contracting', agentCanComplete: false }, // admin-side tasks
+  { key: 'waiting_for_numbers', label: 'Waiting for Numbers', agentCanComplete: true },
+  { key: 'rts', label: 'RTS', agentCanComplete: false }, // Tyler test + EnrollHere
+  { key: 'actively_selling', label: 'Actively Selling', agentCanComplete: false }, // auto — Max's DB
+  { key: 'terminated', label: 'Terminated', agentCanComplete: false }, // admin-only
 ];
 
 /** Stages that are considered pre-RTS */
@@ -71,6 +73,7 @@ export const PRE_RTS_STAGES = new Set<AgentPipelineStage>([
   'bill_com',
   'crm',
   'in_contracting',
+  'waiting_for_numbers',
 ]);
 
 /** Stages that are considered post-RTS (active) */

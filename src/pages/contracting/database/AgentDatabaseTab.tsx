@@ -1349,6 +1349,7 @@ const STAGE_LABELS: Record<string, string> = {
   signed_iaa: 'Signed IAA',
   bill_com: 'Bill.com',
   in_contracting: 'In Contracting',
+  waiting_for_numbers: 'Waiting for Numbers',
   rts: 'RTS',
   crm: 'CRM Onboarding',
   hip_broker_ready: 'HIP Broker READY',
