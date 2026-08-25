@@ -116,6 +116,7 @@ export type AgentPipelineStage =
   | 'bill_com'
   | 'crm'
   | 'in_contracting'
+  | 'waiting_for_numbers'
   | 'rts'
   | 'hip_broker_ready'
   | 'hip_career_ready'
@@ -187,6 +188,8 @@ export type PortalPipelineStageStep = {
   label: string;
   display_order: number;
   active: boolean;
+  /** Whether this step is visible to agents (false = admin-only) */
+  agent_visible: boolean;
   created_at: string;
 };
 
