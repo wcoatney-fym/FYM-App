@@ -79,7 +79,7 @@ export function CoachingKanban({ agencyId, onSelectPlan, refreshKey }: CoachingK
   const filtered = useMemo(() => {
     let result = plans;
     if (filterFlag !== 'all') {
-      result = result.filter(p => p.flag_type === filterFlag);
+      result = result.filter(p => p.active_flag_types.includes(filterFlag));
     }
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase();
@@ -118,9 +118,9 @@ export function CoachingKanban({ agencyId, onSelectPlan, refreshKey }: CoachingK
   const kpis = useMemo(() => {
     const active = plans.length;
     const overdue = plans.filter(p => daysRemaining(p.deadline) < 0).length;
-    const production = plans.filter(p => p.flag_type === 'production').length;
-    const quality = plans.filter(p => p.flag_type === 'quality').length;
-    const rts = plans.filter(p => p.flag_type === 'rts_watch').length;
+    const production = plans.filter(p => p.active_flag_types.includes('production')).length;
+    const quality = plans.filter(p => p.active_flag_types.includes('quality')).length;
+    const rts = plans.filter(p => p.active_flag_types.includes('rts_watch')).length;
     const unassigned = plans.filter(p => p.stage === 'flagged').length;
     return { active, overdue, production, quality, rts, unassigned };
   }, [plans]);
@@ -307,7 +307,10 @@ function CoachingCardItem({
   onDragStart: () => void;
   onDragEnd: () => void;
 }) {
-  const flagColors = FLAG_TYPE_COLORS[plan.flag_type];
+  // Multi-flag: use the first active flag for card border color, show all flags as badges
+  const activeFlags = plan.active_flag_types.length > 0 ? plan.active_flag_types : (plan.flag_type ? [plan.flag_type] : []);
+  const primaryFlagType = activeFlags[0] || 'production';
+  const flagColors = FLAG_TYPE_COLORS[primaryFlagType];
   const days = daysRemaining(plan.deadline);
   const isOverdue = days < 0;
   const progress = plan.requirements_total > 0
@@ -325,7 +328,7 @@ function CoachingCardItem({
       tabIndex={0}
       onKeyDown={e => { if (e.key === 'Enter') onSelect(); }}
     >
-      {/* Top row: name + flag badge */}
+      {/* Top row: name + flag badges */}
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex items-center gap-1.5 min-w-0">
           <GripVertical size={12} className="text-muted-foreground shrink-0 cursor-grab" />
@@ -333,9 +336,13 @@ function CoachingCardItem({
             {plan.agent_first_name} {plan.agent_last_name}
           </span>
         </div>
-        <Badge variant="outline" className={`text-[10px] shrink-0 ${flagColors.badge}`}>
-          {flagColors.icon} {FLAG_TYPE_LABELS[plan.flag_type]}
-        </Badge>
+        <div className="flex gap-1 shrink-0">
+          {activeFlags.map(ft => (
+            <Badge key={ft} variant="outline" className={`text-[10px] ${FLAG_TYPE_COLORS[ft].badge}`}>
+              {FLAG_TYPE_COLORS[ft].icon} {FLAG_TYPE_LABELS[ft]}
+            </Badge>
+          ))}
+        </div>
       </div>
 
       {/* Writing number */}

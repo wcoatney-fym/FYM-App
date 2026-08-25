@@ -7,6 +7,7 @@
 
 import { supabase } from '@/lib/supabase';
 import type {
+  CoachingFlag,
   CoachingFlagType,
   CoachingStage,
   CoachingRequirementType,
@@ -108,7 +109,8 @@ export async function fetchCoachingPlans(params: {
       ),
       coaching_notes (
         id
-      )
+      ),
+      flags
     `)
     .order('flagged_at', { ascending: false });
 
@@ -122,8 +124,10 @@ export async function fetchCoachingPlans(params: {
       query = query.eq('stage', params.stage);
     }
   }
+  // Multi-flag: filter by flag type using the flags JSONB array
+  // Falls back to legacy flag_type column for backward compat
   if (params.flagType) {
-    query = query.eq('flag_type', params.flagType);
+    query = query.contains('flags', JSON.stringify([{ type: params.flagType }]));
   }
   if (params.assignedTo) {
     query = query.eq('assigned_to', params.assignedTo);
@@ -160,6 +164,8 @@ export async function fetchCoachingPlans(params: {
       target_metric: row.target_metric,
       resolution_note: row.resolution_note,
       resolution_type: row.resolution_type,
+      // Multi-flag support
+      flags: (row.flags || []) as CoachingFlag[],
       created_at: row.created_at,
       updated_at: row.updated_at,
       // Agent info
@@ -174,6 +180,12 @@ export async function fetchCoachingPlans(params: {
       requirements_total: reqs.length,
       requirements_completed: reqs.filter((r: any) => r.is_completed).length,
       assigned_to_name: assignedProfile?.full_name || null,
+      // Derived multi-flag fields
+      active_flag_types: ((row.flags || []) as CoachingFlag[])
+        .filter((f: CoachingFlag) => !f.resolved)
+        .map((f: CoachingFlag) => f.type),
+      is_multi_flag: ((row.flags || []) as CoachingFlag[])
+        .filter((f: CoachingFlag) => !f.resolved).length > 1,
     } as CoachingCard;
   });
 }
@@ -487,7 +499,10 @@ export async function fetchCoachingSummary(agencyId?: string): Promise<CoachingS
   };
 
   for (const plan of plans) {
-    summary.by_flag[plan.flag_type]++;
+    // Multi-flag: count each active flag type
+    for (const ft of plan.active_flag_types) {
+      if (ft in summary.by_flag) summary.by_flag[ft]++;
+    }
     summary.by_stage[plan.stage]++;
 
     const dl = new Date(plan.deadline);

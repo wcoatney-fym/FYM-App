@@ -190,20 +190,24 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── 5. Load existing active coaching plans ────────────────────────
-    const activePlans = new Map<string, { id: string; stage: string; flag_type: string }>();
+    // ── 5. Load existing active coaching plans (one per agent, multi-flag) ──
+    interface ActivePlan { id: string; stage: string; flags: Array<{ type: string; resolved: boolean; deadline: string }> }
+    const activePlans = new Map<string, ActivePlan>(); // roster_agent_id → plan
     {
       let planOffset = 0;
       while (true) {
         const { data: planPage } = await supabase
           .from("coaching_plans")
-          .select("id, roster_agent_id, flag_type, stage")
+          .select("id, roster_agent_id, stage, flags")
           .not("stage", "in", '("resolved","escalated")')
           .range(planOffset, planOffset + PAGE_SIZE - 1);
 
         for (const p of planPage || []) {
-          const key = `${p.roster_agent_id}:${p.flag_type}`;
-          activePlans.set(key, { id: p.id, stage: p.stage, flag_type: p.flag_type });
+          activePlans.set(p.roster_agent_id, {
+            id: p.id,
+            stage: p.stage,
+            flags: (p.flags as ActivePlan["flags"]) || [],
+          });
         }
 
         if (!planPage || planPage.length < PAGE_SIZE) break;
@@ -388,145 +392,228 @@ Deno.serve(async (req) => {
       // This function handles production + quality only.
     }
 
-    // ── 8. Build the set of currently-flagged writing numbers per flag type ──
-    const currentlyFlagged = new Set(flags.map(f => `${f.writing_number}:${f.flag_type}`));
+    // ── 8. Group flags by agent writing number ──────────────────────
+    const flagsByAgent = new Map<string, FlagResult[]>();
+    for (const flag of flags) {
+      const list = flagsByAgent.get(flag.writing_number) || [];
+      list.push(flag);
+      flagsByAgent.set(flag.writing_number, list);
+    }
 
-    // ── 9. Process: create new plans + auto-resolve stale ones ────────
+    // Build set of currently-flagged flag types per agent WN
+    const currentFlagTypes = new Map<string, Set<string>>();
+    for (const [wn, agentFlags] of flagsByAgent) {
+      currentFlagTypes.set(wn, new Set(agentFlags.map(f => f.flag_type)));
+    }
+
+    // ── 9. Process: upsert plans (one per agent, multi-flag) ────────
     const actions: ActionResult[] = [];
 
     if (!dryRun) {
-      // 9a. Create new coaching plans for newly-flagged agents
-      for (const flag of flags) {
-        const roster = rosterMap.get(flag.writing_number);
+      // 9a. For each flagged agent: create new plan or add flags to existing
+      for (const [wn, agentFlags] of flagsByAgent) {
+        const roster = rosterMap.get(wn);
         if (!roster) {
           actions.push({
             action: "no_roster_match",
-            writing_number: flag.writing_number,
-            flag_type: flag.flag_type,
-            reason: `No roster entry for WN ${flag.writing_number}`,
+            writing_number: wn,
+            flag_type: agentFlags.map(f => f.flag_type).join(","),
+            reason: `No roster entry for WN ${wn}`,
           });
           continue;
         }
 
-        const planKey = `${roster.roster_id}:${flag.flag_type}`;
-        if (activePlans.has(planKey)) {
-          actions.push({
-            action: "skipped",
-            writing_number: flag.writing_number,
-            flag_type: flag.flag_type,
-            plan_id: activePlans.get(planKey)!.id,
-            reason: "Active plan already exists",
-          });
-          continue;
-        }
+        const existingPlan = activePlans.get(roster.roster_id);
+        const existingFlagTypes = new Set(
+          (existingPlan?.flags || []).filter(f => !f.resolved).map(f => f.type)
+        );
 
-        // Calculate deadline — how long the agent has to resolve the flag
-        const deadlineDays = flag.flag_type === "production"
-          ? thresholds.production_deadline_days
-          : flag.flag_type === "quality"
-            ? thresholds.quality_deadline_days
-            : thresholds.rts_deadline_days;
+        // Build new flag entries for types not already on the plan
+        const newFlagEntries: Array<Record<string, unknown>> = [];
+        for (const flag of agentFlags) {
+          if (existingFlagTypes.has(flag.flag_type)) {
+            actions.push({
+              action: "skipped",
+              writing_number: wn,
+              flag_type: flag.flag_type,
+              plan_id: existingPlan?.id,
+              reason: "Flag type already active on plan",
+            });
+            continue;
+          }
 
-        const deadline = new Date();
-        deadline.setDate(deadline.getDate() + deadlineDays);
+          const deadlineDays = flag.flag_type === "production"
+            ? thresholds.production_deadline_days
+            : flag.flag_type === "quality"
+              ? thresholds.quality_deadline_days
+              : thresholds.rts_deadline_days;
+          const deadline = new Date();
+          deadline.setDate(deadline.getDate() + deadlineDays);
 
-        const { data: newPlan, error: insertErr } = await supabase
-          .from("coaching_plans")
-          .insert({
-            agency_id: roster.agency_id,
-            roster_agent_id: roster.roster_id,
-            flag_type: flag.flag_type,
-            stage: "flagged",
+          newFlagEntries.push({
+            type: flag.flag_type,
+            flagged_at: new Date().toISOString(),
             deadline: deadline.toISOString(),
             trigger_metric: flag.trigger_metric,
             target_metric: flag.target_metric,
-          })
-          .select("id")
-          .single();
-
-        if (insertErr) {
-          // Unique constraint violation = plan was created between our check and insert
-          if (insertErr.code === "23505") {
-            actions.push({
-              action: "skipped",
-              writing_number: flag.writing_number,
-              flag_type: flag.flag_type,
-              reason: "Concurrent insert — plan already exists",
-            });
-          } else {
-            console.error(`Insert error for ${flag.writing_number}/${flag.flag_type}:`, insertErr);
-            actions.push({
-              action: "skipped",
-              writing_number: flag.writing_number,
-              flag_type: flag.flag_type,
-              reason: `Insert error: ${insertErr.message}`,
-            });
-          }
-          continue;
-        }
-
-        // Record initial stage history
-        if (newPlan) {
-          await supabase.from("coaching_stage_history").insert({
-            plan_id: newPlan.id,
-            from_stage: null,
-            to_stage: "flagged",
-            note: `Auto-flagged: ${flag.flag_type} — ${JSON.stringify(flag.trigger_metric)}`,
+            resolved: false,
           });
         }
 
-        actions.push({
-          action: "created",
-          writing_number: flag.writing_number,
-          flag_type: flag.flag_type,
-          plan_id: newPlan?.id,
-        });
+        if (newFlagEntries.length === 0) continue;
+
+        if (existingPlan) {
+          // Append new flags to existing plan
+          const updatedFlags = [...existingPlan.flags, ...newFlagEntries];
+          const earliestDeadline = updatedFlags
+            .filter((f: any) => !f.resolved)
+            .map((f: any) => new Date(f.deadline).getTime())
+            .reduce((a, b) => Math.min(a, b), Infinity);
+
+          const { error: updateErr } = await supabase
+            .from("coaching_plans")
+            .update({
+              flags: updatedFlags,
+              deadline: new Date(earliestDeadline).toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", existingPlan.id);
+
+          if (!updateErr) {
+            for (const entry of newFlagEntries) {
+              actions.push({
+                action: "created",
+                writing_number: wn,
+                flag_type: entry.type as string,
+                plan_id: existingPlan.id,
+                reason: "Flag added to existing plan",
+              });
+            }
+          }
+        } else {
+          // Create new plan with all flags
+          const earliestDeadline = newFlagEntries
+            .map((f: any) => new Date(f.deadline).getTime())
+            .reduce((a, b) => Math.min(a, b), Infinity);
+
+          const { data: newPlan, error: insertErr } = await supabase
+            .from("coaching_plans")
+            .insert({
+              agency_id: roster.agency_id,
+              roster_agent_id: roster.roster_id,
+              flag_type: newFlagEntries.length === 1 ? newFlagEntries[0].type as string : null,
+              stage: "flagged",
+              deadline: new Date(earliestDeadline).toISOString(),
+              flags: newFlagEntries,
+              trigger_metric: newFlagEntries[0].trigger_metric as Record<string, unknown>,
+              target_metric: newFlagEntries[0].target_metric as Record<string, unknown>,
+            })
+            .select("id")
+            .single();
+
+          if (insertErr) {
+            if (insertErr.code === "23505") {
+              actions.push({ action: "skipped", writing_number: wn, flag_type: newFlagEntries.map((f: any) => f.type).join(","), reason: "Concurrent insert" });
+            } else {
+              console.error(`Insert error for ${wn}:`, insertErr);
+              actions.push({ action: "skipped", writing_number: wn, flag_type: newFlagEntries.map((f: any) => f.type).join(","), reason: insertErr.message });
+            }
+            continue;
+          }
+
+          if (newPlan) {
+            await supabase.from("coaching_stage_history").insert({
+              plan_id: newPlan.id,
+              from_stage: null,
+              to_stage: "flagged",
+              note: `Auto-flagged: ${newFlagEntries.map((f: any) => f.type).join(" + ")}`,
+            });
+
+            for (const entry of newFlagEntries) {
+              actions.push({
+                action: "created",
+                writing_number: wn,
+                flag_type: entry.type as string,
+                plan_id: newPlan.id,
+              });
+            }
+          }
+        }
       }
 
-      // 9b. Auto-resolve stale plans: agents still at 'flagged' stage but no longer breaching
-      // Only auto-resolve plans that:
-      //   - Are still at 'flagged' stage (no human has touched them)
-      //   - The agent's writing number is no longer in the flagged set
-      //   - The agent is in the roster (so we can match)
-      const reverseRoster = new Map<string, string>(); // roster_id → writing_number
+      // 9b. Auto-resolve individual flags that are no longer breaching
+      // For plans at 'flagged' stage: if ALL flags are no longer breaching, auto-resolve the plan.
+      // If only some flags resolved, mark those flags as resolved but keep the plan active.
+      const reverseRoster = new Map<string, string>();
       for (const [wn, entry] of rosterMap) {
         reverseRoster.set(entry.roster_id, wn);
       }
 
-      for (const [key, plan] of activePlans) {
-        if (plan.stage !== "flagged") continue; // only auto-resolve untouched plans
+      for (const [rosterId, plan] of activePlans) {
+        if (plan.stage !== "flagged") continue;
 
-        const [rosterId, flagType] = key.split(":");
         const wn = reverseRoster.get(rosterId);
         if (!wn) continue;
 
-        const flagKey = `${wn}:${flagType}`;
-        if (currentlyFlagged.has(flagKey)) continue; // still flagged
+        const agentCurrentFlags = currentFlagTypes.get(wn) || new Set();
+        let flagsChanged = false;
+        let allResolved = true;
 
-        // Agent no longer breaches threshold — auto-resolve
-        const { error: resolveErr } = await supabase
-          .from("coaching_plans")
-          .update({
-            stage: "resolved",
-            resolved_at: new Date().toISOString(),
-            resolution_type: "auto_resolved",
-            resolution_note: "Agent no longer breaches threshold — auto-resolved by nightly scan",
-          })
-          .eq("id", plan.id);
+        const updatedFlags = plan.flags.map(f => {
+          if (f.resolved) return f; // already resolved
+          if (!agentCurrentFlags.has(f.type)) {
+            // This flag type is no longer breaching — mark resolved
+            flagsChanged = true;
+            return { ...f, resolved: true };
+          }
+          allResolved = false;
+          return f;
+        });
 
-        if (!resolveErr) {
-          await supabase.from("coaching_stage_history").insert({
-            plan_id: plan.id,
-            from_stage: "flagged",
-            to_stage: "resolved",
-            note: "Auto-resolved: agent metrics now within thresholds",
-          });
+        // Check if all flags are now resolved
+        if (allResolved && updatedFlags.every(f => f.resolved)) {
+          // Auto-resolve the entire plan
+          const { error: resolveErr } = await supabase
+            .from("coaching_plans")
+            .update({
+              stage: "resolved",
+              flags: updatedFlags,
+              resolved_at: new Date().toISOString(),
+              resolution_type: "auto_resolved",
+              resolution_note: "All flags cleared — auto-resolved by nightly scan",
+            })
+            .eq("id", plan.id);
 
+          if (!resolveErr) {
+            await supabase.from("coaching_stage_history").insert({
+              plan_id: plan.id,
+              from_stage: "flagged",
+              to_stage: "resolved",
+              note: "Auto-resolved: all flags cleared",
+            });
+            actions.push({ action: "auto_resolved", writing_number: wn, flag_type: "all", plan_id: plan.id });
+          }
+        } else if (flagsChanged) {
+          // Some flags resolved but not all — update flags array + recalc deadline
+          const activeDeadlines = updatedFlags
+            .filter(f => !f.resolved)
+            .map(f => new Date(f.deadline).getTime());
+          const newDeadline = activeDeadlines.length > 0
+            ? new Date(Math.min(...activeDeadlines)).toISOString()
+            : plan.flags[0]?.deadline;
+
+          await supabase
+            .from("coaching_plans")
+            .update({ flags: updatedFlags, deadline: newDeadline, updated_at: new Date().toISOString() })
+            .eq("id", plan.id);
+
+          const resolvedTypes = updatedFlags.filter(f => f.resolved).map(f => f.type);
           actions.push({
             action: "auto_resolved",
             writing_number: wn,
-            flag_type: flagType,
+            flag_type: resolvedTypes.join(","),
             plan_id: plan.id,
+            reason: `Partial: ${resolvedTypes.join(", ")} resolved, plan still active`,
           });
         }
       }

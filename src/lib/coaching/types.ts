@@ -148,22 +148,38 @@ export const REQUIREMENT_TYPE_ICONS: Record<CoachingRequirementType, string> = {
 
 // ── Composite types for UI ────────────────────────────────────────────────
 
+/** Individual flag within a coaching plan's flags[] array */
+export interface CoachingFlag {
+  type: CoachingFlagType;
+  flagged_at: string;
+  deadline: string;
+  trigger_metric: Record<string, unknown>;
+  target_metric: Record<string, unknown>;
+  resolved: boolean;
+}
+
 export interface CoachingPlan {
   id: string;
   agency_id: string;
   roster_agent_id: string;
-  flag_type: CoachingFlagType;
+  /** @deprecated Use flags[] array instead. Kept for backward compat queries. */
+  flag_type: CoachingFlagType | null;
   stage: CoachingStage;
   assigned_to: string | null;
   assigned_at: string | null;
   flagged_at: string;
+  /** Display deadline = earliest active flag deadline */
   deadline: string;
   resolved_at: string | null;
   escalated_at: string | null;
+  /** @deprecated Use flags[].trigger_metric instead */
   trigger_metric: Record<string, unknown> | null;
+  /** @deprecated Use flags[].target_metric instead */
   target_metric: Record<string, unknown> | null;
   resolution_note: string | null;
   resolution_type: string | null;
+  /** Array of active flags on this plan (multi-flag support) */
+  flags: CoachingFlag[];
   created_at: string;
   updated_at: string;
 }
@@ -219,6 +235,10 @@ export interface CoachingCard extends CoachingPlan {
   requirements_completed: number;
   /** Manager name (if assigned) */
   assigned_to_name: string | null;
+  /** Active (non-resolved) flag types for badge rendering */
+  active_flag_types: CoachingFlagType[];
+  /** Whether this plan has multiple active flags */
+  is_multi_flag: boolean;
 }
 
 /** Coaching thresholds (extended) */
