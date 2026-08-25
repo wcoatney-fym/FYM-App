@@ -81,11 +81,7 @@ export function AgentContractingPage() {
   const preRTS = currentStage ? isPreRTS(currentStage) : true;
   const currentStageIndex = currentStage ? getStageIndex(currentStage) : 0;
 
-  // Check if agent has any verified writing numbers (unlocks Tyler Test)
-  const verifiedWNs = lobAssignments.filter((l) => l.verified);
-  const hasVerifiedWN = verifiedWNs.length > 0;
-
-  // Check for pending submissions
+  // Check for pending/rejected submissions
   const pendingWNs = wnSubmissions.filter((s) => s.status === 'pending');
   const rejectedWNs = wnSubmissions.filter((s) => s.status === 'rejected');
 

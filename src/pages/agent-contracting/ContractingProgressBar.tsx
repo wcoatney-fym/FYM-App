@@ -34,15 +34,10 @@ export function ContractingProgressBar({
   // Build the visible stages for the progress bar:
   // - Show the agent's entry stage (hip_broker OR hip_career), not both
   // - Exclude terminated (not part of forward progress)
-  const entryStage = _currentStage === 'hip_career' || _currentStage === 'hip_career'
-    ? 'hip_career' : 'hip_broker';
-  // If agent is past the entry stages, use whichever one they came from
-  const resolvedEntry = (() => {
-    // If currently in hip_career, use it
-    if (_currentStage === 'hip_career') return 'hip_career';
-    // Default to hip_broker (most common path)
-    return 'hip_broker';
-  })();
+  // Determine the agent's entry path (broker vs career).
+  // If currently in hip_career, use it; otherwise default to hip_broker.
+  const resolvedEntry: 'hip_broker' | 'hip_career' =
+    _currentStage === 'hip_career' ? 'hip_career' : 'hip_broker';
 
   const visibleStages = PROGRESS_STAGES.filter((s) => {
     // Show only the agent's entry stage, not the other

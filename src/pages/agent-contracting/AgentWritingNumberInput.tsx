@@ -20,7 +20,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { HIP_CARRIERS } from '@/lib/contracting/types';
+// HIP_CARRIERS import removed — carrier list is now inline (8-stage pipeline)
 import type { PortalLobAssignment } from '@/lib/contracting/types';
 import type { WritingNumberSubmission } from '@/hooks/useAgentPipeline';
 
