@@ -47,6 +47,28 @@ export async function updateCoachingThresholds(
 
 // ── Plans (CRUD) ──────────────────────────────────────────────────────────
 
+/** UUID v4 pattern — used to detect whether an agency filter is a UUID or writing number */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Resolve an agency identifier to a UUID.
+ * The app-wide agency filter stores writing numbers (e.g. "202JVV00"),
+ * but coaching_plans.agency_id is a UUID column. This helper converts
+ * writing numbers → UUIDs via a quick lookup, passing UUIDs through.
+ */
+async function resolveAgencyUuid(agencyIdOrWn: string): Promise<string | null> {
+  if (UUID_RE.test(agencyIdOrWn)) return agencyIdOrWn;
+  if (!supabase) return null;
+
+  const { data } = await supabase
+    .from('agencies')
+    .select('id')
+    .eq('writing_number', agencyIdOrWn)
+    .maybeSingle();
+
+  return data?.id ?? null;
+}
+
 export async function fetchCoachingPlans(params: {
   agencyId?: string;
   stage?: CoachingStage | CoachingStage[];
@@ -55,6 +77,16 @@ export async function fetchCoachingPlans(params: {
   rosterAgentId?: string;
 }): Promise<CoachingCard[]> {
   if (!supabase) return [];
+
+  // Resolve agency filter: writing number → UUID if needed
+  let resolvedAgencyId: string | null | undefined = undefined;
+  if (params.agencyId) {
+    resolvedAgencyId = await resolveAgencyUuid(params.agencyId);
+    if (!resolvedAgencyId) {
+      console.warn('fetchCoachingPlans: could not resolve agency', params.agencyId);
+      return [];
+    }
+  }
 
   let query = supabase
     .from('coaching_plans')
@@ -80,8 +112,8 @@ export async function fetchCoachingPlans(params: {
     `)
     .order('flagged_at', { ascending: false });
 
-  if (params.agencyId) {
-    query = query.eq('agency_id', params.agencyId);
+  if (resolvedAgencyId) {
+    query = query.eq('agency_id', resolvedAgencyId);
   }
   if (params.stage) {
     if (Array.isArray(params.stage)) {
@@ -592,12 +624,22 @@ export async function fetchPipelineSummary(
 ): Promise<CoachingPipelineSummaryRow[]> {
   if (!supabase) return [];
 
+  // Resolve agency filter: writing number → UUID if needed
+  let resolvedId: string | null | undefined = undefined;
+  if (agencyId) {
+    resolvedId = await resolveAgencyUuid(agencyId);
+    if (!resolvedId) {
+      console.warn('fetchPipelineSummary: could not resolve agency', agencyId);
+      return [];
+    }
+  }
+
   let query = supabase
     .from('coaching_pipeline_summary')
     .select('*');
 
-  if (agencyId) {
-    query = query.eq('agency_id', agencyId);
+  if (resolvedId) {
+    query = query.eq('agency_id', resolvedId);
   }
 
   const { data, error } = await query;
