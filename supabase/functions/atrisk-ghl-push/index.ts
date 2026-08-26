@@ -166,22 +166,25 @@ async function getOrCreatePipeline(apiKey: string, locationId: string) {
   const data = await res.json();
   const pipelines = data.pipelines || [];
 
-  // Look for existing at-risk pipeline — match multiple known names
-  const AT_RISK_PIPELINE_NAMES = [
-    "At-Risk Pipeline",
+  // Look for existing at-risk pipeline — prefer exact name match, then fuzzy
+  const PREFERRED_NAME = "At-Risk Pipeline";
+  const FALLBACK_NAMES = [
     "Manager Pipeline",
     "Ancillary | At Risk Pipeline",
     "Ancillary At Risk Pipeline",
   ];
-  const existing = pipelines.find(
-    (p: any) => AT_RISK_PIPELINE_NAMES.includes(p.name) ||
+
+  // Exact match first
+  const exactMatch = pipelines.find((p: any) => p.name === PREFERRED_NAME);
+  if (exactMatch) return exactMatch;
+
+  // Fallback to known alternate names
+  const fallbackMatch = pipelines.find(
+    (p: any) => FALLBACK_NAMES.includes(p.name) ||
       p.name.toLowerCase().includes("at risk") ||
       p.name.toLowerCase().includes("at-risk")
   );
-
-  if (existing) {
-    return existing;
-  }
+  if (fallbackMatch) return fallbackMatch;
 
   // Create the pipeline with our 8 stages
   const createRes = await fetch(
