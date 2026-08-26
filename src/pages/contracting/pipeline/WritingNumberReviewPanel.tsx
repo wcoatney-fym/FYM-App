@@ -97,8 +97,8 @@ export function WritingNumberReviewPanel({
           {
             agent_id: agentId,
             carrier: sub.carrier,
-            lob: 'HI',
-            writing_number: sub.writing_number,
+            line_of_business: 'HIP',
+            writing_number: sub.writing_number || '',
             verified: true,
             verified_at: new Date().toISOString(),
             verified_by: 'FYM App',
@@ -106,7 +106,7 @@ export function WritingNumberReviewPanel({
             ai_extracted: sub.submission_method === 'image',
             source_submission_id: sub.id,
           },
-          { onConflict: 'agent_id,carrier,lob' }
+          { onConflict: 'agent_id,line_of_business,carrier' }
         );
       if (e2) throw e2;
 
