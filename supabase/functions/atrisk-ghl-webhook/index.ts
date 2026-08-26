@@ -131,7 +131,22 @@ Deno.serve(async (req) => {
       return json({ error: "Unauthorized" }, 401);
     }
 
-    const body = await req.json();
+    const rawBody = await req.text();
+    let body: any = {};
+    try { body = JSON.parse(rawBody); } catch { /* non-JSON body */ }
+
+    // DEBUG: log incoming request (temporary — remove after testing)
+    try {
+      const portal = getPortalClient();
+      await portal.from('webhook_debug_log').insert({
+        method: req.method,
+        url: req.url,
+        headers: Object.fromEntries(req.headers.entries()),
+        body: typeof body === 'object' ? body : { raw: rawBody },
+        query_params: Object.fromEntries(url.searchParams.entries()),
+        result: 'atrisk-received',
+      });
+    } catch { /* logging is best-effort */ }
 
     // GHL webhook payloads vary — normalize the fields
     const opportunityId =
@@ -149,6 +164,7 @@ Deno.serve(async (req) => {
     const pipelineStage =
       body.pipeline_stage ||
       body.pipelineStage ||
+      body.pipleline_stage ||  // GHL typo — this is the actual field name in standard data
       body.stage_name ||
       body.stageName ||
       body.opportunity?.pipelineStage?.name ||
@@ -157,6 +173,7 @@ Deno.serve(async (req) => {
     const locationId =
       body.location_id ||
       body.locationId ||
+      body.location?.id ||
       body.opportunity?.locationId;
 
     const agencyId =
