@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
     // Auth: check webhook secret
     const url = new URL(req.url);
     const secret = url.searchParams.get("secret");
-    const expectedSecret = Deno.env.get("CONTRACTING_WEBHOOK_SECRET");
+    const expectedSecret = Deno.env.get("GHL_WEBHOOK_SECRET");
 
     if (expectedSecret && secret !== expectedSecret) {
       return json({ error: "Unauthorized" }, 401);
