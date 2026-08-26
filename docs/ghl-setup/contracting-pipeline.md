@@ -9,23 +9,30 @@
 
 ## Overview
 
-The Contracting Pipeline tracks agents through the contracting lifecycle — from initial agreement through actively selling. When an admin drags an agent between stages in the app, that stage change pushes to GHL. When someone moves an opportunity in GHL, a webhook fires back to the app.
+The Contracting Pipeline tracks agents through the contracting lifecycle — from initial agreement through actively selling. **Some team members work from the FYM App, others work from GHL. Both are fully supported — changes in either system sync to the other automatically.**
+
+- **Working from the App:** Drag an agent card between columns in the Pipeline tab → the change pushes to GHL within seconds.
+- **Working from GHL:** Move an opportunity between stages in the Contracting Pipeline → a webhook fires and the app updates automatically.
+
+Neither direction is "primary." Use whichever surface fits your workflow — the sync keeps them in lockstep.
 
 **Key difference from the Workboard (At-Risk) pipeline:** The contracting pipeline uses a **single shared GHL sub-account** for all agencies, not per-agency sub-accounts. The config lives in `agent_pipeline_ghl_config` (one row), not `agency_ghl_configs`.
 
-**Loop prevention:** The app marks each push with `updated_by_source = 'contracting_portal'` and `last_updated_by = <admin name>`. The webhook handler checks if the record was last updated by `"ghl_webhook"` — if not, it's an echo from the app's own push and gets skipped. *(See "Known Gap" in the Troubleshooting section.)*
+**Loop prevention:** When a change originates in one system, a suppression tag prevents the other system from echoing it back. The tag is added on every outbound push and checked on every inbound webhook — invisible to users, fully automatic. No matter which side initiates the change, the other side receives it exactly once.
 
 ---
 
-## Step 1: Create the Pipeline (or Verify It Exists)
+## Step 1: Create the Pipeline in GHL
 
 > **Where:** GHL → Contracting Sub-Account → Opportunities → Pipelines
 
-If the pipeline already exists, skip to verifying the stages. If not:
+The app is the source of truth for stage names. Create the GHL pipeline stages using the exact names below.
+
+If the pipeline already exists, verify the stage names match exactly. If not:
 
 1. Click **"+ Create Pipeline"**
 2. Name it: **`Contracting Pipeline`** (or whatever name is already in use — the app uses the pipeline ID, not the name)
-3. Create exactly **8 active stages** in this order:
+3. Create exactly **8 active stages** in this order, using these exact names:
 
 | # | Stage Name | App Internal Key | Description |
 |---|---|---|---|
@@ -38,7 +45,7 @@ If the pipeline already exists, skip to verifying the stages. If not:
 | 7 | **Actively Selling** | `actively_selling` | Agent is actively writing policies |
 | 8 | **Terminated** | `terminated` | Agent terminated / contract ended |
 
-> **The app is the source of truth for stage names.** Create GHL pipeline stages using the exact names above. The `agent_pipeline_stage_map` table in the portal DB maps these names to GHL stage IDs — populate it after creating the pipeline (Step 2).
+> **The app is the source of truth for stage names.** Create GHL pipeline stages using the exact names above. The `agent_pipeline_stage_map` table maps these names to GHL stage IDs.
 
 > **Legacy stages** (exist in the app's DB but NO LONGER shown as columns): `signed_iaa`, `bill_com`, `crm`, `hip_broker_ready`, `hip_career_ready`. If these exist as GHL stages from an older setup, leave them — the app maps them to the appropriate active column automatically. Do NOT create them as new stages.
 
@@ -52,7 +59,7 @@ If the pipeline already exists, skip to verifying the stages. If not:
 
 > **Where:** Portal Supabase (`akhojh`) → Table `agent_pipeline_stage_map`
 
-The app uses a database-driven stage map (not hardcoded) to translate between GHL stage IDs and internal stage keys. This table must be populated for sync to work.
+The app uses a database-driven stage map (not hardcoded) to translate between GHL stage IDs and internal stage keys. This table must be populated for sync to work in both directions — app users dragging cards AND GHL users moving opportunities both depend on it.
 
 For each of the 8 active stages, insert or update a row:
 
@@ -67,9 +74,9 @@ For each of the 8 active stages, insert or update a row:
 | `actively_selling` | `Actively Selling` | *(paste from GHL after creating pipeline)* |
 | `terminated` | `Terminated` | *(paste from GHL after creating pipeline)* |
 
-> **`ghl_stage_name` must match the GHL stage name exactly.** Since you’re creating the GHL pipeline to match the app, use the names from the table in Step 1. After creating the pipeline in GHL, come back here and fill in each `ghl_stage_id`.
+> **`ghl_stage_name` must match the GHL stage name exactly.** Since you're creating the GHL pipeline to match the app, use the names from the table in Step 1. After creating the pipeline in GHL, come back here and fill in each `ghl_stage_id`.
 
-> **Auto-learn shortcut:** If you leave `ghl_stage_id` empty but populate `ghl_stage_name`, the webhook handler will auto-learn the stage ID from the first incoming webhook that includes that stage name. But this means the *first* webhook for each stage won't map correctly — populating upfront is recommended.
+> **Auto-learn shortcut:** If you leave `ghl_stage_id` empty but populate `ghl_stage_name`, the webhook handler will auto-learn the stage ID from the first incoming GHL webhook that includes that stage name. But this means the *first* GHL-initiated change for each stage won't map correctly — populating upfront is recommended.
 
 ---
 
@@ -77,7 +84,7 @@ For each of the 8 active stages, insert or update a row:
 
 > **Where:** Portal Supabase (`akhojh`) → Table `agent_pipeline_ghl_config`
 
-This table holds the connection credentials. Insert one row:
+This table holds the connection credentials. Both sync directions use this config. Insert one row:
 
 | Column | Value | Notes |
 |---|---|---|
@@ -97,7 +104,7 @@ This table holds the connection credentials. Insert one row:
 
 > **Where:** GHL → Contracting Sub-Account → Automation → Workflows
 
-This workflow fires whenever an opportunity changes stage in the Contracting Pipeline.
+This workflow is what makes GHL → App sync work. When someone moves an opportunity in GHL, this workflow fires a webhook to the app. Without it, only App → GHL works — GHL users' changes would be invisible in the app.
 
 ### 4a. Create the Workflow
 
@@ -110,20 +117,24 @@ This workflow fires whenever an opportunity changes stage in the Contracting Pip
 
 ### 4b. Add the Suppression Tag Check (Loop Prevention)
 
-> **Important:** The contracting pipeline uses a tag-based loop prevention pattern (same as the at-risk pipeline) to reliably prevent echoes.
+> **Why this matters:** Without the tag check, when an app user drags a card, the push moves the GHL opportunity, which triggers this workflow, which sends a webhook back, which would move the card again — infinite loop. The tag check stops that. It also works the other direction: when a GHL user moves an opportunity, the tag isn't there (only the app adds it), so the webhook fires normally and the app receives the change.
 
 1. Add a tag that the app will set on every push: **`app | contracting pipeline trigger`**
 
 2. Add an **If/Else** condition as the first action after the trigger:
    - **Condition:** Contact → Tag → **Does Not Contain** → `app | contracting pipeline trigger`
-   - **If true (YES branch):** Continue to the webhook (Step 4c)
-   - **If false (NO branch):** Remove the tag, then stop.
+   - **If true (YES branch):** This was a genuine GHL user action → continue to the webhook (Step 4c)
+   - **If false (NO branch):** This was an echo from an app user's change → remove the tag, then stop.
 
 3. On the **NO branch** (tag IS present — this is an echo from the app):
    - Add action: **Remove Tag** → `app | contracting pipeline trigger`
-   - Add action: **Stop**
+   - Add action: **Stop** (or just let the branch end)
+
+   > This cleans up the suppression tag so it's ready for the next app-initiated push. The tag is single-use: added by the app, checked and removed by GHL.
 
 ### 4c. Add the Webhook Action (YES branch only)
+
+On the YES branch (tag is NOT present = a GHL user made this change):
 
 1. Add action: **Webhook / Custom Webhook**
 2. Configure:
@@ -164,15 +175,19 @@ This workflow fires whenever an opportunity changes stage in the Contracting Pip
 
 ```
 TRIGGER: Pipeline Stage Changed (Contracting Pipeline, Any Stage)
-  │
-  ▼
+  |
+  v
 IF Contact tag DOES NOT contain "app | contracting pipeline trigger"
-  │
-  ├── YES → POST webhook to FYM App (with opportunity + contact + stage data)
-  │           └── END
-  │
-  └── NO  → Remove tag "app | contracting pipeline trigger"
-              └── END
+  |
+  |-- YES (GHL user made this change)
+  |       v
+  |   POST webhook to FYM App (with opportunity + contact + stage data)
+  |       --> App pipeline view updates on next refresh
+  |
+  |-- NO (echo from an app user's change)
+          v
+      Remove tag "app | contracting pipeline trigger"
+          --> STOP (no webhook, no echo)
 ```
 
 ---
@@ -181,11 +196,11 @@ IF Contact tag DOES NOT contain "app | contracting pipeline trigger"
 
 > **Where:** FYM App → CRM Command → Agencies (or directly via edge function)
 
-Before enabling two-way sync, you need to pull existing GHL pipeline data into the app (or push app data to GHL, depending on which side has the canonical data).
+Before two-way sync is live, you need to align the data between GHL and the app. Choose the direction based on where the data currently lives.
 
 ### Option A: Pull GHL → App (GHL has the data)
 
-This is the most common scenario — the contracting pipeline has been running in GHL and you want to pull all existing opportunities into the app.
+Use this if the contracting pipeline has been running in GHL and you want to pull all existing opportunities into the app.
 
 1. Trigger the `push-contracting-stage` edge function with the `sync` action:
    ```
@@ -213,22 +228,24 @@ If agents were already tracked in the app's `agent_pipeline` table and you need 
 
 ## Step 6: Verify the Sync
 
-### Test App → GHL:
+Run all three tests. Both directions must work — some team members will only ever use the app, others will only ever use GHL.
+
+### Test 1: Someone works from the App (App → GHL)
 1. Open the FYM App → Contracting → Pipeline tab
 2. Drag an agent from "IAA" to "In Contracting"
 3. In GHL, open the Contracting Pipeline → Confirm the opportunity moved to "In Contracting"
 4. Check that the contact now has the tag `app | contracting pipeline trigger`
+5. Confirm the GHL workflow fired, hit the NO branch (tag present), removed the tag, and stopped — no webhook sent back
 
-### Test GHL → App:
+### Test 2: Someone works from GHL (GHL → App)
 1. In GHL, move an opportunity from "In Contracting" to "RTS"
-2. Confirm the workflow fired (check workflow execution history)
+2. Confirm the workflow fired, hit the YES branch (no tag), and sent the webhook
 3. In the FYM App, refresh the Pipeline tab → Confirm the agent moved to "RTS"
 
-### Verify loop prevention:
-1. In the App, move an agent to "Actively Selling"
-2. In GHL, confirm the opportunity moved AND the suppression tag was added
-3. Confirm the workflow fired BUT took the NO branch (tag present → removed, no webhook)
-4. In the App, confirm the agent did NOT move back (no echo)
+### Test 3: No echoes in either direction
+1. After Test 1: confirm the agent did NOT move back in the app (no echo from GHL)
+2. After Test 2: confirm the opportunity did NOT move back in GHL (no echo from the app)
+3. Both systems should show the same stage with no bouncing
 
 ---
 
@@ -236,70 +253,52 @@ If agents were already tracked in the app's `agent_pipeline` table and you need 
 
 | Symptom | Likely Cause | Fix |
 |---|---|---|
-| App push works locally but GHL doesn't update | Missing or incomplete `agent_pipeline_ghl_config` | Verify `ghl_api_key`, `ghl_location_id`, and `ghl_pipeline_id` are all populated |
-| GHL changes don't reach the app | Workflow not published, or webhook URL wrong | Check workflow is published + active. Verify URL points to `rcbzag` (FYM App). |
-| Stage mapping fails ("Unknown stage name") | Stage name in GHL doesn't match `agent_pipeline_stage_map.ghl_stage_name` | Check the stage map table — names must match exactly (case-sensitive) |
+| App user drags a card, GHL doesn't update | Missing or incomplete `agent_pipeline_ghl_config` | Verify `ghl_api_key`, `ghl_location_id`, and `ghl_pipeline_id` are all populated |
+| GHL user moves an opportunity, app doesn't update | Workflow not published, or webhook URL wrong | Check workflow is published + active. Verify URL points to `rcbzag` (FYM App). |
+| Stage mapping fails ("Unknown stage name") | Stage name in GHL doesn't match `agent_pipeline_stage_map.ghl_stage_name` | Check the stage map table — names must match the app exactly (case-sensitive) |
 | "No agency mapped to this location" on webhook | `agency_ghl_configs` has no row matching the GHL location ID | Add a row to `agency_ghl_configs` with the contracting sub-account's location ID, OR ensure `agent_pipeline_ghl_config` has the correct `ghl_location_id` |
-| Infinite loop | Suppression tag check missing or wrong tag name | Verify the If/Else checks for exactly `app \| contracting pipeline trigger` |
+| Infinite loop (stages bouncing back and forth) | Suppression tag check missing or wrong tag name | Verify the If/Else checks for exactly `app \| contracting pipeline trigger` |
 | New opportunities from GHL don't have agency names | Webhook can't resolve agency from location | Ensure `agency_ghl_configs` has a row for this location with `agency_id` linking to `hierarchy_agencies` |
 | Stage IDs not populated in stage map | Initial setup skipped Step 2 | Populate `ghl_stage_id` in `agent_pipeline_stage_map`, or trigger one GHL change per stage to auto-learn |
+| App user's change doesn't appear in GHL but no error | Opportunity not found in GHL | The app matches by phone number or stored `ghl_opportunity_id`. The contact/opportunity must exist in GHL first. Run a bulk sync (Option A) to link existing records. |
+| GHL user's change doesn't appear in the app | Webhook fired but stage name didn't map | Check GHL workflow execution history → verify the webhook body includes `pipeline_stage_name`. Then check `agent_pipeline_stage_map` has a matching `ghl_stage_name`. |
 
 ---
 
-## Reference: Data Flow Diagram
+## Reference: Data Flow
 
+Both directions are fully independent. A user in either system triggers a one-way push to the other.
+
+### When someone works from the App:
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         FYM App                                 │
-│                                                                 │
-│  Contracting → Pipeline (drag card)                             │
-│       │                                                         │
-│       ▼                                                         │
-│  PipelineBoard.tsx → pushStageChange()                          │
-│       │  POST to FYM App edge function                          │
-│       ▼                                                         │
-│  push-contracting-stage (FYM App edge fn)                       │
-│       │  1. Load agent_pipeline record                          │
-│       │  2. Load agent_pipeline_ghl_config                      │
-│       │  3. Look up ghl_stage_id from agent_pipeline_stage_map  │
-│       │  4. Find GHL opportunity (by stored ID or phone match)  │
-│       │  5. PUT opportunity → new stage                         │
-│       │  6. Add suppression tag to contact                      │
-│       │  7. Update agent_pipeline (stage, sync status)          │
-│       ▼                                                         │
-│  agent_pipeline (update stage + last_updated_by)                │
-│  webhook_log (audit entry)                                      │
-│                                                                 │
-└────────────────────────┬────────────────────────────────────────┘
-                         │
-                         ▼ GHL API
-┌─────────────────────────────────────────────────────────────────┐
-│               GHL Contracting Sub-Account                       │
-│                                                                 │
-│  Contracting Pipeline                                           │
-│       │ (stage change triggers workflow)                        │
-│       ▼                                                         │
-│  Workflow: "Contracting Pipeline → FYM App Sync"                │
-│       │                                                         │
-│       ├─ IF tag "app | contracting pipeline trigger" NOT present│
-│       │       ▼                                                 │
-│       │  POST webhook → contracting-pipeline-webhook (FYM App)  │
-│       │       │                                                 │
-│       │       ▼                                                 │
-│       │  agent_pipeline (upsert — matched by ghl_opportunity_id)│
-│       │                                                         │
-│       └─ ELSE (tag present = echo from app)                     │
-│               ▼                                                 │
-│          Remove tag → STOP (no webhook)                         │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+App user drags card in Pipeline tab
+  --> PipelineBoard.tsx calls pushStageChange()
+  --> push-contracting-stage edge function (FYM App)
+      1. Updates agent_pipeline in portal DB
+      2. Pushes stage change to GHL via API
+      3. Adds suppression tag to GHL contact
+  --> GHL pipeline updates
+  --> GHL workflow fires, sees tag --> removes tag, STOPS
+  --> No echo back to app
+```
+
+### When someone works from GHL:
+```
+GHL user moves opportunity in Contracting Pipeline
+  --> GHL workflow fires
+  --> No suppression tag found --> sends webhook
+  --> contracting-pipeline-webhook edge function (FYM App)
+      1. Maps GHL stage name to internal stage
+      2. Upserts agent_pipeline in portal DB
+  --> App pipeline view updates on next refresh
+  --> No echo back to GHL (webhook sets last_updated_by = 'ghl_webhook')
 ```
 
 ---
 
 ## Reference: Bulk Sync (push-contracting-stage?action=sync)
 
-For periodic full reconciliation or initial population, the `push-contracting-stage` edge function's `sync` action does a complete pull:
+For periodic full reconciliation or initial population, the `push-contracting-stage` edge function's `sync` action does a complete pull from GHL:
 
 ```
 POST /functions/v1/push-contracting-stage
@@ -315,7 +314,7 @@ Body: { "action": "sync" }
 - Paces at 200ms between pages and per-contact enrichment calls (rate limit protection)
 - Updates `connection_status` to `connected` on success
 
-> **When to use:** Initial setup, after manual GHL changes, or as a periodic reconciliation. Not needed for day-to-day sync — the webhook handles that in real time.
+> **When to use:** Initial setup, after bulk manual changes in GHL, or as a periodic reconciliation. Not needed for day-to-day sync — the workflow + webhook handles real-time sync for both app and GHL users automatically.
 
 ---
 
@@ -324,9 +323,9 @@ Body: { "action": "sync" }
 | Item | Location | Purpose |
 |---|---|---|
 | `agent_pipeline` | Portal DB (`akhojh`) | One row per agent in the pipeline. Stores `ghl_opportunity_id`, `ghl_contact_id`, `stage`, `last_updated_by`. |
-| `agent_pipeline_stage_map` | Portal DB (`akhojh`) | Maps `internal_stage` ↔ `ghl_stage_name` + `ghl_stage_id`. DB-driven, not hardcoded. |
-| `agent_pipeline_ghl_config` | Portal DB (`akhojh`) | Single-row config: API key, location ID, pipeline ID, connection status. |
-| `webhook_log` | Portal DB (`akhojh`) | Audit trail for push successes/failures. |
+| `agent_pipeline_stage_map` | Portal DB (`akhojh`) | Maps `internal_stage` ↔ `ghl_stage_name` + `ghl_stage_id`. DB-driven, not hardcoded. Used by both sync directions. |
+| `agent_pipeline_ghl_config` | Portal DB (`akhojh`) | Single-row config: API key, location ID, pipeline ID, connection status. Used by both sync directions. |
+| `webhook_log` | Portal DB (`akhojh`) | Audit trail for push successes/failures (App → GHL direction). |
 | `push-contracting-stage/index.ts` | `supabase/functions/` (FYM App) | App → GHL push + bulk sync handler. |
 | `contracting-pipeline-webhook/index.ts` | `supabase/functions/` (FYM App) | GHL → App webhook receiver. |
 | `src/pages/contracting/pipeline/PipelineBoard.tsx` | FYM App client | Kanban UI — calls `pushStageChange()` on drag. |
@@ -339,10 +338,11 @@ Body: { "action": "sync" }
 |---|---|---|
 | **GHL account** | Per-agency sub-account | Single contracting sub-account |
 | **Pipeline stages** | 8 (policy lifecycle) | 8 active + 5 legacy (agent lifecycle) |
+| **Who uses the app** | Managers reviewing at-risk policies | Admins tracking agent contracting |
+| **Who uses GHL** | Agency managers who prefer GHL | Contracting team members who prefer GHL |
 | **App DB** | `rcbzag` (`atrisk_tasks`) | `akhojh` (`agent_pipeline`) |
 | **Stage map** | Hardcoded in edge function | DB-driven (`agent_pipeline_stage_map`) |
 | **Config table** | `agency_ghl_configs` (per agency) | `agent_pipeline_ghl_config` (single row) |
 | **Loop prevention** | Tag-based (`app \| manager pipeline trigger`) | Tag-based (`app \| contracting pipeline trigger`) |
 | **Contact matching** | By client name (policy holder) | By phone number or stored `ghl_opportunity_id` |
 | **Gate control** | `manager_pipeline_enabled` per agency | `connection_status` on config |
-| **Suppression tag** | `app \| manager pipeline trigger` | `app \| contracting pipeline trigger` |
