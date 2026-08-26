@@ -164,25 +164,54 @@ function AddAgentDialog({ open, onOpenChange, existingPhones, existingPortalIds,
       return;
     }
 
-    const { error: insertErr } = await (supabase as any)
+    // Check for an inactive record with this phone — reactivate instead of inserting
+    const { data: inactive } = await (supabase as any)
       .from('checkin_recipients')
-      .insert({
-        portal_agent_id: agent.id,
-        first_name: agent.first_name,
-        last_name: agent.last_name,
-        phone,
-        agency_id: agent.agency_id,
-        active: true,
-      });
+      .select('id')
+      .eq('phone', phone)
+      .eq('active', false)
+      .maybeSingle();
 
-    if (insertErr) {
-      if (insertErr.code === '23505') {
-        setError(`${agent.first_name} ${agent.last_name} is already a recipient`);
-      } else {
-        setError(insertErr.message || 'Failed to add agent');
+    if (inactive) {
+      // Reactivate and update with roster data
+      const { error: reactivateErr } = await (supabase as any)
+        .from('checkin_recipients')
+        .update({
+          portal_agent_id: agent.id,
+          first_name: agent.first_name,
+          last_name: agent.last_name,
+          agency_id: agent.agency_id,
+          active: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', inactive.id);
+
+      if (reactivateErr) {
+        setError(reactivateErr.message || 'Failed to reactivate agent');
+        setAdding(null);
+        return;
       }
-      setAdding(null);
-      return;
+    } else {
+      const { error: insertErr } = await (supabase as any)
+        .from('checkin_recipients')
+        .insert({
+          portal_agent_id: agent.id,
+          first_name: agent.first_name,
+          last_name: agent.last_name,
+          phone,
+          agency_id: agent.agency_id,
+          active: true,
+        });
+
+      if (insertErr) {
+        if (insertErr.code === '23505') {
+          setError(`${agent.first_name} ${agent.last_name} is already a recipient`);
+        } else {
+          setError(insertErr.message || 'Failed to add agent');
+        }
+        setAdding(null);
+        return;
+      }
     }
 
     setJustAdded((prev) => new Set([...prev, agent.id]));
@@ -208,24 +237,52 @@ function AddAgentDialog({ open, onOpenChange, existingPhones, existingPortalIds,
       return;
     }
 
-    const { error: insertErr } = await (supabase as any)
+    // Check for an inactive record with this phone — reactivate instead of inserting
+    const { data: inactive } = await (supabase as any)
       .from('checkin_recipients')
-      .insert({
-        portal_agent_id: crypto.randomUUID(), // placeholder — no roster link
-        first_name: manualFirst.trim(),
-        last_name: manualLast.trim(),
-        phone,
-        active: true,
-      });
+      .select('id')
+      .eq('phone', phone)
+      .eq('active', false)
+      .maybeSingle();
 
-    if (insertErr) {
-      if (insertErr.code === '23505') {
-        setError('This agent is already a recipient');
-      } else {
-        setError(insertErr.message || 'Failed to add agent');
+    if (inactive) {
+      // Reactivate and update name
+      const { error: reactivateErr } = await (supabase as any)
+        .from('checkin_recipients')
+        .update({
+          first_name: manualFirst.trim(),
+          last_name: manualLast.trim(),
+          active: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', inactive.id);
+
+      if (reactivateErr) {
+        setError(reactivateErr.message || 'Failed to reactivate agent');
+        setManualSaving(false);
+        return;
       }
-      setManualSaving(false);
-      return;
+    } else {
+      // No existing record — insert new
+      const { error: insertErr } = await (supabase as any)
+        .from('checkin_recipients')
+        .insert({
+          portal_agent_id: crypto.randomUUID(), // placeholder — no roster link
+          first_name: manualFirst.trim(),
+          last_name: manualLast.trim(),
+          phone,
+          active: true,
+        });
+
+      if (insertErr) {
+        if (insertErr.code === '23505') {
+          setError('This agent is already a recipient');
+        } else {
+          setError(insertErr.message || 'Failed to add agent');
+        }
+        setManualSaving(false);
+        return;
+      }
     }
 
     setManualFirst('');
@@ -417,9 +474,11 @@ export function RecipientManager({ recipients, managers, onRefresh }: RecipientM
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState<'agents' | 'managers'>('agents');
 
-  // Build lookup sets for dedup in Add Agent dialog
-  const existingPhones = new Set(recipients.map((r) => r.phone));
-  const existingPortalIds = new Set(recipients.map((r) => r.portal_agent_id));
+  // Build lookup sets for dedup in Add Agent dialog — only active recipients
+  // block adds. Inactive records (from roster cleanup) should not prevent re-adding.
+  const activeRecipients = recipients.filter((r) => r.active);
+  const existingPhones = new Set(activeRecipients.map((r) => r.phone));
+  const existingPortalIds = new Set(activeRecipients.map((r) => r.portal_agent_id));
 
   const filteredRecipients = recipients.filter((r) => {
     if (!search) return true;
