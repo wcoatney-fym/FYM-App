@@ -27,7 +27,7 @@ If the pipeline already exists, skip to verifying the stages. If not:
 2. Name it: **`Contracting Pipeline`** (or whatever name is already in use — the app uses the pipeline ID, not the name)
 3. Create exactly **8 active stages** in this order:
 
-| # | Stage Name (in GHL) | App Internal Key | Description |
+| # | Stage Name | App Internal Key | Description |
 |---|---|---|---|
 | 1 | **HIP Broker** | `hip_broker` | Agent signed as HIP Broker |
 | 2 | **HIP Career** | `hip_career` | Agent signed as HIP Career |
@@ -37,6 +37,8 @@ If the pipeline already exists, skip to verifying the stages. If not:
 | 6 | **RTS** | `rts` | Ready to Sell — numbers received, can write business |
 | 7 | **Actively Selling** | `actively_selling` | Agent is actively writing policies |
 | 8 | **Terminated** | `terminated` | Agent terminated / contract ended |
+
+> **The app is the source of truth for stage names.** Create GHL pipeline stages using the exact names above. The `agent_pipeline_stage_map` table in the portal DB maps these names to GHL stage IDs — populate it after creating the pipeline (Step 2).
 
 > **Legacy stages** (exist in the app's DB but NO LONGER shown as columns): `signed_iaa`, `bill_com`, `crm`, `hip_broker_ready`, `hip_career_ready`. If these exist as GHL stages from an older setup, leave them — the app maps them to the appropriate active column automatically. Do NOT create them as new stages.
 
@@ -56,14 +58,16 @@ For each of the 8 active stages, insert or update a row:
 
 | `internal_stage` | `ghl_stage_name` | `ghl_stage_id` |
 |---|---|---|
-| `hip_broker` | `HIP Broker` | *(paste the GHL stage ID)* |
-| `hip_career` | `HIP Career` | *(paste the GHL stage ID)* |
-| `iaa` | `IAA` | *(paste the GHL stage ID)* |
-| `in_contracting` | `In Contracting` | *(paste the GHL stage ID)* |
-| `waiting_for_numbers` | `Waiting for Numbers` | *(paste the GHL stage ID)* |
-| `rts` | `RTS` | *(paste the GHL stage ID)* |
-| `actively_selling` | `Actively Selling` | *(paste the GHL stage ID)* |
-| `terminated` | `Terminated` | *(paste the GHL stage ID)* |
+| `hip_broker` | `HIP Broker` | *(paste from GHL after creating pipeline)* |
+| `hip_career` | `HIP Career` | *(paste from GHL after creating pipeline)* |
+| `iaa` | `IAA` | *(paste from GHL after creating pipeline)* |
+| `in_contracting` | `In Contracting` | *(paste from GHL after creating pipeline)* |
+| `waiting_for_numbers` | `Waiting for Numbers` | *(paste from GHL after creating pipeline)* |
+| `rts` | `RTS` | *(paste from GHL after creating pipeline)* |
+| `actively_selling` | `Actively Selling` | *(paste from GHL after creating pipeline)* |
+| `terminated` | `Terminated` | *(paste from GHL after creating pipeline)* |
+
+> **`ghl_stage_name` must match the GHL stage name exactly.** Since you’re creating the GHL pipeline to match the app, use the names from the table in Step 1. After creating the pipeline in GHL, come back here and fill in each `ghl_stage_id`.
 
 > **Auto-learn shortcut:** If you leave `ghl_stage_id` empty but populate `ghl_stage_name`, the webhook handler will auto-learn the stage ID from the first incoming webhook that includes that stage name. But this means the *first* webhook for each stage won't map correctly — populating upfront is recommended.
 
@@ -233,7 +237,7 @@ If agents were already tracked in the app's `agent_pipeline` table and you need 
 | Symptom | Likely Cause | Fix |
 |---|---|---|
 | App push works locally but GHL doesn't update | Missing or incomplete `agent_pipeline_ghl_config` | Verify `ghl_api_key`, `ghl_location_id`, and `ghl_pipeline_id` are all populated |
-| GHL changes don't reach the app | Workflow not published, or webhook URL wrong | Check workflow is published + active. Verify URL points to `akhojh` (portal), not `rcbzag` (app). |
+| GHL changes don't reach the app | Workflow not published, or webhook URL wrong | Check workflow is published + active. Verify URL points to `rcbzag` (FYM App). |
 | Stage mapping fails ("Unknown stage name") | Stage name in GHL doesn't match `agent_pipeline_stage_map.ghl_stage_name` | Check the stage map table — names must match exactly (case-sensitive) |
 | "No agency mapped to this location" on webhook | `agency_ghl_configs` has no row matching the GHL location ID | Add a row to `agency_ghl_configs` with the contracting sub-account's location ID, OR ensure `agent_pipeline_ghl_config` has the correct `ghl_location_id` |
 | Infinite loop | Suppression tag check missing or wrong tag name | Verify the If/Else checks for exactly `app \| contracting pipeline trigger` |
@@ -252,9 +256,9 @@ If agents were already tracked in the app's `agent_pipeline` table and you need 
 │       │                                                         │
 │       ▼                                                         │
 │  PipelineBoard.tsx → pushStageChange()                          │
-│       │  POST to portal edge function                           │
+│       │  POST to FYM App edge function                          │
 │       ▼                                                         │
-│  push-pipeline-stage (portal edge fn)                           │
+│  push-contracting-stage (FYM App edge fn)                       │
 │       │  1. Load agent_pipeline record                          │
 │       │  2. Load agent_pipeline_ghl_config                      │
 │       │  3. Look up ghl_stage_id from agent_pipeline_stage_map  │
@@ -279,7 +283,7 @@ If agents were already tracked in the app's `agent_pipeline` table and you need 
 │       │                                                         │
 │       ├─ IF tag "app | contracting pipeline trigger" NOT present│
 │       │       ▼                                                 │
-│       │  POST webhook → agent-pipeline-webhook (portal edge fn) │
+│       │  POST webhook → contracting-pipeline-webhook (FYM App)  │
 │       │       │                                                 │
 │       │       ▼                                                 │
 │       │  agent_pipeline (upsert — matched by ghl_opportunity_id)│
