@@ -63,8 +63,22 @@ Deno.serve(async (req) => {
       return json({ error: "Unauthorized" }, 401);
     }
 
-    const payload = await req.json();
+    const rawBody = await req.text();
+    let payload: any = {};
+    try { payload = JSON.parse(rawBody); } catch { /* non-JSON body */ }
     const portal = getPortalClient();
+
+    // DEBUG: log every incoming request so we can see what GHL actually sends
+    try {
+      await portal.from('webhook_debug_log').insert({
+        method: req.method,
+        url: req.url,
+        headers: Object.fromEntries(req.headers.entries()),
+        body: typeof payload === 'object' ? payload : { raw: rawBody },
+        query_params: Object.fromEntries(url.searchParams.entries()),
+        result: 'received',
+      });
+    } catch { /* logging is best-effort */ }
 
     // Extract location ID — optional in payload since GHL standard data
     // doesn't always include it. Fall back to the single-row config.
