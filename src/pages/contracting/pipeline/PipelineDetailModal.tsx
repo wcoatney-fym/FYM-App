@@ -87,6 +87,26 @@ export function PipelineDetailModal({
   const [wnPendingCount, setWnPendingCount] = useState(record.wn_pending_count ?? 0);
   const [agentActionPending, setAgentActionPending] = useState(record.agent_action_pending ?? false);
 
+  // GHL custom field ID → human-readable label map
+  const [fieldLabelMap, setFieldLabelMap] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!portalSupabase) return;
+    portalSupabase
+      .from('ghl_custom_field_map')
+      .select('ghl_field_id, field_name')
+      .then(({ data }) => {
+        if (data) {
+          const map: Record<string, string> = {};
+          for (const row of data) {
+            if (row.ghl_field_id && row.field_name) {
+              map[row.ghl_field_id] = row.field_name;
+            }
+          }
+          setFieldLabelMap(map);
+        }
+      });
+  }, []);
+
   const isReadyStage = record.stage === 'hip_broker_ready' || record.stage === 'hip_career_ready';
   const hasChanges =
     writingNumbers !== (record.writing_numbers || '') ||
@@ -378,7 +398,7 @@ export function PipelineDetailModal({
                         className="flex items-start justify-between gap-3 p-3 bg-background rounded-lg"
                       >
                         <span className="text-xs font-medium text-muted-foreground">
-                          {key}
+                          {fieldLabelMap[key] || key}
                         </span>
                         <span className="text-sm text-foreground text-right break-words">
                           {typeof value === 'object'

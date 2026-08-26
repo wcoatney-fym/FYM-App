@@ -470,6 +470,17 @@ async function handleSync(): Promise<Response> {
     });
   }
 
+  // Pre-load custom field label map (GHL field ID → human-readable name)
+  const { data: fieldMapRows } = await portal
+    .from("ghl_custom_field_map")
+    .select("ghl_field_id, field_name");
+  const fieldLabelMap: Record<string, string> = {};
+  for (const row of fieldMapRows || []) {
+    if (row.ghl_field_id && row.field_name) {
+      fieldLabelMap[row.ghl_field_id] = row.field_name;
+    }
+  }
+
   // Pre-load existing records for stage-change detection
   const { data: existingRows } = await portal
     .from("agent_pipeline")
@@ -537,10 +548,12 @@ async function handleSync(): Promise<Response> {
       "";
     const tags = detail?.tags || [];
 
-    // Map custom fields
+    // Map custom fields — resolve GHL field IDs to human-readable labels
     const customFields: Record<string, unknown> = {};
     for (const f of detail?.customFields || []) {
-      const key = f.name || f.key || f.id;
+      const rawKey = f.id || f.key || "";
+      // Resolve: use the label map first, then fall back to f.name, then raw ID
+      const key = fieldLabelMap[rawKey] || f.name || rawKey;
       if (key) customFields[key] = f.value ?? f.fieldValue ?? null;
     }
 
