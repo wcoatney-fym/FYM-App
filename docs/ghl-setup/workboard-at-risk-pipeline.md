@@ -98,31 +98,21 @@ On the YES branch (tag is NOT present = a GHL user made this change):
 1. Add action: **Webhook / Custom Webhook**
 2. Configure:
    - **Method:** `POST`
-   - **URL:** `https://rcbzagjyhyrkuwvlrlnf.supabase.co/functions/v1/atrisk-ghl-webhook`
-   - **Query parameters:**
-     - `secret` = *(the GHL_WEBHOOK_SECRET value — get this from Diamond/Will)*
-     - `agency_id` = *(the FYM App agency UUID for this sub-account — get this from the Agency GHL Settings tab in the app)*
-   - **Headers:**
-     - `Content-Type`: `application/json`
-   - **Body (JSON):**
-     ```json
-     {
-       "opportunity_id": "{{opportunity.id}}",
-       "contact_id": "{{contact.id}}",
-       "pipeline_stage": "{{opportunity.pipeline_stage_name}}",
-       "location_id": "{{location.id}}"
-     }
+   - **URL — copy this template and fill in the `agency_id`:**
      ```
+     https://rcbzagjyhyrkuwvlrlnf.supabase.co/functions/v1/atrisk-ghl-webhook?secret=a61883268df392dd6fdb1937072d2c86f261c18e310205f53d0db76328659ea9&agency_id=PASTE_AGENCY_UUID_HERE
+     ```
+     - Replace `PASTE_AGENCY_UUID_HERE` with this agency's UUID from the FYM App (CRM Command → Agencies → select agency → GHL Settings tab).
+     - **Important:** Paste the full URL including `https://`. GHL will show "Please enter a valid URL" if the protocol is missing.
+     - The `?secret=...&agency_id=...` query parameters are required. They must be part of the URL.
+   - **Custom Data:** Leave empty — do NOT add any key-value pairs here. GHL's standard data payload automatically includes the opportunity ID, contact ID, pipeline stage, and location ID. The webhook handler reads all of these from the standard payload.
+   - **Headers:**
+     - `Content-Type`: `application/json` *(should already be there by default)*
 
-   > **Merge field names:** The exact GHL merge field syntax may vary. Common variants:
-   > - `{{opportunity.id}}` or `{{opportunity_id}}`
-   > - `{{contact.id}}` or `{{contact_id}}`
-   > - `{{opportunity.pipeline_stage_name}}` or `{{opportunity.stageName}}`
-   > - `{{location.id}}` or `{{location_id}}`
-   >
-   > Use whatever your GHL version shows in the merge field picker. The webhook handler accepts all common field name variants.
+   > **No JSON body needed.** GHL's Webhook action doesn't have a raw JSON body editor — it sends "standard data" (contact + opportunity fields) automatically with every webhook. The handler normalizes all GHL field name variants (`opportunity_id`/`opportunityId`, `pipeline_stage`/`pipelineStageName`, etc.), so the standard payload is all it needs.
 
-3. Click **Save** and **Publish** the workflow.
+3. Click **Save Action** (the button at the bottom of the webhook config panel).
+4. Make sure the workflow is **Published** (toggle at the top right of the workflow builder). Unpublished workflows won't fire.
 
 ### 3d. Complete Workflow Diagram
 
