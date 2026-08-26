@@ -22,6 +22,23 @@ Neither direction is "primary." Use whichever surface fits your workflow — the
 
 ---
 
+## Quick Reference — Copy-Paste Values
+
+Everything you need to set up the GHL workflow, in one place:
+
+| Item | Value |
+|---|---|
+| **GHL Location ID** | `pE2DOS2bdVB3AYlMcQ1a` |
+| **Pipeline Name** | `FYM App \| Live Contracting Pipeline` |
+| **Pipeline ID** | `sdq6bos3lVqWQYkqfojk` |
+| **Suppression Tag** | `app \| contracting pipeline trigger` |
+| **Webhook Method** | `POST` |
+| **Webhook URL** | `https://rcbzagjyhyrkuwvlrlnf.supabase.co/functions/v1/contracting-pipeline-webhook?secret=eaab71b1deaff444626525bbf882dc13208f44c387a49dcfc7d7d706ba03a8bc` |
+| **Custom Data** | Leave empty (standard data covers everything) |
+| **Headers** | `Content-Type` = `application/json` |
+
+---
+
 ## Step 1: Create the Pipeline in GHL
 
 > **Where:** GHL → Contracting Sub-Account → Opportunities → Pipelines
@@ -139,37 +156,21 @@ On the YES branch (tag is NOT present = a GHL user made this change):
 1. Add action: **Webhook / Custom Webhook**
 2. Configure:
    - **Method:** `POST`
-   - **URL:** `https://rcbzagjyhyrkuwvlrlnf.supabase.co/functions/v1/contracting-pipeline-webhook`
-   - **Headers:**
-     - `Content-Type`: `application/json`
-   - **Body (JSON):**
-     ```json
-     {
-       "opportunity_id": "{{opportunity.id}}",
-       "contact_id": "{{contact.id}}",
-       "pipeline_stage": "{{opportunity.pipeline_stage_name}}",
-       "location_id": "{{location.id}}",
-       "opportunity": {
-         "id": "{{opportunity.id}}",
-         "pipelineId": "{{opportunity.pipeline_id}}",
-         "pipelineStageId": "{{opportunity.pipeline_stage_id}}",
-         "pipelineStageName": "{{opportunity.pipeline_stage_name}}",
-         "contactId": "{{contact.id}}",
-         "contact": {
-           "id": "{{contact.id}}",
-           "name": "{{contact.name}}",
-           "email": "{{contact.email}}",
-           "phone": "{{contact.phone}}"
-         },
-         "name": "{{opportunity.name}}",
-         "locationId": "{{location.id}}"
-       }
-     }
+   - **URL — copy this exactly:**
      ```
+     https://rcbzagjyhyrkuwvlrlnf.supabase.co/functions/v1/contracting-pipeline-webhook?secret=eaab71b1deaff444626525bbf882dc13208f44c387a49dcfc7d7d706ba03a8bc
+     ```
+     - **Important:** Paste the full URL including `https://`. GHL will show "Please enter a valid URL" if the protocol is missing.
+     - The `?secret=...` query parameter is the webhook authentication. It must be part of the URL.
+   - **Custom Data:** Leave empty — do NOT add any key-value pairs here. GHL's standard data payload automatically includes the opportunity ID, contact ID, pipeline stage, and location ID. The webhook handler reads all of these from the standard payload.
+   - **Headers:**
+     - `Content-Type`: `application/json` *(should already be there by default)*
+   - **Test Mode / Send Test:** If GHL offers a "Send Test" button, click it — but don't expect a meaningful response unless there's a real opportunity in the pipeline. The important test is Step 6.
 
-   > **Note on merge fields:** Use your GHL version's merge field picker to get the exact syntax. The webhook handler normalizes multiple field name variants — `opportunity_id` or `opportunityId`, `pipeline_stage` or `pipelineStageName`, etc.
+   > **No JSON body needed.** GHL's Webhook action doesn't have a raw JSON body editor — it sends "standard data" (contact + opportunity fields) automatically with every webhook. The handler normalizes all GHL field name variants (`opportunity_id`/`opportunityId`, `pipeline_stage`/`pipelineStageName`, etc.), so the standard payload is all it needs.
 
-3. Click **Save** and **Publish** the workflow.
+3. Click **Save Action** (the button at the bottom of the webhook config panel).
+4. Make sure the workflow is **Published** (toggle at the top right of the workflow builder). Unpublished workflows won't fire.
 
 ### 4d. Complete Workflow Diagram
 
