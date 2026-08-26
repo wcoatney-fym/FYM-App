@@ -87,22 +87,36 @@ export function PipelineDetailModal({
   const [wnPendingCount, setWnPendingCount] = useState(record.wn_pending_count ?? 0);
   const [agentActionPending, setAgentActionPending] = useState(record.agent_action_pending ?? false);
 
-  // GHL custom field ID → human-readable label map
+  // GHL custom field ID → display label map + hidden field set
   const [fieldLabelMap, setFieldLabelMap] = useState<Record<string, string>>({});
+  const [hiddenFields, setHiddenFields] = useState<Set<string>>(new Set());
   useEffect(() => {
     if (!portalSupabase) return;
     portalSupabase
       .from('ghl_custom_field_map')
-      .select('ghl_field_id, field_name')
+      .select('ghl_field_id, field_name, display_name, hidden')
       .then(({ data }) => {
         if (data) {
-          const map: Record<string, string> = {};
+          const idMap: Record<string, string> = {};
+          const nameMap: Record<string, string> = {};
+          const hidden = new Set<string>();
           for (const row of data) {
-            if (row.ghl_field_id && row.field_name) {
-              map[row.ghl_field_id] = row.field_name;
+            // Map raw GHL field ID → display_name or field_name
+            if (row.ghl_field_id) {
+              idMap[row.ghl_field_id] = row.display_name || row.field_name;
+            }
+            // Map resolved field_name → display_name (for already-backfilled records)
+            if (row.field_name && row.display_name) {
+              nameMap[row.field_name] = row.display_name;
+            }
+            // Track hidden fields by both ID and name
+            if (row.hidden) {
+              if (row.ghl_field_id) hidden.add(row.ghl_field_id);
+              if (row.field_name) hidden.add(row.field_name);
             }
           }
-          setFieldLabelMap(map);
+          setFieldLabelMap({ ...idMap, ...nameMap });
+          setHiddenFields(hidden);
         }
       });
   }, []);
@@ -390,7 +404,7 @@ export function PipelineDetailModal({
                 <div className="grid grid-cols-1 gap-2">
                   {Object.entries(record.custom_fields)
                     .filter(
-                      ([, v]) => v !== null && v !== '' && v !== undefined
+                      ([key, v]) => v !== null && v !== '' && v !== undefined && !hiddenFields.has(key)
                     )
                     .map(([key, value]) => (
                       <div
