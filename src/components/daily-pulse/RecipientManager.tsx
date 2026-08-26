@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/lib/supabase';
-import { UserPlus, Trash2, Search, Phone, Users, Shield, Building2, Check, AlertCircle, Loader2 } from 'lucide-react';
+import { UserPlus, Trash2, Search, Phone, Users, Shield, Building2, Check, AlertCircle, Loader2, PauseCircle } from 'lucide-react';
 
 interface Recipient {
   id: string;
@@ -473,6 +473,8 @@ export function RecipientManager({ recipients, managers, onRefresh }: RecipientM
   const [newManagerPhone, setNewManagerPhone] = useState('');
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState<'agents' | 'managers'>('agents');
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [toggleError, setToggleError] = useState<{ id: string; message: string } | null>(null);
 
   // Build lookup sets for dedup in Add Agent dialog — only active recipients
   // block adds. Inactive records (from roster cleanup) should not prevent re-adding.
@@ -492,7 +494,20 @@ export function RecipientManager({ recipients, managers, onRefresh }: RecipientM
 
   const toggleRecipient = useCallback(async (id: string, active: boolean) => {
     if (!supabase) return;
-    await (supabase as any).from('checkin_recipients').update({ active: !active }).eq('id', id);
+    setTogglingId(id);
+    setToggleError(null);
+    const newActive = !active;
+    const { error } = await (supabase as any)
+      .from('checkin_recipients')
+      .update({ active: newActive })
+      .eq('id', id)
+      .select('id, active')
+      .single();
+    setTogglingId(null);
+    if (error) {
+      setToggleError({ id, message: `Failed to ${newActive ? 'resume' : 'pause'} — ${error.message}` });
+      return;
+    }
     onRefresh();
   }, [onRefresh]);
 
@@ -504,7 +519,20 @@ export function RecipientManager({ recipients, managers, onRefresh }: RecipientM
 
   const toggleManager = useCallback(async (id: string, active: boolean) => {
     if (!supabase) return;
-    await (supabase as any).from('checkin_managers').update({ active: !active }).eq('id', id);
+    setTogglingId(id);
+    setToggleError(null);
+    const newActive = !active;
+    const { error } = await (supabase as any)
+      .from('checkin_managers')
+      .update({ active: newActive })
+      .eq('id', id)
+      .select('id, active')
+      .single();
+    setTogglingId(null);
+    if (error) {
+      setToggleError({ id, message: `Failed to ${newActive ? 'resume' : 'pause'} — ${error.message}` });
+      return;
+    }
     onRefresh();
   }, [onRefresh]);
 
@@ -559,6 +587,17 @@ export function RecipientManager({ recipients, managers, onRefresh }: RecipientM
           </button>
         </div>
 
+        {/* Toggle error banner */}
+        {toggleError && (
+          <div className="flex items-center justify-between gap-2 px-3 py-2 mb-3 rounded-md bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+              {toggleError.message}
+            </div>
+            <button onClick={() => setToggleError(null)} className="text-red-400 hover:text-red-300 text-xs font-medium">✕</button>
+          </div>
+        )}
+
         {tab === 'agents' && (
           <>
             <div className="flex items-center gap-3 mb-3">
@@ -597,7 +636,8 @@ export function RecipientManager({ recipients, managers, onRefresh }: RecipientM
                       {formatPhone(r.phone)}
                     </span>
                     {!r.active && (
-                      <Badge variant="outline" className="text-xs bg-zinc-700/30 text-zinc-500 border-zinc-600">
+                      <Badge variant="outline" className="text-xs bg-amber-500/15 text-amber-400 border-amber-500/30 flex items-center gap-1">
+                        <PauseCircle className="w-3 h-3" />
                         Paused
                       </Badge>
                     )}
@@ -606,10 +646,13 @@ export function RecipientManager({ recipients, managers, onRefresh }: RecipientM
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 text-xs text-zinc-400 hover:text-zinc-200"
+                      className={`h-7 text-xs ${r.active ? 'text-zinc-400 hover:text-zinc-200' : 'text-amber-400 hover:text-amber-300 font-medium'}`}
+                      disabled={togglingId === r.id}
                       onClick={() => toggleRecipient(r.id, r.active)}
                     >
-                      {r.active ? 'Pause' : 'Resume'}
+                      {togglingId === r.id ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : r.active ? 'Pause' : 'Resume'}
                     </Button>
                     <Button
                       variant="ghost"
@@ -659,7 +702,8 @@ export function RecipientManager({ recipients, managers, onRefresh }: RecipientM
                       {formatPhone(m.phone)}
                     </span>
                     {!m.active && (
-                      <Badge variant="outline" className="text-xs bg-zinc-700/30 text-zinc-500 border-zinc-600">
+                      <Badge variant="outline" className="text-xs bg-amber-500/15 text-amber-400 border-amber-500/30 flex items-center gap-1">
+                        <PauseCircle className="w-3 h-3" />
                         Paused
                       </Badge>
                     )}
@@ -668,10 +712,13 @@ export function RecipientManager({ recipients, managers, onRefresh }: RecipientM
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 text-xs text-zinc-400 hover:text-zinc-200"
+                      className={`h-7 text-xs ${m.active ? 'text-zinc-400 hover:text-zinc-200' : 'text-amber-400 hover:text-amber-300 font-medium'}`}
+                      disabled={togglingId === m.id}
                       onClick={() => toggleManager(m.id, m.active)}
                     >
-                      {m.active ? 'Pause' : 'Resume'}
+                      {togglingId === m.id ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : m.active ? 'Pause' : 'Resume'}
                     </Button>
                     <Button
                       variant="ghost"
