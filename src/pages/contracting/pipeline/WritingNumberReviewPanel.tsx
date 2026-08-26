@@ -15,7 +15,7 @@ import {
   ChevronUp,
   AlertTriangle,
 } from 'lucide-react';
-import { portalSupabase, portalUrl, portalKey } from '@/lib/portal-supabase';
+import { portalSupabase } from '@/lib/portal-supabase';
 
 type Submission = {
   id: string;

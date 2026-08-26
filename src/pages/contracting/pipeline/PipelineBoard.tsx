@@ -35,7 +35,7 @@ import {
   ArrowRightLeft,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
-import { portalSupabase, portalUrl, portalKey } from '@/lib/portal-supabase';
+import { portalSupabase } from '@/lib/portal-supabase';
 import type {
   PortalPipelineRecord,
   AgentPipelineStage,
