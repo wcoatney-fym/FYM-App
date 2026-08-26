@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
     // Auth: check webhook secret
     const url = new URL(req.url);
     const secret = url.searchParams.get("secret");
-    const expectedSecret = Deno.env.get("GHL_WEBHOOK_SECRET");
+    const expectedSecret = Deno.env.get("CONTRACTING_WEBHOOK_SECRET");
 
     if (expectedSecret && secret !== expectedSecret) {
       return json({ error: "Unauthorized" }, 401);
@@ -66,30 +66,35 @@ Deno.serve(async (req) => {
     const payload = await req.json();
     const portal = getPortalClient();
 
-    // Extract location ID
-    const locationId =
+    // Extract location ID — optional in payload since GHL standard data
+    // doesn't always include it. Fall back to the single-row config.
+    let locationId =
       payload.locationId || payload.location_id || null;
 
-    if (!locationId) {
-      return json({ error: "Missing locationId" }, 400);
-    }
-
-    // Verify this location is configured — check both config tables
-    const { data: config } = await portal
-      .from("agency_ghl_configs")
-      .select("agency_id, hierarchy_agencies(id, name)")
-      .eq("ghl_location_id", locationId)
-      .maybeSingle();
-
+    // Load pipeline config (single row for contracting sub-account)
     const { data: pipelineConfig } = await portal
       .from("agent_pipeline_ghl_config")
       .select("ghl_location_id")
-      .eq("ghl_location_id", locationId)
+      .limit(1)
       .maybeSingle();
+
+    // If locationId missing from payload, use the config
+    if (!locationId && pipelineConfig) {
+      locationId = pipelineConfig.ghl_location_id;
+    }
+
+    // Try to resolve agency info from agency_ghl_configs
+    const { data: config } = locationId
+      ? await portal
+          .from("agency_ghl_configs")
+          .select("agency_id, hierarchy_agencies(id, name)")
+          .eq("ghl_location_id", locationId)
+          .maybeSingle()
+      : { data: null };
 
     if (!config && !pipelineConfig) {
       return json(
-        { error: "No agency mapped to this location" },
+        { error: "No agency or pipeline config found" },
         404
       );
     }
