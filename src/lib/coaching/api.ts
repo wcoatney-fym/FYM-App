@@ -46,6 +46,24 @@ export async function updateCoachingThresholds(
   return (data as unknown as CoachingThresholds) ?? null;
 }
 
+// ── Training Content ──────────────────────────────────────────────────────
+
+import type { TrainingContent } from './types';
+
+export async function fetchTrainingContent(): Promise<TrainingContent[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('coaching_training_content')
+    .select('*')
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true });
+  if (error) {
+    console.error('fetchTrainingContent error:', error);
+    return [];
+  }
+  return (data as unknown as TrainingContent[]) || [];
+}
+
 // ── Plans (CRUD) ──────────────────────────────────────────────────────────
 
 /** UUID v4 pattern — used to detect whether an agency filter is a UUID or writing number */

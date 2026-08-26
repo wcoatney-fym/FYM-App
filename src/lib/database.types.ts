@@ -506,6 +506,28 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['coaching_stage_history']['Insert']>;
         Relationships: [];
       };
+      coaching_training_content: {
+        Row: {
+          id: string;
+          title: string;
+          description: string | null;
+          category: string;
+          content_type: string;
+          url: string | null;
+          duration_minutes: number | null;
+          is_active: boolean;
+          sort_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['coaching_training_content']['Row'], 'id' | 'created_at' | 'updated_at' | 'is_active' | 'sort_order'> & {
+          id?: string;
+          is_active?: boolean;
+          sort_order?: number;
+        };
+        Update: Partial<Database['public']['Tables']['coaching_training_content']['Insert']>;
+        Relationships: [];
+      };
     };
     Views: {
       agent_health_scores: {
