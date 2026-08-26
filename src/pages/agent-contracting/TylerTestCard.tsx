@@ -20,8 +20,13 @@ import {
 import type { PortalPipelineRecord } from '@/lib/contracting/types';
 import type { StepCompletion } from '@/hooks/useAgentPipeline';
 
-/** Well-known step ID for Tyler test — will be created in the DB migration */
-export const TYLER_TEST_STEP_ID = 'tyler_test';
+/**
+ * Well-known step ID for Tyler test.
+ * Must match the UUID of the "Test out with Tyler" row in
+ * agent_pipeline_stage_steps (internal_stage = 'rts', active = true).
+ * Used as key in completed_steps JSONB and as step_id in agent_step_completions.
+ */
+export const TYLER_TEST_STEP_ID = 'bb52e2aa-7ffd-465f-96e9-fbd4af305c7d';
 
 interface TylerTestCardProps {
   pipelineRecord: PortalPipelineRecord;

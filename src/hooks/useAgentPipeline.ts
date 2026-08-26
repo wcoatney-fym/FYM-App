@@ -273,7 +273,9 @@ export function useAgentPipeline(): AgentPipelineData {
           .insert({
             pipeline_id: pipelineRecord.id,
             step_id: stepId,
+            stage: pipelineRecord.stage,
             completed_by: 'agent',
+            completed_at: new Date().toISOString(),
             status: 'pending_review',
           })
           .select()
