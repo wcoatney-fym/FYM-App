@@ -27,6 +27,7 @@ import {
   COACHING_STAGE_COLORS,
   REQUIREMENT_TYPE_LABELS,
   REQUIREMENT_TYPE_ICONS,
+  TRAINING_CATEGORY_LABELS,
   daysRemaining,
   validNextStages,
   isTerminal,
@@ -36,11 +37,13 @@ import {
   type CoachingRequirement,
   type CoachingStage,
   type CoachingRequirementType,
+  type TrainingContent,
 } from '@/lib/coaching/types';
 import {
   fetchCoachingPlanDetail,
   fetchCoachingNotes,
   fetchStageHistory,
+  fetchTrainingContent,
   advanceCoachingStage,
   addRequirement,
   completeRequirement,
@@ -68,12 +71,17 @@ export function CoachingPlanDrawer({ planId, onClose, onStageChanged }: Coaching
   const [noteDraft, setNoteDraft] = useState('');
   const [sendingNote, setSendingNote] = useState(false);
 
+  // Training content catalog
+  const [trainingCatalog, setTrainingCatalog] = useState<TrainingContent[]>([]);
+  const [catalogLoaded, setCatalogLoaded] = useState(false);
+
   // Add requirement form
   const [showAddReq, setShowAddReq] = useState(false);
   const [newReqType, setNewReqType] = useState<CoachingRequirementType>('custom_task');
   const [newReqTitle, setNewReqTitle] = useState('');
   const [newReqDesc, setNewReqDesc] = useState('');
   const [newReqCount, setNewReqCount] = useState(3);
+  const [selectedTrainingId, setSelectedTrainingId] = useState<string | null>(null);
   const [addingReq, setAddingReq] = useState(false);
 
   // Stage transition
@@ -91,7 +99,13 @@ export function CoachingPlanDrawer({ planId, onClose, onStageChanged }: Coaching
     setNotes(notesData);
     setHistory(historyData);
     setLoading(false);
-  }, [planId]);
+    // Load training catalog once
+    if (!catalogLoaded) {
+      const catalog = await fetchTrainingContent();
+      setTrainingCatalog(catalog);
+      setCatalogLoaded(true);
+    }
+  }, [planId, catalogLoaded]);
 
   useEffect(() => {
     if (planId) {
@@ -121,11 +135,13 @@ export function CoachingPlanDrawer({ planId, onClose, onStageChanged }: Coaching
       type: newReqType,
       title: newReqTitle.trim(),
       description: newReqDesc.trim() || undefined,
+      trainingContentId: selectedTrainingId || undefined,
       requiredCount: newReqType === 'live_attendance' ? newReqCount : undefined,
       sortOrder: (plan.requirements.length),
     });
     setNewReqTitle('');
     setNewReqDesc('');
+    setSelectedTrainingId(null);
     setShowAddReq(false);
     await loadDetail();
     setAddingReq(false);
@@ -270,6 +286,9 @@ export function CoachingPlanDrawer({ planId, onClose, onStageChanged }: Coaching
                   setNewReqDesc={setNewReqDesc}
                   newReqCount={newReqCount}
                   setNewReqCount={setNewReqCount}
+                  selectedTrainingId={selectedTrainingId}
+                  setSelectedTrainingId={setSelectedTrainingId}
+                  trainingCatalog={trainingCatalog}
                   addingReq={addingReq}
                   onAddRequirement={handleAddRequirement}
                   onCompleteReq={handleCompleteReq}
@@ -313,6 +332,9 @@ function ActionPlanTab({
   setNewReqDesc,
   newReqCount,
   setNewReqCount,
+  selectedTrainingId,
+  setSelectedTrainingId,
+  trainingCatalog,
   addingReq,
   onAddRequirement,
   onCompleteReq,
@@ -330,6 +352,9 @@ function ActionPlanTab({
   setNewReqDesc: (v: string) => void;
   newReqCount: number;
   setNewReqCount: (v: number) => void;
+  selectedTrainingId: string | null;
+  setSelectedTrainingId: (v: string | null) => void;
+  trainingCatalog: TrainingContent[];
   addingReq: boolean;
   onAddRequirement: () => void;
   onCompleteReq: (id: string) => void;
@@ -450,7 +475,13 @@ function ActionPlanTab({
                       key={t}
                       size="sm"
                       variant={newReqType === t ? 'default' : 'outline'}
-                      onClick={() => setNewReqType(t)}
+                      onClick={() => {
+                        setNewReqType(t);
+                        // Clear training selection when switching away
+                        if (t !== 'training') {
+                          setSelectedTrainingId(null);
+                        }
+                      }}
                       className="h-6 text-[10px] gap-1 border-border"
                     >
                       {REQUIREMENT_TYPE_ICONS[t]} {REQUIREMENT_TYPE_LABELS[t]}
@@ -459,20 +490,87 @@ function ActionPlanTab({
                 </div>
               </div>
 
-              <div>
-                <Label className="text-xs text-muted-foreground">Title</Label>
-                <Input
-                  value={newReqTitle}
-                  onChange={e => setNewReqTitle(e.target.value)}
-                  placeholder={
-                    newReqType === 'training' ? 'e.g. Complete HHC Product Training'
-                    : newReqType === 'coaching_meeting' ? 'e.g. Weekly 1:1 with manager'
-                    : newReqType === 'live_attendance' ? 'e.g. Attend live training sessions'
-                    : 'e.g. Shadow a senior agent for 2 calls'
-                  }
-                  className="mt-1 h-8 text-sm bg-card"
-                />
-              </div>
+              {/* Training dropdown — shown when type is 'training' */}
+              {newReqType === 'training' && trainingCatalog.length > 0 ? (
+                <div>
+                  <Label className="text-xs text-muted-foreground">Select Training / Quiz</Label>
+                  <select
+                    value={selectedTrainingId || ''}
+                    onChange={e => {
+                      const id = e.target.value;
+                      setSelectedTrainingId(id || null);
+                      if (id) {
+                        const item = trainingCatalog.find(t => t.id === id);
+                        if (item) {
+                          setNewReqTitle(item.title);
+                          setNewReqDesc(item.description || '');
+                        }
+                      } else {
+                        setNewReqTitle('');
+                        setNewReqDesc('');
+                      }
+                    }}
+                    className="mt-1 w-full h-8 px-2 border border-border rounded-lg text-sm bg-card focus:ring-2 focus:ring-primary focus:border-transparent"
+                  >
+                    <option value="">— Choose a training —</option>
+                    {Object.entries(
+                      trainingCatalog.reduce<Record<string, TrainingContent[]>>((acc, item) => {
+                        const cat = item.category;
+                        if (!acc[cat]) acc[cat] = [];
+                        acc[cat].push(item);
+                        return acc;
+                      }, {})
+                    ).map(([category, items]) => (
+                      <optgroup key={category} label={TRAINING_CATEGORY_LABELS[category] || category}>
+                        {items.map(item => (
+                          <option key={item.id} value={item.id}>
+                            {item.content_type === 'quiz' ? '📝 ' : '📚 '}
+                            {item.title}
+                            {item.duration_minutes ? ` (${item.duration_minutes}m)` : ''}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                  {/* Show selected training description */}
+                  {selectedTrainingId && (() => {
+                    const selected = trainingCatalog.find(t => t.id === selectedTrainingId);
+                    return selected?.description ? (
+                      <p className="mt-1.5 text-[11px] text-muted-foreground bg-primary/5 px-2 py-1.5 rounded">
+                        {selected.description}
+                      </p>
+                    ) : null;
+                  })()}
+                </div>
+              ) : (
+                <div>
+                  <Label className="text-xs text-muted-foreground">Title</Label>
+                  <Input
+                    value={newReqTitle}
+                    onChange={e => setNewReqTitle(e.target.value)}
+                    placeholder={
+                      newReqType === 'training' ? 'e.g. Complete HHC Product Training'
+                      : newReqType === 'coaching_meeting' ? 'e.g. Weekly 1:1 with manager'
+                      : newReqType === 'live_attendance' ? 'e.g. Attend live training sessions'
+                      : 'e.g. Shadow a senior agent for 2 calls'
+                    }
+                    className="mt-1 h-8 text-sm bg-card"
+                  />
+                </div>
+              )}
+
+              {/* Custom title override when training selected (optional) */}
+              {newReqType === 'training' && selectedTrainingId && (
+                <div>
+                  <Label className="text-xs text-muted-foreground">Custom Title (optional override)</Label>
+                  <Input
+                    value={newReqTitle}
+                    onChange={e => setNewReqTitle(e.target.value)}
+                    placeholder="Leave as-is or customize"
+                    className="mt-1 h-8 text-sm bg-card"
+                  />
+                </div>
+              )}
 
               {newReqType === 'live_attendance' && (
                 <div>

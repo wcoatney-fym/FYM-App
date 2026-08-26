@@ -241,6 +241,32 @@ export interface CoachingCard extends CoachingPlan {
   is_multi_flag: boolean;
 }
 
+// ── Training content catalog ──────────────────────────────────────────────
+
+export interface TrainingContent {
+  id: string;
+  title: string;
+  description: string | null;
+  category: string;
+  content_type: 'training' | 'quiz';
+  url: string | null;
+  duration_minutes: number | null;
+  is_active: boolean;
+  sort_order: number;
+}
+
+/** Category labels for grouping the training dropdown */
+export const TRAINING_CATEGORY_LABELS: Record<string, string> = {
+  product: 'Product Knowledge',
+  sales: 'Sales & Scripts',
+  tools: 'Tools & Systems',
+  compliance: 'Compliance',
+  live: 'Live Training',
+  coaching: 'Coaching',
+  quality: 'Quality & Retention',
+  general: 'General',
+};
+
 /** Coaching thresholds (extended) */
 export interface CoachingThresholds {
   id: number;
