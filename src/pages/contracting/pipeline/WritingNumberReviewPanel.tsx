@@ -135,17 +135,21 @@ export function WritingNumberReviewPanel({
         .eq('agent_id', agentId);
 
       // Push stage change to GHL if auto-moving back
-      if (isActiveAgentRequest && remaining === 0 && pipelineRecordId && portalUrl && portalKey) {
-        fetch(`${portalUrl}/functions/v1/push-pipeline-stage`, {
+      const wnAppUrl = import.meta.env.VITE_SUPABASE_URL || '';
+      const wnAppKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+      if (isActiveAgentRequest && remaining === 0 && pipelineRecordId && wnAppUrl && wnAppKey) {
+        fetch(`${wnAppUrl}/functions/v1/push-contracting-stage`, {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${portalKey}`,
+            Authorization: `Bearer ${wnAppKey}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
+            action: 'push',
             record_id: pipelineRecordId,
             new_stage: 'actively_selling',
             updated_by: 'FYM App',
+            updated_by_source: 'fym_app',
           }),
         }).catch(() => {}); // Best-effort GHL sync
       }

@@ -75,7 +75,13 @@ export const LEGACY_STAGES: AgentPipelineStage[] = [
   'hip_career_ready',
 ];
 
-// ─── Edge function calls (portal Supabase) ─────────────────────────────────
+// ─── Edge function calls ────────────────────────────────────────────────────
+// Push + sync route through FYM App edge functions (rcbzag).
+// Pipeline data still lives in the portal DB (akhojh) — the edge functions
+// read/write it via CONTRACTING_SUPABASE_* secrets.
+
+const appUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const appKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 async function pushStageChange(
   recordId: string,
@@ -88,17 +94,18 @@ async function pushStageChange(
   error?: string;
   ghl_pushed?: boolean;
 }> {
-  const res = await fetch(`${portalUrl}/functions/v1/push-pipeline-stage`, {
+  const res = await fetch(`${appUrl}/functions/v1/push-contracting-stage`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${portalKey}`,
+      Authorization: `Bearer ${appKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
+      action: 'push',
       record_id: recordId,
       new_stage: newStage,
       updated_by: updatedBy,
-      updated_by_source: 'contracting_portal',
+      updated_by_source: 'fym_app',
       changed_by_user_id: changedByUserId || null,
     }),
   });
@@ -258,12 +265,13 @@ export function PipelineBoard() {
   const handleSyncFromGhl = async () => {
     setSyncing(true);
     try {
-      const res = await fetch(`${portalUrl}/functions/v1/sync-pipeline-from-ghl`, {
+      const res = await fetch(`${appUrl}/functions/v1/push-contracting-stage`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${portalKey}`,
+          Authorization: `Bearer ${appKey}`,
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ action: 'sync' }),
       });
       const result = await res.json();
       if (result.success) {
