@@ -251,8 +251,26 @@ export function PipelineBoard() {
     loadData();
     loadGhlConfig();
     loadStageSteps();
-    const interval = setInterval(loadData, 30000);
-    return () => clearInterval(interval);
+
+    // Realtime: auto-refresh when agent_pipeline rows change (GHL webhook, app push, etc.)
+    const channel = portalSupabase
+      ?.channel('pipeline-board-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'agent_pipeline' },
+        () => {
+          loadData();
+        },
+      )
+      .subscribe();
+
+    // Fallback poll every 60s in case Realtime disconnects
+    const interval = setInterval(loadData, 60000);
+
+    return () => {
+      clearInterval(interval);
+      if (channel) portalSupabase?.removeChannel(channel);
+    };
   }, [loadData, loadGhlConfig, loadStageSteps]);
 
   // Refresh scroll indicators after data loads
