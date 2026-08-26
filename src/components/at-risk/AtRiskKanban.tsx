@@ -168,7 +168,29 @@ export function AtRiskKanban({ filterAgencyId }: AtRiskKanbanProps) {
     }
   }, [effectiveAgencyId, isOrgWide, isAgent, effectiveWritingNumber, filterAgencyId]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+
+    // Realtime: auto-refresh when atrisk_tasks rows change (GHL webhook, app push, auto-expire)
+    const channel = supabase
+      .channel('atrisk-board-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'atrisk_tasks' },
+        () => {
+          fetchData();
+        },
+      )
+      .subscribe();
+
+    // Fallback poll every 60s in case Realtime disconnects
+    const interval = setInterval(fetchData, 60000);
+
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
+  }, [fetchData]);
 
   // ── Stage transition ─────────────────────────────────────────────────────
   const moveToStage = async (policy: AtRiskPolicy, target: Stage) => {
