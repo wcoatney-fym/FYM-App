@@ -2,8 +2,8 @@
 
 > **Target GHL account:** Contracting sub-account (one shared account for all agencies)
 > **App surface:** Contracting → Pipeline tab (`agency.teamfym.com/contracting`)
-> **Edge functions (Portal `akhojh`):** `push-pipeline-stage` (App → GHL) · `agent-pipeline-webhook` (GHL → App) · `sync-pipeline-from-ghl` (bulk pull)
-> **DB:** Portal (`akhojh`) — `agent_pipeline`, `agent_pipeline_stage_map`, `agent_pipeline_ghl_config`
+> **Edge functions (FYM App `rcbzag`):** `push-contracting-stage` (App → GHL + bulk sync) · `contracting-pipeline-webhook` (GHL → App)
+> **Data tables (Portal `akhojh`):** `agent_pipeline`, `agent_pipeline_stage_map`, `agent_pipeline_ghl_config`
 
 ---
 
@@ -124,7 +124,7 @@ This workflow fires whenever an opportunity changes stage in the Contracting Pip
 1. Add action: **Webhook / Custom Webhook**
 2. Configure:
    - **Method:** `POST`
-   - **URL:** `https://akhojhncsswyzcnicedt.supabase.co/functions/v1/agent-pipeline-webhook`
+   - **URL:** `https://rcbzagjyhyrkuwvlrlnf.supabase.co/functions/v1/contracting-pipeline-webhook`
    - **Headers:**
      - `Content-Type`: `application/json`
    - **Body (JSON):**
@@ -183,13 +183,14 @@ Before enabling two-way sync, you need to pull existing GHL pipeline data into t
 
 This is the most common scenario — the contracting pipeline has been running in GHL and you want to pull all existing opportunities into the app.
 
-1. Trigger the `sync-pipeline-from-ghl` edge function:
+1. Trigger the `push-contracting-stage` edge function with the `sync` action:
    ```
-   POST https://akhojhncsswyzcnicedt.supabase.co/functions/v1/sync-pipeline-from-ghl
-   Authorization: Bearer <portal_service_key>
+   POST https://rcbzagjyhyrkuwvlrlnf.supabase.co/functions/v1/push-contracting-stage
+   Authorization: Bearer <app_anon_key>
    Content-Type: application/json
+   Body: { "action": "sync" }
    ```
-   No body needed — it reads the config from `agent_pipeline_ghl_config`.
+   It reads the GHL config from `agent_pipeline_ghl_config` in the portal DB.
 
 2. The function will:
    - Fetch all opportunities from the pipeline (paginated, 20 per page)
@@ -292,15 +293,15 @@ If agents were already tracked in the app's `agent_pipeline` table and you need 
 
 ---
 
-## Reference: Bulk Sync (sync-pipeline-from-ghl)
+## Reference: Bulk Sync (push-contracting-stage?action=sync)
 
-For periodic full reconciliation or initial population, the `sync-pipeline-from-ghl` edge function does a complete pull:
+For periodic full reconciliation or initial population, the `push-contracting-stage` edge function's `sync` action does a complete pull:
 
 ```
-POST /functions/v1/sync-pipeline-from-ghl
-Authorization: Bearer <service_role_key>
-
-No body required — reads config from agent_pipeline_ghl_config.
+POST /functions/v1/push-contracting-stage
+Authorization: Bearer <app_anon_key>
+Content-Type: application/json
+Body: { "action": "sync" }
 ```
 
 - Fetches all opportunities from the pipeline (paginated, 20/page, max 1,000)
@@ -322,9 +323,8 @@ No body required — reads config from agent_pipeline_ghl_config.
 | `agent_pipeline_stage_map` | Portal DB (`akhojh`) | Maps `internal_stage` ↔ `ghl_stage_name` + `ghl_stage_id`. DB-driven, not hardcoded. |
 | `agent_pipeline_ghl_config` | Portal DB (`akhojh`) | Single-row config: API key, location ID, pipeline ID, connection status. |
 | `webhook_log` | Portal DB (`akhojh`) | Audit trail for push successes/failures. |
-| `push-pipeline-stage/index.ts` | `supabase/functions/` (Portal) | App → GHL push handler. |
-| `agent-pipeline-webhook/index.ts` | `supabase/functions/` (Portal) | GHL → App webhook receiver. |
-| `sync-pipeline-from-ghl/index.ts` | `supabase/functions/` (Portal) | Bulk pull: GHL → App (all opportunities). |
+| `push-contracting-stage/index.ts` | `supabase/functions/` (FYM App) | App → GHL push + bulk sync handler. |
+| `contracting-pipeline-webhook/index.ts` | `supabase/functions/` (FYM App) | GHL → App webhook receiver. |
 | `src/pages/contracting/pipeline/PipelineBoard.tsx` | FYM App client | Kanban UI — calls `pushStageChange()` on drag. |
 
 ---
