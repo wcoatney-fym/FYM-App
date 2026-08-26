@@ -129,6 +129,7 @@ Deno.serve(async (req) => {
     }
 
     // Get the stage name from the payload
+    // NOTE: GHL misspells "pipeline" as "pipleline" in their standard webhook data
     const stageName =
       opportunity.pipelineStageName ||
       opportunity.pipeline_stage_name ||
@@ -136,6 +137,7 @@ Deno.serve(async (req) => {
       opportunity.stage_name ||
       payload.pipeline_stage ||
       payload.pipelineStage ||
+      payload.pipleline_stage ||  // GHL typo — this is the actual field name
       payload.stage_name ||
       payload.stageName ||
       null;
@@ -173,18 +175,20 @@ Deno.serve(async (req) => {
         .eq("ghl_stage_name", stageName);
     }
 
-    // Extract contact info
-    const contact = opportunity.contact || {};
+    // Extract contact info — GHL sends flat payload, not nested under contact
     const contactId =
       payload.contact_id ||
       payload.contactId ||
-      contact.id ||
       opportunity.contactId ||
       null;
-    const contactName = contact.name || opportunity.name || "";
-    const nameParts = contactName.split(" ");
-    const firstName = nameParts[0] || "";
-    const lastName = nameParts.slice(1).join(" ") || "";
+    const contactName =
+      payload.full_name ||
+      payload.opportunity_name ||
+      opportunity.name ||
+      [payload.first_name, payload.last_name].filter(Boolean).join(" ") ||
+      "";
+    const firstName = payload.first_name || contactName.split(" ")[0] || "";
+    const lastName = payload.last_name || contactName.split(" ").slice(1).join(" ") || "";
 
     const agencyName = config
       ? (config.hierarchy_agencies as { id: string; name: string } | null)
@@ -221,15 +225,15 @@ Deno.serve(async (req) => {
     const pipelineData: Record<string, unknown> = {
       ghl_opportunity_id: ghlOpportunityId,
       ghl_pipeline_id:
-        opportunity.pipelineId || opportunity.pipeline_id || null,
+        payload.pipeline_id || opportunity.pipelineId || opportunity.pipeline_id || null,
       ghl_stage_id: incomingGhlStageId,
       ghl_contact_id: contactId,
       stage: stageMapping.internal_stage,
       agent_name: contactName,
       first_name: firstName,
       last_name: lastName,
-      email: contact.email || opportunity.email || null,
-      phone: contact.phone || opportunity.phone || null,
+      email: payload.email || opportunity.email || null,
+      phone: payload.phone || opportunity.phone || null,
       agency: agencyName,
       agency_id: agencyId,
       last_updated_by: "ghl_webhook",
