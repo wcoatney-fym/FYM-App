@@ -34,6 +34,7 @@ export interface CrmGhlSyncResult {
     agent: string;
     seatNumber: string;
     customValuesPushed: boolean;
+    customValuesUpdated?: number;
     userCreated: boolean;
     sunfirePushed: boolean;
     errors: string[];

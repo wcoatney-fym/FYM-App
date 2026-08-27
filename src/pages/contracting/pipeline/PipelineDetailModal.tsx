@@ -41,6 +41,7 @@ import { WritingNumberReviewPanel } from './WritingNumberReviewPanel';
 import { AgentStepReviewPanel } from './AgentStepReviewPanel';
 import { CannedMessageList } from '@/components/contracting/CannedMessageButton';
 import { getMessagesForStage } from '@/lib/contracting/canned-messages';
+import { CRM_ONBOARD_STEP_ID, runCrmOnboardAutomation } from '@/lib/contracting/crm-onboard-automation';
 
 /**
  * Build the move-to dropdown stages lazily inside the component — NOT at module level.
@@ -126,10 +127,14 @@ export function PipelineDetailModal({
     writingNumbers !== (record.writing_numbers || '') ||
     notes !== (record.notes || '');
 
+  const [onboardStatus, setOnboardStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle');
+  const [onboardMessage, setOnboardMessage] = useState<string | null>(null);
+
   const toggleStep = async (stepId: string) => {
     if (!portalSupabase) return;
     setTogglingStep(stepId);
     const current = { ...(record.completed_steps || {}) };
+    const isToggleOn = !current[stepId];
     if (current[stepId]) {
       delete current[stepId];
     } else {
@@ -142,6 +147,30 @@ export function PipelineDetailModal({
     if (!error) {
       onRecordUpdated({ ...record, completed_steps: current });
     }
+
+    // ── CRM Onboard Automation: fire when step is toggled ON ──
+    if (!error && isToggleOn && stepId === CRM_ONBOARD_STEP_ID) {
+      setOnboardStatus('running');
+      setOnboardMessage('Finding open seat & onboarding to CRM...');
+      try {
+        const result = await runCrmOnboardAutomation(portalSupabase, record);
+        if (result.success) {
+          setOnboardStatus('success');
+          const parts = [`Seat #${result.seatNumber} assigned`];
+          if (result.ghlResult?.result?.userCreated) parts.push('GHL user created');
+          if (result.ghlResult?.result?.customValuesPushed) parts.push(`${result.ghlResult.result.customValuesUpdated ?? 11} CVs pushed`);
+          if (result.pipelineCardId) parts.push('CRM pipeline card created');
+          setOnboardMessage(parts.join(' · '));
+        } else {
+          setOnboardStatus('error');
+          setOnboardMessage(result.errors.join('; ') || 'CRM onboarding failed.');
+        }
+      } catch (err) {
+        setOnboardStatus('error');
+        setOnboardMessage(err instanceof Error ? err.message : 'CRM onboarding failed.');
+      }
+    }
+
     setTogglingStep(null);
   };
 
@@ -285,8 +314,8 @@ export function PipelineDetailModal({
                 {progress.steps.map((step) => {
                   const doneAt = record.completed_steps?.[step.id];
                   return (
+                    <div key={step.id} className="space-y-1">
                     <button
-                      key={step.id}
                       onClick={() => toggleStep(step.id)}
                       disabled={togglingStep === step.id}
                       className={`w-full flex items-center gap-3 p-2.5 rounded-lg border text-left transition-colors ${
@@ -324,6 +353,24 @@ export function PipelineDetailModal({
                         </span>
                       )}
                     </button>
+                    {/* CRM Onboard automation status feedback */}
+                    {step.id === CRM_ONBOARD_STEP_ID && onboardStatus !== 'idle' && (
+                      <div
+                        className={`ml-8 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 ${
+                          onboardStatus === 'running'
+                            ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                            : onboardStatus === 'success'
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                              : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                        }`}
+                      >
+                        {onboardStatus === 'running' && (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        )}
+                        {onboardMessage}
+                      </div>
+                    )}
+                    </div>
                   );
                 })}
               </div>
