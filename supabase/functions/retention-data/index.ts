@@ -488,14 +488,15 @@ Deno.serve(async (req) => {
             oneMonthMs.setMonth(oneMonthMs.getMonth() + 1);
             const draftedFirst = paidMs >= oneMonthMs.getTime();
 
+            // Retained = paid_to_date >= issue_date + retentionDays
+            // Hoisted above the draftedFirst gate so cohort tracking can also use it
+            const windowMs = new Date(issueDate);
+            windowMs.setDate(windowMs.getDate() + retentionDays);
+            const isRetained = draftedFirst && paidMs >= windowMs.getTime();
+
             if (draftedFirst) {
               bucket.eligible++;
               pb.eligible++;
-
-              // Retained = paid_to_date >= issue_date + retentionDays
-              const windowMs = new Date(issueDate);
-              windowMs.setDate(windowMs.getDate() + retentionDays);
-              const isRetained = paidMs >= windowMs.getTime();
 
               if (isRetained) {
                 bucket.retained++;
