@@ -54,6 +54,7 @@ const STAGE_ORDER: { key: AgentPipelineStage; label: string }[] = [
   { key: 'rts', label: 'Ready to Sell' },
   { key: 'actively_selling', label: 'Actively Selling' },
   { key: 'terminated', label: 'Terminated' },
+  { key: 'dnf', label: 'DNF' },
 ];
 
 type WnSubmission = {
