@@ -1,5 +1,5 @@
 export type UserRole = 'agent' | 'manager' | 'admin';
-export type AtRiskStatus = 'new' | 'assigned' | 'contacted' | 'saved' | 'lost';
+export type AtRiskStatus = 'new' | 'assigned' | 'contacted' | 'saved' | 'reactivated' | 'lost';
 export type FlagType = 'at_risk' | null;
 export type AgencyVariant = 'brent_melanie' | 'fym_direct';
 export type CompTier = '60' | '65' | '70' | '75';

@@ -55,6 +55,7 @@ type Stage =
   | 'code_red'
   | 'agent_saved_pending'
   | 'saved'
+  | 'reactivated'
   | 'lost';
 
 const STAGES: { key: Stage; label: string; color: string; bg: string; border: string; dot: string }[] = [
@@ -65,6 +66,7 @@ const STAGES: { key: Stage; label: string; color: string; bg: string; border: st
   { key: 'code_red',           label: 'Code Red',         color: 'text-red-300',     bg: 'bg-red-500/10',     border: 'border-red-500/30',   dot: 'bg-red-500' },
   { key: 'agent_saved_pending', label: 'Pending Save',     color: 'text-teal-300',    bg: 'bg-teal-500/10',    border: 'border-teal-500/30',  dot: 'bg-teal-400' },
   { key: 'saved',              label: 'Saved',            color: 'text-emerald-300',  bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', dot: 'bg-emerald-400' },
+  { key: 'reactivated',        label: 'Reactivated',      color: 'text-blue-300',    bg: 'bg-blue-500/10',    border: 'border-blue-500/30',  dot: 'bg-blue-400' },
   { key: 'lost',               label: 'Lost',             color: 'text-rose-300',    bg: 'bg-rose-500/10',    border: 'border-rose-500/30',  dot: 'bg-rose-400' },
 ];
 

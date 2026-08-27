@@ -216,7 +216,7 @@ export function NeedsAttentionList({ filterAgencyId }: NeedsAttentionListProps) 
 
         // Upsert: create or update the task
         // Map stage to valid AtRiskStatus enum: 'new' | 'assigned' | 'contacted' | 'saved' | 'lost'
-        const statusMap: Record<string, 'new' | 'assigned' | 'contacted' | 'saved' | 'lost'> = {
+        const statusMap: Record<string, 'new' | 'assigned' | 'contacted' | 'saved' | 'reactivated' | 'lost'> = {
           new: 'new',
           responded: 'contacted',
           agent_outreach: 'assigned',

@@ -45,6 +45,7 @@ export const STAGE_LABELS: Record<string, string> = {
   code_red: 'Code Red',
   agent_saved_pending: 'Pending Save',
   saved: 'Saved',
+  reactivated: 'Reactivated',
   lost: 'Lost',
 };
 

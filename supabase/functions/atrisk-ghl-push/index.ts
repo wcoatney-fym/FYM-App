@@ -49,6 +49,7 @@ const STAGE_MAP: Record<string, string> = {
   code_red: "Code Red",
   agent_saved_pending: "Pending",
   saved: "Saved",
+  reactivated: "Reactivated",
   lost: "Lost",
 };
 

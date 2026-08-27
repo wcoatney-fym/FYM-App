@@ -67,6 +67,7 @@ const STAGES = [
   { key: 'escalated', label: 'Escalated', color: 'border-red-500/40', dot: 'bg-red-500', description: 'Escalated to manager/Tyler' },
   { key: 'pending_save', label: 'Pending Save', color: 'border-teal-500/40', dot: 'bg-teal-400', description: 'Save attempt in progress' },
   { key: 'saved', label: 'Saved', color: 'border-emerald-500/40', dot: 'bg-emerald-400', description: 'Policy retained' },
+  { key: 'reactivated', label: 'Reactivated', color: 'border-blue-500/40', dot: 'bg-blue-400', description: 'Policy reactivated after lapse' },
   { key: 'lost', label: 'Lost', color: 'border-rose-500/40', dot: 'bg-rose-400', description: 'Policy terminated' },
 ] as const;
 
@@ -247,11 +248,13 @@ export function CoachingPage({ embedded = false }: CoachingPageProps) {
     const total = filteredRows.length;
     const critical = filteredRows.filter(r => r.priority === 'critical').length;
     const premiumAtRisk = filteredRows
-      .filter(r => r.stage !== 'saved' && r.stage !== 'lost')
+      .filter(r => r.stage !== 'saved' && r.stage !== 'reactivated' && r.stage !== 'lost')
       .reduce((s, r) => s + (r.plan_premium || 0), 0);
     const saved = filteredRows.filter(r => r.stage === 'saved').length;
+    const reactivated = filteredRows.filter(r => r.stage === 'reactivated').length;
     const lost = filteredRows.filter(r => r.stage === 'lost').length;
-    const saveRate = (saved + lost) > 0 ? (saved / (saved + lost)) * 100 : null;
+    const totalResolved = saved + reactivated + lost;
+    const saveRate = totalResolved > 0 ? ((saved + reactivated) / totalResolved) * 100 : null;
     return { total, critical, premiumAtRisk, saveRate };
   }, [filteredRows]);
 
@@ -291,7 +294,7 @@ export function CoachingPage({ embedded = false }: CoachingPageProps) {
 
     const patch: Record<string, any> = { stage: newStage };
     if (newStage === 'escalated') patch.escalated_at = new Date().toISOString();
-    if (newStage === 'saved' || newStage === 'lost') {
+    if (newStage === 'saved' || newStage === 'reactivated' || newStage === 'lost') {
       patch.status = 'resolved';
       patch.resolution = resolutionDraft || row.resolution || null;
     }
@@ -786,7 +789,7 @@ export function CoachingPage({ embedded = false }: CoachingPageProps) {
                 </div>
 
                 {/* Resolution (saved/lost stages) — read-only for agents */}
-                {(selectedRow.stage === 'saved' || selectedRow.stage === 'lost' || selectedRow.stage === 'pending_save') && (
+                {(selectedRow.stage === 'saved' || selectedRow.stage === 'reactivated' || selectedRow.stage === 'lost' || selectedRow.stage === 'pending_save') && (
                   <div>
                     <p className="text-xs font-semibold text-muted-foreground mb-2">Resolution</p>
                     {isAgent ? (

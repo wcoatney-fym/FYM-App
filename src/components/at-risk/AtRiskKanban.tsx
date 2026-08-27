@@ -60,6 +60,7 @@ type Stage =
   | 'code_red'
   | 'agent_saved_pending'
   | 'saved'
+  | 'reactivated'
   | 'lost';
 
 const STAGES: { key: Stage; label: string; accent: string; dot: string }[] = [
@@ -70,11 +71,12 @@ const STAGES: { key: Stage; label: string; accent: string; dot: string }[] = [
   { key: 'code_red',           label: 'Code Red',  accent: 'border-red-600/70',   dot: 'bg-red-500' },
   { key: 'agent_saved_pending', label: 'Pending',   accent: 'border-teal-500/40',  dot: 'bg-teal-400' },
   { key: 'saved',              label: 'Saved',     accent: 'border-emerald-500/40', dot: 'bg-emerald-400' },
+  { key: 'reactivated',        label: 'Reactivated', accent: 'border-blue-500/40', dot: 'bg-blue-400' },
   { key: 'lost',               label: 'Lost',      accent: 'border-rose-500/40',  dot: 'bg-rose-400' },
 ];
 
 // Stages a user can manually drop a card into
-const DROPPABLE: Stage[] = ['responded', 'manager_outreach', 'agent_outreach', 'code_red', 'saved', 'lost'];
+const DROPPABLE: Stage[] = ['responded', 'manager_outreach', 'agent_outreach', 'code_red', 'saved', 'reactivated', 'lost'];
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function stageOf(p: AtRiskPolicy): Stage {

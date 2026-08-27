@@ -64,9 +64,10 @@ export function PipelineHealth({ policies, loading }: PipelineHealthProps) {
 
     const codeRed = stageCounts['code_red'] || 0;
     const saved = stageCounts['saved'] || 0;
+    const reactivated = stageCounts['reactivated'] || 0;
     const lost = stageCounts['lost'] || 0;
-    const resolved = saved + lost;
-    const saveRate = resolved > 0 ? Math.round((saved / resolved) * 100) : 0;
+    const resolved = saved + reactivated + lost;
+    const saveRate = resolved > 0 ? Math.round(((saved + reactivated) / resolved) * 100) : 0;
 
     // Active = in pipeline but not resolved
     const activeInPipeline = inPipeline.filter(p =>
@@ -307,7 +308,7 @@ export function PipelineHealth({ policies, loading }: PipelineHealthProps) {
             <div className="flex h-6 rounded-lg overflow-hidden border border-border">
               {Object.entries(stats.stageCounts)
                 .sort(([a], [b]) => {
-                  const order = ['new', 'responded', 'manager_outreach', 'agent_outreach', 'code_red', 'agent_saved_pending', 'saved', 'lost'];
+                  const order = ['new', 'responded', 'manager_outreach', 'agent_outreach', 'code_red', 'agent_saved_pending', 'saved', 'reactivated', 'lost'];
                   return order.indexOf(a) - order.indexOf(b);
                 })
                 .map(([stage, count]) => {
@@ -326,6 +327,7 @@ export function PipelineHealth({ policies, loading }: PipelineHealthProps) {
                         stage === 'code_red' && 'bg-rose-500',
                         stage === 'agent_saved_pending' && 'bg-purple-500',
                         stage === 'saved' && 'bg-emerald-500',
+                        stage === 'reactivated' && 'bg-blue-500',
                         stage === 'lost' && 'bg-zinc-700',
                       )}
                       title={`${STAGE_LABELS[stage] || stage}: ${count}`}
@@ -339,7 +341,7 @@ export function PipelineHealth({ policies, loading }: PipelineHealthProps) {
             <div className="flex flex-wrap gap-3 mt-2 text-[10px] text-muted-foreground">
               {Object.entries(stats.stageCounts)
                 .sort(([a], [b]) => {
-                  const order = ['new', 'responded', 'manager_outreach', 'agent_outreach', 'code_red', 'agent_saved_pending', 'saved', 'lost'];
+                  const order = ['new', 'responded', 'manager_outreach', 'agent_outreach', 'code_red', 'agent_saved_pending', 'saved', 'reactivated', 'lost'];
                   return order.indexOf(a) - order.indexOf(b);
                 })
                 .map(([stage, count]) => (
@@ -353,6 +355,7 @@ export function PipelineHealth({ policies, loading }: PipelineHealthProps) {
                       stage === 'code_red' && 'bg-rose-500',
                       stage === 'agent_saved_pending' && 'bg-purple-500',
                       stage === 'saved' && 'bg-emerald-500',
+                      stage === 'reactivated' && 'bg-blue-500',
                       stage === 'lost' && 'bg-zinc-700',
                     )} />
                     {STAGE_LABELS[stage] || stage}: {count}

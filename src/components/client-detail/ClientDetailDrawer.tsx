@@ -68,6 +68,7 @@ type Stage =
   | 'code_red'
   | 'agent_saved_pending'
   | 'saved'
+  | 'reactivated'
   | 'lost';
 
 interface StageHistoryEntry {
@@ -114,7 +115,7 @@ const STAGE_COLORS: Record<string, { dot: string; bg: string; text: string; bord
 
 const DEFAULT_COLORS = { dot: 'bg-gray-400', bg: 'bg-gray-500/10', text: 'text-gray-300', border: 'border-gray-500/30' };
 
-const TRANSITION_TARGETS: Stage[] = ['responded', 'manager_outreach', 'agent_outreach', 'code_red', 'saved', 'lost'];
+const TRANSITION_TARGETS: Stage[] = ['responded', 'manager_outreach', 'agent_outreach', 'code_red', 'saved', 'reactivated', 'lost'];
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
