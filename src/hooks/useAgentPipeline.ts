@@ -62,6 +62,7 @@ export const AGENT_STAGES: {
   { key: 'rts', label: 'RTS', agentCanComplete: false }, // Tyler test + EnrollHere
   { key: 'actively_selling', label: 'Actively Selling', agentCanComplete: false }, // auto — Max's DB
   { key: 'terminated', label: 'Terminated', agentCanComplete: false }, // admin-only
+  { key: 'dnf', label: 'DNF', agentCanComplete: false }, // admin-only — Did Not Finish
 ];
 
 /** Stages that are considered pre-RTS */
