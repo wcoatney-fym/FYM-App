@@ -103,6 +103,7 @@ Deno.serve(async (req) => {
           TRIM(plan_code) AS plan_code,
           TRIM(cntrct_code) AS cntrct_code,
           app_recvd_date,
+          issue_date,
           paid_to_date,
           term_date,
           annual_premium,
@@ -212,39 +213,58 @@ Deno.serve(async (req) => {
         if (status === "terminated") pb.terminated_policies++;
         if (isAtRisk) pb.at_risk_count++;
 
-        // ── Retention eligibility ──
-        if (appRecvdDate) {
-          const appDate = new Date(appRecvdDate);
-          if (appDate <= retentionCutoff) {
-            ab.eligible++;
-            pb.eligible++;
+        // ── Retention eligibility (Method A: issue_date anchor, paid_to_date persistence) ──
+        // Matches retention-data edge function logic exactly.
+        // Eligible = issued >= retentionDays ago AND first draft succeeded
+        //   (paid_to_date >= issue_date + 1 month).
+        // Retained = paid_to_date >= issue_date + retentionDays.
+        const issueDate = row.issue_date
+          ? new Date(row.issue_date as string).toISOString().split("T")[0]
+          : null;
 
-            const isRetained = billingMode === 1 ? draftCount >= 3 : draftCount >= 1;
-            if (isRetained) {
-              ab.retained++;
-              pb.retained++;
+        if (issueDate) {
+          const issueDateObj = new Date(issueDate);
+          if (issueDateObj <= retentionCutoff) {
+            const paidMs = paidToDate ? new Date(paidToDate).getTime() : 0;
+            const oneMonthAfterIssue = new Date(issueDate);
+            oneMonthAfterIssue.setMonth(oneMonthAfterIssue.getMonth() + 1);
+            const draftedFirst = paidMs >= oneMonthAfterIssue.getTime();
+
+            // Retained = paid_to_date >= issue_date + retentionDays
+            const windowDate = new Date(issueDate);
+            windowDate.setDate(windowDate.getDate() + retentionDays);
+            const isRetained = draftedFirst && paidMs >= windowDate.getTime();
+
+            if (draftedFirst) {
+              ab.eligible++;
+              pb.eligible++;
+
+              if (isRetained) {
+                ab.retained++;
+                pb.retained++;
+              }
+
+              // Cohort tracking (by issue_date month)
+              const monthKey = issueDate.slice(0, 7);
+
+              if (!cohortMap.has(monthKey)) cohortMap.set(monthKey, { eligible: 0, retained: 0 });
+              const cohort = cohortMap.get(monthKey)!;
+              cohort.eligible++;
+              if (isRetained) cohort.retained++;
+
+              const productKey = `${productType}:${monthKey}`;
+              if (!productCohortMap.has(productKey)) productCohortMap.set(productKey, { eligible: 0, retained: 0 });
+              const pc = productCohortMap.get(productKey)!;
+              pc.eligible++;
+              if (isRetained) pc.retained++;
+
+              if (!agencyCohortMap.has(agencyId)) agencyCohortMap.set(agencyId, new Map());
+              const am = agencyCohortMap.get(agencyId)!;
+              if (!am.has(monthKey)) am.set(monthKey, { eligible: 0, retained: 0 });
+              const ac = am.get(monthKey)!;
+              ac.eligible++;
+              if (isRetained) ac.retained++;
             }
-
-            // Cohort tracking
-            const monthKey = appRecvdDate.slice(0, 7);
-
-            if (!cohortMap.has(monthKey)) cohortMap.set(monthKey, { eligible: 0, retained: 0 });
-            const cohort = cohortMap.get(monthKey)!;
-            cohort.eligible++;
-            if (isRetained) cohort.retained++;
-
-            const productKey = `${productType}:${monthKey}`;
-            if (!productCohortMap.has(productKey)) productCohortMap.set(productKey, { eligible: 0, retained: 0 });
-            const pc = productCohortMap.get(productKey)!;
-            pc.eligible++;
-            if (isRetained) pc.retained++;
-
-            if (!agencyCohortMap.has(agencyId)) agencyCohortMap.set(agencyId, new Map());
-            const am = agencyCohortMap.get(agencyId)!;
-            if (!am.has(monthKey)) am.set(monthKey, { eligible: 0, retained: 0 });
-            const ac = am.get(monthKey)!;
-            ac.eligible++;
-            if (isRetained) ac.retained++;
           }
         }
 
