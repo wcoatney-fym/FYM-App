@@ -314,8 +314,8 @@ export function PipelineDetailModal({
                 {progress.steps.map((step) => {
                   const doneAt = record.completed_steps?.[step.id];
                   return (
+                    <div key={step.id} className="space-y-1">
                     <button
-                      key={step.id}
                       onClick={() => toggleStep(step.id)}
                       disabled={togglingStep === step.id}
                       className={`w-full flex items-center gap-3 p-2.5 rounded-lg border text-left transition-colors ${
@@ -370,6 +370,7 @@ export function PipelineDetailModal({
                         {onboardMessage}
                       </div>
                     )}
+                    </div>
                   );
                 })}
               </div>
