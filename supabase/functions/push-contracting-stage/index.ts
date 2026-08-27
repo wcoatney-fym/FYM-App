@@ -255,32 +255,6 @@ async function handlePush(body: any): Promise<Response> {
 
   const headers = ghlHeaders(config.apiKey);
 
-  // Skip GHL push entirely for test/mock opportunity IDs
-  const isTestRecord = record.ghl_opportunity_id?.startsWith('test-') ?? false;
-  if (isTestRecord) {
-    const { data: updated } = await portal
-      .from("agent_pipeline")
-      .update({
-        stage: new_stage,
-        last_updated_by: attributedTo,
-        last_updated_by_display: attributedTo,
-        updated_by_source: source,
-        ghl_sync_status: "synced",
-        stage_entered_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", record_id)
-      .select()
-      .maybeSingle();
-
-    return json({
-      success: true,
-      record: updated,
-      ghl_pushed: false,
-      reason: "test_record",
-    });
-  }
-
   // Find the GHL opportunity — by stored ID or phone match
   let opportunityId = record.ghl_opportunity_id;
   let matchedByPhone = false;
