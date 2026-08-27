@@ -196,6 +196,35 @@ Deno.serve(async (req) => {
       : null;
     const agencyId = config ? config.agency_id : null;
 
+    // ── Extract tags ─────────────────────────────────────────────────────
+    // GHL sends tags as a comma-separated string
+    const rawTags = payload.tags || opportunity.tags || "";
+    const tags: string[] = typeof rawTags === "string" && rawTags.trim()
+      ? rawTags.split(",").map((t: string) => t.trim()).filter(Boolean)
+      : Array.isArray(rawTags) ? rawTags : [];
+
+    // ── Extract intake form fields as custom_fields ──────────────────────
+    // Key fields from the GHL intake form payload
+    const INTAKE_KEYS = [
+      "Form Type", "HIP Agent Type", "Agent NPN", "Form | Agency",
+      "Form | Agent Name", "Form | Agent Email", "Form | Agent Phone",
+      "Form | Agent First Name", "Form | Agent Last Name",
+      "Form | City", "Form | State", "Form | Address", "Form | Postal Code",
+      "Form | DOB", "Form | NPN", "Form | SSN",
+      "Form | Resident License #", "List of State Licenses",
+      "HIP Carrier Selection", "Contracting | Product Lines",
+      "Form Custom URL", "Form Status", "Hire Date",
+      "Request Type", "Security Code",
+      "Select the CRM account to add this agent.",
+    ];
+    const customFields: Record<string, unknown> = {};
+    for (const key of INTAKE_KEYS) {
+      const val = payload[key];
+      if (val !== undefined && val !== null && val !== "") {
+        customFields[key] = val;
+      }
+    }
+
     // Check if the record already exists (for loop detection)
     const { data: existing } = await portal
       .from("agent_pipeline")
@@ -236,6 +265,8 @@ Deno.serve(async (req) => {
       phone: payload.phone || opportunity.phone || null,
       agency: agencyName,
       agency_id: agencyId,
+      tags,
+      custom_fields: customFields,
       last_updated_by: "ghl_webhook",
       ghl_sync_status: "synced",
       updated_at: new Date().toISOString(),
