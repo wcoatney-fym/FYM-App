@@ -314,7 +314,7 @@ export function TestViewLaunchModal({
             ) : (
               <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
             )}
-            {resetDone ? 'Reset!' : 'Reset to Agreement'}
+            {resetDone ? 'Reset!' : 'Reset to IAA'}
           </Button>
           <Button
             onClick={handleLaunch}

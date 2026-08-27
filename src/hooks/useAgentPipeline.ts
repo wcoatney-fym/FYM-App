@@ -56,7 +56,7 @@ export const AGENT_STAGES: {
 }[] = [
   { key: 'hip_broker', label: 'HIP Broker', agentCanComplete: false }, // auto — intake form
   { key: 'hip_career', label: 'HIP Career', agentCanComplete: false }, // auto — intake form
-  { key: 'iaa', label: 'Agreement', agentCanComplete: true },
+  { key: 'iaa', label: 'IAA', agentCanComplete: true },
   { key: 'in_contracting', label: 'In Contracting', agentCanComplete: false }, // admin-side tasks
   { key: 'waiting_for_numbers', label: 'Waiting for Numbers', agentCanComplete: true },
   { key: 'rts', label: 'RTS', agentCanComplete: false }, // Tyler test + EnrollHere
