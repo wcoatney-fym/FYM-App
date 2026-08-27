@@ -122,7 +122,8 @@ export type AgentPipelineStage =
   | 'hip_career_ready'
   | 'actively_selling'
   | 'terminated'
-  | 'dnf';
+  | 'dnf'
+  | 'reactivated';
 
 /**
  * Pipeline record — `agent_pipeline` table

@@ -70,6 +70,8 @@ export const ALL_STAGES: AgentPipelineStage[] = [
   'hip_career_ready',
   'actively_selling',
   'terminated',
+  'dnf',
+  'reactivated',
 ];
 
 // ─── Update Source Labels & Colors ───────────────────────────────────────────

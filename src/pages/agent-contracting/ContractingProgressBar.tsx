@@ -16,7 +16,7 @@ import {
 import type { AgentPipelineStage } from '@/lib/contracting/types';
 
 /** Agent-visible stages for the progress bar (excludes terminated) */
-const PROGRESS_STAGES = AGENT_STAGES.filter((s) => s.key !== 'terminated' && s.key !== 'dnf');
+const PROGRESS_STAGES = AGENT_STAGES.filter((s) => s.key !== 'terminated' && s.key !== 'dnf' && s.key !== 'reactivated');
 
 interface ContractingProgressBarProps {
   currentStage: AgentPipelineStage;

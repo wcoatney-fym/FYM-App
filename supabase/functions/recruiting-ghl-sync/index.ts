@@ -46,16 +46,16 @@ const RATE_LIMIT_DELAY_MS = 120;
 // Hard cutoff — Medicare pivot Feb 1 2026
 const DATA_CUTOFF = "2026-02-01T00:00:00.000Z";
 
-// Contracting pipeline: "New Agents Pipeline"
-const CONTRACTING_PIPELINE_ID = "8h8F2lAFHXUkEJgZa2KD";
-const CONTRACTING_STAGE_ID = "e5086dba-8459-4be3-aed6-1e8c1bd70423";
-// RTS stages — expanded list per Charlie (2026-08-13)
+// Contracting pipeline: "FYM App | Live Contracting Pipeline"
+// Updated 2026-08-27 — old "New Agents Pipeline" (8h8F2lAFHXUkEJgZa2KD) retired per Charlie.
+const CONTRACTING_PIPELINE_ID = "sdq6bos3lVqWQYkqfojk";
+const CONTRACTING_STAGE_ID = "e700bd68-122b-4025-9f9b-ad3849ca6697"; // "In Contracting"
+// RTS stages — mapped from agent_pipeline_stage_map (portal DB akhojh)
 const RTS_STAGE_IDS: Record<string, string> = {
-  "6cc9d0c5-52c3-49e5-b2ac-82f5d4848d5d": "RTS Status (Tracey)",
-  "93015fe2-aa22-48d1-b540-d1034509535a": "Hip Broker READY",
-  "8f9b45ac-321a-4eeb-b207-4f46a56fe991": "Hip Career READY",
-  "ccc320f2-9ad9-44c4-aeb4-f645f3b924c8": "Actively Selling",
-  "03561146-d2f4-4729-8697-4566c1aa17de": "Active Brokers",
+  "47fdd9a4-ca66-4a90-9ee1-70def78daa72": "RTS",
+  "93015fe2-aa22-48d1-b540-d1034509535a": "HIP Broker READY",
+  "8f9b45ac-321a-4eeb-b207-4f46a56fe991": "HIP Career READY",
+  "bd0ec455-076e-44f7-bdef-eb6160eb2bc1": "Actively Selling",
 };
 
 // Tag signals — ALL tag-based, from recruiting sub contacts
@@ -416,8 +416,8 @@ async function handleSync(
       previous_stage: "hired",
       metadata: {
         source: "contracting_sub",
-        pipeline: "New Agents Pipeline",
-        stage_name: "IN CONTRACTING PROCESS",
+        pipeline: "FYM App | Live Contracting Pipeline",
+        stage_name: "In Contracting",
         opp_id: opp.id,
         opp_name: opp.name,
       },
@@ -460,7 +460,7 @@ async function handleSync(
         previous_stage: "contracting",
         metadata: {
           source: "contracting_sub",
-          pipeline: "New Agents Pipeline",
+          pipeline: "FYM App | Live Contracting Pipeline",
           stage_name: rtsStageName,
           ghl_stage_id: rtsStageId,
           opp_id: opp.id,
