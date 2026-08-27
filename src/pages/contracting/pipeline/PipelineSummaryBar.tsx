@@ -168,6 +168,8 @@ export function PipelineSummaryBar({ records, stageSteps, loading }: PipelineSum
               const count = stageCounts.get(stage.key) || 0;
               const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
               const isTerminated = stage.key === 'terminated';
+              const isDnf = stage.key === 'dnf';
+              const isReactivated = stage.key === 'reactivated';
               const isReady =
                 stage.key === 'hip_broker_ready' ||
                 stage.key === 'hip_career_ready';
@@ -196,11 +198,15 @@ export function PipelineSummaryBar({ records, stageSteps, loading }: PipelineSum
                         className={`h-full rounded-full transition-all duration-500 flex items-center justify-end pr-2 ${
                           isTerminated
                             ? 'bg-red-400'
-                            : isReady
-                              ? 'bg-emerald-400'
-                              : isActive
-                                ? 'bg-amber-400'
-                                : 'bg-primary'
+                            : isDnf
+                              ? 'bg-zinc-400'
+                              : isReactivated
+                                ? 'bg-sky-400'
+                                : isReady
+                                  ? 'bg-emerald-400'
+                                  : isActive
+                                    ? 'bg-amber-400'
+                                    : 'bg-primary'
                         }`}
                         style={{
                           width:

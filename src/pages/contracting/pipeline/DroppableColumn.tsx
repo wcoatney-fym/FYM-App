@@ -55,7 +55,11 @@ export function DroppableColumn({
             className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
               stageKey === 'terminated'
                 ? 'bg-red-500/20 text-red-400'
-                : 'bg-card/80 text-muted-foreground border border-border'
+                : stageKey === 'dnf'
+                  ? 'bg-zinc-500/20 text-zinc-400'
+                  : stageKey === 'reactivated'
+                    ? 'bg-sky-500/20 text-sky-400'
+                    : 'bg-card/80 text-muted-foreground border border-border'
             }`}
           >
             {records.length}

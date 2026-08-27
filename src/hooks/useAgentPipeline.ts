@@ -63,6 +63,7 @@ export const AGENT_STAGES: {
   { key: 'actively_selling', label: 'Actively Selling', agentCanComplete: false }, // auto — Max's DB
   { key: 'terminated', label: 'Terminated', agentCanComplete: false }, // admin-only
   { key: 'dnf', label: 'DNF', agentCanComplete: false }, // admin-only — Did Not Finish
+  { key: 'reactivated', label: 'Reactivated', agentCanComplete: false }, // admin-only — re-entering pipeline
 ];
 
 /** Stages that are considered pre-RTS */

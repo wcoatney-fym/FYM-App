@@ -875,7 +875,7 @@ function ContractingPipelineCard({ records, loading }: { records: PortalPipeline
   const stageCounts = useMemo(() => {
     const counts: Record<string, { count: number; agents: string[] }> = {};
     for (const r of records) {
-      if (r.stage === 'terminated' || r.stage === 'actively_selling') continue;
+      if (r.stage === 'terminated' || r.stage === 'actively_selling' || r.stage === 'dnf') continue;
       if (!counts[r.stage]) counts[r.stage] = { count: 0, agents: [] };
       counts[r.stage].count++;
       if (counts[r.stage].agents.length < 3) {
@@ -887,7 +887,7 @@ function ContractingPipelineCard({ records, loading }: { records: PortalPipeline
       .sort((a, b) => b.count - a.count);
   }, [records]);
 
-  const activeCount = records.filter(r => r.stage !== 'terminated' && r.stage !== 'actively_selling').length;
+  const activeCount = records.filter(r => r.stage !== 'terminated' && r.stage !== 'actively_selling' && r.stage !== 'dnf').length;
   const rtsCount = records.filter(r => r.stage === 'rts').length;
 
   return (

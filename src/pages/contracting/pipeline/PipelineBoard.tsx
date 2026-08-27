@@ -61,6 +61,7 @@ export const STAGES: { key: AgentPipelineStage; label: string; color: string }[]
   { key: 'actively_selling', label: 'Actively Selling', color: 'bg-amber-500/10 border-amber-500/20' },
   { key: 'terminated', label: 'Terminated', color: 'bg-red-500/10 border-red-500/20' },
   { key: 'dnf', label: 'DNF', color: 'bg-zinc-500/10 border-zinc-500/20' },
+  { key: 'reactivated', label: 'Reactivated', color: 'bg-sky-500/10 border-sky-500/20' },
 ];
 
 /**
