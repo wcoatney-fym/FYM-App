@@ -65,6 +65,10 @@ Deno.serve(async (req) => {
       const prior3moStart = `${p3Start.getFullYear()}-${String(p3Start.getMonth() + 1).padStart(2, "0")}`;
 
       const rows = await sql`
+        -- Method A: issue_date anchor, pure paid_to_date persistence.
+        -- Denominator: issued >= retentionDays ago, paid_to_date >= issue_date + 1 month.
+        -- Numerator: paid_to_date >= issue_date + retentionDays.
+        -- No term_date or at_risk filter for persistency.
         WITH filtered AS (
           SELECT
             COALESCE(NULLIF(TRIM(ga), ''), '202JVV00') AS agency_wn,
@@ -72,7 +76,7 @@ Deno.serve(async (req) => {
             UPPER(TRIM(cntrct_code)) AS status_code,
             COALESCE(annual_premium, 0) AS annual_premium,
             COALESCE(at_risk_policy, false) AS at_risk_policy,
-            app_recvd_date,
+            issue_date,
             paid_to_date,
             COALESCE(billing_mode, 1) AS billing_mode,
             TRIM(plan_code) AS plan_code
@@ -94,19 +98,13 @@ Deno.serve(async (req) => {
               WHEN UPPER(plan_code) LIKE '%HHC%' OR UPPER(plan_code) LIKE '%AHH%' THEN 'HHC'
               ELSE 'HI'
             END AS product_type,
-            -- Estimate draft count for retention calculation
-            CASE
-              WHEN paid_to_date IS NOT NULL AND app_recvd_date IS NOT NULL
-                AND paid_to_date >= app_recvd_date
-              THEN GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (paid_to_date::timestamp - app_recvd_date::timestamp)) / 86400 /
-                CASE WHEN billing_mode = 12 THEN 365
-                     WHEN billing_mode = 6 THEN 182
-                     WHEN billing_mode = 3 THEN 91
-                     ELSE 30 END))
-              ELSE 0
-            END AS draft_count,
-            -- Is this policy old enough for retention measurement?
-            CASE WHEN app_recvd_date IS NOT NULL AND app_recvd_date <= ${retCutoff}::date THEN true ELSE false END AS is_eligible
+            -- Method A eligibility: issued >= retention window ago AND first draft succeeded
+            CASE WHEN issue_date IS NOT NULL AND issue_date <= ${retCutoff}::date
+                  AND paid_to_date >= issue_date + INTERVAL '1 month' THEN true ELSE false END AS is_eligible,
+            -- Method A retained: paid_to_date >= issue_date + retention window
+            CASE WHEN issue_date IS NOT NULL AND issue_date <= ${retCutoff}::date
+                  AND paid_to_date >= issue_date + INTERVAL '1 month'
+                  AND paid_to_date >= issue_date + make_interval(days => ${retentionDays}) THEN true ELSE false END AS is_retained
           FROM filtered
         ),
         hi_hhc AS (
@@ -120,13 +118,13 @@ Deno.serve(async (req) => {
           COALESCE(SUM(annual_premium / 12) FILTER (WHERE status = 'active'), 0) AS active_premium,
           COUNT(*) FILTER (WHERE at_risk_policy = true AND status = 'active') AS at_risk_count,
           COUNT(*) FILTER (WHERE is_eligible) AS eligible_90d,
-          COUNT(*) FILTER (WHERE is_eligible AND (draft_count >= 3 OR (billing_mode != 1 AND draft_count >= 1))) AS retained_90d,
-          -- Recent 3-month cohort
-          COUNT(*) FILTER (WHERE is_eligible AND TO_CHAR(app_recvd_date, 'YYYY-MM') >= ${recent3moStart} AND TO_CHAR(app_recvd_date, 'YYYY-MM') < ${recent3moEnd}) AS recent_3mo_eligible,
-          COUNT(*) FILTER (WHERE is_eligible AND TO_CHAR(app_recvd_date, 'YYYY-MM') >= ${recent3moStart} AND TO_CHAR(app_recvd_date, 'YYYY-MM') < ${recent3moEnd} AND (draft_count >= 3 OR (billing_mode != 1 AND draft_count >= 1))) AS recent_3mo_retained,
-          -- Prior 3-month cohort
-          COUNT(*) FILTER (WHERE is_eligible AND TO_CHAR(app_recvd_date, 'YYYY-MM') >= ${prior3moStart} AND TO_CHAR(app_recvd_date, 'YYYY-MM') < ${recent3moStart}) AS prior_3mo_eligible,
-          COUNT(*) FILTER (WHERE is_eligible AND TO_CHAR(app_recvd_date, 'YYYY-MM') >= ${prior3moStart} AND TO_CHAR(app_recvd_date, 'YYYY-MM') < ${recent3moStart} AND (draft_count >= 3 OR (billing_mode != 1 AND draft_count >= 1))) AS prior_3mo_retained
+          COUNT(*) FILTER (WHERE is_retained) AS retained_90d,
+          -- Recent 3-month cohort (by issue_date)
+          COUNT(*) FILTER (WHERE is_eligible AND TO_CHAR(issue_date, 'YYYY-MM') >= ${recent3moStart} AND TO_CHAR(issue_date, 'YYYY-MM') < ${recent3moEnd}) AS recent_3mo_eligible,
+          COUNT(*) FILTER (WHERE is_retained AND TO_CHAR(issue_date, 'YYYY-MM') >= ${recent3moStart} AND TO_CHAR(issue_date, 'YYYY-MM') < ${recent3moEnd}) AS recent_3mo_retained,
+          -- Prior 3-month cohort (by issue_date)
+          COUNT(*) FILTER (WHERE is_eligible AND TO_CHAR(issue_date, 'YYYY-MM') >= ${prior3moStart} AND TO_CHAR(issue_date, 'YYYY-MM') < ${recent3moStart}) AS prior_3mo_eligible,
+          COUNT(*) FILTER (WHERE is_retained AND TO_CHAR(issue_date, 'YYYY-MM') >= ${prior3moStart} AND TO_CHAR(issue_date, 'YYYY-MM') < ${recent3moStart}) AS prior_3mo_retained
         FROM hi_hhc
         GROUP BY agency_wn
       `;
@@ -164,7 +162,7 @@ Deno.serve(async (req) => {
             UPPER(TRIM(cntrct_code)) AS status_code,
             COALESCE(annual_premium, 0) AS annual_premium,
             COALESCE(at_risk_policy, false) AS at_risk_policy,
-            app_recvd_date,
+            issue_date,
             paid_to_date,
             COALESCE(billing_mode, 1) AS billing_mode,
             TRIM(plan_code) AS plan_code
@@ -184,17 +182,13 @@ Deno.serve(async (req) => {
               WHEN UPPER(plan_code) LIKE '%HHC%' OR UPPER(plan_code) LIKE '%AHH%' THEN 'HHC'
               ELSE 'HI'
             END AS product_type,
-            CASE
-              WHEN paid_to_date IS NOT NULL AND app_recvd_date IS NOT NULL
-                AND paid_to_date >= app_recvd_date
-              THEN GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (paid_to_date::timestamp - app_recvd_date::timestamp)) / 86400 /
-                CASE WHEN billing_mode = 12 THEN 365
-                     WHEN billing_mode = 6 THEN 182
-                     WHEN billing_mode = 3 THEN 91
-                     ELSE 30 END))
-              ELSE 0
-            END AS draft_count,
-            CASE WHEN app_recvd_date IS NOT NULL AND app_recvd_date <= ${retCutoff}::date THEN true ELSE false END AS is_eligible
+            -- Method A eligibility: issued >= retention window ago AND first draft succeeded
+            CASE WHEN issue_date IS NOT NULL AND issue_date <= ${retCutoff}::date
+                  AND paid_to_date >= issue_date + INTERVAL '1 month' THEN true ELSE false END AS is_eligible,
+            -- Method A retained: paid_to_date >= issue_date + retention window
+            CASE WHEN issue_date IS NOT NULL AND issue_date <= ${retCutoff}::date
+                  AND paid_to_date >= issue_date + INTERVAL '1 month'
+                  AND paid_to_date >= issue_date + make_interval(days => ${retentionDays}) THEN true ELSE false END AS is_retained
           FROM filtered
           WHERE CASE
             WHEN UPPER(plan_code) LIKE '%HHC%' OR UPPER(plan_code) LIKE '%AHH%' THEN 'HHC'
@@ -208,7 +202,7 @@ Deno.serve(async (req) => {
           COALESCE(SUM(annual_premium / 12) FILTER (WHERE status = 'active'), 0) AS active_premium,
           COUNT(*) FILTER (WHERE at_risk_policy = true AND status = 'active') AS at_risk_count,
           COUNT(*) FILTER (WHERE is_eligible) AS eligible_90d,
-          COUNT(*) FILTER (WHERE is_eligible AND (draft_count >= 3 OR (billing_mode != 1 AND draft_count >= 1))) AS retained_90d
+          COUNT(*) FILTER (WHERE is_retained) AS retained_90d
         FROM with_product
         GROUP BY product_type
       `;
@@ -275,8 +269,8 @@ Deno.serve(async (req) => {
       terminated_policies: number;
       active_premium: number;
       at_risk_count: number;
-      eligible: number;   // policies old enough to be measured
-      retained: number;   // eligible that drafted ≥3 times (monthly) or still active (non-monthly)
+      eligible: number;   // Method A: issued >= window ago AND first draft succeeded
+      retained: number;   // Method A: paid_to_date >= issue_date + window
       at_risk_list: Array<{
         policy_number: string;
         product_type: string;
@@ -322,6 +316,7 @@ Deno.serve(async (req) => {
           TRIM(plan_code) AS plan_code,
           TRIM(cntrct_code) AS cntrct_code,
           app_recvd_date,
+          issue_date,
           paid_to_date,
           term_date,
           annual_premium,
@@ -356,6 +351,9 @@ Deno.serve(async (req) => {
         const appRecvdDate = row.app_recvd_date
           ? new Date(row.app_recvd_date as string).toISOString().split("T")[0]
           : null;
+        const issueDate = row.issue_date
+          ? new Date(row.issue_date as string).toISOString().split("T")[0]
+          : null;
         const paidToDate = row.paid_to_date
           ? new Date(row.paid_to_date as string).toISOString().split("T")[0]
           : null;
@@ -389,6 +387,7 @@ Deno.serve(async (req) => {
           paidToDate
         );
 
+        // draftCount kept for at-risk list display only (not used in retention calc)
         const draftCount = estimateDraftCount(
           appRecvdDate,
           paidToDate,
@@ -473,27 +472,40 @@ Deno.serve(async (req) => {
           });
         }
 
-        // Retention eligibility: policy must be old enough
-        if (appRecvdDate) {
-          const appRecvdDateObj = new Date(appRecvdDate);
+        // Method A retention: issue_date anchor, paid_to_date persistence.
+        // Eligible = issued >= retentionDays ago AND first draft succeeded
+        //   (paid_to_date >= issue_date + 1 month).
+        // Retained = paid_to_date >= issue_date + retentionDays.
+        // No term_date or at_risk filter.
+        if (issueDate) {
+          const issueDateObj = new Date(issueDate);
 
-          if (appRecvdDateObj <= retentionCutoff) {
-            bucket.eligible++;
+          if (issueDateObj <= retentionCutoff) {
+            // Method A: first draft check
+            const paidMs = paidToDate ? new Date(paidToDate).getTime() : 0;
+            const issueMs = issueDateObj.getTime();
+            const oneMonthMs = new Date(issueDate);
+            oneMonthMs.setMonth(oneMonthMs.getMonth() + 1);
+            const draftedFirst = paidMs >= oneMonthMs.getTime();
 
-            // Retained = drafted ≥3 for monthly, or ≥1 successful draft for non-monthly
-            const isRetained = billingMode === 1
-              ? draftCount >= 3
-              : draftCount >= 1;
+            if (draftedFirst) {
+              bucket.eligible++;
+              pb.eligible++;
 
-            if (isRetained) {
-              bucket.retained++;
-              pb.retained++;
+              // Retained = paid_to_date >= issue_date + retentionDays
+              const windowMs = new Date(issueDate);
+              windowMs.setDate(windowMs.getDate() + retentionDays);
+              const isRetained = paidMs >= windowMs.getTime();
+
+              if (isRetained) {
+                bucket.retained++;
+                pb.retained++;
+              }
             }
-            pb.eligible++;
 
             // Cohort tracking (org-wide + per-product + per-agency)
-            if (type === "cohort" || type === "summary") {
-              const monthKey = appRecvdDate.slice(0, 7);
+            if ((type === "cohort" || type === "summary") && draftedFirst) {
+              const monthKey = issueDate.slice(0, 7);
               if (!cohortMap.has(monthKey)) {
                 cohortMap.set(monthKey, { eligible: 0, retained: 0 });
               }
