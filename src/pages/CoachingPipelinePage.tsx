@@ -19,7 +19,12 @@ import {
   Zap, HeartPulse,
 } from 'lucide-react';
 
-export function CoachingPipelinePage() {
+interface CoachingPipelinePageProps {
+  /** When true, suppresses Header and sub-nav (for embedding in Contracting tab) */
+  embedded?: boolean;
+}
+
+export function CoachingPipelinePage({ embedded = false }: CoachingPipelinePageProps) {
   const { effectiveAgencyId, isOrgWide, isAgent } = useEffectiveAuth();
   const { filterAgencyId } = useAgencyFilter();
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
@@ -40,11 +45,11 @@ export function CoachingPipelinePage() {
 
   return (
     <>
-      <Header title="Coaching Pipeline" />
-      <div className="p-6 space-y-6">
+      {!embedded && <Header title="Coaching Pipeline" />}
+      <div className={embedded ? 'space-y-6' : 'p-6 space-y-6'}>
 
-        {/* ── Sub-navigation tabs ── */}
-        {!isAgent && (
+        {/* ── Sub-navigation tabs (standalone mode only) ── */}
+        {!embedded && !isAgent && (
           <div className="flex gap-1 border-b border-border -mt-2 mb-2">
             <Link
               to="/quality/coaching"

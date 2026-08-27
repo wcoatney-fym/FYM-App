@@ -101,7 +101,12 @@ function productBadgeClass(product: string | null) {
 // syncAtRisk() now fetches at-risk policies from the edge function instead of the dropped view.
 
 // ── Component ──────────────────────────────────────────────────────────────
-export function CoachingPage() {
+interface CoachingPageProps {
+  /** When true, suppresses Header and sub-nav (for embedding in Contracting tab) */
+  embedded?: boolean;
+}
+
+export function CoachingPage({ embedded = false }: CoachingPageProps) {
   const { effectiveAgencyId, effectiveWritingNumber, effectiveRole, isOrgWide, isAgent } = useEffectiveAuth();
   const isManager = effectiveRole === 'manager';
   const { filterAgencyId, setFilterAgencyId, showAgencyFilter } = useAgencyFilter();
@@ -382,8 +387,8 @@ export function CoachingPage() {
   if (!supabase) {
     return (
       <>
-        <Header title="Coaching" />
-        <div className="p-6 text-center text-muted-foreground">
+        {!embedded && <Header title="Coaching" />}
+        <div className={embedded ? 'text-center text-muted-foreground' : 'p-6 text-center text-muted-foreground'}>
           <p>Supabase is not configured — running in mock mode. Connect Supabase to view the coaching pipeline.</p>
         </div>
       </>
@@ -393,8 +398,8 @@ export function CoachingPage() {
   if (loading) {
     return (
       <>
-        <Header title="Coaching" />
-        <div className="p-6 space-y-4">
+        {!embedded && <Header title="Coaching" />}
+        <div className={embedded ? 'space-y-4' : 'p-6 space-y-4'}>
           {[1, 2, 3].map(i => <div key={i} className="h-28 rounded-lg shimmer" />)}
         </div>
       </>
@@ -403,11 +408,11 @@ export function CoachingPage() {
 
   return (
     <>
-      <Header title="Coaching" />
-      <div className="p-6 space-y-6">
+      {!embedded && <Header title="Coaching" />}
+      <div className={embedded ? 'space-y-6' : 'p-6 space-y-6'}>
 
-        {/* ── Sub-navigation tabs ── */}
-        {!isAgent && (
+        {/* ── Sub-navigation tabs (standalone mode only) ── */}
+        {!embedded && !isAgent && (
           <div className="flex gap-1 border-b border-border -mt-2 mb-2">
             <Link
               to="/quality/coaching"
