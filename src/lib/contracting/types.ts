@@ -400,6 +400,7 @@ export type ContractingTab =
   | 'tracking'
   | 'pipeline'
   | 'training'
+  | 'coaching'
   | 'database'
   | 'hierarchy'
   | 'roster-import'
