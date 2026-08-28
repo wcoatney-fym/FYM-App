@@ -836,13 +836,17 @@ function FymAdminManagementCard({ currentUserId }: { currentUserId: string | nul
 
 // ── View As ──────────────────────────────────────────────────────────────
 
-// FYM's own agency — used for quick-pivot
+// FYM's own agency — used for quick-pivot (LOCKED — do not modify without explicit "FYM Direct" request)
 const FYM_AGENCY_ID = '338230f2-2058-407c-9507-5aa88d6d5e14';
 const FYM_AGENCY_NAME = 'FYM';
 
 // FYM direct agent for agent-view pivot — Greg McLeod (active producer)
 const FYM_PIVOT_AGENT_WRITING_NBR = '202JVV05';
 const FYM_PIVOT_AGENT_NAME = 'Greg McLeod';
+
+// Dev agency — Guide to Insure (development surface, not for troubleshooting)
+const DEV_AGENCY_ID = '166b3f27-ec52-4641-985d-ac0cbef3450e';
+const DEV_AGENCY_NAME = 'Guide to Insure';
 
 type PivotView = 'admin' | 'manager' | 'agent';
 
@@ -878,6 +882,34 @@ function ViewAsCard() {
   // Quick pivot — determine current view
   const currentPivot: PivotView = !active ? 'admin' : (role as PivotView) ?? 'admin';
 
+  // Dev view state
+  const [devAgents, setDevAgents] = useState<AgentOption[]>([]);
+  const [devAgentId, setDevAgentId] = useState<string>('');
+  const [loadingDevAgents, setLoadingDevAgents] = useState(false);
+  const [showDevAgentPicker, setShowDevAgentPicker] = useState(false);
+
+  // Determine current dev pivot
+  const currentDevPivot: PivotView | null =
+    active && activeAgencyId === DEV_AGENCY_ID
+      ? (role as PivotView) ?? null
+      : null;
+
+  // Load dev agents on mount
+  useEffect(() => {
+    if (!supabase) return;
+    setLoadingDevAgents(true);
+    supabase
+      .from('profiles')
+      .select('id, full_name, writing_number')
+      .eq('agency_id', DEV_AGENCY_ID)
+      .eq('role', 'agent')
+      .order('full_name', { ascending: true })
+      .then(({ data }: { data: AgentOption[] | null }) => {
+        if (data) setDevAgents(data);
+        setLoadingDevAgents(false);
+      });
+  }, []);
+
   function handlePivot(view: PivotView) {
     if (view === 'admin') {
       deactivate();
@@ -886,6 +918,7 @@ function ViewAsCard() {
         role: view,
         agencyId: FYM_AGENCY_ID,
         agencyName: FYM_AGENCY_NAME,
+        viewSource: 'fym-direct',
         agentId: FYM_PIVOT_AGENT_WRITING_NBR,
         agentName: FYM_PIVOT_AGENT_NAME,
         writingNumber: FYM_PIVOT_AGENT_WRITING_NBR,
@@ -895,7 +928,46 @@ function ViewAsCard() {
         role: view,
         agencyId: FYM_AGENCY_ID,
         agencyName: FYM_AGENCY_NAME,
+        viewSource: 'fym-direct',
       });
+    }
+  }
+
+  function handleDevPivot(view: PivotView) {
+    if (view === 'agent') {
+      if (devAgents.length === 0) {
+        // No agents — activate as agent without a specific agent
+        activate({
+          role: view,
+          agencyId: DEV_AGENCY_ID,
+          agencyName: DEV_AGENCY_NAME,
+          viewSource: 'dev',
+        });
+        return;
+      }
+      if (!devAgentId) {
+        setShowDevAgentPicker(true);
+        return;
+      }
+      const agent = devAgents.find((a) => a.id === devAgentId);
+      activate({
+        role: view,
+        agencyId: DEV_AGENCY_ID,
+        agencyName: DEV_AGENCY_NAME,
+        viewSource: 'dev',
+        agentId: devAgentId,
+        agentName: agent?.full_name ?? undefined,
+        writingNumber: agent?.writing_number ?? undefined,
+      });
+      setShowDevAgentPicker(false);
+    } else {
+      activate({
+        role: view,
+        agencyId: DEV_AGENCY_ID,
+        agencyName: DEV_AGENCY_NAME,
+        viewSource: 'dev',
+      });
+      setShowDevAgentPicker(false);
     }
   }
 
@@ -942,6 +1014,7 @@ function ViewAsCard() {
         role: view,
         agencyId: selectedDownlineAgency.id,
         agencyName: selectedDownlineAgency.name,
+        viewSource: 'downline',
         agentId: downlineAgentId,
         agentName: agent?.full_name ?? undefined,
         writingNumber: agent?.writing_number ?? undefined,
@@ -952,6 +1025,7 @@ function ViewAsCard() {
         role: view,
         agencyId: selectedDownlineAgency.id,
         agencyName: selectedDownlineAgency.name,
+        viewSource: 'downline',
       });
       setShowDownlineAgentPicker(false);
     }
@@ -998,6 +1072,95 @@ function ViewAsCard() {
               {agencyName && agencyName !== FYM_AGENCY_NAME ? ` — ${agencyName}` : ''}
               {agentName ? ` — ${agentName}` : ''}
             </p>
+          )}
+        </div>
+
+        {/* ── Dev View Pivot ── */}
+        <div className="border-t border-border/30 pt-4">
+          <div className="flex items-center gap-2 mb-1">
+            <FlaskConical size={14} className="text-emerald-400" />
+            <p className="text-xs font-semibold text-foreground">Dev View</p>
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-emerald-500/10 text-emerald-400 border-emerald-500/30">Development Only</Badge>
+          </div>
+          <p className="text-xs text-muted-foreground mb-3">
+            Switch between role perspectives using {DEV_AGENCY_NAME}. For active
+            development — changes here don't affect FYM Direct views.
+          </p>
+          <div className="flex rounded-lg border border-border overflow-hidden">
+            {([
+              { key: 'admin' as PivotView, label: 'Admin' },
+              { key: 'manager' as PivotView, label: 'Manager' },
+              { key: 'agent' as PivotView, label: 'Agent' },
+            ]).map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => handleDevPivot(key)}
+                className={`flex-1 py-2.5 text-sm font-medium transition-all duration-200 ${
+                  currentDevPivot === key
+                    ? 'bg-emerald-500 text-black'
+                    : 'bg-secondary/20 text-muted-foreground hover:bg-secondary/40 hover:text-foreground'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Dev agent picker */}
+          {showDevAgentPicker && (
+            <div className="space-y-2 bg-secondary/5 border border-border/40 rounded-lg p-3 mt-3">
+              <Label className="text-xs font-medium text-muted-foreground">Select a dev agent</Label>
+              {loadingDevAgents ? (
+                <p className="text-xs text-muted-foreground py-2">Loading agents…</p>
+              ) : devAgents.length === 0 ? (
+                <div className="flex flex-col items-center gap-1.5 py-4 text-center">
+                  <Users size={16} className="text-muted-foreground/60" />
+                  <p className="text-xs text-muted-foreground">No agents in {DEV_AGENCY_NAME} yet</p>
+                  <p className="text-[10px] text-muted-foreground/60">Provision agents via Roster Logins to populate this list</p>
+                </div>
+              ) : (
+                <>
+                  <Select value={devAgentId} onValueChange={setDevAgentId}>
+                    <SelectTrigger className="bg-card">
+                      <SelectValue placeholder="Select agent…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {devAgents.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.full_name ?? a.writing_number ?? a.id}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    onClick={() => handleDevPivot('agent')}
+                    disabled={!devAgentId}
+                    size="sm"
+                    className="bg-emerald-500 hover:bg-emerald-600 text-black"
+                  >
+                    View as Agent
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Dev active indicator */}
+          {currentDevPivot && (
+            <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 rounded-md px-3 py-2 mt-3">
+              <p className="text-xs text-emerald-400 flex items-center gap-1.5">
+                <FlaskConical size={12} />
+                Dev: {role === 'agent' ? `Agent — ${agentName ?? 'Generic'}` : role === 'manager' ? 'Manager' : 'Admin'} @ {DEV_AGENCY_NAME}
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={deactivate}
+                className="text-black bg-emerald-500 hover:bg-emerald-600 h-7 px-3"
+              >
+                Exit
+              </Button>
+            </div>
           )}
         </div>
 
