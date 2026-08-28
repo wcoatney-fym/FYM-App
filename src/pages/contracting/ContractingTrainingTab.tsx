@@ -42,6 +42,7 @@ import { StaggerContainer, StaggerItem } from '@/components/ui/animated';
 import { portalSupabase } from '@/lib/portal-supabase';
 import { timeAgo } from '@/lib/contracting/helpers';
 import { TrainingContentUploadModal } from './TrainingContentUploadModal';
+import { FymOfficeHoursBanner } from '@/components/training/FymOfficeHoursBanner';
 
 import type {
   PortalTrainingContent,
@@ -366,6 +367,9 @@ export function ContractingTrainingTab() {
 
   return (
     <div className="space-y-6">
+      {/* ── FYM Office Hours Banner ── */}
+      <FymOfficeHoursBanner />
+
       {/* ── KPI Cards ─────────────────────────────────────────────────── */}
       <StaggerContainer className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StaggerItem>
