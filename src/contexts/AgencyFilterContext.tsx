@@ -16,7 +16,7 @@ interface AgencyFilterContextValue {
 const AgencyFilterContext = createContext<AgencyFilterContextValue | null>(null);
 
 export function AgencyFilterProvider({ children }: { children: ReactNode }) {
-  const { isFymAdmin, isOrgWide, effectiveRole, effectiveAgencyWritingNumber } = useEffectiveAuth();
+  const { isFymAdmin, isOrgWide, isViewingAs, effectiveRole, effectiveAgencyWritingNumber } = useEffectiveAuth();
   const isManager = effectiveRole === 'manager';
 
   // Single source of truth for the selected agency across all pages.
@@ -52,6 +52,37 @@ export function AgencyFilterProvider({ children }: { children: ReactNode }) {
     if (!isManager || !effectiveAgencyWritingNumber) return;
     setFilterAgencyId(effectiveAgencyWritingNumber);
   }, [isManager, effectiveAgencyWritingNumber]);
+
+  // View As: lock to the effective agency's writing number.
+  // Without this, filterAgencyId stays set to FYM's WN from initialization,
+  // causing pages that use filterAgencyId for client-side filtering to show
+  // FYM data even though edge functions return agency-scoped data.
+  useEffect(() => {
+    if (!isViewingAs) return;
+    // When viewing as a downline agency, lock the filter to that agency.
+    // effectiveAgencyWritingNumber resolves async — set it once available.
+    if (effectiveAgencyWritingNumber) {
+      setFilterAgencyId(effectiveAgencyWritingNumber);
+    }
+  }, [isViewingAs, effectiveAgencyWritingNumber]);
+
+  // When View As deactivates, reset to FYM default
+  useEffect(() => {
+    if (isFymAdmin && !isViewingAs && initialized) {
+      // Re-default to FYM agency when returning to org-wide view
+      if (!supabase) return;
+      supabase
+        .from('agencies')
+        .select('writing_number')
+        .eq('writing_number', FYM_AGENCY_WRITING_NUMBER)
+        .single()
+        .then(({ data }) => {
+          if (data?.writing_number) {
+            setFilterAgencyId(data.writing_number);
+          }
+        });
+    }
+  }, [isFymAdmin, isViewingAs, initialized]);
 
   // Only show the agency filter when the user is truly org-wide
   // (FYM admin NOT in View As mode). Managers, agents, and admins
