@@ -140,9 +140,10 @@ export function useOrgData() {
 export function OrgDataProvider({ children }: { children: ReactNode }) {
   const { effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide } = useEffectiveAuth();
 
-  // Hydrate from localStorage on first render — if data exists, skip shimmer
+  // Hydrate from localStorage on first render — but ONLY for org-wide view.
+  // Agency-scoped views (View As) must never show cached org-wide data.
   const persisted = useRef(readPersistedCache());
-  const hasPersistedData = persisted.current !== null;
+  const hasPersistedData = persisted.current !== null && isOrgWide;
 
   const [retentionAgencies, setRetentionAgencies] = useState<AgencyRetentionSummary[]>(
     hasPersistedData ? persisted.current!.retentionSummary?.data.agencies ?? [] : []
@@ -167,7 +168,7 @@ export function OrgDataProvider({ children }: { children: ReactNode }) {
   const [monthlyProduction, setMonthlyProduction] = useState<MonthlyProduction[]>(
     hasPersistedData ? persisted.current!.monthlyProduction : []
   );
-  // If we have persisted data, start with initialLoading = false (instant render)
+  // If we have persisted data (org-wide only), start with initialLoading = false (instant render)
   const [initialLoading, setInitialLoading] = useState(!hasPersistedData);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -177,6 +178,11 @@ export function OrgDataProvider({ children }: { children: ReactNode }) {
   const lastFetchKey = useRef('');
 
   const doFetch = async (params?: { startDate?: string; endDate?: string; allTime?: boolean }) => {
+    // Guard: if we're in View As mode but the writing number hasn't resolved yet,
+    // skip the fetch — it would run org-wide and leak FYM data into the agency view.
+    // The useEffect will re-trigger once effectiveAgencyWritingNumber resolves.
+    if (!isOrgWide && !effectiveAgencyWritingNumber) return;
+
     const agencyParam = !isOrgWide && effectiveAgencyWritingNumber
       ? { agency_id: effectiveAgencyWritingNumber }
       : {};
@@ -268,13 +274,17 @@ export function OrgDataProvider({ children }: { children: ReactNode }) {
         setMonthlyProduction(trendRes as MonthlyProduction[]);
         setDailyProduction([]);
 
-        writePersistedCache({
-          retentionSummary: retRes,
-          cohorts: cohortRes.data.cohorts,
-          productCohorts: cohortRes.data.product_cohorts ?? [],
-          agencyProduction: prodRes,
-          monthlyProduction: trendRes as MonthlyProduction[],
-        });
+        // Only persist to localStorage for org-wide views — never cache
+        // agency-scoped data into the shared org-wide cache key.
+        if (isOrgWide) {
+          writePersistedCache({
+            retentionSummary: retRes,
+            cohorts: cohortRes.data.cohorts,
+            productCohorts: cohortRes.data.product_cohorts ?? [],
+            agencyProduction: prodRes,
+            monthlyProduction: trendRes as MonthlyProduction[],
+          });
+        }
       } else {
         setDailyProduction(trendRes as DailyProduction[]);
         setMonthlyProduction([]);
@@ -291,10 +301,26 @@ export function OrgDataProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Initial fetch on mount + auth change
+  // Initial fetch on mount + auth change.
+  // When agency scope changes (View As toggle), clear all stale data first
+  // so the UI never shows org-wide data for an agency-scoped view.
   useEffect(() => {
     hasLoaded.current = false;
     lastFetchKey.current = '';
+
+    // Clear stale data immediately so nothing from a different scope renders
+    setRetentionAgencies([]);
+    setRetentionSummary(null);
+    setProductSummary([]);
+    setCohorts([]);
+    setProductCohorts([]);
+    setAgencyCohorts([]);
+    setAgencyProduction([]);
+    setDailyProduction([]);
+    setMonthlyProduction([]);
+    setInitialLoading(true);
+    setFetchError(null);
+
     doFetch();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveAgencyId, effectiveAgencyWritingNumber, isOrgWide]);
