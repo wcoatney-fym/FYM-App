@@ -33,7 +33,6 @@ import { TestViewToolbar } from '@/components/test-view/TestViewToolbar';
 import { computeProgress } from '@/pages/contracting/pipeline/pipelineProgress';
 import { ContractingProgressBar } from './ContractingProgressBar';
 import { ContractingStepPanel } from './ContractingStepPanel';
-import { AgentWritingNumberInput } from './AgentWritingNumberInput';
 import { AgentCarrierManagement } from './AgentCarrierManagement';
 import { TylerTestCard } from './TylerTestCard';
 import { WritingNumberScreenshotUpload } from './WritingNumberScreenshotUpload';
@@ -264,24 +263,15 @@ export function AgentContractingPage() {
                 />
               </StaggerItem>
 
-              {/* Writing Number Input — shown during Waiting for Numbers */}
-              {(currentStage === 'waiting_for_numbers' || currentStage === 'in_contracting' || isAdditionalContracting) && (
-                <StaggerItem>
-                  <AgentWritingNumberInput
-                    lobAssignments={lobAssignments}
-                    wnSubmissions={wnSubmissions}
-                    onSubmit={submitWritingNumber}
-                  />
-                </StaggerItem>
-              )}
-
-              {/* Screenshot upload for writing numbers */}
-              {(currentStage === 'waiting_for_numbers' || currentStage === 'in_contracting' || isAdditionalContracting) && (
+              {/* Writing Number — screenshot upload (primary) + manual entry (additional contracting only) */}
+              {(currentStage === 'waiting_for_numbers' || isAdditionalContracting) && (
                 <StaggerItem>
                   <WritingNumberScreenshotUpload
                     agentId={pipeline.agent_id}
                     wnSubmissions={wnSubmissions}
                     onUploadComplete={refetch}
+                    allowManualEntry={isAdditionalContracting}
+                    onSubmitManual={submitWritingNumber}
                   />
                 </StaggerItem>
               )}

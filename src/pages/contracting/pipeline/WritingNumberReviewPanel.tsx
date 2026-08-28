@@ -1,7 +1,13 @@
 /**
  * WritingNumberReviewPanel — inline review panel for verifying/rejecting
  * agent-submitted writing numbers. Embedded in the detail modal.
- * Ported from CRM Portal.
+ *
+ * Charlie (2026-08-28): Agents no longer type WNs themselves. They upload
+ * screenshots of the carrier email. Admins view the screenshot and manually
+ * enter the writing number, then verify or reject.
+ *
+ * For additional contracting (active agents), manual typed submissions
+ * are still possible — admin just approves those.
  */
 import { useState, useEffect, useCallback } from 'react';
 import {
@@ -14,6 +20,8 @@ import {
   ChevronDown,
   ChevronUp,
   AlertTriangle,
+  ExternalLink,
+  ImageIcon,
 } from 'lucide-react';
 import { portalSupabase } from '@/lib/portal-supabase';
 
@@ -58,6 +66,10 @@ export function WritingNumberReviewPanel({
   const [rejectNote, setRejectNote] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState('');
+  // Admin-entered writing numbers per submission (for image submissions)
+  const [adminWNInputs, setAdminWNInputs] = useState<Record<string, string>>({});
+  // Expanded screenshot previews
+  const [expandedScreenshots, setExpandedScreenshots] = useState<Set<string>>(new Set());
 
   const loadSubmissions = useCallback(async () => {
     if (!portalSupabase) return;
@@ -75,19 +87,49 @@ export function WritingNumberReviewPanel({
     if (pendingCount > 0) loadSubmissions();
   }, [agentId, pendingCount, loadSubmissions]);
 
+  const toggleScreenshot = (subId: string) => {
+    setExpandedScreenshots((prev) => {
+      const next = new Set(prev);
+      if (next.has(subId)) next.delete(subId);
+      else next.add(subId);
+      return next;
+    });
+  };
+
   const handleVerify = async (sub: Submission) => {
     if (!portalSupabase) return;
+
+    // For image submissions, admin must enter the WN
+    const adminEnteredWN = sub.submission_method === 'image'
+      ? (adminWNInputs[sub.id] || '').trim()
+      : null;
+
+    // For image submissions, require admin to enter a WN
+    if (sub.submission_method === 'image' && !adminEnteredWN) {
+      setError('Enter the writing number from the screenshot before verifying.');
+      return;
+    }
+
+    // The verified writing number: admin-entered for images, agent-typed for manual
+    const verifiedWN = adminEnteredWN || sub.writing_number || '';
+
     setActionLoading(sub.id);
     setError('');
     try {
+      // Update the submission with the admin-entered WN (if image)
+      const submissionUpdate: Record<string, unknown> = {
+        status: 'verified',
+        reviewed_by: 'FYM App',
+        reviewed_at: new Date().toISOString(),
+        review_note: null,
+      };
+      if (sub.submission_method === 'image' && adminEnteredWN) {
+        submissionUpdate.writing_number = adminEnteredWN;
+      }
+
       const { error: e1 } = await portalSupabase
         .from('agent_writing_number_submissions')
-        .update({
-          status: 'verified',
-          reviewed_by: 'FYM App',
-          reviewed_at: new Date().toISOString(),
-          review_note: null,
-        })
+        .update(submissionUpdate)
         .eq('id', sub.id);
       if (e1) throw e1;
 
@@ -98,7 +140,7 @@ export function WritingNumberReviewPanel({
             agent_id: agentId,
             carrier: sub.carrier,
             line_of_business: 'HIP',
-            writing_number: sub.writing_number || '',
+            writing_number: verifiedWN,
             verified: true,
             verified_at: new Date().toISOString(),
             verified_by: 'FYM App',
@@ -160,12 +202,21 @@ export function WritingNumberReviewPanel({
             ? {
                 ...s,
                 status: 'verified' as const,
+                writing_number: verifiedWN,
                 reviewed_by: 'FYM App',
                 reviewed_at: new Date().toISOString(),
               }
             : s
         )
       );
+
+      // Clear admin WN input
+      setAdminWNInputs((prev) => {
+        const next = { ...prev };
+        delete next[sub.id];
+        return next;
+      });
+
       onReviewComplete(remaining);
     } catch {
       setError('Verify failed — please try again.');
@@ -278,71 +329,126 @@ export function WritingNumberReviewPanel({
                   key={sub.id}
                   className="bg-card rounded-lg border border-amber-500/20 glow-sm overflow-hidden"
                 >
-                  <div className="flex items-center justify-between px-3 py-2.5">
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      {sub.submission_method === 'image' ? (
-                        <Upload className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                      ) : (
-                        <PenLine className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                      )}
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-foreground">
-                          {sub.carrier}
-                        </p>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-xs text-muted-foreground font-mono">
-                            {sub.writing_number || '—'}
-                          </span>
-                          {sub.ai_extracted_number &&
-                            sub.ai_extracted_number !== sub.writing_number && (
-                              <span className="text-[10px] text-muted-foreground">
-                                (AI read: {sub.ai_extracted_number})
+                  <div className="px-3 py-2.5 space-y-2">
+                    {/* Header row */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        {sub.submission_method === 'image' ? (
+                          <Upload className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                        ) : (
+                          <PenLine className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-foreground">
+                            {sub.carrier}
+                          </p>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {sub.submission_method === 'typed' && sub.writing_number && (
+                              <span className="text-xs text-muted-foreground font-mono">
+                                {sub.writing_number}
                               </span>
                             )}
-                          <span className="text-[10px] text-muted-foreground">
-                            ·{' '}
-                            {new Date(sub.created_at).toLocaleDateString(
-                              'en-US',
-                              {
-                                month: 'short',
-                                day: 'numeric',
-                                hour: 'numeric',
-                                minute: '2-digit',
-                              }
+                            {sub.submission_method === 'image' && (
+                              <span className="text-[10px] text-amber-400 font-medium">
+                                Screenshot — enter WN below
+                              </span>
                             )}
-                          </span>
+                            <span className="text-[10px] text-muted-foreground">
+                              ·{' '}
+                              {new Date(sub.created_at).toLocaleDateString(
+                                'en-US',
+                                {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: 'numeric',
+                                  minute: '2-digit',
+                                }
+                              )}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
-                      {reviewingId !== sub.id && (
-                        <>
-                          <button
-                            onClick={() => handleVerify(sub)}
-                            disabled={!!actionLoading}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+
+                    {/* Screenshot preview for image submissions */}
+                    {sub.submission_method === 'image' && sub.source_image_url && (
+                      <div className="space-y-2">
+                        <button
+                          onClick={() => toggleScreenshot(sub.id)}
+                          className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 transition-colors"
+                        >
+                          <ImageIcon className="w-3.5 h-3.5" />
+                          {expandedScreenshots.has(sub.id) ? 'Hide' : 'View'} Screenshot
+                          <a
+                            href={sub.source_image_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="ml-1 text-muted-foreground hover:text-foreground"
                           >
-                            {actionLoading === sub.id ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : (
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                            )}
-                            Verify
-                          </button>
-                          <button
-                            onClick={() => {
-                              setReviewingId(sub.id);
-                              setRejectNote('');
-                              setError('');
-                            }}
-                            disabled={!!actionLoading}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold hover:bg-red-500/10 disabled:opacity-50 transition-colors"
-                          >
-                            <XCircle className="w-3.5 h-3.5" /> Reject
-                          </button>
-                        </>
-                      )}
-                    </div>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </button>
+                        {expandedScreenshots.has(sub.id) && (
+                          <div className="rounded-lg border border-border overflow-hidden bg-black/20">
+                            <img
+                              src={sub.source_image_url}
+                              alt={`${sub.carrier} writing number screenshot`}
+                              className="w-full max-h-64 object-contain"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Admin WN input for image submissions */}
+                    {sub.submission_method === 'image' && (
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                          Writing Number (from screenshot)
+                        </label>
+                        <input
+                          value={adminWNInputs[sub.id] || ''}
+                          onChange={(e) =>
+                            setAdminWNInputs((prev) => ({
+                              ...prev,
+                              [sub.id]: e.target.value,
+                            }))
+                          }
+                          placeholder="Enter the writing number you see"
+                          className="w-full px-3 py-2 border border-border rounded-lg text-sm font-mono bg-card focus:ring-2 focus:ring-primary focus:border-transparent"
+                        />
+                      </div>
+                    )}
+
+                    {/* Action buttons */}
+                    {reviewingId !== sub.id && (
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => handleVerify(sub)}
+                          disabled={!!actionLoading}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-500 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                        >
+                          {actionLoading === sub.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          )}
+                          {sub.submission_method === 'image' ? 'Verify & Save' : 'Approve'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setReviewingId(sub.id);
+                            setRejectNote('');
+                            setError('');
+                          }}
+                          disabled={!!actionLoading}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold hover:bg-red-500/10 disabled:opacity-50 transition-colors"
+                        >
+                          <XCircle className="w-3.5 h-3.5" /> Reject
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {reviewingId === sub.id && (
@@ -357,7 +463,7 @@ export function WritingNumberReviewPanel({
                           setError('');
                         }}
                         rows={2}
-                        placeholder="e.g. Writing number not found in carrier system"
+                        placeholder="e.g. Screenshot is blurry — please retake"
                         className="w-full px-3 py-2 border border-red-500/20 rounded-lg text-xs focus:ring-2 focus:ring-red-400 focus:border-transparent resize-none bg-card"
                       />
                       <div className="flex gap-2">
@@ -410,6 +516,9 @@ export function WritingNumberReviewPanel({
                   <span className="font-mono text-muted-foreground">
                     {sub.writing_number || '—'}
                   </span>
+                  {sub.submission_method === 'image' && (
+                    <span className="text-[10px] text-muted-foreground">(screenshot)</span>
+                  )}
                   <span
                     className={`ml-auto font-semibold ${
                       sub.status === 'verified'
