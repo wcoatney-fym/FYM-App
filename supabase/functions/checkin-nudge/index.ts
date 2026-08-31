@@ -6,9 +6,25 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getTodayET } from "../_shared/date-helpers.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+const ALLOWED_ORIGINS = [
+  "https://agency.teamfym.com",
+  "https://www.agency.teamfym.com",
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "http://localhost:4173",
+];
+
+function corsHeaders(req?: Request | null): Record<string, string> {
+  const origin = req?.headers?.get("Origin") || req?.headers?.get("origin");
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    headers["Access-Control-Allow-Origin"] = origin;
+    headers["Vary"] = "Origin";
+  }
+  return headers;
 };
 
 const TWILIO_SID = Deno.env.get("TWILIO_SID_SURVEY_NUMBER")!;
@@ -39,7 +55,7 @@ async function sendSms(to: string, body: string): Promise<boolean> {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders(req) });
   }
 
   try {
@@ -58,7 +74,7 @@ serve(async (req) => {
     if (!pending?.length) {
       return new Response(
         JSON.stringify({ message: "No agents to nudge", nudged: 0 }),
-        { headers: { "Content-Type": "application/json", ...corsHeaders } }
+        { headers: { "Content-Type": "application/json", ...corsHeaders(req) } }
       );
     }
 
@@ -88,13 +104,13 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ message: `Nudged ${nudged} agents`, nudged, total: pending.length }),
-      { headers: { "Content-Type": "application/json", ...corsHeaders } }
+      { headers: { "Content-Type": "application/json", ...corsHeaders(req) } }
     );
   } catch (err) {
     console.error("checkin-nudge error:", err);
     return new Response(
       JSON.stringify({ error: "Internal server error" }),
-      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders(req) } }
     );
   }
 });

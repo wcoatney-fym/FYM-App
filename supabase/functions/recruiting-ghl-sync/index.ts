@@ -64,12 +64,29 @@ const LEAD_TAG = "hosp ind | agent lead";
 const ATTENDEE_TAGS = ["opps call | attended"];
 const HIRED_TAGS = ["robbys hip | broker", "robbys hip | career"];
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers":
-    "Content-Type, Authorization, apikey, x-cron-auth, x-client-info",
-};
+const ALLOWED_ORIGINS = [
+  "https://agency.teamfym.com",
+  "https://www.agency.teamfym.com",
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "http://localhost:4173",
+];
+
+let _currentReq: Request | null = null;
+
+function getCorsHeaders(): Record<string, string> {
+  const origin = _currentReq?.headers?.get("Origin") || _currentReq?.headers?.get("origin");
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers":
+      "Content-Type, Authorization, apikey, x-cron-auth, x-client-info",
+  };
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    headers["Access-Control-Allow-Origin"] = origin;
+    headers["Vary"] = "Origin";
+  }
+  return headers;
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -78,7 +95,7 @@ function sleep(ms: number): Promise<void> {
 function jsonResponse(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...getCorsHeaders(), "Content-Type": "application/json" },
   });
 }
 
@@ -897,7 +914,8 @@ async function handleBackfill(
 // HTTP HANDLER
 // ══════════════════════════════════════════════════════════════════════════
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  _currentReq = req;
+  if (req.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders() });
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
 
   // Auth

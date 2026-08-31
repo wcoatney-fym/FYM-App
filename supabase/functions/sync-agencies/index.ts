@@ -120,18 +120,31 @@ interface RcbzagAgency {
   crm_enabled: boolean;
 }
 
+const ALLOWED_ORIGINS = [
+  "https://agency.teamfym.com",
+  "https://www.agency.teamfym.com",
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "http://localhost:4173",
+];
+
+let _currentReq: Request | null = null;
+
 function corsResponse(body?: string, status = 200): Response {
-  return new Response(body, {
-    status,
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-      "Content-Type": "application/json",
-    },
-  });
+  const origin = _currentReq?.headers?.get("Origin") || _currentReq?.headers?.get("origin");
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Content-Type": "application/json",
+  };
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    headers["Access-Control-Allow-Origin"] = origin;
+    headers["Vary"] = "Origin";
+  }
+  return new Response(body, { status, headers });
 }
 
 Deno.serve(async (req) => {
+  _currentReq = req;
   if (req.method === "OPTIONS") return corsResponse();
 
   const started = performance.now();

@@ -28,7 +28,7 @@ import {
 import { loadRosterMap } from "../_shared/roster-map.ts";
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return corsResponse();
+  if (req.method === "OPTIONS") return corsResponse(req);
 
   const started = performance.now();
   const url = new URL(req.url);
@@ -243,7 +243,7 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     console.error("agency-roster-data error:", err);
-    return jsonResponse({ error: "Internal server error" }, 500);
+    return jsonResponse({ error: "Internal server error" }, 500, req);
   } finally {
     if (sql) await sql.end({ timeout: 5 });
   }

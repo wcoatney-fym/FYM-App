@@ -23,11 +23,25 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const TRACKER_REF = "lryxxnpafaxjgehqirdp";
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+const ALLOWED_ORIGINS = [
+  "https://agency.teamfym.com",
+  "https://www.agency.teamfym.com",
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "http://localhost:4173",
+];
+
+function CORS_HEADERS(req?: Request | null): Record<string, string> {
+  const origin = req?.headers?.get("Origin") || req?.headers?.get("origin");
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    headers["Access-Control-Allow-Origin"] = origin;
+    headers["Vary"] = "Origin";
+  }
+  return headers;
 };
 
 // ── Input validation ──────────────────────────────────────────────────
@@ -62,7 +76,7 @@ function escapeSqlLiteral(v: string): string {
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+    headers: { ...CORS_HEADERS(req), "Content-Type": "application/json" },
   });
 }
 
@@ -120,7 +134,7 @@ async function verifyAdmin(authHeader: string | null): Promise<boolean> {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: CORS_HEADERS });
+    return new Response("ok", { headers: CORS_HEADERS(req) });
   }
 
   try {

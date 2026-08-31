@@ -6,9 +6,25 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getTodayET } from "../_shared/date-helpers.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+const ALLOWED_ORIGINS = [
+  "https://agency.teamfym.com",
+  "https://www.agency.teamfym.com",
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "http://localhost:4173",
+];
+
+function corsHeaders(req?: Request | null): Record<string, string> {
+  const origin = req?.headers?.get("Origin") || req?.headers?.get("origin");
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    headers["Access-Control-Allow-Origin"] = origin;
+    headers["Vary"] = "Origin";
+  }
+  return headers;
 };
 
 const TWILIO_SID = Deno.env.get("TWILIO_SID_SURVEY_NUMBER")!;
@@ -87,7 +103,7 @@ async function getRandomQuote(sb: ReturnType<typeof createClient>): Promise<{ qu
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders(req) });
   }
 
   try {
@@ -114,7 +130,7 @@ serve(async (req) => {
       // Manager texted something other than MORE — short helpful reply, NOT Bianca redirect
       await sendSms(incomingPhone, MANAGER_NON_MORE_REPLY);
       return new Response("<Response></Response>", {
-        headers: { "Content-Type": "text/xml", ...corsHeaders },
+        headers: { "Content-Type": "text/xml", ...corsHeaders(req) },
       });
     }
 
@@ -131,7 +147,7 @@ serve(async (req) => {
       if (!responses?.length) {
         await sendSms(incomingPhone, "No check-in responses yet for today.");
         return new Response("<Response></Response>", {
-          headers: { "Content-Type": "text/xml", ...corsHeaders },
+          headers: { "Content-Type": "text/xml", ...corsHeaders(req) },
         });
       }
 
@@ -163,7 +179,7 @@ serve(async (req) => {
         console.error("Token generation failed:", await tokenResp.text());
         await sendSms(incomingPhone, "Unable to generate breakdown link. Try again in a moment.");
         return new Response("<Response></Response>", {
-          headers: { "Content-Type": "text/xml", ...corsHeaders },
+          headers: { "Content-Type": "text/xml", ...corsHeaders(req) },
         });
       }
 
@@ -176,7 +192,7 @@ serve(async (req) => {
       await sendSms(incomingPhone, smsBody);
 
       return new Response("<Response></Response>", {
-        headers: { "Content-Type": "text/xml", ...corsHeaders },
+        headers: { "Content-Type": "text/xml", ...corsHeaders(req) },
       });
     }
 
@@ -193,7 +209,7 @@ serve(async (req) => {
       console.log(`Unknown sender: ${incomingPhone}`);
       await sendSms(incomingPhone, FALLBACK_REPLY);
       return new Response("<Response></Response>", {
-        headers: { "Content-Type": "text/xml", ...corsHeaders },
+        headers: { "Content-Type": "text/xml", ...corsHeaders(req) },
       });
     }
 
@@ -222,7 +238,7 @@ serve(async (req) => {
     if (!response) {
       console.error("Failed to create/find response record");
       return new Response("<Response></Response>", {
-        headers: { "Content-Type": "text/xml", ...corsHeaders },
+        headers: { "Content-Type": "text/xml", ...corsHeaders(req) },
       });
     }
 
@@ -238,7 +254,7 @@ serve(async (req) => {
           "she'll get you to the right person."
       );
       return new Response("<Response></Response>", {
-        headers: { "Content-Type": "text/xml", ...corsHeaders },
+        headers: { "Content-Type": "text/xml", ...corsHeaders(req) },
       });
     }
 
@@ -248,7 +264,7 @@ serve(async (req) => {
       if (answer === null) {
         await sendSms(incomingPhone, "Just reply YES or NO — are you working today?");
         return new Response("<Response></Response>", {
-          headers: { "Content-Type": "text/xml", ...corsHeaders },
+          headers: { "Content-Type": "text/xml", ...corsHeaders(req) },
         });
       }
 
@@ -283,7 +299,7 @@ serve(async (req) => {
       if (answer === null) {
         await sendSms(incomingPhone, "Just reply YES or NO — will you have 4+ hours of talk time?");
         return new Response("<Response></Response>", {
-          headers: { "Content-Type": "text/xml", ...corsHeaders },
+          headers: { "Content-Type": "text/xml", ...corsHeaders(req) },
         });
       }
 
@@ -303,7 +319,7 @@ serve(async (req) => {
       if (goal === null) {
         await sendSms(incomingPhone, "Reply with a number: 1, 2, 3, 4, or 5+");
         return new Response("<Response></Response>", {
-          headers: { "Content-Type": "text/xml", ...corsHeaders },
+          headers: { "Content-Type": "text/xml", ...corsHeaders(req) },
         });
       }
 
@@ -331,13 +347,13 @@ serve(async (req) => {
 
     // Return empty TwiML (we handle replies via API, not TwiML response)
     return new Response("<Response></Response>", {
-      headers: { "Content-Type": "text/xml", ...corsHeaders },
+      headers: { "Content-Type": "text/xml", ...corsHeaders(req) },
     });
   } catch (err) {
     console.error("Webhook error:", err);
     return new Response("<Response></Response>", {
       status: 200,
-      headers: { "Content-Type": "text/xml", ...corsHeaders },
+      headers: { "Content-Type": "text/xml", ...corsHeaders(req) },
     });
   }
 });

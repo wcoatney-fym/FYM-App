@@ -31,7 +31,7 @@ const AGENCY_NAME_MAP: Record<string, string> = {
 };
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return corsResponse();
+  if (req.method === "OPTIONS") return corsResponse(req);
 
   const started = performance.now();
 
@@ -47,10 +47,10 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
   if (!portalUrl || !portalKey) {
-    return jsonResponse({ error: "Missing PORTAL/CONTRACTING Supabase credentials" }, 500);
+    return jsonResponse({ error: "Missing PORTAL/CONTRACTING Supabase credentials" }, 500, req);
   }
   if (!appUrl || !appKey) {
-    return jsonResponse({ error: "Missing APP Supabase credentials" }, 500);
+    return jsonResponse({ error: "Missing APP Supabase credentials" }, 500, req);
   }
 
   const portal = createClient(portalUrl, portalKey, {
@@ -279,6 +279,6 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     console.error("roster-backfill error:", err);
-    return jsonResponse({ error: "Internal server error" }, 500);
+    return jsonResponse({ error: "Internal server error" }, 500, req);
   }
 });

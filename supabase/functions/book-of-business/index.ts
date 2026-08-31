@@ -78,7 +78,7 @@ function validateSearch(v: string | null): string | null {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return corsResponse();
+  if (req.method === "OPTIONS") return corsResponse(req);
 
   const started = performance.now();
   const url = new URL(req.url);
@@ -90,12 +90,12 @@ Deno.serve(async (req) => {
 
   const statusFilter = url.searchParams.get("status") || "all";
   if (!VALID_STATUSES.has(statusFilter)) {
-    return jsonResponse({ error: "Invalid status filter" }, 400);
+    return jsonResponse({ error: "Invalid status filter" }, 400, req);
   }
 
   const productFilter = url.searchParams.get("product_type") || "all";
   if (!VALID_PRODUCTS.has(productFilter)) {
-    return jsonResponse({ error: "Invalid product_type filter" }, 400);
+    return jsonResponse({ error: "Invalid product_type filter" }, 400, req);
   }
 
   const atRiskOnly = url.searchParams.get("at_risk") === "true";
@@ -103,17 +103,17 @@ Deno.serve(async (req) => {
   const searchTerm = validateSearch(url.searchParams.get("search"));
   // Reject if caller supplied a search that failed validation
   if (url.searchParams.get("search")?.trim() && !searchTerm && url.searchParams.get("search")!.trim().length > 0) {
-    return jsonResponse({ error: "Invalid search term (letters, numbers, spaces, hyphens, periods, apostrophes only, max 100 chars)" }, 400);
+    return jsonResponse({ error: "Invalid search term (letters, numbers, spaces, hyphens, periods, apostrophes only, max 100 chars)" }, 400, req);
   }
 
   const sortField = url.searchParams.get("sort") || "premium";
   if (!VALID_SORT_FIELDS.has(sortField)) {
-    return jsonResponse({ error: "Invalid sort field" }, 400);
+    return jsonResponse({ error: "Invalid sort field" }, 400, req);
   }
 
   const sortOrder = url.searchParams.get("order") || "desc";
   if (!VALID_ORDERS.has(sortOrder)) {
-    return jsonResponse({ error: "Invalid sort order" }, 400);
+    return jsonResponse({ error: "Invalid sort order" }, 400, req);
   }
 
   const page = Math.max(0, Number(url.searchParams.get("page") || "0"));
@@ -121,13 +121,13 @@ Deno.serve(async (req) => {
 
   // Reject invalid writing numbers if supplied
   if (url.searchParams.get("agency_id") && !agencyFilter) {
-    return jsonResponse({ error: "Invalid agency_id format" }, 400);
+    return jsonResponse({ error: "Invalid agency_id format" }, 400, req);
   }
   if (url.searchParams.get("agent_wn") && !agentWnFilter) {
-    return jsonResponse({ error: "Invalid agent_wn format" }, 400);
+    return jsonResponse({ error: "Invalid agent_wn format" }, 400, req);
   }
   if (url.searchParams.get("writing_numbers") && !writingNumbers) {
-    return jsonResponse({ error: "Invalid writing_numbers format (alphanumeric, comma-separated)" }, 400);
+    return jsonResponse({ error: "Invalid writing_numbers format (alphanumeric, comma-separated)" }, 400, req);
   }
 
   let sql: ReturnType<typeof createProdConnection> | null = null;
@@ -396,7 +396,7 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     console.error("book-of-business error:", err);
-    return jsonResponse({ error: "Internal server error" }, 500);
+    return jsonResponse({ error: "Internal server error" }, 500, req);
   } finally {
     if (sql) await sql.end({ timeout: 5 });
   }
