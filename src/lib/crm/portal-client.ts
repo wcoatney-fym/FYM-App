@@ -39,7 +39,6 @@ let signInPromise: Promise<void> | null = null;
  * which validates the caller's FYM App JWT and signs in with service
  * credentials that never leave the server.
  *
- * Falls back to legacy VITE_PORTAL_SERVICE_* vars if present (for dev/local).
  * Idempotent — safe to call before every query.
  */
 export async function ensurePortalAuth(): Promise<void> {
@@ -56,19 +55,7 @@ export async function ensurePortalAuth(): Promise<void> {
   }
 
   signInPromise = (async () => {
-    // Legacy fallback: if VITE_PORTAL_SERVICE_* vars exist (local dev only),
-    // use them directly. These should NOT be set in production Netlify.
-    const legacyEmail = import.meta.env.VITE_PORTAL_SERVICE_EMAIL as string | undefined;
-    const legacyPassword = import.meta.env.VITE_PORTAL_SERVICE_PASSWORD as string | undefined;
-    if (legacyEmail && legacyPassword) {
-      await portalSupabase!.auth.signInWithPassword({
-        email: legacyEmail,
-        password: legacyPassword,
-      });
-      return;
-    }
-
-    // Production path: get Portal tokens from the portal-auth edge function
+    // Get Portal tokens from the portal-auth edge function
     if (!appUrl || !appAnonKey) {
       console.warn('[portal-client] Cannot authenticate: no FYM App URL/key for portal-auth');
       return;
