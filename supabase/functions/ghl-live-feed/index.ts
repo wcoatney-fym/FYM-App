@@ -9,9 +9,14 @@
  * Actions:
  *   - list:   returns all agencies with their ghl_api_enabled status
  *   - toggle: sets ghl_api_enabled for a specific agency
+ *   - sync:   sets ghl_api_enabled by agency name (case-insensitive)
  *
  * Auth: requires FYM App admin session (JWT via Authorization header).
  * Secrets: SUPABASE_ACCESS_TOKEN (Management API), TRACKER_PROJECT_REF.
+ *
+ * SECURITY: All user-supplied values are validated before use. The Management
+ * API only accepts raw SQL strings (no parameterized queries), so we use strict
+ * input validation + proper escaping as defense-in-depth.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -24,6 +29,35 @@ const CORS_HEADERS = {
     "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
+
+// ── Input validation ──────────────────────────────────────────────────
+// UUID v4 format: 8-4-4-4-12 hex chars
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Agency names: letters, numbers, spaces, hyphens, periods, ampersands,
+// apostrophes, commas, parentheses. Max 200 chars. Rejects everything else.
+const AGENCY_NAME_RE = /^[A-Za-z0-9 \-.'&,()]{1,200}$/;
+
+const VALID_ACTIONS = new Set(["list", "toggle", "sync"]);
+
+/** Validate UUID format strictly */
+function isValidUUID(v: string): boolean {
+  return UUID_RE.test(v);
+}
+
+/** Validate agency name format */
+function isValidAgencyName(v: string): boolean {
+  return AGENCY_NAME_RE.test(v);
+}
+
+/**
+ * Escape a string for use in a SQL literal ('...'). 
+ * Doubles single quotes and backslashes — Postgres standard_conforming_strings.
+ * Only used AFTER input validation has already whitelist-approved the content.
+ */
+function escapeSqlLiteral(v: string): string {
+  return v.replace(/\\/g, "\\\\").replace(/'/g, "''");
+}
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -107,6 +141,13 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = (body as Record<string, unknown>).action as string;
 
+    if (!VALID_ACTIONS.has(action)) {
+      return json(
+        { error: `Unknown action: ${action}. Use "list", "toggle", or "sync".` },
+        400
+      );
+    }
+
     switch (action) {
       case "list": {
         const rows = await trackerQuery(
@@ -129,12 +170,15 @@ Deno.serve(async (req) => {
         if (!agencyId) {
           return json({ error: "agencyId required" }, 400);
         }
+        if (!isValidUUID(agencyId)) {
+          return json({ error: "Invalid agencyId format (expected UUID)" }, 400);
+        }
         if (typeof enabled !== "boolean") {
           return json({ error: "enabled (boolean) required" }, 400);
         }
 
-        // Escape the UUID to prevent injection
-        const safeId = agencyId.replace(/[^a-f0-9-]/gi, "");
+        // UUID is validated — safe to interpolate (only hex + hyphens)
+        const safeId = agencyId.toLowerCase();
 
         await trackerQuery(
           `UPDATE agencies
@@ -163,7 +207,6 @@ Deno.serve(async (req) => {
         });
       }
 
-
       case "sync": {
         const { agencyName, enabled: syncEnabled } = body as {
           agencyName: string;
@@ -173,12 +216,18 @@ Deno.serve(async (req) => {
         if (!agencyName) {
           return json({ error: "agencyName required" }, 400);
         }
+        if (!isValidAgencyName(agencyName)) {
+          return json(
+            { error: "Invalid agencyName format (letters, numbers, spaces, basic punctuation only, max 200 chars)" },
+            400
+          );
+        }
         if (typeof syncEnabled !== "boolean") {
           return json({ error: "enabled (boolean) required" }, 400);
         }
 
-        // Match by name (case-insensitive) in tracker DB
-        const safeName = agencyName.replace(/'/g, "''");
+        // Name validated against whitelist regex, then escaped for SQL literal
+        const safeName = escapeSqlLiteral(agencyName);
 
         const matches = await trackerQuery(
           `UPDATE agencies
@@ -206,16 +255,16 @@ Deno.serve(async (req) => {
           ghl_api_enabled: matches[0].ghl_api_enabled,
         });
       }
+
       default:
-        return json(
-          { error: `Unknown action: ${action}. Use "list", "toggle", or "sync".` },
-          400
-        );
+        // Unreachable due to VALID_ACTIONS check above, but TypeScript needs it
+        return json({ error: "Unknown action" }, 400);
     }
   } catch (err) {
     console.error("[ghl-live-feed] Error:", err);
+    // Sanitize error — don't leak internal details to caller
     return json(
-      { error: err instanceof Error ? err.message : "Internal error" },
+      { error: "Internal error" },
       500
     );
   }
