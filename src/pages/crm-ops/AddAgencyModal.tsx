@@ -58,14 +58,10 @@ export const AddAgencyModal: React.FC<AddAgencyModalProps> = ({ onClose, onSucce
     }
 
     // Ensure auth session is active before writing
-    const { data: sessionData } = await supabase.auth.getSession();
-    if (!sessionData.session) {
-      const serviceEmail = import.meta.env.VITE_PORTAL_SERVICE_EMAIL;
-      const servicePassword = import.meta.env.VITE_PORTAL_SERVICE_PASSWORD;
-      if (serviceEmail && servicePassword) {
-        await supabase.auth.signInWithPassword({ email: serviceEmail, password: servicePassword });
-      }
-    }
+    // Portal auth is handled by ensurePortalAuth() via the portal-auth edge function.
+    // Service credentials never touch the browser.
+    const { ensurePortalAuth } = await import('@/lib/crm/portal-client');
+    await ensurePortalAuth();
 
     const portalPassword = `${trimmedName}CRMPortal!`;
 

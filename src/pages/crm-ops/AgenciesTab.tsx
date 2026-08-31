@@ -56,14 +56,10 @@ export const AgenciesTab: React.FC = () => {
   const loadAgencies = async () => {
     setLoading(true);
     // Ensure auth session is active for authenticated-role reads
-    const { data: sessionData } = await supabase.auth.getSession();
-    if (!sessionData.session) {
-      const serviceEmail = import.meta.env.VITE_PORTAL_SERVICE_EMAIL;
-      const servicePassword = import.meta.env.VITE_PORTAL_SERVICE_PASSWORD;
-      if (serviceEmail && servicePassword) {
-        await supabase.auth.signInWithPassword({ email: serviceEmail, password: servicePassword });
-      }
-    }
+    // Portal auth is handled by ensurePortalAuth() via the portal-auth edge function.
+    // Service credentials never touch the browser.
+    const { ensurePortalAuth } = await import('@/lib/crm/portal-client');
+    await ensurePortalAuth();
 
     const [agencyRes, uploadsRes] = await Promise.all([
       supabase.from('hierarchy_agencies').select('*').eq('crm_enabled', true).order('name'),
