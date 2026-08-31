@@ -23,12 +23,19 @@ import {
   toTitleCase,
   jsonResponse,
   corsResponse,
+  verifyAuth,
 } from "../_shared/prod-db.ts";
 
 import { createClient } from "npm:@supabase/supabase-js@2.39.3";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return corsResponse(req);
+
+  // ── Auth gate ──────────────────────────────────────────────────────
+  const { user, error: authError } = await verifyAuth(req);
+  if (!user) {
+    return jsonResponse({ error: authError || "Unauthorized" }, 401, req);
+  }
 
   const url = new URL(req.url);
   const agencyFilter = url.searchParams.get("agency_id");

@@ -33,6 +33,7 @@ import {
   toTitleCase,
   jsonResponse,
   corsResponse,
+  verifyAuth,
 } from "../_shared/prod-db.ts";
 import { loadRosterMap } from "../_shared/roster-map.ts";
 
@@ -79,6 +80,12 @@ function validateSearch(v: string | null): string | null {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return corsResponse(req);
+
+  // ── Auth gate ──────────────────────────────────────────────────────
+  const { user, error: authError } = await verifyAuth(req);
+  if (!user) {
+    return jsonResponse({ error: authError || "Unauthorized" }, 401, req);
+  }
 
   const started = performance.now();
   const url = new URL(req.url);

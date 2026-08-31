@@ -29,6 +29,7 @@ import {
   FYM_MGA_WN,
   jsonResponse,
   corsResponse,
+  verifyAuth,
 } from "../_shared/prod-db.ts";
 
 // ── Input validation ──────────────────────────────────────────────────
@@ -50,6 +51,12 @@ function validateWn(v: string | null): string | null {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return corsResponse(req);
+
+  // ── Auth gate ──────────────────────────────────────────────────────
+  const { user, error: authError } = await verifyAuth(req);
+  if (!user) {
+    return jsonResponse({ error: authError || "Unauthorized" }, 401, req);
+  }
 
   const started = performance.now();
   const url = new URL(req.url);

@@ -21,6 +21,7 @@ import {
   resolveRiskFlag,
   jsonResponse,
   corsResponse,
+  verifyAuth,
 } from "../_shared/prod-db.ts";
 
 /** Title-case an ALLCAPS name: "JOHN SMITH" → "John Smith" */
@@ -32,6 +33,12 @@ function titleCase(s: string): string {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return corsResponse(req);
+
+  // ── Auth gate ──────────────────────────────────────────────────────
+  const { user, error: authError } = await verifyAuth(req);
+  if (!user) {
+    return jsonResponse({ error: authError || "Unauthorized" }, 401, req);
+  }
 
   const started = performance.now();
   const url = new URL(req.url);

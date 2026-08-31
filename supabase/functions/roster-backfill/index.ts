@@ -15,7 +15,8 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsResponse, jsonResponse } from "../_shared/prod-db.ts";
+import { corsResponse, jsonResponse   verifyAuth,
+} from "../_shared/prod-db.ts";
 
 // ── Agency name crosswalk ────────────────────────────────────────────
 // Maps crm_roster_uploads.agency (portal) → agencies.name (rcbzag)
@@ -32,6 +33,12 @@ const AGENCY_NAME_MAP: Record<string, string> = {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return corsResponse(req);
+
+  // ── Auth gate ──────────────────────────────────────────────────────
+  const { user, error: authError } = await verifyAuth(req);
+  if (!user) {
+    return jsonResponse({ error: authError || "Unauthorized" }, 401, req);
+  }
 
   const started = performance.now();
 

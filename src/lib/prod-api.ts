@@ -57,9 +57,19 @@ async function callEdgeFunction<T>(
     }
   }
 
+  // Use the user's JWT for authentication, fall back to anon key
+  let token = supabaseAnonKey;
+  if (supabase) {
+    const { data } = await supabase.auth.getSession();
+    if (data.session?.access_token) {
+      token = data.session.access_token;
+    }
+  }
+
   const res = await fetch(url.toString(), {
     headers: {
-      Authorization: `Bearer ${supabaseAnonKey}`,
+      Authorization: `Bearer ${token}`,
+      apikey: supabaseAnonKey,
       'Content-Type': 'application/json',
     },
   });
