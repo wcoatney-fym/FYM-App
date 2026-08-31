@@ -10,8 +10,8 @@
  * Roster-map overrides are applied as a lightweight post-query pass
  * on the returned page rows only (not the full dataset).
  *
- * Replaces: direct policy_cache table reads on AgencyDetailPage,
- *           AgencyRosterPage (agent detail dialog), CcDashboardTab
+ * SECURITY: All user-supplied values are parameterized via postgres.js tagged
+ * templates or validated against allowlists. No string interpolation in SQL.
  *
  * Query params:
  *   agency_id:      filter by agency tracker_id
@@ -36,26 +36,99 @@ import {
 } from "../_shared/prod-db.ts";
 import { loadRosterMap } from "../_shared/roster-map.ts";
 
+// ── Input validation ──────────────────────────────────────────────────
+const WN_RE = /^[A-Za-z0-9]{1,20}$/;
+const VALID_STATUSES = new Set(["active", "terminated", "pending", "suspended", "all"]);
+const VALID_PRODUCTS = new Set(["HI", "HHC", "all"]);
+const VALID_SORT_FIELDS = new Set(["premium", "annual_premium", "submit_date", "paid_to_date", "policy_nbr", "status", "draft_count"]);
+const VALID_ORDERS = new Set(["asc", "desc"]);
+
+// Status code map — only valid codes, used to build safe SQL fragments
+const STATUS_CODE_MAP: Record<string, string> = {
+  active: "A",
+  terminated: "T",
+  pending: "P",
+  suspended: "S",
+};
+
+function validateWn(v: string | null): string | null {
+  if (!v) return null;
+  return WN_RE.test(v) ? v : null;
+}
+
+function validateWritingNumbers(raw: string | null): string[] | null {
+  if (!raw) return null;
+  const wns = raw.split(",").map((w) => w.trim()).filter(Boolean);
+  // Validate each one
+  for (const wn of wns) {
+    if (!WN_RE.test(wn)) return null;
+  }
+  return wns.length > 0 ? wns : null;
+}
+
+// Search term: strip anything that could be SQL metacharacters.
+// Allow letters, numbers, spaces, hyphens, periods, apostrophes.
+const SEARCH_RE = /^[A-Za-z0-9 \-.']{0,100}$/;
+
+function validateSearch(v: string | null): string | null {
+  if (!v) return null;
+  const trimmed = v.trim();
+  if (!trimmed) return null;
+  return SEARCH_RE.test(trimmed) ? trimmed : null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return corsResponse();
 
   const started = performance.now();
   const url = new URL(req.url);
-  const agencyFilter = url.searchParams.get("agency_id");
-  const agentWnFilter = url.searchParams.get("agent_wn");
-  const writingNumbersRaw = url.searchParams.get("writing_numbers");
+
+  // ── Parse + validate all inputs ─────────────────────────────────────
+  const agencyFilter = validateWn(url.searchParams.get("agency_id"));
+  const agentWnFilter = validateWn(url.searchParams.get("agent_wn"));
+  const writingNumbers = validateWritingNumbers(url.searchParams.get("writing_numbers"));
+
   const statusFilter = url.searchParams.get("status") || "all";
+  if (!VALID_STATUSES.has(statusFilter)) {
+    return jsonResponse({ error: "Invalid status filter" }, 400);
+  }
+
   const productFilter = url.searchParams.get("product_type") || "all";
+  if (!VALID_PRODUCTS.has(productFilter)) {
+    return jsonResponse({ error: "Invalid product_type filter" }, 400);
+  }
+
   const atRiskOnly = url.searchParams.get("at_risk") === "true";
-  const searchTerm = url.searchParams.get("search")?.trim() || "";
+
+  const searchTerm = validateSearch(url.searchParams.get("search"));
+  // Reject if caller supplied a search that failed validation
+  if (url.searchParams.get("search")?.trim() && !searchTerm && url.searchParams.get("search")!.trim().length > 0) {
+    return jsonResponse({ error: "Invalid search term (letters, numbers, spaces, hyphens, periods, apostrophes only, max 100 chars)" }, 400);
+  }
+
   const sortField = url.searchParams.get("sort") || "premium";
+  if (!VALID_SORT_FIELDS.has(sortField)) {
+    return jsonResponse({ error: "Invalid sort field" }, 400);
+  }
+
   const sortOrder = url.searchParams.get("order") || "desc";
+  if (!VALID_ORDERS.has(sortOrder)) {
+    return jsonResponse({ error: "Invalid sort order" }, 400);
+  }
+
   const page = Math.max(0, Number(url.searchParams.get("page") || "0"));
   const pageSize = Math.min(500, Math.max(1, Number(url.searchParams.get("page_size") || "100")));
 
-  const writingNumbers = writingNumbersRaw
-    ? writingNumbersRaw.split(",").map((w) => w.trim()).filter(Boolean)
-    : [];
+  // Reject invalid writing numbers if supplied
+  if (url.searchParams.get("agency_id") && !agencyFilter) {
+    return jsonResponse({ error: "Invalid agency_id format" }, 400);
+  }
+  if (url.searchParams.get("agent_wn") && !agentWnFilter) {
+    return jsonResponse({ error: "Invalid agent_wn format" }, 400);
+  }
+  if (url.searchParams.get("writing_numbers") && !writingNumbers) {
+    return jsonResponse({ error: "Invalid writing_numbers format (alphanumeric, comma-separated)" }, 400);
+  }
 
   let sql: ReturnType<typeof createProdConnection> | null = null;
 
@@ -65,110 +138,74 @@ Deno.serve(async (req) => {
     // Load roster-based agent→agency overrides from FYM App DB.
     const rosterMap = await loadRosterMap();
 
-    // ── Build WHERE conditions ──────────────────────────────────────
-    const conditions: string[] = [];
+    // ── Build parameterized WHERE fragments ─────────────────────────
+    // Product type filter
+    const productWhere = productFilter === "HHC"
+      ? sql`AND (UPPER(TRIM(plan_code)) LIKE '%HHC%' OR UPPER(TRIM(plan_code)) LIKE '%AHH%')`
+      : productFilter === "HI"
+        ? sql`AND (UPPER(TRIM(plan_code)) LIKE '%HI%' OR UPPER(TRIM(plan_code)) LIKE '%HIP%' OR UPPER(TRIM(plan_code)) LIKE '%UHL%')
+              AND NOT (UPPER(TRIM(plan_code)) LIKE '%HHC%' OR UPPER(TRIM(plan_code)) LIKE '%AHH%')`
+        : sql`AND (
+            UPPER(TRIM(plan_code)) LIKE '%HHC%' OR UPPER(TRIM(plan_code)) LIKE '%AHH%'
+            OR UPPER(TRIM(plan_code)) LIKE '%HI%' OR UPPER(TRIM(plan_code)) LIKE '%HIP%'
+            OR UPPER(TRIM(plan_code)) LIKE '%UHL%'
+          )`;
 
-    // Product type filter — always applied (HI/HHC only)
-    if (productFilter === "HHC") {
-      conditions.push(`(UPPER(TRIM(plan_code)) LIKE '%HHC%' OR UPPER(TRIM(plan_code)) LIKE '%AHH%')`);
-    } else if (productFilter === "HI") {
-      conditions.push(`(UPPER(TRIM(plan_code)) LIKE '%HI%' OR UPPER(TRIM(plan_code)) LIKE '%HIP%' OR UPPER(TRIM(plan_code)) LIKE '%UHL%')`);
-      // Exclude HHC plans that also match %HI% (HHC contains HI substring)
-      conditions.push(`NOT (UPPER(TRIM(plan_code)) LIKE '%HHC%' OR UPPER(TRIM(plan_code)) LIKE '%AHH%')`);
-    } else {
-      // "all" — include both HI and HHC
-      conditions.push(`(
-        UPPER(TRIM(plan_code)) LIKE '%HHC%' OR UPPER(TRIM(plan_code)) LIKE '%AHH%'
-        OR UPPER(TRIM(plan_code)) LIKE '%HI%' OR UPPER(TRIM(plan_code)) LIKE '%HIP%'
-        OR UPPER(TRIM(plan_code)) LIKE '%UHL%'
-      )`);
-    }
+    // Status filter — use parameterized value
+    const statusCode = STATUS_CODE_MAP[statusFilter] || null;
+    const statusWhere = statusFilter !== "all" && statusCode
+      ? sql`AND UPPER(TRIM(cntrct_code)) = ${statusCode}`
+      : sql``;
 
-    // Status filter
-    if (statusFilter !== "all") {
-      const statusCodeMap: Record<string, string> = {
-        active: "A",
-        terminated: "T",
-        pending: "P",
-        suspended: "S",
-      };
-      const code = statusCodeMap[statusFilter];
-      if (code) {
-        conditions.push(`UPPER(TRIM(cntrct_code)) = '${code}'`);
-      }
-    }
-
-    // Agency filter — push to SQL
-    if (agencyFilter) {
-      if (agencyFilter === FYM_MGA_WN) {
-        conditions.push(`(TRIM(ga) = '${agencyFilter}' OR ga IS NULL OR TRIM(ga) = '')`);
-      } else {
-        conditions.push(`TRIM(ga) = '${agencyFilter}'`);
-      }
-    }
+    // Agency filter
+    const agencyWhere = agencyFilter
+      ? agencyFilter === FYM_MGA_WN
+        ? sql`AND (TRIM(ga) = ${agencyFilter} OR ga IS NULL OR TRIM(ga) = '')`
+        : sql`AND TRIM(ga) = ${agencyFilter}`
+      : sql``;
 
     // Agent filter
-    if (agentWnFilter) {
-      conditions.push(`TRIM(wa) = '${agentWnFilter}'`);
-    }
+    const agentWhere = agentWnFilter
+      ? sql`AND TRIM(wa) = ${agentWnFilter}`
+      : sql``;
 
-    // Writing numbers filter (roster agent lookup)
-    if (writingNumbers.length > 0) {
-      const escaped = writingNumbers.map((wn) => `'${wn.replace(/'/g, "''")}'`).join(",");
-      conditions.push(`TRIM(wa) IN (${escaped})`);
-    }
+    // Writing numbers filter — parameterized via ANY()
+    const wnWhere = writingNumbers
+      ? sql`AND TRIM(wa) = ANY(${writingNumbers})`
+      : sql``;
 
     // At-risk filter
-    if (atRiskOnly) {
-      conditions.push(`COALESCE(at_risk_policy, false) = true`);
-      conditions.push(`UPPER(TRIM(cntrct_code)) = 'A'`);
-    }
+    const atRiskWhere = atRiskOnly
+      ? sql`AND COALESCE(at_risk_policy, false) = true AND UPPER(TRIM(cntrct_code)) = 'A'`
+      : sql``;
 
-    // Search filter — search policy_nbr or client name
-    if (searchTerm) {
-      const escaped = searchTerm.replace(/'/g, "''");
-      conditions.push(`(
-        LOWER(TRIM(policy_nbr)) LIKE '%${escaped.toLowerCase()}%'
-        OR LOWER(CONCAT_WS(' ', TRIM(first_name), TRIM(last_name))) LIKE '%${escaped.toLowerCase()}%'
-      )`);
-    }
+    // Search filter — parameterized ILIKE
+    const searchLower = searchTerm ? searchTerm.toLowerCase() : null;
+    const searchPattern = searchLower ? `%${searchLower}%` : null;
+    const searchWhere = searchPattern
+      ? sql`AND (
+          LOWER(TRIM(policy_nbr)) LIKE ${searchPattern}
+          OR LOWER(CONCAT_WS(' ', TRIM(first_name), TRIM(last_name))) LIKE ${searchPattern}
+        )`
+      : sql``;
 
-    const whereClause = conditions.length > 0
-      ? `WHERE ${conditions.join(" AND ")}`
-      : "";
-
-    // ── Build ORDER BY ──────────────────────────────────────────────
-    const dir = sortOrder === "asc" ? "ASC" : "DESC";
-    let orderBy: string;
-    switch (sortField) {
-      case "premium":
-        orderBy = `COALESCE(annual_premium, 0) / 12 ${dir}`;
-        break;
-      case "annual_premium":
-        orderBy = `COALESCE(annual_premium, 0) ${dir}`;
-        break;
-      case "submit_date":
-        orderBy = `app_recvd_date ${dir} NULLS LAST`;
-        break;
-      case "paid_to_date":
-        orderBy = `paid_to_date ${dir} NULLS LAST`;
-        break;
-      case "policy_nbr":
-        orderBy = `policy_nbr ${dir}`;
-        break;
-      case "status":
-        orderBy = `cntrct_code ${dir}`;
-        break;
-      case "draft_count":
-        // Draft count is computed — sort by paid_to_date - app_recvd_date as proxy
-        orderBy = `(EXTRACT(EPOCH FROM (paid_to_date::timestamp - app_recvd_date::timestamp))) ${dir} NULLS LAST`;
-        break;
-      default:
-        orderBy = `COALESCE(annual_premium, 0) / 12 ${dir}`;
-    }
+    // ── Build ORDER BY (allowlisted field names — safe to interpolate) ──
+    // These are static SQL column references, not user values.
+    const dir = sortOrder === "asc" ? sql`ASC` : sql`DESC`;
+    const orderByMap: Record<string, ReturnType<typeof sql>> = {
+      premium: sql`COALESCE(annual_premium, 0) / 12 ${dir}`,
+      annual_premium: sql`COALESCE(annual_premium, 0) ${dir}`,
+      submit_date: sql`app_recvd_date ${dir} NULLS LAST`,
+      paid_to_date: sql`paid_to_date ${dir} NULLS LAST`,
+      policy_nbr: sql`policy_nbr ${dir}`,
+      status: sql`cntrct_code ${dir}`,
+      draft_count: sql`(EXTRACT(EPOCH FROM (paid_to_date::timestamp - app_recvd_date::timestamp))) ${dir} NULLS LAST`,
+    };
+    const orderBy = orderByMap[sortField] || orderByMap.premium;
+    const offset = page * pageSize;
 
     // ── Step 1: Get total count + summary stats (one query) ─────────
-    const summaryQuery = `
+    const [summaryRow] = await sql`
       SELECT
         COUNT(*) AS total_policies,
         COUNT(*) FILTER (WHERE UPPER(TRIM(cntrct_code)) = 'A' AND term_date IS NULL) AS active_policies,
@@ -180,15 +217,14 @@ Deno.serve(async (req) => {
         ROUND(SUM(CASE WHEN COALESCE(at_risk_policy, false) = true AND UPPER(TRIM(cntrct_code)) = 'A'
           THEN COALESCE(annual_premium, 0) ELSE 0 END)::numeric, 2) AS at_risk_annual_premium
       FROM typed.unl_fym_policy_latest_load
-      ${whereClause}
+      WHERE 1=1 ${productWhere} ${statusWhere} ${agencyWhere} ${agentWhere} ${wnWhere} ${atRiskWhere} ${searchWhere}
     `;
-    const [summaryRow] = await sql.unsafe(summaryQuery);
 
     const totalCount = Number(summaryRow.total_policies) || 0;
     const totalPages = Math.ceil(totalCount / pageSize);
 
     // Status breakdown — separate lightweight query
-    const breakdownQuery = `
+    const breakdownRows = await sql`
       SELECT
         CASE UPPER(TRIM(cntrct_code))
           WHEN 'A' THEN 'active'
@@ -199,7 +235,7 @@ Deno.serve(async (req) => {
         END AS status,
         COUNT(*) AS count
       FROM typed.unl_fym_policy_latest_load
-      ${whereClause}
+      WHERE 1=1 ${productWhere} ${statusWhere} ${agencyWhere} ${agentWhere} ${wnWhere} ${atRiskWhere} ${searchWhere}
       GROUP BY CASE UPPER(TRIM(cntrct_code))
         WHEN 'A' THEN 'active'
         WHEN 'T' THEN 'terminated'
@@ -208,14 +244,19 @@ Deno.serve(async (req) => {
         ELSE 'pending'
       END
     `;
-    const breakdownRows = await sql.unsafe(breakdownQuery);
     const statusBreakdown: Record<string, number> = {};
     for (const r of breakdownRows) {
       statusBreakdown[r.status as string] = Number(r.count) || 0;
     }
 
     // ── Step 2: Get just the page we need ───────────────────────────
-    const pageQuery = `
+    const pageRows = await sql`
+      WITH base AS (
+        SELECT *,
+          COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}) AS agency_id
+        FROM typed.unl_fym_policy_latest_load
+        WHERE 1=1 ${productWhere} ${statusWhere} ${agencyWhere} ${agentWhere} ${wnWhere} ${atRiskWhere} ${searchWhere}
+      )
       SELECT
         TRIM(policy_nbr) AS policy_number,
         CASE
@@ -239,7 +280,7 @@ Deno.serve(async (req) => {
           WHEN COALESCE(at_risk_policy, false) = true AND UPPER(TRIM(cntrct_code)) = 'A' THEN 'at_risk'
           ELSE NULL
         END AS flag_type,
-        COALESCE(NULLIF(TRIM(ga), ''), '${FYM_MGA_WN}') AS agency_id,
+        agency_id,
         TRIM(ga_name) AS agency_name,
         TRIM(wa) AS agent_writing_number,
         TRIM(wa_name) AS agent_name,
@@ -247,12 +288,10 @@ Deno.serve(async (req) => {
         TRIM(last_name) AS last_name,
         billing_mode,
         roster_hierarchy_json
-      FROM typed.unl_fym_policy_latest_load
-      ${whereClause}
+      FROM base
       ORDER BY ${orderBy}
-      LIMIT ${pageSize} OFFSET ${page * pageSize}
+      LIMIT ${pageSize} OFFSET ${offset}
     `;
-    const pageRows = await sql.unsafe(pageQuery);
 
     // ── Step 3: Post-process — roster overrides + formatting ────────
     // Only processes the page rows (max 500), not 50K+
@@ -357,7 +396,9 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     console.error("book-of-business error:", err);
-    return jsonResponse({ error: String(err) }, 500);
+    // Sanitize error — don't leak internal details
+    const safeMessage = err instanceof Error ? err.message : "Internal server error";
+    return jsonResponse({ error: safeMessage }, 500);
   } finally {
     if (sql) await sql.end({ timeout: 5 });
   }
