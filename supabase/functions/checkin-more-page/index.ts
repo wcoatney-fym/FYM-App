@@ -16,10 +16,25 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getTodayET } from "../_shared/date-helpers.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+const ALLOWED_ORIGINS = [
+  "https://agency.teamfym.com",
+  "https://www.agency.teamfym.com",
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "http://localhost:4173",
+];
+
+function corsHeaders(req?: Request | null): Record<string, string> {
+  const origin = req?.headers?.get("Origin") || req?.headers?.get("origin");
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  };
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    headers["Access-Control-Allow-Origin"] = origin;
+    headers["Vary"] = "Origin";
+  }
+  return headers;
 };
 
 const supabaseUrl = Deno.env.get("APP_SUPABASE_URL")!;
@@ -64,7 +79,7 @@ async function handleGenerate(body: { manager_id: string; date?: string }): Prom
     // Reuse existing valid code
     const url = `${APP_URL}/checkin/more?c=${existing.code}`;
     return new Response(JSON.stringify({ url, code: existing.code }), {
-      headers: { "Content-Type": "application/json", ...corsHeaders },
+      headers: { "Content-Type": "application/json", ...corsHeaders(req) },
     });
   }
 
@@ -80,13 +95,13 @@ async function handleGenerate(body: { manager_id: string; date?: string }): Prom
     console.error("Failed to create token:", error);
     return new Response(JSON.stringify({ error: "Failed to generate link" }), {
       status: 500,
-      headers: { "Content-Type": "application/json", ...corsHeaders },
+      headers: { "Content-Type": "application/json", ...corsHeaders(req) },
     });
   }
 
   const url = `${APP_URL}/checkin/more?c=${code}`;
   return new Response(JSON.stringify({ url, code }), {
-    headers: { "Content-Type": "application/json", ...corsHeaders },
+    headers: { "Content-Type": "application/json", ...corsHeaders(req) },
   });
 }
 
@@ -103,7 +118,7 @@ async function handleData(code: string): Promise<Response> {
   if (tokenErr || !token) {
     return new Response(
       JSON.stringify({ error: "Invalid link. Text MORE for a new one." }),
-      { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders(req) } }
     );
   }
 
@@ -111,7 +126,7 @@ async function handleData(code: string): Promise<Response> {
   if (new Date(token.expires_at) < new Date()) {
     return new Response(
       JSON.stringify({ error: "Link expired. Text MORE for a new one." }),
-      { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders(req) } }
     );
   }
 
@@ -126,7 +141,7 @@ async function handleData(code: string): Promise<Response> {
   if (respErr) {
     return new Response(
       JSON.stringify({ error: "Failed to fetch data" }),
-      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders(req) } }
     );
   }
 
@@ -180,13 +195,13 @@ async function handleData(code: string): Promise<Response> {
       stats: { total, working, notWorking, midSurvey, noResponse, responded, fourPlusHrs, totalApps, responseRate },
       agents: rows,
     }),
-    { headers: { "Content-Type": "application/json", ...corsHeaders } }
+    { headers: { "Content-Type": "application/json", ...corsHeaders(req) } }
   );
 }
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders(req) });
   }
 
   try {
@@ -198,7 +213,7 @@ serve(async (req) => {
       }
       return new Response(JSON.stringify({ error: "Unknown action" }), {
         status: 400,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
+        headers: { "Content-Type": "application/json", ...corsHeaders(req) },
       });
     }
 
@@ -208,7 +223,7 @@ serve(async (req) => {
     if (!code) {
       return new Response(JSON.stringify({ error: "Missing code" }), {
         status: 400,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
+        headers: { "Content-Type": "application/json", ...corsHeaders(req) },
       });
     }
     return handleData(code);
@@ -216,7 +231,7 @@ serve(async (req) => {
     console.error("checkin-more-page error:", err);
     return new Response(JSON.stringify({ error: "Internal server error" }), {
       status: 500,
-      headers: { "Content-Type": "application/json", ...corsHeaders },
+      headers: { "Content-Type": "application/json", ...corsHeaders(req) },
     });
   }
 });

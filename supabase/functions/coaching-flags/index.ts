@@ -28,7 +28,7 @@ import {
 import { createClient } from "npm:@supabase/supabase-js@2.39.3";
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return corsResponse();
+  if (req.method === "OPTIONS") return corsResponse(req);
 
   const url = new URL(req.url);
   const agencyFilter = url.searchParams.get("agency_id");
@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
     const appUrl = Deno.env.get("APP_SUPABASE_URL") || Deno.env.get("SUPABASE_URL") || "";
     const appKey = Deno.env.get("APP_SUPABASE_SERVICE_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
     if (!appUrl || !appKey) {
-      return jsonResponse({ error: "Missing APP_SUPABASE_URL/SUPABASE_URL or APP_SUPABASE_SERVICE_KEY/SUPABASE_SERVICE_ROLE_KEY" }, 500);
+      return jsonResponse({ error: "Missing APP_SUPABASE_URL/SUPABASE_URL or APP_SUPABASE_SERVICE_KEY/SUPABASE_SERVICE_ROLE_KEY" }, 500, req);
     }
 
     const appClient = createClient(appUrl, appKey);
@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (thErr) {
-      return jsonResponse({ error: `Thresholds load failed: ${thErr.message}` }, 500);
+      return jsonResponse({ error: `Thresholds load failed: ${thErr.message}` }, 500, req);
     }
 
     const thresholds = {
@@ -234,7 +234,7 @@ Deno.serve(async (req) => {
     });
   } catch (err: any) {
     console.error("coaching-flags error:", err);
-    return jsonResponse({ error: "Internal server error" }, 500);
+    return jsonResponse({ error: "Internal server error" }, 500, req);
   } finally {
     if (sql) await sql.end();
   }

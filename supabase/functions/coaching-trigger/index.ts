@@ -97,7 +97,7 @@ interface ActionResult {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return corsResponse();
+  if (req.method === "OPTIONS") return corsResponse(req);
 
   const started = performance.now();
   const url = new URL(req.url);

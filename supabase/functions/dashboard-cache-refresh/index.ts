@@ -35,7 +35,7 @@ const APP_URL = Deno.env.get("APP_SUPABASE_URL") ?? "";
 const APP_SERVICE_KEY = Deno.env.get("APP_SUPABASE_SERVICE_KEY") ?? "";
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return corsResponse();
+  if (req.method === "OPTIONS") return corsResponse(req);
 
   const started = performance.now();
   let sql: ReturnType<typeof createProdConnection> | null = null;
@@ -525,7 +525,7 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     console.error("dashboard-cache-refresh error:", err);
-    return jsonResponse({ error: "Internal server error" }, 500);
+    return jsonResponse({ error: "Internal server error" }, 500, req);
   } finally {
     if (sql) await sql.end({ timeout: 5 });
   }

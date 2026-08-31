@@ -59,14 +59,27 @@ interface LifecycleRecord {
   is_producing: boolean;
 }
 
+const ALLOWED_ORIGINS = [
+  "https://agency.teamfym.com",
+  "https://www.agency.teamfym.com",
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "http://localhost:4173",
+];
+
+let _currentReq: Request | null = null;
 function corsHeaders(): Record<string, string> {
-  return {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers":
-      "authorization, x-client-info, apikey, content-type",
+  const origin = _currentReq?.headers?.get("Origin") || _currentReq?.headers?.get("origin");
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
     "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
     "Content-Type": "application/json",
   };
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    headers["Access-Control-Allow-Origin"] = origin;
+    headers["Vary"] = "Origin";
+  }
+  return headers;
 }
 
 function jsonResponse(data: unknown, status = 200): Response {
@@ -379,6 +392,7 @@ async function executeAutoOffboarding(
 // ── Main handler ──────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
+  _currentReq = req;
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders() });
   }

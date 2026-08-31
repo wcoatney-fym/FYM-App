@@ -199,24 +199,55 @@ export function resolveRiskFlag(
   return { isAtRisk: false, flagType: null };
 }
 
+/**
+ * Allowed origins for CORS. Requests from other origins get no
+ * Access-Control-Allow-Origin header, so browsers block the response.
+ * Server-to-server callers (cron, webhooks) are unaffected by CORS.
+ */
+const ALLOWED_ORIGINS = [
+  "https://agency.teamfym.com",
+  "https://www.agency.teamfym.com",
+  "http://localhost:5173",   // Vite dev
+  "http://localhost:3000",   // alternate dev
+  "http://localhost:4173",   // Vite preview
+];
+
+/** Return the origin if it's on the allowlist, otherwise undefined. */
+export function getAllowedOrigin(req?: Request | null): string | undefined {
+  const origin = req?.headers?.get("Origin") || req?.headers?.get("origin");
+  if (origin && ALLOWED_ORIGINS.includes(origin)) return origin;
+  return undefined;
+}
+
+/** Build CORS headers for a given request. */
+export function corsHeaders(req?: Request | null): Record<string, string> {
+  const origin = getAllowedOrigin(req);
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  };
+  if (origin) {
+    headers["Access-Control-Allow-Origin"] = origin;
+    headers["Vary"] = "Origin";
+  }
+  return headers;
+}
+
 /** Standard JSON response helper */
-export function jsonResponse(data: unknown, status = 200): Response {
+export function jsonResponse(data: unknown, status = 200, req?: Request | null): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+      ...corsHeaders(req),
     },
   });
 }
 
 /** CORS preflight handler */
-export function corsResponse(): Response {
+export function corsResponse(req?: Request | null): Response {
   return new Response("ok", {
     headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+      ...corsHeaders(req),
       "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
     },
   });

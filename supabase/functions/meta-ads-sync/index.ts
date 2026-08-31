@@ -116,14 +116,33 @@ async function graphGet<T>(
   return results;
 }
 
-function jsonResponse(data: unknown, status = 200): Response {
+const ALLOWED_ORIGINS = [
+  "https://agency.teamfym.com",
+  "https://www.agency.teamfym.com",
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "http://localhost:4173",
+];
+
+function metaCorsHeaders(req?: Request | null): Record<string, string> {
+  const origin = req?.headers?.get("Origin") || req?.headers?.get("origin");
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type, apikey, x-client-info",
+  };
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    headers["Access-Control-Allow-Origin"] = origin;
+    headers["Vary"] = "Origin";
+  }
+  return headers;
+}
+
+function jsonResponse(data: unknown, status = 200, req?: Request | null): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Authorization, Content-Type, apikey, x-client-info",
+      ...metaCorsHeaders(req),
     },
   });
 }
@@ -134,11 +153,7 @@ Deno.serve(async (req: Request) => {
   // CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, {
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Authorization, Content-Type, apikey, x-client-info",
-      },
+      headers: metaCorsHeaders(req),
     });
   }
 
@@ -305,9 +320,9 @@ Deno.serve(async (req: Request) => {
       campaign_insights: campaignInsights.length,
       ad_sets: adSetRows.length,
       daily_rows: dailyUpserted,
-    });
+    }, 200, req);
   } catch (err) {
     console.error("meta-ads-sync error:", err);
-    return jsonResponse({ ok: false, error: "Internal server error" }, 500);
+    return jsonResponse({ ok: false, error: "Internal server error" }, 500, req);
   }
 });

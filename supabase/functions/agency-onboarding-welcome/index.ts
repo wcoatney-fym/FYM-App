@@ -2,16 +2,33 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
-};
+const ALLOWED_ORIGINS = [
+  "https://agency.teamfym.com",
+  "https://www.agency.teamfym.com",
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "http://localhost:4173",
+];
+
+let _currentReq: Request | null = null;
+
+function corsHeaders(): Record<string, string> {
+  const origin = _currentReq?.headers?.get("Origin") || _currentReq?.headers?.get("origin");
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
+  };
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    headers["Access-Control-Allow-Origin"] = origin;
+    headers["Vary"] = "Origin";
+  }
+  return headers;
+}
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...corsHeaders(), "Content-Type": "application/json" },
   });
 }
 
@@ -110,13 +127,14 @@ Questions? Contact will@teamfym.com`;
 }
 
 Deno.serve(async (req: Request) => {
+  _currentReq = req;
   if (req.method === "OPTIONS") {
-    return new Response(null, { status: 200, headers: corsHeaders });
+    return new Response(null, { status: 200, headers: corsHeaders() });
   }
 
   try {
     if (!RESEND_API_KEY) {
-      return jsonResponse({ success: false, error: "RESEND_API_KEY not configured" }, 500);
+      return jsonResponse({ success: false, error: "RESEND_API_KEY not configured" }, 500, req);
     }
 
     const body = await req.json();
@@ -165,11 +183,11 @@ Deno.serve(async (req: Request) => {
 
     if (!resendRes.ok) {
       console.error("Resend error:", resendResult);
-      return jsonResponse({ success: false, error: resendResult }, resendRes.status);
+      return jsonResponse({ success: false, error: resendResult }, resendRes.status, req);
     }
 
     console.log("Onboarding welcome email sent:", resendResult.id, "→", principal_email);
-    return jsonResponse({ success: true, resend_id: resendResult.id });
+    return jsonResponse({ success: true, resend_id: resendResult.id }, req);
 
   } catch (err) {
     console.error("agency-onboarding-welcome error:", err);

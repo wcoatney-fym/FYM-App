@@ -30,7 +30,7 @@ interface CompletionAction {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return corsResponse();
+  if (req.method === "OPTIONS") return corsResponse(req);
 
   const started = performance.now();
   const url = new URL(req.url);
@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
     const appUrl = Deno.env.get("APP_SUPABASE_URL") || Deno.env.get("SUPABASE_URL") || "";
     const appKey = Deno.env.get("APP_SUPABASE_SERVICE_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
     if (!appUrl || !appKey) {
-      return jsonResponse({ error: "Missing APP_SUPABASE_URL or APP_SUPABASE_SERVICE_KEY" }, 500);
+      return jsonResponse({ error: "Missing APP_SUPABASE_URL or APP_SUPABASE_SERVICE_KEY" }, 500, req);
     }
     const appDb = createClient(appUrl, appKey, {
       auth: { autoRefreshToken: false, persistSession: false },
@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
     const portalUrl = Deno.env.get("PORTAL_SUPABASE_URL") || "";
     const portalKey = Deno.env.get("PORTAL_SUPABASE_SERVICE_KEY") || "";
     if (!portalUrl || !portalKey) {
-      return jsonResponse({ error: "Missing PORTAL_SUPABASE_URL or PORTAL_SUPABASE_SERVICE_KEY" }, 500);
+      return jsonResponse({ error: "Missing PORTAL_SUPABASE_URL or PORTAL_SUPABASE_SERVICE_KEY" }, 500, req);
     }
     const portalDb = createClient(portalUrl, portalKey, {
       auth: { autoRefreshToken: false, persistSession: false },
@@ -331,6 +331,6 @@ Deno.serve(async (req) => {
     });
   } catch (err: unknown) {
     console.error("coaching-completion error:", err);
-    return jsonResponse({ error: "Internal server error" }, 500);
+    return jsonResponse({ error: "Internal server error" }, 500, req);
   }
 });

@@ -35,7 +35,7 @@ import { loadRosterMap } from "../_shared/roster-map.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return corsResponse();
+  if (req.method === "OPTIONS") return corsResponse(req);
 
   const started = performance.now();
   const url = new URL(req.url);
@@ -817,14 +817,14 @@ Deno.serve(async (req) => {
       }
 
       default:
-        return jsonResponse({ error: `Unknown type: ${type}` }, 400);
+        return jsonResponse({ error: `Unknown type: ${type}` }, 400, req);
     }
 
     const elapsedMs = Math.round(performance.now() - started);
-    return jsonResponse({ data: result, _source: "prod_direct", _elapsed_ms: elapsedMs });
+    return jsonResponse({ data: result, _source: "prod_direct", _elapsed_ms: elapsedMs }, req);
   } catch (err) {
     console.error("retention-data error:", err);
-    return jsonResponse({ error: "Internal server error" }, 500);
+    return jsonResponse({ error: "Internal server error" }, 500, req);
   } finally {
     if (sql) await sql.end({ timeout: 5 });
   }
