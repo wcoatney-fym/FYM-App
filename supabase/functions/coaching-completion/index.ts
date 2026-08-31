@@ -20,7 +20,8 @@
  */
 
 import { createClient } from "npm:@supabase/supabase-js@2.39.3";
-import { corsResponse, jsonResponse } from "../_shared/prod-db.ts";
+import { corsResponse, jsonResponse   verifyAuth,
+} from "../_shared/prod-db.ts";
 
 interface CompletionAction {
   action: "incremented" | "completed" | "advanced" | "skipped";
@@ -31,6 +32,12 @@ interface CompletionAction {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return corsResponse(req);
+
+  // ── Auth gate ──────────────────────────────────────────────────────
+  const { user, error: authError } = await verifyAuth(req);
+  if (!user) {
+    return jsonResponse({ error: authError || "Unauthorized" }, 401, req);
+  }
 
   const started = performance.now();
   const url = new URL(req.url);
