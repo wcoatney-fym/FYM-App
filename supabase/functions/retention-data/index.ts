@@ -824,7 +824,7 @@ Deno.serve(async (req) => {
     return jsonResponse({ data: result, _source: "prod_direct", _elapsed_ms: elapsedMs });
   } catch (err) {
     console.error("retention-data error:", err);
-    return jsonResponse({ error: String(err) }, 500);
+    return jsonResponse({ error: "Internal server error" }, 500);
   } finally {
     if (sql) await sql.end({ timeout: 5 });
   }

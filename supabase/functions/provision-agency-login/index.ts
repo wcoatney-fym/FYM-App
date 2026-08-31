@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
           );
           results.push({ agency: agency.name, status: 'provisioned', email });
         } catch (err) {
-          results.push({ agency: agency.name, status: `error: ${(err as Error).message}` });
+          results.push({ agency: agency.name, status: "error: provision failed" });
         }
       }
 
@@ -231,7 +231,7 @@ Deno.serve(async (req) => {
 
   } catch (err) {
     return new Response(
-      JSON.stringify({ error: String(err) }),
+      JSON.stringify({ error: "Internal server error" }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

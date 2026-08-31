@@ -175,7 +175,6 @@ Deno.serve(async (req) => {
       console.error(`[wn-backfill] Prod DB connection failed: ${err}`);
       return jsonResponse({
         error: "Failed to connect to production DB",
-        detail: String(err),
       }, 500);
     }
   } else {

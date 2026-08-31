@@ -501,9 +501,7 @@ Deno.serve(async (req) => {
     return jsonResponse({ data: result, _source: "prod_direct_sql", _elapsed_ms: elapsedMs });
   } catch (err) {
     console.error("prod-data error:", err);
-    // Sanitize error — don't leak internal details
-    const safeMessage = err instanceof Error ? err.message : "Internal server error";
-    return jsonResponse({ error: safeMessage }, 500);
+    return jsonResponse({ error: "Internal server error" }, 500);
   } finally {
     if (sql) await sql.end({ timeout: 5 });
   }

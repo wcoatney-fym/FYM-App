@@ -308,6 +308,6 @@ Deno.serve(async (req: Request) => {
     });
   } catch (err) {
     console.error("meta-ads-sync error:", err);
-    return jsonResponse({ ok: false, error: (err as Error).message }, 500);
+    return jsonResponse({ ok: false, error: "Internal server error" }, 500);
   }
 });

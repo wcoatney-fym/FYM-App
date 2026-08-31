@@ -330,8 +330,7 @@ Deno.serve(async (req) => {
       elapsed_ms: elapsed,
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Internal error";
     console.error("coaching-completion error:", err);
-    return jsonResponse({ error: message }, 500);
+    return jsonResponse({ error: "Internal server error" }, 500);
   }
 });

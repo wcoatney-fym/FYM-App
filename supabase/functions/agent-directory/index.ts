@@ -155,7 +155,7 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     console.error("agent-directory error:", err);
-    return jsonResponse({ error: String(err) }, 500);
+    return jsonResponse({ error: "Internal server error" }, 500);
   } finally {
     if (sql) await sql.end({ timeout: 5 });
   }

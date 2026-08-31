@@ -121,7 +121,7 @@ serve(async (req) => {
   } catch (err) {
     console.error("checkin-send error:", err);
     return new Response(
-      JSON.stringify({ error: String(err) }),
+      JSON.stringify({ error: "Internal server error" }),
       { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }

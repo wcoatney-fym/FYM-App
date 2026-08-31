@@ -175,7 +175,7 @@ Deno.serve(async (req: Request) => {
     console.error("agency-onboarding-welcome error:", err);
     return jsonResponse({
       success: false,
-      error: err instanceof Error ? err.message : "Unknown error",
+      error: "Internal server error",
     }, 500);
   }
 });
