@@ -13,6 +13,9 @@
  * ALL aggregation is pushed to SQL GROUP BY to avoid OOM.
  * Only aggregate result rows are held in memory — never the full policy table.
  *
+ * SECURITY: All user-supplied values are parameterized via postgres.js tagged
+ * templates. No string interpolation in SQL. Inputs are validated before use.
+ *
  * Query params:
  *   type:       "agency" | "agent" | "daily" | "monthly" | "monthly_overlay" | "product_mix" | "recruiting_roi"
  *   agency_id:  filter by agency (tracker_id / writing_number)
@@ -28,45 +31,80 @@ import {
   corsResponse,
 } from "../_shared/prod-db.ts";
 
+// ── Input validation ──────────────────────────────────────────────────
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const WN_RE = /^[A-Za-z0-9]{1,20}$/;
+const VALID_TYPES = new Set([
+  "agency", "agent", "daily", "monthly", "monthly_overlay", "product_mix", "recruiting_roi",
+]);
+
+function validateDate(v: string | null): string | null {
+  if (!v) return null;
+  return DATE_RE.test(v) ? v : null;
+}
+
+function validateWn(v: string | null): string | null {
+  if (!v) return null;
+  return WN_RE.test(v) ? v : null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return corsResponse();
 
   const started = performance.now();
   const url = new URL(req.url);
   const type = url.searchParams.get("type") || "agency";
-  const agencyFilter = url.searchParams.get("agency_id");
-  const agentFilter = url.searchParams.get("agent_id");
-  const startDate = url.searchParams.get("start_date");
-  const endDate = url.searchParams.get("end_date");
+
+  if (!VALID_TYPES.has(type)) {
+    return jsonResponse({ error: `Unknown type: ${type}` }, 400);
+  }
+
+  const agencyFilter = validateWn(url.searchParams.get("agency_id"));
+  const agentFilter = validateWn(url.searchParams.get("agent_id"));
+  const startDate = validateDate(url.searchParams.get("start_date"));
+  const endDate = validateDate(url.searchParams.get("end_date"));
+
+  // Reject if caller supplied values that failed validation
+  if (url.searchParams.get("agency_id") && !agencyFilter) {
+    return jsonResponse({ error: "Invalid agency_id format" }, 400);
+  }
+  if (url.searchParams.get("agent_id") && !agentFilter) {
+    return jsonResponse({ error: "Invalid agent_id format" }, 400);
+  }
+  if (url.searchParams.get("start_date") && !startDate) {
+    return jsonResponse({ error: "Invalid start_date format (expected YYYY-MM-DD)" }, 400);
+  }
+  if (url.searchParams.get("end_date") && !endDate) {
+    return jsonResponse({ error: "Invalid end_date format (expected YYYY-MM-DD)" }, 400);
+  }
 
   let sql: ReturnType<typeof createProdConnection> | null = null;
 
   try {
     sql = createProdConnection();
 
-    // ── Build common WHERE fragments ──────────────────────────────────
-    // Product filter — HI/HHC only (applied to all types)
-    const productWhere = `(
+    // ── Parameterized WHERE fragment helpers ───────────────────────────
+    // postgres.js tagged templates auto-parameterize interpolated values.
+    // Static SQL fragments use sql`` (empty interpolation = safe literal).
+    const productFilter = sql`(
       UPPER(TRIM(plan_code)) LIKE '%HHC%' OR UPPER(TRIM(plan_code)) LIKE '%AHH%'
       OR UPPER(TRIM(plan_code)) LIKE '%HI%' OR UPPER(TRIM(plan_code)) LIKE '%HIP%'
       OR UPPER(TRIM(plan_code)) LIKE '%UHL%'
     )`;
 
-    const dateWhere = startDate && endDate
-      ? `AND app_recvd_date >= '${startDate}'::date AND app_recvd_date < '${endDate}'::date`
-      : "";
+    const dateFilter = startDate && endDate
+      ? sql`AND app_recvd_date >= ${startDate}::date AND app_recvd_date < ${endDate}::date`
+      : sql``;
 
     const agencyWhere = agencyFilter
       ? agencyFilter === FYM_MGA_WN
-        ? `AND (TRIM(ga) = '${agencyFilter}' OR ga IS NULL OR TRIM(ga) = '')`
-        : `AND TRIM(ga) = '${agencyFilter}'`
-      : "";
+        ? sql`AND (TRIM(ga) = ${agencyFilter} OR ga IS NULL OR TRIM(ga) = '')`
+        : sql`AND TRIM(ga) = ${agencyFilter}`
+      : sql``;
 
     const agentWhere = agentFilter
-      ? `AND TRIM(wa) = '${agentFilter}'`
-      : "";
-
-    const baseWhere = `WHERE ${productWhere} ${dateWhere} ${agencyWhere} ${agentWhere}`;
+      ? sql`AND TRIM(wa) = ${agentFilter}`
+      : sql``;
 
     const now = new Date();
     const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -81,18 +119,21 @@ Deno.serve(async (req) => {
         let names: string[] = [];
         try {
           const body = await req.json();
-          names = (body.names ?? []).map((n: string) => n.trim().toUpperCase()).filter(Boolean);
+          names = (body.names ?? [])
+            .map((n: string) => (typeof n === "string" ? n.trim().toUpperCase() : ""))
+            .filter(Boolean);
         } catch { /* query-param only is fine */ }
 
-        const whereClause = names.length > 0
-          ? `WHERE UPPER(TRIM(wa_name)) IN (${names.map(n => `'${n.replace(/'/g, "''")}'`).join(",")})`
-          : `WHERE 1=1`;
+        // Use parameterized ANY($1) instead of IN(...) string interpolation
+        const nameFilter = names.length > 0
+          ? sql`AND UPPER(TRIM(wa_name)) = ANY(${names})`
+          : sql``;
 
-        const rows = await sql.unsafe(`
+        const rows = await sql`
           SELECT
             TRIM(wa) AS writing_number,
             TRIM(wa_name) AS agent_name,
-            COALESCE(NULLIF(TRIM(ga), ''), '${FYM_MGA_WN}') AS agency_wn,
+            COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}) AS agency_wn,
             COALESCE(TRIM(ga_name), '') AS agency_name,
             COUNT(*) AS total_policies,
             COUNT(CASE WHEN UPPER(TRIM(cntrct_code)) = 'A' AND term_date IS NULL THEN 1 END) AS active_policies,
@@ -101,11 +142,11 @@ Deno.serve(async (req) => {
             MIN(issue_date) AS first_issue_date,
             MAX(issue_date) AS last_issue_date
           FROM typed.unl_fym_policy_latest_load
-          ${whereClause}
-            AND TRIM(wa) IS NOT NULL AND TRIM(wa) != ''
-          GROUP BY TRIM(wa), TRIM(wa_name), COALESCE(NULLIF(TRIM(ga), ''), '${FYM_MGA_WN}'), COALESCE(TRIM(ga_name), '')
+          WHERE TRIM(wa) IS NOT NULL AND TRIM(wa) != ''
+            ${nameFilter}
+          GROUP BY TRIM(wa), TRIM(wa_name), COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}), COALESCE(TRIM(ga_name), '')
           ORDER BY active_ap DESC
-        `);
+        `;
 
         const elapsedMs = Math.round(performance.now() - started);
         return jsonResponse({ data: rows, _source: "prod_direct", _elapsed_ms: elapsedMs });
@@ -113,10 +154,10 @@ Deno.serve(async (req) => {
 
       // ── AGENCY ──────────────────────────────────────────────────────
       case "agency": {
-        const rows = await sql.unsafe(`
+        const rows = await sql`
           SELECT
-            COALESCE(NULLIF(TRIM(ga), ''), '${FYM_MGA_WN}') AS agency_id,
-            MIN(CASE WHEN COALESCE(NULLIF(TRIM(ga), ''), '${FYM_MGA_WN}') = '${FYM_MGA_WN}' THEN 'FYM' ELSE TRIM(ga_name) END) AS agency_name,
+            COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}) AS agency_id,
+            MIN(CASE WHEN COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}) = ${FYM_MGA_WN} THEN 'FYM' ELSE TRIM(ga_name) END) AS agency_name,
             COUNT(*) AS total_policies,
             ROUND(SUM(COALESCE(annual_premium, 0))::numeric, 2) AS total_annual_premium,
             COUNT(*) FILTER (WHERE UPPER(TRIM(cntrct_code)) = 'A' AND term_date IS NULL) AS active_policies,
@@ -128,15 +169,15 @@ Deno.serve(async (req) => {
             ROUND(SUM(CASE WHEN UPPER(TRIM(cntrct_code)) = 'T' THEN COALESCE(annual_premium, 0) ELSE 0 END)::numeric, 2) AS terminated_annual_premium,
             ROUND(SUM(CASE WHEN UPPER(TRIM(cntrct_code)) NOT IN ('A', 'T', 'S') THEN COALESCE(annual_premium, 0) ELSE 0 END)::numeric, 2) AS pending_annual_premium,
             ROUND(SUM(CASE WHEN COALESCE(at_risk_policy, false) = true AND UPPER(TRIM(cntrct_code)) = 'A' THEN COALESCE(annual_premium, 0) ELSE 0 END)::numeric, 2) AS at_risk_annual_premium,
-            COUNT(*) FILTER (WHERE TO_CHAR(app_recvd_date, 'YYYY-MM') = '${thisMonth}') AS policies_this_month,
-            ROUND(SUM(CASE WHEN TO_CHAR(app_recvd_date, 'YYYY-MM') = '${thisMonth}' THEN COALESCE(annual_premium, 0) ELSE 0 END)::numeric, 2) AS ap_this_month,
-            COUNT(*) FILTER (WHERE TO_CHAR(app_recvd_date, 'YYYY-MM') = '${lastMonthKey}') AS policies_last_month,
-            ROUND(SUM(CASE WHEN TO_CHAR(app_recvd_date, 'YYYY-MM') = '${lastMonthKey}' THEN COALESCE(annual_premium, 0) ELSE 0 END)::numeric, 2) AS ap_last_month
+            COUNT(*) FILTER (WHERE TO_CHAR(app_recvd_date, 'YYYY-MM') = ${thisMonth}) AS policies_this_month,
+            ROUND(SUM(CASE WHEN TO_CHAR(app_recvd_date, 'YYYY-MM') = ${thisMonth} THEN COALESCE(annual_premium, 0) ELSE 0 END)::numeric, 2) AS ap_this_month,
+            COUNT(*) FILTER (WHERE TO_CHAR(app_recvd_date, 'YYYY-MM') = ${lastMonthKey}) AS policies_last_month,
+            ROUND(SUM(CASE WHEN TO_CHAR(app_recvd_date, 'YYYY-MM') = ${lastMonthKey} THEN COALESCE(annual_premium, 0) ELSE 0 END)::numeric, 2) AS ap_last_month
           FROM typed.unl_fym_policy_latest_load
-          ${baseWhere}
-          GROUP BY COALESCE(NULLIF(TRIM(ga), ''), '${FYM_MGA_WN}')
+          WHERE ${productFilter} ${dateFilter} ${agencyWhere} ${agentWhere}
+          GROUP BY COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN})
           ORDER BY active_annual_premium DESC
-        `);
+        `;
 
         const agencies = rows.map((r: Record<string, unknown>) => ({
           agency_id: r.agency_id as string,
@@ -166,12 +207,12 @@ Deno.serve(async (req) => {
 
       // ── AGENT ───────────────────────────────────────────────────────
       case "agent": {
-        const rows = await sql.unsafe(`
+        const rows = await sql`
           WITH policy_data AS (
             SELECT
               TRIM(wa) AS agent_wn,
               TRIM(wa_name) AS wa_name,
-              COALESCE(NULLIF(TRIM(ga), ''), '${FYM_MGA_WN}') AS agency_wn,
+              COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}) AS agency_wn,
               UPPER(TRIM(cntrct_code)) AS status_code,
               COALESCE(annual_premium, 0) AS annual_premium,
               COALESCE(at_risk_policy, false) AS at_risk_policy,
@@ -180,7 +221,7 @@ Deno.serve(async (req) => {
               COALESCE(billing_mode, 1) AS billing_mode,
               term_date
             FROM typed.unl_fym_policy_latest_load
-            ${baseWhere}
+            WHERE ${productFilter} ${dateFilter} ${agencyWhere} ${agentWhere}
               AND TRIM(wa) IS NOT NULL AND TRIM(wa) != ''
           ),
           with_draft AS (
@@ -215,15 +256,15 @@ Deno.serve(async (req) => {
             COUNT(*) FILTER (WHERE at_risk_policy = true AND status = 'active') AS at_risk_policies,
             COALESCE(SUM(annual_premium / 12) FILTER (WHERE status = 'active'), 0) AS active_monthly_premium,
             COALESCE(SUM(annual_premium) FILTER (WHERE status = 'active'), 0) AS active_annual_premium,
-            COUNT(*) FILTER (WHERE TO_CHAR(app_recvd_date, 'YYYY-MM') = '${thisMonth}') AS policies_this_month,
-            COALESCE(SUM(annual_premium) FILTER (WHERE TO_CHAR(app_recvd_date, 'YYYY-MM') = '${thisMonth}'), 0) AS ap_this_month,
+            COUNT(*) FILTER (WHERE TO_CHAR(app_recvd_date, 'YYYY-MM') = ${thisMonth}) AS policies_this_month,
+            COALESCE(SUM(annual_premium) FILTER (WHERE TO_CHAR(app_recvd_date, 'YYYY-MM') = ${thisMonth}), 0) AS ap_this_month,
             COUNT(*) FILTER (WHERE draft_count >= 1) AS ever_drafted,
             COUNT(*) FILTER (WHERE draft_count >= 3) AS retained_policies,
             MIN(app_recvd_date) AS earliest_issue_date
           FROM with_draft
           GROUP BY agent_wn
           ORDER BY active_annual_premium DESC
-        `);
+        `;
 
         const agents = rows.map((r: Record<string, unknown>) => {
           const rawWaName = (r.wa_name as string | null)?.trim() || null;
@@ -264,37 +305,37 @@ Deno.serve(async (req) => {
       // ── DAILY ───────────────────────────────────────────────────────
       case "daily": {
         // Submitted (by app_recvd_date)
-        const submittedRows = await sql.unsafe(`
+        const submittedRows = await sql`
           SELECT
-            COALESCE(NULLIF(TRIM(ga), ''), '${FYM_MGA_WN}') AS agency_id,
+            COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}) AS agency_id,
             TO_CHAR(app_recvd_date, 'YYYY-MM-DD') AS day,
             COUNT(*) AS policies,
             ROUND(SUM(COALESCE(annual_premium, 0))::numeric, 2) AS annual_premium
           FROM typed.unl_fym_policy_latest_load
-          ${baseWhere}
+          WHERE ${productFilter} ${dateFilter} ${agencyWhere} ${agentWhere}
             AND app_recvd_date IS NOT NULL
-          GROUP BY COALESCE(NULLIF(TRIM(ga), ''), '${FYM_MGA_WN}'), TO_CHAR(app_recvd_date, 'YYYY-MM-DD')
+          GROUP BY COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}), TO_CHAR(app_recvd_date, 'YYYY-MM-DD')
           ORDER BY day
-        `);
+        `;
 
         // Effectuated (by issue_date) — separate query for policies that became
         // active within the window, regardless of when submitted
         let effectuatedMap: Record<string, Record<string, number>> = {};
         if (startDate && endDate) {
-          const effRows = await sql.unsafe(`
+          const effRows = await sql`
             SELECT
-              COALESCE(NULLIF(TRIM(ga), ''), '${FYM_MGA_WN}') AS agency_id,
+              COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}) AS agency_id,
               TO_CHAR(issue_date, 'YYYY-MM-DD') AS day,
               COUNT(*) AS issued
             FROM typed.unl_fym_policy_latest_load
-            WHERE issue_date >= '${startDate}'::date
-              AND issue_date < '${endDate}'::date
+            WHERE issue_date >= ${startDate}::date
+              AND issue_date < ${endDate}::date
               AND UPPER(TRIM(cntrct_code)) = 'A'
               AND term_date IS NULL
               ${agencyWhere} ${agentWhere}
-              AND ${productWhere}
-            GROUP BY COALESCE(NULLIF(TRIM(ga), ''), '${FYM_MGA_WN}'), TO_CHAR(issue_date, 'YYYY-MM-DD')
-          `);
+              AND ${productFilter}
+            GROUP BY COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}), TO_CHAR(issue_date, 'YYYY-MM-DD')
+          `;
           for (const r of effRows) {
             const aid = r.agency_id as string;
             const day = r.day as string;
@@ -330,18 +371,18 @@ Deno.serve(async (req) => {
 
       // ── MONTHLY ─────────────────────────────────────────────────────
       case "monthly": {
-        const rows = await sql.unsafe(`
+        const rows = await sql`
           SELECT
-            COALESCE(NULLIF(TRIM(ga), ''), '${FYM_MGA_WN}') AS agency_id,
+            COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}) AS agency_id,
             TO_CHAR(app_recvd_date, 'YYYY-MM') AS month,
             COUNT(*) AS policies,
             ROUND(SUM(COALESCE(annual_premium, 0))::numeric, 2) AS annual_premium
           FROM typed.unl_fym_policy_latest_load
-          ${baseWhere}
+          WHERE ${productFilter} ${dateFilter} ${agencyWhere} ${agentWhere}
             AND app_recvd_date IS NOT NULL
-          GROUP BY COALESCE(NULLIF(TRIM(ga), ''), '${FYM_MGA_WN}'), TO_CHAR(app_recvd_date, 'YYYY-MM')
+          GROUP BY COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}), TO_CHAR(app_recvd_date, 'YYYY-MM')
           ORDER BY month
-        `);
+        `;
 
         result = rows.map((r: Record<string, unknown>) => ({
           agency_id: r.agency_id as string,
@@ -354,14 +395,14 @@ Deno.serve(async (req) => {
 
       // ── MONTHLY OVERLAY (submitted vs issued) ───────────────────────
       case "monthly_overlay": {
-        const rows = await sql.unsafe(`
+        const rows = await sql`
           WITH submitted AS (
             SELECT
               TO_CHAR(app_recvd_date, 'YYYY-MM') AS month,
               COUNT(*) AS policies,
               ROUND(SUM(COALESCE(annual_premium, 0))::numeric, 2) AS annual_premium
             FROM typed.unl_fym_policy_latest_load
-            ${baseWhere}
+            WHERE ${productFilter} ${dateFilter} ${agencyWhere} ${agentWhere}
               AND app_recvd_date IS NOT NULL
             GROUP BY TO_CHAR(app_recvd_date, 'YYYY-MM')
           ),
@@ -371,7 +412,7 @@ Deno.serve(async (req) => {
               COUNT(*) AS policies,
               ROUND(SUM(COALESCE(annual_premium, 0))::numeric, 2) AS annual_premium
             FROM typed.unl_fym_policy_latest_load
-            ${baseWhere}
+            WHERE ${productFilter} ${dateFilter} ${agencyWhere} ${agentWhere}
               AND issue_date IS NOT NULL
             GROUP BY TO_CHAR(issue_date, 'YYYY-MM')
           )
@@ -384,7 +425,7 @@ Deno.serve(async (req) => {
           FROM submitted s
           FULL OUTER JOIN issued i ON s.month = i.month
           ORDER BY COALESCE(s.month, i.month)
-        `);
+        `;
 
         result = rows.map((r: Record<string, unknown>) => ({
           month: r.month as string,
@@ -398,21 +439,21 @@ Deno.serve(async (req) => {
 
       // ── PRODUCT MIX ─────────────────────────────────────────────────
       case "product_mix": {
-        const rows = await sql.unsafe(`
+        const rows = await sql`
           SELECT
-            COALESCE(NULLIF(TRIM(ga), ''), '${FYM_MGA_WN}') AS agency_id,
+            COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}) AS agency_id,
             CASE
               WHEN UPPER(TRIM(plan_code)) LIKE '%HHC%' OR UPPER(TRIM(plan_code)) LIKE '%AHH%' THEN 'HHC'
               ELSE 'HI'
             END AS product_type,
             COUNT(*) AS count
           FROM typed.unl_fym_policy_latest_load
-          ${baseWhere}
+          WHERE ${productFilter} ${dateFilter} ${agencyWhere} ${agentWhere}
             AND UPPER(TRIM(cntrct_code)) = 'A'
             AND term_date IS NULL
-          GROUP BY COALESCE(NULLIF(TRIM(ga), ''), '${FYM_MGA_WN}'),
+          GROUP BY COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}),
             CASE WHEN UPPER(TRIM(plan_code)) LIKE '%HHC%' OR UPPER(TRIM(plan_code)) LIKE '%AHH%' THEN 'HHC' ELSE 'HI' END
-        `);
+        `;
 
         result = rows.map((r: Record<string, unknown>) => ({
           agency_id: r.agency_id as string,
@@ -430,7 +471,9 @@ Deno.serve(async (req) => {
     return jsonResponse({ data: result, _source: "prod_direct_sql", _elapsed_ms: elapsedMs });
   } catch (err) {
     console.error("prod-data error:", err);
-    return jsonResponse({ error: String(err) }, 500);
+    // Sanitize error — don't leak internal details
+    const safeMessage = err instanceof Error ? err.message : "Internal server error";
+    return jsonResponse({ error: safeMessage }, 500);
   } finally {
     if (sql) await sql.end({ timeout: 5 });
   }
