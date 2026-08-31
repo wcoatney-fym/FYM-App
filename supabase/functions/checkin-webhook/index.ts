@@ -116,7 +116,7 @@ serve(async (req) => {
     const incomingPhone = normalizePhone(from);
     const today = getTodayET(); // Fixed: was UTC, now America/New_York
 
-    console.log(`Inbound SMS from ${incomingPhone}: "${body}"`);
+    console.log(`Inbound SMS from ***${incomingPhone.slice(-4)}: "${body}"`);
 
     // Check if this is a manager replying "MORE"
     const { data: manager } = await sb
@@ -206,7 +206,7 @@ serve(async (req) => {
 
     if (!recipient) {
       // Unknown sender — send fallback redirect to Bianca
-      console.log(`Unknown sender: ${incomingPhone}`);
+      console.log(`Unknown sender: ***${incomingPhone.slice(-4)}`);
       await sendSms(incomingPhone, FALLBACK_REPLY);
       return new Response("<Response></Response>", {
         headers: { "Content-Type": "text/xml", ...corsHeaders(req) },

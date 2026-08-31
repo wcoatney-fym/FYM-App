@@ -186,7 +186,7 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ success: false, error: resendResult }, resendRes.status, req);
     }
 
-    console.log("Onboarding welcome email sent:", resendResult.id, "→", principal_email);
+    console.log("Onboarding welcome email sent:", resendResult.id);
     return jsonResponse({ success: true, resend_id: resendResult.id }, req);
 
   } catch (err) {
