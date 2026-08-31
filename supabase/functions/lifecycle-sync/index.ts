@@ -457,7 +457,7 @@ Deno.serve(async (req) => {
 
     if (!agentsRes.ok) {
       const err = await agentsRes.text();
-      return jsonResponse({ error: `Portal agents query failed: ${err}` }, 500);
+      return jsonResponse({ error: "Portal agents query failed" }, 500);
     }
 
     const portalAgents = await agentsRes.json();
@@ -551,7 +551,7 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     return jsonResponse(
-      { error: `Unexpected error: ${(err as Error).message}` },
+      { error: "Internal server error" },
       500
     );
   }

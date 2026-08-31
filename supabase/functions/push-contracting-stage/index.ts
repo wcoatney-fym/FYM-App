@@ -659,6 +659,6 @@ Deno.serve(async (req) => {
     }
   } catch (err: any) {
     console.error("push-contracting-stage error:", err);
-    return json({ error: err.message || "Internal error" }, 500);
+    return json({ error: "Internal server error" }, 500);
   }
 });

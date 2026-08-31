@@ -260,7 +260,7 @@ Deno.serve(async (req) => {
     return await updateTask(app, existingTask, appStage, opportunityId, contactId);
   } catch (err: any) {
     console.error("atrisk-ghl-webhook error:", err);
-    return json({ error: err.message || "Internal error" }, 500);
+    return json({ error: "Internal server error" }, 500);
   }
 });
 

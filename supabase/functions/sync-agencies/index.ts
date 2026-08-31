@@ -95,7 +95,7 @@ async function autoProvisionLogin(
 
     return { provisioned: true, email };
   } catch (err) {
-    return { provisioned: false, error: (err as Error).message };
+    return { provisioned: false, error: "Provision failed" };
   }
 }
 
@@ -167,7 +167,7 @@ Deno.serve(async (req) => {
 
     if (!portalRes.ok) {
       const err = await portalRes.text();
-      return corsResponse(JSON.stringify({ error: `Portal query failed: ${err}` }), 500);
+      return corsResponse(JSON.stringify({ error: "Portal query failed" }), 500);
     }
 
     const hierarchyAgencies: HierarchyAgency[] = await portalRes.json();
@@ -195,7 +195,7 @@ Deno.serve(async (req) => {
         .range(offset, offset + PAGE_SIZE - 1);
 
       if (error) {
-        return corsResponse(JSON.stringify({ error: `Failed to load existing agencies: ${error.message}` }), 500);
+        return corsResponse(JSON.stringify({ error: "Failed to load existing agencies" }), 500);
       }
       existingAgencies = existingAgencies.concat(data || []);
       if (!data || data.length < PAGE_SIZE) break;
@@ -346,7 +346,7 @@ Deno.serve(async (req) => {
     );
   } catch (err) {
     return corsResponse(
-      JSON.stringify({ error: `Unexpected error: ${(err as Error).message}` }),
+      JSON.stringify({ error: "Internal server error" }),
       500
     );
   }

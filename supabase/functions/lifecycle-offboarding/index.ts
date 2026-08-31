@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
           .order("terminated_at", { ascending: false });
 
         if (error) {
-          return jsonResponse({ error: error.message }, 500);
+          return jsonResponse({ error: "Failed to load offboarding records" }, 500);
         }
 
         return jsonResponse({
@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         if (error) {
-          return jsonResponse({ error: error.message }, 500);
+          return jsonResponse({ error: "Failed to load lifecycle record" }, 500);
         }
 
         if (!data) {
@@ -233,7 +233,7 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Method not allowed" }, 405);
   } catch (err) {
     return jsonResponse(
-      { error: `Unexpected error: ${(err as Error).message}` },
+      { error: "Internal server error" },
       500
     );
   }
