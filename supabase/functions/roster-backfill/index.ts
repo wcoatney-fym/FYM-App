@@ -279,6 +279,6 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     console.error("roster-backfill error:", err);
-    return jsonResponse({ error: String(err) }, 500);
+    return jsonResponse({ error: "Internal server error" }, 500);
   }
 });

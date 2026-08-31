@@ -234,7 +234,7 @@ Deno.serve(async (req) => {
     });
   } catch (err: any) {
     console.error("coaching-flags error:", err);
-    return jsonResponse({ error: err.message ?? "Internal error" }, 500);
+    return jsonResponse({ error: "Internal server error" }, 500);
   } finally {
     if (sql) await sql.end();
   }

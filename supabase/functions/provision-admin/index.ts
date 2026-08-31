@@ -147,7 +147,7 @@ Deno.serve(async (req) => {
     if (profileErr) {
       await supabaseAdmin.auth.admin.deleteUser(newUser.id);
       return new Response(
-        JSON.stringify({ error: `Profile error: ${profileErr.message}` }),
+        JSON.stringify({ error: "Failed to update profile" }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -174,7 +174,7 @@ Deno.serve(async (req) => {
     );
   } catch (err) {
     return new Response(
-      JSON.stringify({ error: String(err) }),
+      JSON.stringify({ error: "Internal server error" }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

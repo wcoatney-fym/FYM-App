@@ -357,7 +357,7 @@ Deno.serve(async (req) => {
           role: agent.role,
           username,
           action: 'error',
-          reason: String(err),
+          reason: "provision failed",
         });
       }
     }
@@ -378,7 +378,7 @@ Deno.serve(async (req) => {
       results,
     });
   } catch (err) {
-    return errorResponse(500, String(err));
+    return errorResponse(500, "Internal server error");
   }
 });
 

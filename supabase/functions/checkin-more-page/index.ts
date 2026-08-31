@@ -214,7 +214,7 @@ serve(async (req) => {
     return handleData(code);
   } catch (err) {
     console.error("checkin-more-page error:", err);
-    return new Response(JSON.stringify({ error: String(err) }), {
+    return new Response(JSON.stringify({ error: "Internal server error" }), {
       status: 500,
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });
