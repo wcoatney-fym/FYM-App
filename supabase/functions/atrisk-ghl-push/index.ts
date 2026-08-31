@@ -655,7 +655,7 @@ async function handleSeedFromProd(
       });
     }
   } catch (err: any) {
-    return json({ error: `Failed to query production DB: ${err.message}` }, 500);
+    return json({ error: "Failed to query production DB" }, 500);
   } finally {
     if (sql) await sql.end().catch(() => {});
   }
@@ -1557,6 +1557,6 @@ Deno.serve(async (req) => {
     }
   } catch (err: any) {
     console.error("atrisk-ghl-push error:", err);
-    return json({ error: err.message || "Internal error" }, 500);
+    return json({ error: "Internal server error" }, 500);
   }
 });

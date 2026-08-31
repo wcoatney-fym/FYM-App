@@ -250,7 +250,7 @@ Deno.serve(async (req) => {
       .upsert(pipelineData, { onConflict: "ghl_opportunity_id" });
 
     if (error) {
-      return json({ success: false, error: error.message }, 500);
+      return json({ success: false, error: "Database operation failed" }, 500);
     }
 
     return json({
@@ -259,6 +259,6 @@ Deno.serve(async (req) => {
     });
   } catch (err: any) {
     console.error("contracting-pipeline-webhook error:", err);
-    return json({ error: err.message || "Internal error" }, 500);
+    return json({ error: "Internal server error" }, 500);
   }
 });

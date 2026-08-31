@@ -722,7 +722,7 @@ Deno.serve(async (req: Request) => {
 
       const { data: products, error: dbError } = await crossSellQuery;
       if (dbError) {
-        return json({ success: false, error: `DB error: ${dbError.message}` }, 500);
+        return json({ success: false, error: "Database query failed" }, 500);
       }
       if (!products || products.length === 0) {
         return json({ success: false, error: "No cross-sell products configured for this agency" }, 400);
@@ -766,7 +766,7 @@ Deno.serve(async (req: Request) => {
     return json(
       {
         success: false,
-        error: err instanceof Error ? err.message : "Unknown error",
+        error: "Internal server error",
       },
       500,
     );

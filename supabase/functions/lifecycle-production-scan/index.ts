@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
 
       if (error) {
         return jsonResponse(
-          { error: `Failed to load lifecycle records: ${error.message}` },
+          { error: "Failed to load lifecycle records" },
           500
         );
       }
@@ -214,7 +214,7 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     return jsonResponse(
-      { error: `Unexpected error: ${(err as Error).message}` },
+      { error: "Internal server error" },
       500
     );
   } finally {
