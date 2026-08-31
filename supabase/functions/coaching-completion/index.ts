@@ -20,8 +20,7 @@
  */
 
 import { createClient } from "npm:@supabase/supabase-js@2.39.3";
-import { corsResponse, jsonResponse   verifyAuth,
-} from "../_shared/prod-db.ts";
+import { corsResponse, jsonResponse, verifyAuth } from "../_shared/prod-db.ts";
 
 interface CompletionAction {
   action: "incremented" | "completed" | "advanced" | "skipped";
