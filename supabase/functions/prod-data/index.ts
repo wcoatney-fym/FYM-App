@@ -130,10 +130,17 @@ Deno.serve(async (req) => {
           : sql``;
 
         const rows = await sql`
+          WITH base AS (
+            SELECT *,
+              COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}) AS resolved_agency_wn
+            FROM typed.unl_fym_policy_latest_load
+            WHERE TRIM(wa) IS NOT NULL AND TRIM(wa) != ''
+              ${nameFilter}
+          )
           SELECT
             TRIM(wa) AS writing_number,
             TRIM(wa_name) AS agent_name,
-            COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}) AS agency_wn,
+            resolved_agency_wn AS agency_wn,
             COALESCE(TRIM(ga_name), '') AS agency_name,
             COUNT(*) AS total_policies,
             COUNT(CASE WHEN UPPER(TRIM(cntrct_code)) = 'A' AND term_date IS NULL THEN 1 END) AS active_policies,
@@ -141,10 +148,8 @@ Deno.serve(async (req) => {
             ROUND(SUM(COALESCE(annual_premium, 0))::numeric, 2) AS total_ap,
             MIN(issue_date) AS first_issue_date,
             MAX(issue_date) AS last_issue_date
-          FROM typed.unl_fym_policy_latest_load
-          WHERE TRIM(wa) IS NOT NULL AND TRIM(wa) != ''
-            ${nameFilter}
-          GROUP BY TRIM(wa), TRIM(wa_name), COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}), COALESCE(TRIM(ga_name), '')
+          FROM base
+          GROUP BY TRIM(wa), TRIM(wa_name), resolved_agency_wn, COALESCE(TRIM(ga_name), '')
           ORDER BY active_ap DESC
         `;
 
@@ -155,9 +160,15 @@ Deno.serve(async (req) => {
       // ── AGENCY ──────────────────────────────────────────────────────
       case "agency": {
         const rows = await sql`
+          WITH base AS (
+            SELECT *,
+              COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}) AS agency_id
+            FROM typed.unl_fym_policy_latest_load
+            WHERE ${productFilter} ${dateFilter} ${agencyWhere} ${agentWhere}
+          )
           SELECT
-            COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}) AS agency_id,
-            MIN(CASE WHEN COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}) = ${FYM_MGA_WN} THEN 'FYM' ELSE TRIM(ga_name) END) AS agency_name,
+            agency_id,
+            MIN(CASE WHEN agency_id = ${FYM_MGA_WN} THEN 'FYM' ELSE TRIM(ga_name) END) AS agency_name,
             COUNT(*) AS total_policies,
             ROUND(SUM(COALESCE(annual_premium, 0))::numeric, 2) AS total_annual_premium,
             COUNT(*) FILTER (WHERE UPPER(TRIM(cntrct_code)) = 'A' AND term_date IS NULL) AS active_policies,
@@ -173,9 +184,8 @@ Deno.serve(async (req) => {
             ROUND(SUM(CASE WHEN TO_CHAR(app_recvd_date, 'YYYY-MM') = ${thisMonth} THEN COALESCE(annual_premium, 0) ELSE 0 END)::numeric, 2) AS ap_this_month,
             COUNT(*) FILTER (WHERE TO_CHAR(app_recvd_date, 'YYYY-MM') = ${lastMonthKey}) AS policies_last_month,
             ROUND(SUM(CASE WHEN TO_CHAR(app_recvd_date, 'YYYY-MM') = ${lastMonthKey} THEN COALESCE(annual_premium, 0) ELSE 0 END)::numeric, 2) AS ap_last_month
-          FROM typed.unl_fym_policy_latest_load
-          WHERE ${productFilter} ${dateFilter} ${agencyWhere} ${agentWhere}
-          GROUP BY COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN})
+          FROM base
+          GROUP BY agency_id
           ORDER BY active_annual_premium DESC
         `;
 
@@ -306,15 +316,20 @@ Deno.serve(async (req) => {
       case "daily": {
         // Submitted (by app_recvd_date)
         const submittedRows = await sql`
+          WITH base AS (
+            SELECT *,
+              COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}) AS agency_id
+            FROM typed.unl_fym_policy_latest_load
+            WHERE ${productFilter} ${dateFilter} ${agencyWhere} ${agentWhere}
+              AND app_recvd_date IS NOT NULL
+          )
           SELECT
-            COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}) AS agency_id,
+            agency_id,
             TO_CHAR(app_recvd_date, 'YYYY-MM-DD') AS day,
             COUNT(*) AS policies,
             ROUND(SUM(COALESCE(annual_premium, 0))::numeric, 2) AS annual_premium
-          FROM typed.unl_fym_policy_latest_load
-          WHERE ${productFilter} ${dateFilter} ${agencyWhere} ${agentWhere}
-            AND app_recvd_date IS NOT NULL
-          GROUP BY COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}), TO_CHAR(app_recvd_date, 'YYYY-MM-DD')
+          FROM base
+          GROUP BY agency_id, TO_CHAR(app_recvd_date, 'YYYY-MM-DD')
           ORDER BY day
         `;
 
@@ -323,18 +338,23 @@ Deno.serve(async (req) => {
         let effectuatedMap: Record<string, Record<string, number>> = {};
         if (startDate && endDate) {
           const effRows = await sql`
+            WITH base AS (
+              SELECT *,
+                COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}) AS agency_id
+              FROM typed.unl_fym_policy_latest_load
+              WHERE issue_date >= ${startDate}::date
+                AND issue_date < ${endDate}::date
+                AND UPPER(TRIM(cntrct_code)) = 'A'
+                AND term_date IS NULL
+                ${agencyWhere} ${agentWhere}
+                AND ${productFilter}
+            )
             SELECT
-              COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}) AS agency_id,
+              agency_id,
               TO_CHAR(issue_date, 'YYYY-MM-DD') AS day,
               COUNT(*) AS issued
-            FROM typed.unl_fym_policy_latest_load
-            WHERE issue_date >= ${startDate}::date
-              AND issue_date < ${endDate}::date
-              AND UPPER(TRIM(cntrct_code)) = 'A'
-              AND term_date IS NULL
-              ${agencyWhere} ${agentWhere}
-              AND ${productFilter}
-            GROUP BY COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}), TO_CHAR(issue_date, 'YYYY-MM-DD')
+            FROM base
+            GROUP BY agency_id, TO_CHAR(issue_date, 'YYYY-MM-DD')
           `;
           for (const r of effRows) {
             const aid = r.agency_id as string;
@@ -372,15 +392,20 @@ Deno.serve(async (req) => {
       // ── MONTHLY ─────────────────────────────────────────────────────
       case "monthly": {
         const rows = await sql`
+          WITH base AS (
+            SELECT *,
+              COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}) AS agency_id
+            FROM typed.unl_fym_policy_latest_load
+            WHERE ${productFilter} ${dateFilter} ${agencyWhere} ${agentWhere}
+              AND app_recvd_date IS NOT NULL
+          )
           SELECT
-            COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}) AS agency_id,
+            agency_id,
             TO_CHAR(app_recvd_date, 'YYYY-MM') AS month,
             COUNT(*) AS policies,
             ROUND(SUM(COALESCE(annual_premium, 0))::numeric, 2) AS annual_premium
-          FROM typed.unl_fym_policy_latest_load
-          WHERE ${productFilter} ${dateFilter} ${agencyWhere} ${agentWhere}
-            AND app_recvd_date IS NOT NULL
-          GROUP BY COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}), TO_CHAR(app_recvd_date, 'YYYY-MM')
+          FROM base
+          GROUP BY agency_id, TO_CHAR(app_recvd_date, 'YYYY-MM')
           ORDER BY month
         `;
 
@@ -440,18 +465,23 @@ Deno.serve(async (req) => {
       // ── PRODUCT MIX ─────────────────────────────────────────────────
       case "product_mix": {
         const rows = await sql`
+          WITH base AS (
+            SELECT *,
+              COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}) AS agency_id
+            FROM typed.unl_fym_policy_latest_load
+            WHERE ${productFilter} ${dateFilter} ${agencyWhere} ${agentWhere}
+              AND UPPER(TRIM(cntrct_code)) = 'A'
+              AND term_date IS NULL
+          )
           SELECT
-            COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}) AS agency_id,
+            agency_id,
             CASE
               WHEN UPPER(TRIM(plan_code)) LIKE '%HHC%' OR UPPER(TRIM(plan_code)) LIKE '%AHH%' THEN 'HHC'
               ELSE 'HI'
             END AS product_type,
             COUNT(*) AS count
-          FROM typed.unl_fym_policy_latest_load
-          WHERE ${productFilter} ${dateFilter} ${agencyWhere} ${agentWhere}
-            AND UPPER(TRIM(cntrct_code)) = 'A'
-            AND term_date IS NULL
-          GROUP BY COALESCE(NULLIF(TRIM(ga), ''), ${FYM_MGA_WN}),
+          FROM base
+          GROUP BY agency_id,
             CASE WHEN UPPER(TRIM(plan_code)) LIKE '%HHC%' OR UPPER(TRIM(plan_code)) LIKE '%AHH%' THEN 'HHC' ELSE 'HI' END
         `;
 
