@@ -15,8 +15,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsResponse, jsonResponse   verifyAuth,
-} from "../_shared/prod-db.ts";
+import { corsResponse, jsonResponse, verifyAuth } from "../_shared/prod-db.ts";
 
 // ── Agency name crosswalk ────────────────────────────────────────────
 // Maps crm_roster_uploads.agency (portal) → agencies.name (rcbzag)
