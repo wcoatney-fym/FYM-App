@@ -78,6 +78,11 @@ function buildTopicsList(): string {
   return lines.join('\n');
 }
 
+export interface UseHelpChatOptions {
+  /** Called when user confirms escalation. Return true if DB insert succeeded. */
+  onEscalate?: (question: string) => Promise<boolean>;
+}
+
 export interface UseHelpChatReturn {
   messages: ChatMessage[];
   sendMessage: (text: string) => void;
@@ -87,7 +92,7 @@ export interface UseHelpChatReturn {
   pendingEscalation: string | null;
 }
 
-export function useHelpChat(): UseHelpChatReturn {
+export function useHelpChat(options?: UseHelpChatOptions): UseHelpChatReturn {
   const [messages, setMessages] = useState<ChatMessage[]>(loadMessages);
   const [pendingEscalation, setPendingEscalation] = useState<string | null>(null);
   const lastUserQuestion = useRef<string | null>(null);
@@ -171,17 +176,24 @@ export function useHelpChat(): UseHelpChatReturn {
     }, 300 + Math.random() * 200); // Slight delay for natural feel
   }, [addBotMessage]);
 
-  const handleQuickReply = useCallback((value: string) => {
-    if (value === 'escalate_yes') {
-      // The actual DB insert happens in the widget component (needs supabase client)
-      // This hook just manages the state transition
-      addBotMessage("Got it — flagged for the team. They'll follow up.");
+  const handleQuickReply = useCallback(async (value: string) => {
+    if (value === 'escalate_yes' && pendingEscalation) {
+      if (options?.onEscalate) {
+        const success = await options.onEscalate(pendingEscalation);
+        if (success) {
+          addBotMessage("Got it — flagged for the team. They'll follow up.");
+        } else {
+          addBotMessage("Hmm, something went wrong flagging that. Try again or reach out to your admin directly.");
+        }
+      } else {
+        addBotMessage("Got it — flagged for the team. They'll follow up.");
+      }
       setPendingEscalation(null);
     } else if (value === 'escalate_no') {
       addBotMessage("No problem. Try rephrasing, or type \"help\" to see what I can help with.");
       setPendingEscalation(null);
     }
-  }, [addBotMessage]);
+  }, [addBotMessage, pendingEscalation, options]);
 
   const clearChat = useCallback(() => {
     setMessages([GREETING_MESSAGE]);
