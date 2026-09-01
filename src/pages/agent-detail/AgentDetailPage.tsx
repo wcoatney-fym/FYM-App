@@ -133,24 +133,11 @@ export function AgentDetailPage() {
           const { data: agency } = await portalSupabase!.from('crm_agencies').select('variant').eq('id', prof.agency_id).maybeSingle();
           if (agency?.variant === 'fym_direct') {
             setIsFymDirect(true);
-            // Find pipeline record by agent_id or by matching profile ID
+            // Find pipeline record by agent_id
             const { data: pipeline } = await portalSupabase!.from('agent_pipeline').select('*').eq('agent_id', agentId!).maybeSingle();
             if (pipeline) {
               setPipelineRecord(pipeline as PortalPipelineRecord);
               setPortalAgentId(pipeline.agent_id);
-            } else {
-              // Fallback: try matching by email via portal agents table
-              const { data: user } = await supabase!.auth.admin.getUserById(agentId!);
-              if (user?.user?.email) {
-                const { data: portalAgent } = await portalSupabase!.from('agents').select('id').eq('email', user.user.email).maybeSingle();
-                if (portalAgent) {
-                  const { data: pRec } = await portalSupabase!.from('agent_pipeline').select('*').eq('agent_id', portalAgent.id).maybeSingle();
-                  if (pRec) {
-                    setPipelineRecord(pRec as PortalPipelineRecord);
-                    setPortalAgentId(portalAgent.id);
-                  }
-                }
-              }
             }
           }
         }
