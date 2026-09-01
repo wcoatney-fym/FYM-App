@@ -67,10 +67,10 @@ function isValidAgencyName(v: string): boolean {
 }
 
 
-function json(data: unknown, status = 200): Response {
+function json(data: unknown, status = 200, request?: Request | null): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...CORS_HEADERS(req), "Content-Type": "application/json" },
+    headers: { ...CORS_HEADERS(request), "Content-Type": "application/json" },
   });
 }
 
