@@ -17,23 +17,21 @@
 import { supabase } from '@/lib/supabase';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 /**
  * Get the user's session access token for authenticated edge function calls.
- * Falls back to anon key if no session exists (should not happen on
- * authenticated surfaces like the Workboard).
+ * Throws if no session exists — every surface that calls GHL push requires
+ * an authenticated user. A missing session is a bug, not a fallback case.
  */
 async function getAuthToken(): Promise<string> {
-  if (supabase) {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) {
-      return session.access_token;
-    }
+  if (!supabase) {
+    throw new Error('Not authenticated — Supabase client not configured');
   }
-  // Fallback — should not reach here on authenticated surfaces
-  console.warn('ghl-push: No session — falling back to anon key');
-  return SUPABASE_ANON_KEY || '';
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) {
+    throw new Error('Not authenticated — cannot push to GHL');
+  }
+  return session.access_token;
 }
 
 export interface GhlPushParams {
@@ -72,8 +70,8 @@ export async function pushStageToGhl(
     return { success: true, skipped: true, reason: 'Source is GHL — loop guard' };
   }
 
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    console.warn('ghl-push: Missing SUPABASE_URL or SUPABASE_ANON_KEY');
+  if (!SUPABASE_URL) {
+    console.warn('ghl-push: Missing SUPABASE_URL');
     return null;
   }
 
@@ -145,7 +143,7 @@ export interface SyncDirectionResult {
 export async function resolveSyncDirection(
   agencyId: string
 ): Promise<SyncDirectionResult | null> {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
+  if (!SUPABASE_URL) return null;
 
   try {
     const token = await getAuthToken();
@@ -194,7 +192,7 @@ export async function createSyncTask(
   agencyName: string,
   directionResult: SyncDirectionResult | null
 ): Promise<CreateSyncTaskResult | null> {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
+  if (!SUPABASE_URL) return null;
 
   try {
     const token = await getAuthToken();
@@ -253,7 +251,7 @@ export async function executeSyncDirection(
   direction: 'app_to_ghl' | 'ghl_to_app' | 'empty',
   taskId?: string
 ): Promise<ExecuteSyncResult | null> {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
+  if (!SUPABASE_URL) return null;
 
   try {
     const token = await getAuthToken();
@@ -293,7 +291,7 @@ export async function seedAgencyToGhl(agencyId: string): Promise<{
   total?: number;
   error?: string;
 } | null> {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
+  if (!SUPABASE_URL) return null;
 
   try {
     const token = await getAuthToken();
