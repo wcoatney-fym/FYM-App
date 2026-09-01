@@ -8,15 +8,29 @@
  * This component assumes it should render when mounted.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { HelpChatFAB } from './HelpChatFAB';
 import { HelpChatPanel } from './HelpChatPanel';
 import { useHelpChat } from '@/hooks/useHelpChat';
+import { createEscalation } from '@/lib/help-escalation';
 import { cn } from '@/lib/utils';
 
 export function HelpChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
-  const { messages, sendMessage, handleQuickReply, clearChat } = useHelpChat();
+  const location = useLocation();
+
+  const escalationHandler = useMemo(() => ({
+    onEscalate: async (question: string): Promise<boolean> => {
+      const result = await createEscalation({
+        question,
+        pageContext: location.pathname,
+      });
+      return result.success;
+    },
+  }), [location.pathname]);
+
+  const { messages, sendMessage, handleQuickReply, clearChat } = useHelpChat(escalationHandler);
 
   const handleOpen = useCallback(() => setIsOpen(true), []);
   const handleMinimize = useCallback(() => setIsOpen(false), []);
