@@ -304,7 +304,11 @@ export async function verifyAuth(req: Request): Promise<{
   }
 
   try {
-    const supabase = createClient(supabaseUrl, serviceKey);
+    // createClient needs a JWT-format key for auth.getUser() to work.
+    // Supabase auto-injected keys may be in sb_secret_/sb_publishable_ format
+    // which don't work with the JS client's auth module.
+    const clientKey = serviceKeyJwt || serviceKey;
+    const supabase = createClient(supabaseUrl, clientKey);
     const { data: { user }, error } = await supabase.auth.getUser(token);
     if (error || !user) {
       return { user: null, error: "Invalid or expired token" };
