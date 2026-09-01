@@ -21,8 +21,6 @@ const ALLOWED_ORIGINS = [
   "https://crm.teamfym.com",
   "https://www.crm.teamfym.com",
   "https://www.agency.teamfym.com",
-  "https://crm.teamfym.com",
-  "https://www.crm.teamfym.com",
   "http://localhost:5173",
   "http://localhost:3000",
   "http://localhost:4173",
@@ -43,9 +41,7 @@ function corsHeaders(req?: Request | null): Record<string, string> {
 
 const supabaseUrl = Deno.env.get("APP_SUPABASE_URL")!;
 const supabaseKey = Deno.env.get("APP_SUPABASE_SERVICE_KEY")!;
-const APP_URL = Deno.env.get("APP_PUBLIC_URL") || "https://agency.teamfym.com",
-  "https://crm.teamfym.com",
-  "https://www.crm.teamfym.com";
+const APP_URL = Deno.env.get("APP_PUBLIC_URL") || "https://agency.teamfym.com";
 
 // Token expiry: 8 hours
 const TOKEN_EXPIRY_HOURS = 8;
