@@ -45,10 +45,10 @@ function CORS_HEADERS(req?: Request | null): Record<string, string> {
   return headers;
 };
 
-function json(data: unknown, status = 200): Response {
+function json(data: unknown, status: number, request: Request): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...CORS_HEADERS(req), "Content-Type": "application/json" },
+    headers: { ...CORS_HEADERS(request), "Content-Type": "application/json" },
   });
 }
 
@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
     // 1. Verify caller is FYM App admin
     const auth = await verifyFymAdmin(req.headers.get("Authorization"));
     if (!auth.valid) {
-      return json({ error: "Unauthorized — FYM admin required" }, 401);
+      return json({ error: "Unauthorized — FYM admin required" }, 401, req);
     }
 
     // 2. Read server-side Portal credentials
@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
 
     if (!portalUrl || !portalKey || !serviceEmail || !servicePassword) {
       console.error("[portal-auth] Missing portal credentials in edge function env");
-      return json({ error: "Portal authentication not configured" }, 500);
+      return json({ error: "Portal authentication not configured" }, 500, req);
     }
 
     // 3. Sign in to Portal DB using server-side credentials
@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
 
     if (signInError || !signInData.session) {
       console.error("[portal-auth] Portal sign-in failed:", signInError);
-      return json({ error: "Portal authentication failed" }, 500);
+      return json({ error: "Portal authentication failed" }, 500, req);
     }
 
     // 4. Return Portal tokens to the caller
@@ -131,9 +131,9 @@ Deno.serve(async (req) => {
       expires_at: signInData.session.expires_at,
       portal_url: portalUrl,
       portal_key: portalKey,
-    });
+    }, 200, req);
   } catch (err) {
     console.error("[portal-auth] Error:", err);
-    return json({ error: "Internal server error" }, 500);
+    return json({ error: "Internal server error" }, 500, req);
   }
 });

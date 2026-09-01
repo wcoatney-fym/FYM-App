@@ -46,10 +46,10 @@ function CORS_HEADERS(req?: Request | null): Record<string, string> {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function json(data: unknown, status = 200): Response {
+function json(data: unknown, status: number, request: Request): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...CORS_HEADERS(req), "Content-Type": "application/json" },
+    headers: { ...CORS_HEADERS(request), "Content-Type": "application/json" },
   });
 }
 
@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
     const expectedSecret = Deno.env.get("CONTRACTING_WEBHOOK_SECRET");
 
     if (expectedSecret && secret !== expectedSecret) {
-      return json({ error: "Unauthorized" }, 401);
+      return json({ error: "Unauthorized" }, 401, req);
     }
 
     const rawBody = await req.text();
@@ -125,7 +125,8 @@ Deno.serve(async (req) => {
     if (!config && !pipelineConfig) {
       return json(
         { error: "No agency or pipeline config found" },
-        404
+        404,
+        req,
       );
     }
 
@@ -141,7 +142,7 @@ Deno.serve(async (req) => {
       return json({
         success: true,
         message: "No opportunity ID in payload, skipping",
-      });
+      }, 200, req);
     }
 
     // Get the stage name from the payload
@@ -162,7 +163,7 @@ Deno.serve(async (req) => {
       return json({
         success: true,
         message: "No stage name in payload, skipping",
-      });
+      }, 200, req);
     }
 
     // Look up the internal stage from the mapping table
@@ -176,7 +177,7 @@ Deno.serve(async (req) => {
       return json({
         success: true,
         message: `Unknown stage name "${stageName}", skipping`,
-      });
+      }, 200, req);
     }
 
     // Auto-learn GHL stage ID from incoming webhook if not already stored
@@ -232,7 +233,7 @@ Deno.serve(async (req) => {
       return json({
         success: true,
         message: "Echo detected (stage unchanged, non-GHL source), skipping",
-      });
+      }, 200, req);
     }
 
     const stageChanged =
@@ -266,15 +267,15 @@ Deno.serve(async (req) => {
       .upsert(pipelineData, { onConflict: "ghl_opportunity_id" });
 
     if (error) {
-      return json({ success: false, error: "Database operation failed" }, 500);
+      return json({ success: false, error: "Database operation failed" }, 500, req);
     }
 
     return json({
       success: true,
       message: `Agent "${contactName}" ${existing ? "updated to" : "added at"} stage "${stageMapping.internal_stage}"`,
-    });
+    }, 200, req);
   } catch (err: any) {
     console.error("contracting-pipeline-webhook error:", err);
-    return json({ error: "Internal server error" }, 500);
+    return json({ error: "Internal server error" }, 500, req);
   }
 });

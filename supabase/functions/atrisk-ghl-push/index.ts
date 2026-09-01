@@ -70,10 +70,10 @@ const STAGE_MAP: Record<string, string> = {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function json(data: unknown, status = 200): Response {
+function json(data: unknown, status: number, request: Request): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...CORS_HEADERS(req), "Content-Type": "application/json" },
+    headers: { ...CORS_HEADERS(request), "Content-Type": "application/json" },
   });
 }
 
@@ -379,7 +379,7 @@ async function findContact(
 
 // ── Push handler ─────────────────────────────────────────────────────────────
 
-async function handlePush(body: any): Promise<Response> {
+async function handlePush(body: any, req: Request): Promise<Response> {
   const {
     policy_number,
     agency_id,
@@ -392,7 +392,7 @@ async function handlePush(body: any): Promise<Response> {
   } = body;
 
   if (!policy_number || !agency_id || !new_stage) {
-    return json({ error: "Missing policy_number, agency_id, or new_stage" }, 400);
+    return json({ error: "Missing policy_number, agency_id, or new_stage" }, 400, req);
   }
 
   // Check if GHL is enabled for this agency
@@ -402,7 +402,7 @@ async function handlePush(body: any): Promise<Response> {
       success: true,
       skipped: true,
       reason: "GHL not enabled or not connected for this agency",
-    });
+    }, 200, req);
   }
 
   // Gate: manager_pipeline_enabled must be true for live pushes.
@@ -414,7 +414,7 @@ async function handlePush(body: any): Promise<Response> {
       success: true,
       skipped: true,
       reason: "Manager pipeline not yet enabled — awaiting CRM team sync confirmation",
-    });
+    }, 200, req);
   }
 
   const { apiKey, locationId } = ghlConfig;
@@ -426,12 +426,12 @@ async function handlePush(body: any): Promise<Response> {
   // Resolve the target stage
   const ghlStageName = STAGE_MAP[new_stage];
   if (!ghlStageName) {
-    return json({ error: `Unknown stage: ${new_stage}` }, 400);
+    return json({ error: `Unknown stage: ${new_stage}` }, 400, req);
   }
 
   const stageId = findStageId(pipeline, ghlStageName);
   if (!stageId) {
-    return json({ error: `Stage "${ghlStageName}" not found in GHL pipeline` }, 400);
+    return json({ error: `Stage "${ghlStageName}" not found in GHL pipeline` }, 400, req);
   }
 
   const app = getAppClient();
@@ -450,7 +450,7 @@ async function handlePush(body: any): Promise<Response> {
       ghl_opportunity_id,
       ghl_contact_id,
       stage_pushed: ghlStageName,
-    });
+    }, 200, req);
   }
 
   // No existing opportunity — need to find/create contact and opportunity
@@ -467,7 +467,7 @@ async function handlePush(body: any): Promise<Response> {
       success: true,
       skipped: true,
       reason: "No GHL contact found for this policy. Contact must exist in GHL first.",
-    });
+    }, 200, req);
   }
 
   // Create the opportunity
@@ -502,7 +502,7 @@ async function handlePush(body: any): Promise<Response> {
     ghl_contact_id: contactId,
     stage_pushed: ghlStageName,
     created: true,
-  });
+  }, 200, req);
 }
 
 // ── Seed handler (one-time push of at-risk policies → GHL on opt-in) ────────
@@ -515,15 +515,15 @@ async function handlePush(body: any): Promise<Response> {
 //
 // The seed is one-time per agency. After the seed, two-way sync is ongoing.
 
-async function handleSeed(body: any): Promise<Response> {
+async function handleSeed(body: any, req: Request): Promise<Response> {
   const { agency_id } = body;
   if (!agency_id) {
-    return json({ error: "Missing agency_id" }, 400);
+    return json({ error: "Missing agency_id" }, 400, req);
   }
 
   const ghlConfig = await getAgencyGhlConfig(agency_id);
   if (!ghlConfig) {
-    return json({ error: "GHL not enabled or not connected for this agency" }, 400);
+    return json({ error: "GHL not enabled or not connected for this agency" }, 400, req);
   }
 
   const app = getAppClient();
@@ -537,11 +537,11 @@ async function handleSeed(body: any): Promise<Response> {
 
   if (existingCount && existingCount > 0) {
     // Phase 1: Push existing tasks to GHL
-    return await handleSeedExistingTasks(app, agency_id, ghlConfig, body._bypass_gate);
+    return await handleSeedExistingTasks(app, agency_id, ghlConfig, body._bypass_gate, req);
   }
 
   // Phase 2: Pull at-risk policies from Max's DB and seed both App + GHL
-  return await handleSeedFromProd(app, agency_id, ghlConfig, body._bypass_gate);
+  return await handleSeedFromProd(app, agency_id, ghlConfig, body._bypass_gate, req);
 }
 
 /** Phase 1: Push existing atrisk_tasks to GHL */
@@ -549,7 +549,8 @@ async function handleSeedExistingTasks(
   app: ReturnType<typeof getAppClient>,
   agency_id: string,
   ghlConfig: { apiKey: string; locationId: string },
-  bypassGate: boolean
+  bypassGate: boolean,
+  req: Request,
 ): Promise<Response> {
   const PAGE = 1000;
   let offset = 0;
@@ -584,7 +585,7 @@ async function handleSeedExistingTasks(
         ghl_opportunity_id: task.ghl_opportunity_id,
         task_id: task.id,
         _bypass_gate: true,
-      });
+      }, req);
 
       const pushResult = await result.json();
       if (pushResult.success && !pushResult.skipped) seeded++;
@@ -600,7 +601,7 @@ async function handleSeedExistingTasks(
     skipped,
     total: tasks.length,
     errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
-  });
+  }, 200, req);
 }
 
 /** Phase 2: Pull at-risk policies from Max's DB, match GHL contacts, create tasks + push */
@@ -608,7 +609,8 @@ async function handleSeedFromProd(
   app: ReturnType<typeof getAppClient>,
   agency_id: string,
   ghlConfig: { apiKey: string; locationId: string },
-  bypassGate: boolean
+  bypassGate: boolean,
+  req: Request,
 ): Promise<Response> {
   const { apiKey, locationId } = ghlConfig;
 
@@ -671,13 +673,13 @@ async function handleSeedFromProd(
       });
     }
   } catch (err: any) {
-    return json({ error: "Failed to query production DB" }, 500);
+    return json({ error: "Failed to query production DB" }, 500, req);
   } finally {
     if (sql) await sql.end().catch(() => {});
   }
 
   if (atRiskPolicies.length === 0) {
-    return json({ success: true, seeded: 0, message: "No at-risk policies found for this agency" });
+    return json({ success: true, seeded: 0, message: "No at-risk policies found for this agency" }, 200, req);
   }
 
   // 3. Get the at-risk pipeline and all existing GHL opportunities
@@ -821,7 +823,7 @@ async function handleSeedFromProd(
             ghl_opportunity_id: null,
             task_id: newTask.id,
             _bypass_gate: true,
-          });
+          }, req);
           const pushBody = await pushResult.json();
           if (pushBody.success) created++;
         } catch {
@@ -845,7 +847,7 @@ async function handleSeedFromProd(
     total: atRiskPolicies.length,
     ghl_existing: ghlOppsByName.size,
     errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
-  });
+  }, 200, req);
 }
 
 // ── Import handler (one-time pull of GHL pipeline state → App) ──────────────
@@ -865,10 +867,10 @@ const REVERSE_STAGE_MAP: Record<string, string> = {
   "agent saved pending": "agent_saved_pending",
 };
 
-async function handleImport(body: any): Promise<Response> {
+async function handleImport(body: any, req: Request): Promise<Response> {
   const { agency_id, api_key, location_id } = body;
   if (!agency_id) {
-    return json({ error: "Missing agency_id" }, 400);
+    return json({ error: "Missing agency_id" }, 400, req);
   }
 
   // Use provided creds (from Save & Sync) or fall back to stored config
@@ -878,7 +880,7 @@ async function handleImport(body: any): Promise<Response> {
   if (!apiKey || !locationId) {
     const ghlConfig = await getAgencyGhlConfig(agency_id);
     if (!ghlConfig) {
-      return json({ error: "GHL not enabled or not connected for this agency" }, 400);
+      return json({ error: "GHL not enabled or not connected for this agency" }, 400, req);
     }
     apiKey = ghlConfig.apiKey;
     locationId = ghlConfig.locationId;
@@ -926,7 +928,7 @@ async function handleImport(body: any): Promise<Response> {
 
       if (!res.ok) {
         const errText = await res.text();
-        return json({ error: `GHL opportunity search failed: ${res.status} ${errText}` }, 500);
+        return json({ error: `GHL opportunity search failed: ${res.status} ${errText}` }, 500, req);
       }
 
       const data = await res.json();
@@ -945,7 +947,7 @@ async function handleImport(body: any): Promise<Response> {
   }
 
   if (opportunities.length === 0) {
-    return json({ success: true, imported: 0, message: "No opportunities found in GHL pipeline" });
+    return json({ success: true, imported: 0, message: "No opportunities found in GHL pipeline" }, 200, req);
   }
 
   const app = getAppClient();
@@ -1068,7 +1070,7 @@ async function handleImport(body: any): Promise<Response> {
     skipped,
     total: opportunities.length,
     errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
-  });
+  }, 200, req);
 }
 
 // ── Resolve direction handler ────────────────────────────────────────────────
@@ -1086,10 +1088,10 @@ async function handleImport(body: any): Promise<Response> {
  *   - conflict:    Both sides have worked state; needs manual decision
  *   - empty:       Neither side has data; no sync needed yet
  */
-async function handleResolveDirection(body: any): Promise<Response> {
+async function handleResolveDirection(body: any, req: Request): Promise<Response> {
   const { agency_id } = body;
   if (!agency_id) {
-    return json({ error: "Missing agency_id" }, 400);
+    return json({ error: "Missing agency_id" }, 400, req);
   }
 
   // ── App side ───────────────────────────────────────────────────────
@@ -1303,7 +1305,7 @@ async function handleResolveDirection(body: any): Promise<Response> {
       has_work: ghlHasWork,
       error: ghlError,
     },
-  });
+  }, 200, req);
 }
 
 // ── Create sync task handler ─────────────────────────────────────────────────
@@ -1317,10 +1319,10 @@ async function handleResolveDirection(body: any): Promise<Response> {
  * The task source is 'flag' (system-generated) with skill_category 'retention'
  * and priority P2 (time-sensitive once the agency is onboarded).
  */
-async function handleCreateSyncTask(body: any): Promise<Response> {
+async function handleCreateSyncTask(body: any, req: Request): Promise<Response> {
   const { agency_id, agency_name, direction_result } = body;
   if (!agency_id) {
-    return json({ error: "Missing agency_id" }, 400);
+    return json({ error: "Missing agency_id" }, 400, req);
   }
 
   const portal = getPortalClient();
@@ -1340,7 +1342,7 @@ async function handleCreateSyncTask(body: any): Promise<Response> {
       skipped: true,
       reason: "A sync task already exists for this agency",
       task_id: existing.id,
-    });
+    }, 200, req);
   }
 
   // Build task description — plain text (no markdown), with embedded agency_id for UI extraction
@@ -1418,7 +1420,7 @@ async function handleCreateSyncTask(body: any): Promise<Response> {
     });
 
   if (insertError) {
-    return json({ error: `Failed to create task: ${insertError.message}` }, 500);
+    return json({ error: `Failed to create task: ${insertError.message}` }, 500, req);
   }
 
   return json({
@@ -1426,7 +1428,7 @@ async function handleCreateSyncTask(body: any): Promise<Response> {
     task_id: taskId,
     title: `Pipeline Sync Direction — ${name}`,
     direction: dir?.direction || "unknown",
-  });
+  }, 200, req);
 }
 
 // ── Execute sync handler ──────────────────────────────────────────────────
@@ -1440,14 +1442,14 @@ async function handleCreateSyncTask(body: any): Promise<Response> {
  *
  * Also marks the cc_tasks entry as done.
  */
-async function handleExecuteSync(body: any): Promise<Response> {
+async function handleExecuteSync(body: any, req: Request): Promise<Response> {
   const { agency_id, direction, task_id } = body;
   if (!agency_id || !direction) {
-    return json({ error: "Missing agency_id or direction" }, 400);
+    return json({ error: "Missing agency_id or direction" }, 400, req);
   }
 
   if (!['app_to_ghl', 'ghl_to_app', 'empty'].includes(direction)) {
-    return json({ error: `Invalid direction: ${direction}. Must be app_to_ghl, ghl_to_app, or empty.` }, 400);
+    return json({ error: `Invalid direction: ${direction}. Must be app_to_ghl, ghl_to_app, or empty.` }, 400, req);
   }
 
   const portal = getPortalClient();
@@ -1458,11 +1460,11 @@ async function handleExecuteSync(body: any): Promise<Response> {
   let syncResult: any = null;
   if (direction === 'app_to_ghl') {
     // Seed App → GHL
-    const seedRes = await handleSeed({ agency_id, _bypass_gate: true });
+    const seedRes = await handleSeed({ agency_id, _bypass_gate: true }, req);
     syncResult = await seedRes.json();
   } else if (direction === 'ghl_to_app') {
     // Import GHL → App
-    const importRes = await handleImport({ agency_id, _bypass_gate: true });
+    const importRes = await handleImport({ agency_id, _bypass_gate: true }, req);
     syncResult = await importRes.json();
   } else {
     // Empty — no sync needed, just enable
@@ -1473,7 +1475,7 @@ async function handleExecuteSync(body: any): Promise<Response> {
     return json({
       error: "Sync execution failed",
       sync_result: syncResult,
-    }, 500);
+    }, 500, req);
   }
 
   // Step 2: Flip manager_pipeline_enabled to true
@@ -1489,7 +1491,7 @@ async function handleExecuteSync(body: any): Promise<Response> {
     return json({
       error: `Sync succeeded but failed to enable pipeline: ${enableError.message}`,
       sync_result: syncResult,
-    }, 500);
+    }, 500, req);
   }
 
   // Step 3: Mark the cc_tasks entry as done (if provided)
@@ -1511,7 +1513,7 @@ async function handleExecuteSync(body: any): Promise<Response> {
     direction,
     sync_result: syncResult,
     pipeline_enabled: true,
-  });
+  }, 200, req);
 }
 
 // ── Main handler ─────────────────────────────────────────────────────────────
@@ -1556,7 +1558,7 @@ Deno.serve(async (req) => {
 
     switch (action) {
       case "push":
-        return await handlePush(body);
+        return await handlePush(body, req);
       case "seed": {
         // Gate: external seed calls require pipeline to be enabled
         const seedConfig = await getAgencyGhlConfig(body.agency_id);
@@ -1565,9 +1567,9 @@ Deno.serve(async (req) => {
             success: true,
             skipped: true,
             reason: "Manager pipeline not yet enabled — awaiting CRM team sync confirmation",
-          });
+          }, 200, req);
         }
-        return await handleSeed(body);
+        return await handleSeed(body, req);
       }
       case "import": {
         // Gate: external import calls require pipeline to be enabled
@@ -1577,16 +1579,16 @@ Deno.serve(async (req) => {
             success: true,
             skipped: true,
             reason: "Manager pipeline not yet enabled — awaiting CRM team sync confirmation",
-          });
+          }, 200, req);
         }
-        return await handleImport(body);
+        return await handleImport(body, req);
       }
       case "resolve_direction":
-        return await handleResolveDirection(body);
+        return await handleResolveDirection(body, req);
       case "create_sync_task":
-        return await handleCreateSyncTask(body);
+        return await handleCreateSyncTask(body, req);
       case "execute_sync":
-        return await handleExecuteSync(body);
+        return await handleExecuteSync(body, req);
       case "status": {
         const config = await getAgencyGhlConfig(body.agency_id);
         return json({
@@ -1595,13 +1597,13 @@ Deno.serve(async (req) => {
             locationId: config.locationId,
             managerPipelineEnabled: config.managerPipelineEnabled,
           } : null,
-        });
+        }, 200, req);
       }
       default:
-        return json({ error: `Unknown action: ${action}` }, 400);
+        return json({ error: `Unknown action: ${action}` }, 400, req);
     }
   } catch (err: any) {
     console.error("atrisk-ghl-push error:", err);
-    return json({ error: "Internal server error" }, 500);
+    return json({ error: "Internal server error" }, 500, req);
   }
 });
