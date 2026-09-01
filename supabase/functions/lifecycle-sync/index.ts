@@ -14,8 +14,13 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifyStrictCronAuth } from "../_shared/strict-cron-auth.ts";
 
-const PORTAL_REF = "akhojhncsswyzcnicedt";
+// PORTAL_REF kept for reference only — queries now use Supabase client, not Management API
+const _PORTAL_REF = "akhojhncsswyzcnicedt";
+
+// UUID v4 format validation — reject anything that isn't a valid UUID
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Stages that mean "at or past RTS" in the contracting pipeline
 const RTS_OR_LATER_STAGES = new Set([
@@ -417,6 +422,11 @@ Deno.serve(async (req) => {
       portalAgentId = url.searchParams.get("portal_agent_id");
     }
 
+    // Validate portalAgentId shape — must be a UUID if provided
+    if (portalAgentId && !UUID_RE.test(portalAgentId)) {
+      return jsonResponse({ error: "Invalid portal_agent_id format (expected UUID)" }, 400);
+    }
+
     // Connect to FYM App DB
     const appUrl =
       Deno.env.get("APP_SUPABASE_URL") ||
@@ -438,77 +448,58 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // Connect to Portal DB via Management API
-    const mgmtToken = Deno.env.get("SUPABASE_ACCESS_TOKEN");
-    if (!mgmtToken) {
+    // ── Auth gate ──
+    const auth = verifyStrictCronAuth(req);
+    if (!auth.ok) {
+      return jsonResponse({ error: auth.error }, 401);
+    }
+
+    // Connect to Portal DB via Supabase client (parameterized queries, no raw SQL)
+    const portalUrl = Deno.env.get("PORTAL_SUPABASE_URL") || Deno.env.get("CONTRACTING_SUPABASE_URL") || "";
+    const portalKey = Deno.env.get("PORTAL_SUPABASE_SERVICE_KEY") || Deno.env.get("CONTRACTING_SUPABASE_SERVICE_KEY") || "";
+    if (!portalUrl || !portalKey) {
+      return jsonResponse({ error: "Portal Supabase credentials not configured" }, 500);
+    }
+
+    const portalClient = createClient(portalUrl, portalKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    // ── Fetch portal data (parameterized via Supabase client) ──
+    let agentsQuery = portalClient
+      .from("agents")
+      .select("id, first_name, last_name, email, phone, agency, crm_onboarded, terminated_at, status")
+      .eq("status", "completed");
+
+    if (portalAgentId) {
+      agentsQuery = agentsQuery.eq("id", portalAgentId);
+    }
+
+    const { data: portalAgents, error: agentsErr } = await agentsQuery;
+    if (agentsErr) {
+      return jsonResponse({ error: "Portal agents query failed", detail: agentsErr.message }, 500);
+    }
+    if (!portalAgents || !Array.isArray(portalAgents)) {
       return jsonResponse(
-        { error: "SUPABASE_ACCESS_TOKEN not configured" },
+        { error: "Unexpected portal agents response" },
         500
       );
     }
 
-    // ── Fetch portal data ──
-    let portalAgentsQuery = `
-      SELECT id, first_name, last_name, email, phone, agency,
-             COALESCE(crm_onboarded, false) AS crm_onboarded,
-             terminated_at, status
-      FROM agents
-      WHERE status = 'completed'
-    `;
+    // Fetch pipeline entries (parameterized via Supabase client)
+    let pipelineQ = portalClient
+      .from("agent_pipeline")
+      .select("id, agent_name, stage, agency_id, writing_numbers, stage_entered_at, created_at, agent_id");
+
     if (portalAgentId) {
-      portalAgentsQuery += ` AND id = '${portalAgentId}'`;
+      pipelineQ = pipelineQ.eq("agent_id", portalAgentId);
     }
 
-    const agentsRes = await fetch(
-      `https://api.supabase.com/v1/projects/${PORTAL_REF}/database/query`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${mgmtToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ query: portalAgentsQuery }),
-      }
-    );
-
-    if (!agentsRes.ok) {
-      const err = await agentsRes.text();
-      return jsonResponse({ error: "Portal agents query failed" }, 500);
+    const { data: pipelineEntries, error: pipelineErr } = await pipelineQ;
+    if (pipelineErr) {
+      console.error("Pipeline query failed:", pipelineErr.message);
     }
-
-    const portalAgents = await agentsRes.json();
-    if (!Array.isArray(portalAgents)) {
-      return jsonResponse(
-        { error: "Unexpected portal agents response", detail: portalAgents },
-        500
-      );
-    }
-
-    // Fetch pipeline entries
-    let pipelineQuery = `
-      SELECT id, agent_name, stage, agency_id, writing_numbers,
-             stage_entered_at, created_at, agent_id
-      FROM agent_pipeline
-    `;
-    if (portalAgentId) {
-      pipelineQuery += ` WHERE agent_id = '${portalAgentId}'`;
-    }
-
-    const pipelineRes = await fetch(
-      `https://api.supabase.com/v1/projects/${PORTAL_REF}/database/query`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${mgmtToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ query: pipelineQuery }),
-      }
-    );
-
-    const pipelineEntries = pipelineRes.ok
-      ? await pipelineRes.json()
-      : [];
+    const pipelineData = pipelineEntries || [];
 
     // Build pipeline lookup by agent_id
     const pipelineByAgentId = new Map<
@@ -521,8 +512,8 @@ Deno.serve(async (req) => {
         created_at: string | null;
       }
     >();
-    if (Array.isArray(pipelineEntries)) {
-      for (const p of pipelineEntries) {
+    if (Array.isArray(pipelineData)) {
+      for (const p of pipelineData) {
         if (p.agent_id) {
           pipelineByAgentId.set(p.agent_id, p);
         }

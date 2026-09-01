@@ -66,14 +66,6 @@ function isValidAgencyName(v: string): boolean {
   return AGENCY_NAME_RE.test(v);
 }
 
-/**
- * Escape a string for use in a SQL literal ('...'). 
- * Doubles single quotes and backslashes — Postgres standard_conforming_strings.
- * Only used AFTER input validation has already whitelist-approved the content.
- */
-function escapeSqlLiteral(v: string): string {
-  return v.replace(/\\/g, "\\\\").replace(/'/g, "''");
-}
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -193,23 +185,36 @@ Deno.serve(async (req) => {
           return json({ error: "enabled (boolean) required" }, 400);
         }
 
-        // UUID is validated — safe to interpolate (only hex + hyphens)
-        const safeId = agencyId.toLowerCase();
+        // Use Supabase client for parameterized update (no string interpolation)
+        const trackerUrl = Deno.env.get("TRACKER_SUPABASE_URL") || "";
+        const trackerKey = Deno.env.get("TRACKER_SUPABASE_SERVICE_KEY") || "";
+        if (!trackerUrl || !trackerKey) {
+          return json({ error: "Tracker Supabase credentials not configured" }, 500);
+        }
+        const trackerClient = createClient(trackerUrl, trackerKey, {
+          auth: { autoRefreshToken: false, persistSession: false },
+        });
 
-        await trackerQuery(
-          `UPDATE agencies
-           SET ghl_api_enabled = ${enabled}
-           WHERE id = '${safeId}'`,
-          mgmtToken
-        );
+        const { error: updateErr } = await trackerClient
+          .from("agencies")
+          .update({ ghl_api_enabled: enabled })
+          .eq("id", agencyId.toLowerCase());
+
+        if (updateErr) {
+          return json({ error: "Update failed", detail: updateErr.message }, 500);
+        }
 
         // Read back to confirm
-        const [updated] = await trackerQuery(
-          `SELECT id, name, ghl_api_enabled
-           FROM agencies
-           WHERE id = '${safeId}'`,
-          mgmtToken
-        ) as Array<{ id: string; name: string; ghl_api_enabled: boolean }>;
+        const { data: updatedRows, error: readErr } = await trackerClient
+          .from("agencies")
+          .select("id, name, ghl_api_enabled")
+          .eq("id", agencyId.toLowerCase())
+          .limit(1);
+
+        if (readErr) {
+          return json({ error: "Readback failed", detail: readErr.message }, 500);
+        }
+        const updated = updatedRows?.[0] as { id: string; name: string; ghl_api_enabled: boolean } | undefined;
 
         if (!updated) {
           return json({ error: "Agency not found" }, 404);
@@ -242,16 +247,50 @@ Deno.serve(async (req) => {
           return json({ error: "enabled (boolean) required" }, 400);
         }
 
-        // Name validated against whitelist regex, then escaped for SQL literal
-        const safeName = escapeSqlLiteral(agencyName);
+        // Use Supabase client for parameterized update (no string interpolation)
+        const syncTrackerUrl = Deno.env.get("TRACKER_SUPABASE_URL") || "";
+        const syncTrackerKey = Deno.env.get("TRACKER_SUPABASE_SERVICE_KEY") || "";
+        if (!syncTrackerUrl || !syncTrackerKey) {
+          return json({ error: "Tracker Supabase credentials not configured" }, 500);
+        }
+        const syncTrackerClient = createClient(syncTrackerUrl, syncTrackerKey, {
+          auth: { autoRefreshToken: false, persistSession: false },
+        });
 
-        const matches = await trackerQuery(
-          `UPDATE agencies
-           SET ghl_api_enabled = ${syncEnabled}
-           WHERE lower(name) = lower('${safeName}')
-           RETURNING id, name, ghl_api_enabled`,
-          mgmtToken
-        ) as Array<{ id: string; name: string; ghl_api_enabled: boolean }>;
+        // Case-insensitive name match: fetch first, then update by id
+        const { data: nameMatches, error: nameErr } = await syncTrackerClient
+          .from("agencies")
+          .select("id, name, ghl_api_enabled")
+          .ilike("name", agencyName);
+
+        if (nameErr) {
+          return json({ error: "Name lookup failed", detail: nameErr.message }, 500);
+        }
+
+        if (!nameMatches?.length) {
+          // No matching tracker agency — not an error
+          return json({
+            success: true,
+            synced: false,
+            reason: "No matching agency in tracker DB",
+          });
+        }
+
+        // Update matched agencies by id
+        for (const match of nameMatches) {
+          await syncTrackerClient
+            .from("agencies")
+            .update({ ghl_api_enabled: syncEnabled })
+            .eq("id", match.id);
+        }
+
+        // Re-fetch to confirm
+        const { data: updatedMatches } = await syncTrackerClient
+          .from("agencies")
+          .select("id, name, ghl_api_enabled")
+          .in("id", nameMatches.map((m: { id: string }) => m.id));
+
+        const matches = (updatedMatches || []) as Array<{ id: string; name: string; ghl_api_enabled: boolean }>;
 
         if (matches.length === 0) {
           // No matching tracker agency — not an error, just means

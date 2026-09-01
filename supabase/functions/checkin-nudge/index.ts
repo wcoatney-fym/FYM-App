@@ -5,6 +5,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getTodayET } from "../_shared/date-helpers.ts";
+import { verifyStrictCronAuth } from "../_shared/strict-cron-auth.ts";
 
 const ALLOWED_ORIGINS = [
   "https://agency.teamfym.com",
@@ -58,6 +59,15 @@ async function sendSms(to: string, body: string): Promise<boolean> {
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders(req) });
+  }
+
+  // Auth gate — sb_secret_ on apikey header only
+  const auth = verifyStrictCronAuth(req);
+  if (!auth.ok) {
+    return new Response(
+      JSON.stringify({ error: auth.error }),
+      { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders(req) } }
+    );
   }
 
   try {

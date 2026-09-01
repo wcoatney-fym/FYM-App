@@ -14,8 +14,27 @@
  * app is already committed. GHL push failure doesn't affect the app state.
  */
 
+import { supabase } from '@/lib/supabase';
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+/**
+ * Get the user's session access token for authenticated edge function calls.
+ * Falls back to anon key if no session exists (should not happen on
+ * authenticated surfaces like the Workboard).
+ */
+async function getAuthToken(): Promise<string> {
+  if (supabase) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      return session.access_token;
+    }
+  }
+  // Fallback — should not reach here on authenticated surfaces
+  console.warn('ghl-push: No session — falling back to anon key');
+  return SUPABASE_ANON_KEY || '';
+}
 
 export interface GhlPushParams {
   policy_number: string;
@@ -53,16 +72,17 @@ export async function pushStageToGhl(
     return { success: true, skipped: true, reason: 'Source is GHL — loop guard' };
   }
 
-  if (!SUPABASE_URL || !SUPABASE_KEY) {
-    console.warn('ghl-push: Missing SUPABASE_URL or SUPABASE_KEY');
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    console.warn('ghl-push: Missing SUPABASE_URL or SUPABASE_ANON_KEY');
     return null;
   }
 
   try {
+    const token = await getAuthToken();
     const res = await fetch(`${SUPABASE_URL}/functions/v1/atrisk-ghl-push`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${SUPABASE_KEY}`,
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -125,13 +145,14 @@ export interface SyncDirectionResult {
 export async function resolveSyncDirection(
   agencyId: string
 ): Promise<SyncDirectionResult | null> {
-  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
 
   try {
+    const token = await getAuthToken();
     const res = await fetch(`${SUPABASE_URL}/functions/v1/atrisk-ghl-push`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${SUPABASE_KEY}`,
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -173,13 +194,14 @@ export async function createSyncTask(
   agencyName: string,
   directionResult: SyncDirectionResult | null
 ): Promise<CreateSyncTaskResult | null> {
-  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
 
   try {
+    const token = await getAuthToken();
     const res = await fetch(`${SUPABASE_URL}/functions/v1/atrisk-ghl-push`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${SUPABASE_KEY}`,
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -231,13 +253,14 @@ export async function executeSyncDirection(
   direction: 'app_to_ghl' | 'ghl_to_app' | 'empty',
   taskId?: string
 ): Promise<ExecuteSyncResult | null> {
-  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
 
   try {
+    const token = await getAuthToken();
     const res = await fetch(`${SUPABASE_URL}/functions/v1/atrisk-ghl-push`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${SUPABASE_KEY}`,
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -270,13 +293,14 @@ export async function seedAgencyToGhl(agencyId: string): Promise<{
   total?: number;
   error?: string;
 } | null> {
-  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
 
   try {
+    const token = await getAuthToken();
     const res = await fetch(`${SUPABASE_URL}/functions/v1/atrisk-ghl-push`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${SUPABASE_KEY}`,
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({

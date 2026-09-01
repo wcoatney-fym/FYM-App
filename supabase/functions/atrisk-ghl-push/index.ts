@@ -1521,6 +1521,35 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: CORS_HEADERS(req) });
   }
 
+  // Auth gate — verify_jwt=true handles frontend callers (user session JWTs
+  // validated by the gateway). Internal callers (atrisk-auto-expire) send
+  // sb_secret_ on apikey header, which also passes verify_jwt=true.
+  // This block is defense-in-depth: explicitly reject the leaked key and
+  // require at least one credential even if verify_jwt config drifts.
+  {
+    const apiKey = req.headers.get("apikey") || "";
+    const authHeader = req.headers.get("Authorization") || "";
+    const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    const leakedJwt = Deno.env.get("SERVICE_ROLE_JWT") || "";
+
+    // Block the leaked SERVICE_ROLE_JWT on any header
+    if (leakedJwt && (apiKey === leakedJwt || bearerToken === leakedJwt)) {
+      console.warn("[atrisk-ghl-push] REJECTED leaked SERVICE_ROLE_JWT");
+      return new Response(
+        JSON.stringify({ error: "Legacy JWT not authorized" }),
+        { status: 401, headers: { "Content-Type": "application/json", ...CORS_HEADERS(req) } }
+      );
+    }
+
+    // Require at least one credential
+    if (!apiKey && !bearerToken) {
+      return new Response(
+        JSON.stringify({ error: "Missing credentials" }),
+        { status: 401, headers: { "Content-Type": "application/json", ...CORS_HEADERS(req) } }
+      );
+    }
+  }
+
   try {
     const body = await req.json();
     const action = body.action || "push";
