@@ -12,11 +12,20 @@ import { cn } from '@/lib/utils';
 import { PolicySearchPalette } from '@/components/search/PolicySearchPalette';
 import { ClientDetailDrawer } from '@/components/client-detail';
 import type { DrawerPolicy } from '@/components/client-detail/ClientDetailDrawer';
+import { HelpChatWidget } from '@/components/help-chat';
 
 export function AppLayout() {
   const { sidebarCollapsed } = useAppStore();
-  const { session, loading } = useAuth();
+  const { session, loading, isFymAdmin } = useAuth();
   const isViewingAs = useViewAsStore((s) => s.active);
+  const viewSource = useViewAsStore((s) => s.viewSource);
+
+  // Help chat widget: visible only for FYM Direct users
+  // - Native FYM admin (not in view-as mode), OR
+  // - Viewing as FYM Direct role (viewSource === 'fym-direct')
+  const showHelpChat =
+    (isFymAdmin && !isViewingAs) ||
+    (isViewingAs && viewSource === 'fym-direct');
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchPolicy, setSearchPolicy] = useState<DrawerPolicy | null>(null);
 
@@ -80,6 +89,9 @@ export function AppLayout() {
           actionsEnabled={true}
         />
       )}
+
+      {/* Help chatbot widget — FYM Direct views only */}
+      {showHelpChat && <HelpChatWidget />}
     </div>
   );
 }
