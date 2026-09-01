@@ -66,7 +66,7 @@ const STAGE_REVERSE_MAP: Record<string, string> = {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function json(data: unknown, status = 200, request?: Request | null): Response {
+function json(data: unknown, status: number, request: Request): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: { ...CORS_HEADERS(request), "Content-Type": "application/json" },
@@ -144,7 +144,7 @@ Deno.serve(async (req) => {
     const expectedSecret = Deno.env.get("GHL_WEBHOOK_SECRET");
 
     if (expectedSecret && secret !== expectedSecret) {
-      return json({ error: "Unauthorized" }, 401);
+      return json({ error: "Unauthorized" }, 401, req);
     }
 
     const rawBody = await req.text();
@@ -205,7 +205,7 @@ Deno.serve(async (req) => {
         success: true,
         skipped: true,
         reason: "Manager pipeline not yet enabled — awaiting CRM team sync confirmation",
-      });
+      }, 200, req);
     }
 
     if (!opportunityId || !pipelineStage) {
@@ -213,7 +213,7 @@ Deno.serve(async (req) => {
       return json({
         error: "Missing opportunity_id or pipeline_stage",
         received: { opportunityId, pipelineStage, contactId, locationId },
-      }, 400);
+      }, 400, req);
     }
 
     // Resolve the GHL stage to our internal stage
@@ -224,7 +224,7 @@ Deno.serve(async (req) => {
         success: true,
         skipped: true,
         reason: `Unknown GHL stage: "${pipelineStage}"`,
-      });
+      }, 200, req);
     }
 
     const app = getAppClient();
@@ -248,7 +248,7 @@ Deno.serve(async (req) => {
 
         if (contactTask) {
           // Found by contact — update it
-          return await updateTask(app, contactTask, appStage, opportunityId, contactId);
+          return await updateTask(app, contactTask, appStage, opportunityId, contactId, req);
         }
       }
 
@@ -261,7 +261,7 @@ Deno.serve(async (req) => {
         skipped: true,
         reason: "No matching task found in FYM App",
         ghl_opportunity_id: opportunityId,
-      });
+      }, 200, req);
     }
 
     // Task found — check if the stage actually changed
@@ -270,13 +270,13 @@ Deno.serve(async (req) => {
         success: true,
         skipped: true,
         reason: "Stage already matches",
-      });
+      }, 200, req);
     }
 
-    return await updateTask(app, existingTask, appStage, opportunityId, contactId);
+    return await updateTask(app, existingTask, appStage, opportunityId, contactId, req);
   } catch (err: any) {
     console.error("atrisk-ghl-webhook error:", err);
-    return json({ error: "Internal server error" }, 500);
+    return json({ error: "Internal server error" }, 500, req);
   }
 });
 
@@ -286,7 +286,8 @@ async function updateTask(
   task: any,
   newStage: string,
   opportunityId: string | null,
-  contactId: string | null
+  contactId: string | null,
+  req: Request,
 ): Promise<Response> {
   const oldStage = task.stage;
 
@@ -327,5 +328,5 @@ async function updateTask(
     from_stage: oldStage,
     to_stage: newStage,
     source: "ghl",
-  });
+  }, 200, req);
 }

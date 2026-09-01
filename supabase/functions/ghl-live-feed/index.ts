@@ -67,7 +67,7 @@ function isValidAgencyName(v: string): boolean {
 }
 
 
-function json(data: unknown, status = 200, request?: Request | null): Response {
+function json(data: unknown, status: number, request: Request): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: { ...CORS_HEADERS(request), "Content-Type": "application/json" },
@@ -135,14 +135,15 @@ Deno.serve(async (req) => {
     // Auth check
     const isAdmin = await verifyAdmin(req.headers.get("Authorization"));
     if (!isAdmin) {
-      return json({ error: "Unauthorized — FYM admin required" }, 401);
+      return json({ error: "Unauthorized — FYM admin required" }, 401, req);
     }
 
     const mgmtToken = Deno.env.get("SUPABASE_ACCESS_TOKEN");
     if (!mgmtToken) {
       return json(
         { error: "SUPABASE_ACCESS_TOKEN not configured" },
-        500
+        500,
+        req,
       );
     }
 
@@ -152,7 +153,8 @@ Deno.serve(async (req) => {
     if (!VALID_ACTIONS.has(action)) {
       return json(
         { error: `Unknown action: ${action}. Use "list", "toggle", or "sync".` },
-        400
+        400,
+        req,
       );
     }
 
@@ -166,7 +168,7 @@ Deno.serve(async (req) => {
           mgmtToken
         );
 
-        return json({ agencies: rows });
+        return json({ agencies: rows }, 200, req);
       }
 
       case "toggle": {
@@ -176,20 +178,20 @@ Deno.serve(async (req) => {
         };
 
         if (!agencyId) {
-          return json({ error: "agencyId required" }, 400);
+          return json({ error: "agencyId required" }, 400, req);
         }
         if (!isValidUUID(agencyId)) {
-          return json({ error: "Invalid agencyId format (expected UUID)" }, 400);
+          return json({ error: "Invalid agencyId format (expected UUID)" }, 400, req);
         }
         if (typeof enabled !== "boolean") {
-          return json({ error: "enabled (boolean) required" }, 400);
+          return json({ error: "enabled (boolean) required" }, 400, req);
         }
 
         // Use Supabase client for parameterized update (no string interpolation)
         const trackerUrl = Deno.env.get("TRACKER_SUPABASE_URL") || "";
         const trackerKey = Deno.env.get("TRACKER_SUPABASE_SERVICE_KEY") || "";
         if (!trackerUrl || !trackerKey) {
-          return json({ error: "Tracker Supabase credentials not configured" }, 500);
+          return json({ error: "Tracker Supabase credentials not configured" }, 500, req);
         }
         const trackerClient = createClient(trackerUrl, trackerKey, {
           auth: { autoRefreshToken: false, persistSession: false },
@@ -201,7 +203,7 @@ Deno.serve(async (req) => {
           .eq("id", agencyId.toLowerCase());
 
         if (updateErr) {
-          return json({ error: "Update failed", detail: updateErr.message }, 500);
+          return json({ error: "Update failed", detail: updateErr.message }, 500, req);
         }
 
         // Read back to confirm
@@ -212,12 +214,12 @@ Deno.serve(async (req) => {
           .limit(1);
 
         if (readErr) {
-          return json({ error: "Readback failed", detail: readErr.message }, 500);
+          return json({ error: "Readback failed", detail: readErr.message }, 500, req);
         }
         const updated = updatedRows?.[0] as { id: string; name: string; ghl_api_enabled: boolean } | undefined;
 
         if (!updated) {
-          return json({ error: "Agency not found" }, 404);
+          return json({ error: "Agency not found" }, 404, req);
         }
 
         return json({
@@ -225,7 +227,7 @@ Deno.serve(async (req) => {
           agencyId: updated.id,
           name: updated.name,
           ghl_api_enabled: updated.ghl_api_enabled,
-        });
+        }, 200, req);
       }
 
       case "sync": {
@@ -235,23 +237,24 @@ Deno.serve(async (req) => {
         };
 
         if (!agencyName) {
-          return json({ error: "agencyName required" }, 400);
+          return json({ error: "agencyName required" }, 400, req);
         }
         if (!isValidAgencyName(agencyName)) {
           return json(
             { error: "Invalid agencyName format (letters, numbers, spaces, basic punctuation only, max 200 chars)" },
-            400
+            400,
+            req,
           );
         }
         if (typeof syncEnabled !== "boolean") {
-          return json({ error: "enabled (boolean) required" }, 400);
+          return json({ error: "enabled (boolean) required" }, 400, req);
         }
 
         // Use Supabase client for parameterized update (no string interpolation)
         const syncTrackerUrl = Deno.env.get("TRACKER_SUPABASE_URL") || "";
         const syncTrackerKey = Deno.env.get("TRACKER_SUPABASE_SERVICE_KEY") || "";
         if (!syncTrackerUrl || !syncTrackerKey) {
-          return json({ error: "Tracker Supabase credentials not configured" }, 500);
+          return json({ error: "Tracker Supabase credentials not configured" }, 500, req);
         }
         const syncTrackerClient = createClient(syncTrackerUrl, syncTrackerKey, {
           auth: { autoRefreshToken: false, persistSession: false },
@@ -264,7 +267,7 @@ Deno.serve(async (req) => {
           .ilike("name", agencyName);
 
         if (nameErr) {
-          return json({ error: "Name lookup failed", detail: nameErr.message }, 500);
+          return json({ error: "Name lookup failed", detail: nameErr.message }, 500, req);
         }
 
         if (!nameMatches?.length) {
@@ -273,7 +276,7 @@ Deno.serve(async (req) => {
             success: true,
             synced: false,
             reason: "No matching agency in tracker DB",
-          });
+          }, 200, req);
         }
 
         // Update matched agencies by id
@@ -299,7 +302,7 @@ Deno.serve(async (req) => {
             success: true,
             synced: false,
             reason: "No matching agency in tracker DB",
-          });
+          }, 200, req);
         }
 
         return json({
@@ -308,19 +311,20 @@ Deno.serve(async (req) => {
           agencyId: matches[0].id,
           name: matches[0].name,
           ghl_api_enabled: matches[0].ghl_api_enabled,
-        });
+        }, 200, req);
       }
 
       default:
         // Unreachable due to VALID_ACTIONS check above, but TypeScript needs it
-        return json({ error: "Unknown action" }, 400);
+        return json({ error: "Unknown action" }, 400, req);
     }
   } catch (err) {
     console.error("[ghl-live-feed] Error:", err);
     // Sanitize error — don't leak internal details to caller
     return json(
       { error: "Internal error" },
-      500
+      500,
+      req,
     );
   }
 });

@@ -52,7 +52,7 @@ function CORS_HEADERS(req?: Request | null): Record<string, string> {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function json(data: unknown, status = 200, request?: Request | null): Response {
+function json(data: unknown, status: number, request: Request): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: { ...CORS_HEADERS(request), "Content-Type": "application/json" },
@@ -183,11 +183,11 @@ async function resolveContactId(
 
 // ── Push handler ─────────────────────────────────────────────────────────────
 
-async function handlePush(body: any): Promise<Response> {
+async function handlePush(body: any, req: Request): Promise<Response> {
   const { record_id, new_stage, updated_by, updated_by_source, changed_by_user_id } = body;
 
   if (!record_id || !new_stage) {
-    return json({ error: "record_id and new_stage are required" }, 400);
+    return json({ error: "record_id and new_stage are required" }, 400, req);
   }
 
   const attributedTo: string =
@@ -204,7 +204,7 @@ async function handlePush(body: any): Promise<Response> {
     .maybeSingle();
 
   if (recordErr || !record) {
-    return json({ error: "Pipeline record not found" }, 404);
+    return json({ error: "Pipeline record not found" }, 404, req);
   }
 
   // Load GHL config
@@ -231,7 +231,7 @@ async function handlePush(body: any): Promise<Response> {
       record: updated,
       ghl_pushed: false,
       reason: "no_config",
-    });
+    }, 200, req);
   }
 
   // Load stage map
@@ -260,7 +260,7 @@ async function handlePush(body: any): Promise<Response> {
       record: updated,
       ghl_pushed: false,
       reason: "no_stage_mapping",
-    });
+    }, 200, req);
   }
 
   // Mark as pushing
@@ -313,7 +313,7 @@ async function handlePush(body: any): Promise<Response> {
       record,
       ghl_pushed: false,
       reason: "no_opportunity_found",
-    });
+    }, 200, req);
   }
 
   // Push stage change to GHL
@@ -351,7 +351,7 @@ async function handlePush(body: any): Promise<Response> {
       success: false,
       error: `GHL API returned ${pushRes.status}: ${errText.slice(0, 200)}`,
       ghl_pushed: false,
-    });
+    }, 500, req);
   }
 
   // ── Suppression tag (loop prevention) ────────────────────────────────────
@@ -403,19 +403,20 @@ async function handlePush(body: any): Promise<Response> {
     },
   });
 
-  return json({ success: true, record: updated, ghl_pushed: true });
+  return json({ success: true, record: updated, ghl_pushed: true }, 200, req);
 }
 
 // ── Sync handler (bulk pull GHL → App) ───────────────────────────────────────
 
-async function handleSync(): Promise<Response> {
+async function handleSync(req: Request): Promise<Response> {
   const portal = getPortalClient();
   const config = await loadGhlConfig(portal);
 
   if (!config) {
     return json(
       { success: false, error: "No GHL config found. Configure settings first." },
-      400
+      400,
+      req,
     );
   }
 
@@ -462,7 +463,8 @@ async function handleSync(): Promise<Response> {
           error: `GHL API error ${res.status}: ${text}`,
           fetched: allOpportunities.length,
         },
-        502
+        502,
+        req,
       );
     }
 
@@ -483,7 +485,7 @@ async function handleSync(): Promise<Response> {
       success: true,
       message: "No opportunities found in GHL pipeline",
       synced: 0,
-    });
+    }, 200, req);
   }
 
   // Pre-load custom field label map (GHL field ID → human-readable name)
@@ -631,12 +633,12 @@ async function handleSync(): Promise<Response> {
     skipped,
     total_fetched: allOpportunities.length,
     errors: errors.length > 0 ? errors.slice(0, 5) : undefined,
-  });
+  }, 200, req);
 }
 
 // ── Status handler ───────────────────────────────────────────────────────────
 
-async function handleStatus(): Promise<Response> {
+async function handleStatus(req: Request): Promise<Response> {
   const portal = getPortalClient();
   const config = await loadGhlConfig(portal);
 
@@ -649,7 +651,7 @@ async function handleStatus(): Promise<Response> {
           connectionStatus: config.connectionStatus,
         }
       : null,
-  });
+  }, 200, req);
 }
 
 // ── Main handler ─────────────────────────────────────────────────────────────
@@ -665,16 +667,16 @@ Deno.serve(async (req) => {
 
     switch (action) {
       case "push":
-        return await handlePush(body);
+        return await handlePush(body, req);
       case "sync":
-        return await handleSync();
+        return await handleSync(req);
       case "status":
-        return await handleStatus();
+        return await handleStatus(req);
       default:
-        return json({ error: `Unknown action: ${action}` }, 400);
+        return json({ error: `Unknown action: ${action}` }, 400, req);
     }
   } catch (err: any) {
     console.error("push-contracting-stage error:", err);
-    return json({ error: "Internal server error" }, 500);
+    return json({ error: "Internal server error" }, 500, req);
   }
 });

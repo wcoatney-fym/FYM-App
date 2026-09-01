@@ -204,7 +204,7 @@ interface PushResult {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function json(data: unknown, status = 200, request?: Request | null): Response {
+function json(data: unknown, status: number, request: Request): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: { ...CORS_HEADERS(request), "Content-Type": "application/json" },
@@ -601,7 +601,7 @@ Deno.serve(async (req: Request) => {
 
     // Health check / warmup
     if (body.ping) {
-      return json({ success: true, warm: true });
+      return json({ success: true, warm: true }, 200, req);
     }
 
     const action = body.action || "onboard";
@@ -625,10 +625,10 @@ Deno.serve(async (req: Request) => {
       };
 
       if (!agent.agency) {
-        return json({ success: false, error: "agency is required" }, 400);
+        return json({ success: false, error: "agency is required" }, 400, req);
       }
       if (!agent.seatNumber) {
-        return json({ success: false, error: "seatNumber is required" }, 400);
+        return json({ success: false, error: "seatNumber is required" }, 400, req);
       }
 
       const result = await processAgent(agent, {
@@ -639,7 +639,7 @@ Deno.serve(async (req: Request) => {
       return json({
         success: result.errors.length === 0 || result.customValuesPushed || result.userCreated,
         result,
-      });
+      }, 200, req);
     }
 
     // ── Batch onboard ──
@@ -648,7 +648,7 @@ Deno.serve(async (req: Request) => {
       const createUsers = body.createUsers !== false;
 
       if (!Array.isArray(agents) || agents.length === 0) {
-        return json({ success: false, error: "agents array is required" }, 400);
+        return json({ success: false, error: "agents array is required" }, 400, req);
       }
 
       const results: PushResult[] = [];
@@ -691,7 +691,7 @@ Deno.serve(async (req: Request) => {
         succeeded,
         failed,
         results,
-      });
+      }, 200, req);
     }
 
     // ── Push cross-sell custom values ──
@@ -700,7 +700,7 @@ Deno.serve(async (req: Request) => {
       const agencyName = body.agencyName || body.agency || "";
 
       if (!agencyId && !agencyName) {
-        return json({ success: false, error: "agencyId or agencyName is required" }, 400);
+        return json({ success: false, error: "agencyId or agencyName is required" }, 400, req);
       }
 
       // 1. Get agency GHL config
@@ -709,7 +709,7 @@ Deno.serve(async (req: Request) => {
         return json({
           success: false,
           error: `No GHL config found for agency${agencyId ? ` (id: ${agencyId})` : ` "${agencyName}"`}`,
-        }, 400);
+        }, 400, req);
       }
 
       // 2. Read cross-sell products from portal DB
@@ -731,17 +731,17 @@ Deno.serve(async (req: Request) => {
           .eq("is_active", true)
           .maybeSingle();
         if (!agency) {
-          return json({ success: false, error: `Agency not found: "${agencyName}"` }, 400);
+          return json({ success: false, error: `Agency not found: "${agencyName}"` }, 400, req);
         }
         crossSellQuery = crossSellQuery.eq("agency_id", agency.id);
       }
 
       const { data: products, error: dbError } = await crossSellQuery;
       if (dbError) {
-        return json({ success: false, error: "Database query failed" }, 500);
+        return json({ success: false, error: "Database query failed" }, 500, req);
       }
       if (!products || products.length === 0) {
-        return json({ success: false, error: "No cross-sell products configured for this agency" }, 400);
+        return json({ success: false, error: "No cross-sell products configured for this agency" }, 400, req);
       }
 
       // 3. Build GHL custom value map: "Cross Selling | Product #N | Label" → value
@@ -758,7 +758,7 @@ Deno.serve(async (req: Request) => {
       }
 
       if (Object.keys(customValues).length === 0) {
-        return json({ success: false, error: "No cross-sell values to push (all fields empty)" }, 400);
+        return json({ success: false, error: "No cross-sell values to push (all fields empty)" }, 400, req);
       }
 
       // 4. Push to GHL (agency subaccount only — no Sunfire for cross-sell)
@@ -774,10 +774,10 @@ Deno.serve(async (req: Request) => {
         valuesAttempted: Object.keys(customValues).length,
         valuesUpdated: pushResult.updated,
         errors: pushResult.errors,
-      });
+      }, 200, req);
     }
 
-    return json({ success: false, error: `Unknown action: ${action}` }, 400);
+    return json({ success: false, error: `Unknown action: ${action}` }, 400, req);
   } catch (err) {
     return json(
       {
@@ -785,6 +785,7 @@ Deno.serve(async (req: Request) => {
         error: "Internal server error",
       },
       500,
+      req,
     );
   }
 });
