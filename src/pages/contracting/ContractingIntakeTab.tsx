@@ -84,7 +84,8 @@ const AGENCIES: { label: string; value: AgencyName }[] = [
   { label: 'Aspire', value: 'Aspire' },
 ];
 
-const PORTAL_BASE_URL = 'https://agency.teamfym.com';
+// Use the current origin so links work from both agency.teamfym.com and crm.teamfym.com
+const PORTAL_BASE_URL = typeof window !== 'undefined' ? window.location.origin : 'https://crm.teamfym.com';
 
 // ─── Component ───────────────────────────────────────────────────────────────
 

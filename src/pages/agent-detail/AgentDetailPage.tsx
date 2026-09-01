@@ -127,7 +127,7 @@ export function AgentDetailPage() {
       setContractingLoading(true);
       try {
         // Get agent's agency_id from profile
-        const { data: prof } = await supabase!.from('profiles').select('agency_id').eq('id', agentId!).maybeSingle();
+        const { data: prof } = await supabase!.from('profiles').select('agency_id, email').eq('id', agentId!).maybeSingle();
         if (prof?.agency_id) {
           // Check if agency is fym_direct in portal crm_agencies
           const { data: agency } = await portalSupabase!.from('crm_agencies').select('variant').eq('id', prof.agency_id).maybeSingle();
@@ -138,17 +138,15 @@ export function AgentDetailPage() {
             if (pipeline) {
               setPipelineRecord(pipeline as PortalPipelineRecord);
               setPortalAgentId(pipeline.agent_id);
-            } else {
-              // Fallback: try matching by email via portal agents table
-              const { data: user } = await supabase!.auth.admin.getUserById(agentId!);
-              if (user?.user?.email) {
-                const { data: portalAgent } = await portalSupabase!.from('agents').select('id').eq('email', user.user.email).maybeSingle();
-                if (portalAgent) {
-                  const { data: pRec } = await portalSupabase!.from('agent_pipeline').select('*').eq('agent_id', portalAgent.id).maybeSingle();
-                  if (pRec) {
-                    setPipelineRecord(pRec as PortalPipelineRecord);
-                    setPortalAgentId(portalAgent.id);
-                  }
+            } else if (prof?.email) {
+              // Fallback: match by email via portal agents table
+              // (uses profile email instead of admin API which requires service role key)
+              const { data: portalAgent } = await portalSupabase!.from('agents').select('id').eq('email', prof.email).maybeSingle();
+              if (portalAgent) {
+                const { data: pRec } = await portalSupabase!.from('agent_pipeline').select('*').eq('agent_id', portalAgent.id).maybeSingle();
+                if (pRec) {
+                  setPipelineRecord(pRec as PortalPipelineRecord);
+                  setPortalAgentId(portalAgent.id);
                 }
               }
             }

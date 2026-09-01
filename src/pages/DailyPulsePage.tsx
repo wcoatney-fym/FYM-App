@@ -11,10 +11,10 @@ import { PulseTrendChart } from '@/components/daily-pulse/PulseTrendChart';
 
 type Tab = 'today' | 'trends' | 'recipients';
 
-function getTodayEST(): string {
+function getTodayCT(): string {
   const now = new Date();
   const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York',
+    timeZone: 'America/Chicago',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -28,7 +28,7 @@ function getTodayEST(): string {
 function formatDateFriendly(dateStr: string): string {
   const d = new Date(dateStr + 'T12:00:00');
   return d.toLocaleDateString('en-US', {
-    timeZone: 'America/New_York',
+    timeZone: 'America/Chicago',
     weekday: 'long',
     month: 'long',
     day: 'numeric',
@@ -43,7 +43,7 @@ export function DailyPulsePage() {
   const [responses, setResponses] = useState<CheckinResponse[]>([]);
   const [recipients, setRecipients] = useState<any[]>([]);
   const [managers, setManagers] = useState<any[]>([]);
-  const [selectedDate, setSelectedDate] = useState(getTodayEST());
+  const [selectedDate, setSelectedDate] = useState(getTodayCT());
 
   const fetchResponses = useCallback(async () => {
     setLoading(true);
@@ -148,7 +148,7 @@ export function DailyPulsePage() {
         : 0,
   };
 
-  const isToday = selectedDate === getTodayEST();
+  const isToday = selectedDate === getTodayCT();
 
   return (
     <div className="space-y-6">
@@ -205,7 +205,7 @@ export function DailyPulsePage() {
                   variant="outline"
                   size="sm"
                   className="h-7 text-xs border-zinc-700 text-zinc-300"
-                  onClick={() => setSelectedDate(getTodayEST())}
+                  onClick={() => setSelectedDate(getTodayCT())}
                 >
                   Today
                 </Button>

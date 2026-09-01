@@ -164,7 +164,7 @@ export function PulseTrendChart({ agencyId }: PulseTrendChartProps = {}) {
       dateLabel: new Date(date + 'T12:00:00').toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
-        timeZone: 'America/New_York',
+        timeZone: 'America/Chicago',
       }),
       agentsWorking: agg.working,
       appsCommitted: agg.apps,
