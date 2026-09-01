@@ -119,6 +119,8 @@ async function graphGet<T>(
 const ALLOWED_ORIGINS = [
   "https://agency.teamfym.com",
   "https://www.agency.teamfym.com",
+  "https://crm.teamfym.com",
+  "https://www.crm.teamfym.com",
   "http://localhost:5173",
   "http://localhost:3000",
   "http://localhost:4173",
