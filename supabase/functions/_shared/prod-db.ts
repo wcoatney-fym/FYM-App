@@ -287,14 +287,19 @@ export async function verifyAuth(req: Request): Promise<{
   // Verify the JWT using the service role key
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || Deno.env.get("APP_SUPABASE_URL") || "";
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("APP_SUPABASE_SERVICE_KEY") || "";
+  // Supabase now auto-injects SUPABASE_SERVICE_ROLE_KEY in sb_secret_ format,
+  // but pg_cron jobs send the JWT-format key. SERVICE_ROLE_JWT stores the JWT
+  // version so we can match both formats.
+  const serviceKeyJwt = Deno.env.get("SERVICE_ROLE_JWT") || "";
 
-  if (!supabaseUrl || !serviceKey) {
+  if (!supabaseUrl || (!serviceKey && !serviceKeyJwt)) {
     return { user: null, error: "Auth not configured" };
   }
 
   // Service role key = trusted server-to-server caller (pg_cron, webhooks).
   // Skip getUser() — service keys are not user JWTs.
-  if (token === serviceKey) {
+  // Check both sb_secret_ format and JWT format.
+  if ((serviceKey && token === serviceKey) || (serviceKeyJwt && token === serviceKeyJwt)) {
     return { user: { id: "service_role", email: "cron@system" }, error: null };
   }
 
