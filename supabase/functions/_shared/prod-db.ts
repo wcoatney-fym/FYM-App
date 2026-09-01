@@ -207,6 +207,8 @@ export function resolveRiskFlag(
 const ALLOWED_ORIGINS = [
   "https://agency.teamfym.com",
   "https://www.agency.teamfym.com",
+  "https://crm.teamfym.com",
+  "https://www.crm.teamfym.com",
   "http://localhost:5173",   // Vite dev
   "http://localhost:3000",   // alternate dev
   "http://localhost:4173",   // Vite preview
