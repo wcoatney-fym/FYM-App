@@ -8,6 +8,8 @@ import { getTodayET, isWeekdayET } from "../_shared/date-helpers.ts";
 
 const ALLOWED_ORIGINS = [
   "https://agency.teamfym.com",
+  "https://crm.teamfym.com",
+  "https://www.crm.teamfym.com",
   "https://www.agency.teamfym.com",
   "https://crm.teamfym.com",
   "https://www.crm.teamfym.com",

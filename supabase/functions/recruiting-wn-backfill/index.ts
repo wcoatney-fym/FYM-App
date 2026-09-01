@@ -20,6 +20,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const ALLOWED_ORIGINS = [
   "https://agency.teamfym.com",
+  "https://crm.teamfym.com",
+  "https://www.crm.teamfym.com",
   "https://www.agency.teamfym.com",
   "https://crm.teamfym.com",
   "https://www.crm.teamfym.com",
