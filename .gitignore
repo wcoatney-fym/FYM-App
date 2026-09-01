@@ -32,3 +32,4 @@ tsconfig.app.tsbuildinfo
 tsconfig.node.tsbuildinfo
 recruiting-audit.md
 _phase1_audit.md
+specs/

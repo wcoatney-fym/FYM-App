@@ -276,7 +276,7 @@ export async function verifyAuth(req: Request): Promise<{
     return { user: null, error: "Missing authorization" };
   }
 
-  // If the token is just the anon key, reject — we need a user JWT
+  // If the token is just the anon key, reject — we need a user JWT or service role key
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
   if (token === anonKey) {
     return { user: null, error: "Anon key is not sufficient — user JWT required" };
@@ -288,6 +288,12 @@ export async function verifyAuth(req: Request): Promise<{
 
   if (!supabaseUrl || !serviceKey) {
     return { user: null, error: "Auth not configured" };
+  }
+
+  // Service role key = trusted server-to-server caller (pg_cron, webhooks).
+  // Skip getUser() — service keys are not user JWTs.
+  if (token === serviceKey) {
+    return { user: { id: "service_role", email: "cron@system" }, error: null };
   }
 
   try {
