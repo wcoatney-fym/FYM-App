@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
   // ── Auth gate ──────────────────────────────────────────────────────
   const { user, error: authError } = await verifyAuth(req);
   if (!user) {
-    return jsonResponse({ error: authError || "Unauthorized" }, 401, req);
+    return jsonResponse(req, { error: authError || "Unauthorized" }, 401);
   }
 
   const started = performance.now();
@@ -53,10 +53,10 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
   if (!portalUrl || !portalKey) {
-    return jsonResponse({ error: "Missing PORTAL/CONTRACTING Supabase credentials" }, 500, req);
+    return jsonResponse(req, { error: "Missing PORTAL/CONTRACTING Supabase credentials" }, 500);
   }
   if (!appUrl || !appKey) {
-    return jsonResponse({ error: "Missing APP Supabase credentials" }, 500, req);
+    return jsonResponse(req, { error: "Missing APP Supabase credentials" }, 500);
   }
 
   const portal = createClient(portalUrl, portalKey, {
@@ -265,7 +265,7 @@ Deno.serve(async (req) => {
 
     const elapsed = Math.round(performance.now() - started);
 
-    return jsonResponse({
+    return jsonResponse(req, {
       success: true,
       source: {
         table: "crm_roster (portal DB)",
@@ -285,6 +285,6 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     console.error("roster-backfill error:", err);
-    return jsonResponse({ error: "Internal server error" }, 500, req);
+    return jsonResponse(req, { error: "Internal server error" }, 500);
   }
 });

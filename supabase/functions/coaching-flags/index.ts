@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
   // ── Auth gate ──────────────────────────────────────────────────────
   const { user, error: authError } = await verifyAuth(req);
   if (!user) {
-    return jsonResponse({ error: authError || "Unauthorized" }, 401, req);
+    return jsonResponse(req, { error: authError || "Unauthorized" }, 401);
   }
 
   const url = new URL(req.url);
@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
     const appUrl = Deno.env.get("APP_SUPABASE_URL") || Deno.env.get("SUPABASE_URL") || "";
     const appKey = Deno.env.get("APP_SUPABASE_SERVICE_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
     if (!appUrl || !appKey) {
-      return jsonResponse({ error: "Missing APP_SUPABASE_URL/SUPABASE_URL or APP_SUPABASE_SERVICE_KEY/SUPABASE_SERVICE_ROLE_KEY" }, 500, req);
+      return jsonResponse(req, { error: "Missing APP_SUPABASE_URL/SUPABASE_URL or APP_SUPABASE_SERVICE_KEY/SUPABASE_SERVICE_ROLE_KEY" }, 500);
     }
 
     const appClient = createClient(appUrl, appKey);
@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (thErr) {
-      return jsonResponse({ error: `Thresholds load failed: ${thErr.message}` }, 500, req);
+      return jsonResponse(req, { error: `Thresholds load failed: ${thErr.message}` }, 500);
     }
 
     const thresholds = {
@@ -233,7 +233,7 @@ Deno.serve(async (req) => {
       return (b.annual_premium ?? 0) - (a.annual_premium ?? 0);
     });
 
-    return jsonResponse({
+    return jsonResponse(req, {
       agents,
       thresholds,
       total: agents.length,
@@ -241,7 +241,7 @@ Deno.serve(async (req) => {
     });
   } catch (err: any) {
     console.error("coaching-flags error:", err);
-    return jsonResponse({ error: "Internal server error" }, 500, req);
+    return jsonResponse(req, { error: "Internal server error" }, 500);
   } finally {
     if (sql) await sql.end();
   }

@@ -36,7 +36,7 @@ import {
   Trophy, TrendingUp, ShieldCheck,
   Calendar, DollarSign, FileText,
   Swords, Target, Users, Crown, Plus,
-  CheckCircle2, XCircle,
+  CheckCircle2, XCircle, AlertTriangle,
 } from 'lucide-react';
 // fmt$ moved to HeroPodium/LeaderboardTable components
 import { BattleMatchup } from '@/components/leaderboard/BattleMatchup';
@@ -213,6 +213,7 @@ export function LeaderboardPage() {
   // rows state removed — agency-level view replaced by agent leaderboard
   const [agentRows, setAgentRows] = useState<AgentLeaderRow[]>([]);
   const [agentLoading, setAgentLoading] = useState(false);
+  const [agentError, setAgentError] = useState<string | null>(null);
   // sortKey/sortAsc removed — top 10 leaderboard sorts by category
   // filter/search removed — top 10 leaderboard doesn't need manual filtering
   // Leaderboard period + category state
@@ -322,6 +323,7 @@ export function LeaderboardPage() {
     if (boardTab !== 'leaderboard' || !agentLeaderAgencyId) return;
     let cancelled = false;
     setAgentLoading(true);
+    setAgentError(null);
 
     (async () => {
       try {
@@ -394,10 +396,13 @@ export function LeaderboardPage() {
           // undefined = new to the leaderboard this period
           r.movement = priorRank !== undefined ? priorRank - r.rank : undefined;
         });
-        if (!cancelled) setAgentRows(ranked);
+        if (!cancelled) {
+          setAgentError(null);
+          setAgentRows(ranked);
+        }
       } catch (err) {
         console.error('Agent leaderboard load error:', err);
-        if (!cancelled) setAgentRows([]);
+        if (!cancelled) setAgentError('Failed to load leaderboard data. Please try again.');
       } finally {
         if (!cancelled) setAgentLoading(false);
       }
@@ -778,8 +783,19 @@ export function LeaderboardPage() {
               />
             )}
 
+            {/* Error state */}
+            {!agentLoading && agentError && (
+              <div className="rounded-xl border border-destructive/30 bg-destructive/5 py-8 text-center">
+                <AlertTriangle size={32} className="mx-auto text-destructive mb-3 opacity-70" />
+                <p className="text-sm font-medium text-destructive">{agentError}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Data shown may be stale. Check your connection and refresh.
+                </p>
+              </div>
+            )}
+
             {/* Empty state (no agents at all) */}
-            {!agentLoading && allRanked.length === 0 && (
+            {!agentLoading && !agentError && allRanked.length === 0 && (
               <div className="rounded-xl border border-border py-16 text-center">
                 <Trophy size={32} className="mx-auto text-muted-foreground mb-3 opacity-50" />
                 <p className="text-sm font-medium text-muted-foreground">

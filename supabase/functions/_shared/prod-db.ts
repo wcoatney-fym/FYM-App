@@ -234,8 +234,9 @@ export function corsHeaders(req?: Request | null): Record<string, string> {
   return headers;
 }
 
-/** Standard JSON response helper */
-export function jsonResponse(data: unknown, status = 200, req?: Request | null): Response {
+/** Standard JSON response helper — req is REQUIRED and FIRST so every
+ *  wrong-arg-order call fails to compile instead of silently dropping CORS. */
+export function jsonResponse(req: Request, data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
