@@ -300,6 +300,24 @@ export async function verifyAuth(req: Request): Promise<{
     return { user: { id: "service_role", email: "cron@system" }, error: null };
   }
 
+  // Reject JWT-format tokens with non-user roles before hitting getUser().
+  // User session JWTs have role="authenticated"; system keys have
+  // role="service_role" or role="anon". The Supabase JS client's getUser()
+  // does NOT reliably reject service_role JWTs in the edge function runtime
+  // (it returns 403 on the raw Auth API but the client path lets them through).
+  // This gate catches the leaked key AND any future leaked system key.
+  if (token.startsWith("eyJ")) {
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      if (payload.role && payload.role !== "authenticated") {
+        console.warn(`[verifyAuth] rejected JWT with role=${payload.role}`);
+        return { user: null, error: "System keys not accepted — use sb_secret_ on apikey header" };
+      }
+    } catch {
+      // Malformed JWT — let getUser() handle it
+    }
+  }
+
   try {
     // For user JWT verification, use the anon/publishable key with the client.
     // sb_publishable_ works with createClient; sb_secret_ also works.
