@@ -3,12 +3,17 @@ import { useSearchParams } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard, ScrollText, KanbanSquare, GitBranch,
-  Workflow, BarChart3, Target, Users, Headphones, Settings, Database, ShieldCheck
+  Workflow, BarChart3, Target, Users, Headphones, Settings, Database, ShieldCheck,
+  Loader2,
 } from 'lucide-react';
 import { useEffectiveAuth } from '@/hooks/useEffectiveAuth';
 import { supabase } from '@/lib/supabase';
 import { CrmManagementView } from './crm-command/CrmManagementView';
 import { useCrmViewStore } from '@/store/crm-view-store';
+import {
+  ensurePortalAuth,
+  portalConfigured,
+} from '@/lib/crm/portal-client';
 
 // Tab components
 import { CcDashboardTab } from './crm-command/CcDashboardTab';
@@ -65,6 +70,20 @@ export function CrmCommandPage() {
   const { isFymAdmin, effectiveAgencyId, isViewingAs } = useEffectiveAuth();
   const { viewingAgency, clearView } = useCrmViewStore();
 
+  // Portal auth — page-level gate (Step 2: gating before locking)
+  const [portalReady, setPortalReady] = useState(!portalConfigured);
+
+  useEffect(() => {
+    if (!portalConfigured) return;
+    let cancelled = false;
+    const init = async () => {
+      await ensurePortalAuth();
+      if (!cancelled) setPortalReady(true);
+    };
+    init();
+    return () => { cancelled = true; };
+  }, []);
+
   // Track whether to show the CRM Management view (for agency admins or FYM admin "View As")
   const [agencyCrmEnabled, setAgencyCrmEnabled] = useState<boolean | null>(null);
   const [agencyName, setAgencyName] = useState<string>('');
@@ -99,6 +118,16 @@ export function CrmCommandPage() {
       return next;
     }, { replace: true });
   }, [setSearchParams]);
+
+  // Portal auth loading gate — blocks child rendering until ensurePortalAuth resolves
+  if (!portalReady) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="w-6 h-6 animate-spin text-navy-600 mr-2" />
+        <span className="text-muted-foreground">Connecting to CRM…</span>
+      </div>
+    );
+  }
 
   // FYM admin clicked "View CRM" on a specific agency from CRM Ops
   if (viewingAgency) {

@@ -22,7 +22,11 @@
 import { useState, useEffect } from 'react';
 import { Header } from '@/components/layout/Header';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, Loader2 } from 'lucide-react';
+import {
+  ensurePortalAuth,
+  portalConfigured,
+} from '@/lib/crm/portal-client';
 import { ContractingDashboardTab } from './ContractingDashboardTab';
 import { ContractingIntakeTab } from './ContractingIntakeTab';
 import { ContractingTrackingTab } from './ContractingTrackingTab';
@@ -73,6 +77,20 @@ export function ContractingPage() {
   const availableTabs = isOrgWide ? ALL_TABS : AGENCY_ADMIN_TABS;
   const [activeTab, setActiveTab] = useState<ContractingTab>('dashboard');
 
+  // Portal auth — page-level gate (Step 2: gating before locking)
+  const [portalReady, setPortalReady] = useState(!portalConfigured);
+
+  useEffect(() => {
+    if (!portalConfigured) return;
+    let cancelled = false;
+    const init = async () => {
+      await ensurePortalAuth();
+      if (!cancelled) setPortalReady(true);
+    };
+    init();
+    return () => { cancelled = true; };
+  }, []);
+
   // Sync activeTab when auth resolves — default is 'dashboard' (FYM admin,
   // the common case). Agency admins only get the Hierarchy tab, so narrow
   // down after auth loads. This avoids the visible tab flash that happened
@@ -83,14 +101,18 @@ export function ContractingPage() {
     }
   }, [loading, isOrgWide]);
 
-  // Don't render tabs until auth resolves — prevents flashing the wrong tab set
-  if (loading) {
+  // Don't render tabs until auth + portal auth both resolve
+  if (loading || !portalReady) {
     return (
       <div>
         <Header title="Contracting" />
         <div className="p-6">
           <div className="flex items-center justify-center py-12 text-muted-foreground text-sm">
-            Loading…
+            {!portalReady ? (
+              <><Loader2 className="w-4 h-4 animate-spin mr-2" />Connecting to CRM…</>
+            ) : (
+              'Loading…'
+            )}
           </div>
         </div>
       </div>
