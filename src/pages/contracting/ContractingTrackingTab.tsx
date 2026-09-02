@@ -31,7 +31,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { portalSupabase } from '@/lib/portal-supabase';
+import { supabase as portalSupabase, portalConfigured } from '@/lib/crm/portal-client';
 import { formatPhoneDisplay, formatDate, STATUS_COLORS } from '@/lib/contracting/helpers';
 import type { PortalAgent, PortalIntakeRecord, PortalUploadedFile } from '@/lib/contracting/types';
 
@@ -122,7 +122,7 @@ export function ContractingTrackingTab() {
   // ── Load agents ──────────────────────────────────────────────────────────
 
   const loadAgents = useCallback(async () => {
-    if (!portalSupabase) return;
+    if (!portalConfigured) return;
     setError(null);
 
     try {
@@ -284,23 +284,26 @@ export function ContractingTrackingTab() {
 
   // SSN visibility toggle (per modal open)
   const [ssnVisible, setSsnVisible] = useState(false);
+  const [revealedSsn, setRevealedSsn] = useState<string | null>(null);
+  const [ssnLoading, setSsnLoading] = useState(false);
 
   // ── Detail modal ─────────────────────────────────────────────────────────
 
   const openDetailModal = async (agent: PortalAgent) => {
-    if (!portalSupabase) return;
+    if (!portalConfigured) return;
     setSelectedAgent(agent);
     setSubmission(null);
     setFiles([]);
     setModalLoading(true);
     setSsnVisible(false); // Always start masked
+    setRevealedSsn(null);
     setDownloadError(null);
 
     try {
       const [subRes, fileRes] = await Promise.all([
         portalSupabase
-          .from('agent_intake')
-          .select('*')
+          .from('agent_intake_safe')
+          .select('id, agent_id, date_of_birth, address, city, state, postal_code, resident_license_number, npn, resident_state, ctm_acknowledgment, release_needed, state_licenses, submitted_at, agent_type, gender')
           .eq('agent_id', agent.id)
           .maybeSingle(),
         portalSupabase
@@ -324,7 +327,41 @@ export function ContractingTrackingTab() {
     setSubmission(null);
     setFiles([]);
     setSsnVisible(false);
+    setRevealedSsn(null);
     setDownloadError(null);
+  };
+
+  /** Fetch SSN via pii-read edge function (audit-logged, admin-only) */
+  const fetchSsn = async (agentId: string) => {
+    setSsnLoading(true);
+    try {
+      const { supabase: appClient } = await import('@/lib/supabase');
+      const session = await appClient?.auth.getSession();
+      const token = session?.data?.session?.access_token;
+      if (!token) { setSsnLoading(false); return; }
+
+      const portalBaseUrl = import.meta.env.VITE_PORTAL_SUPABASE_URL;
+      const res = await fetch(`${portalBaseUrl}/functions/v1/pii-read`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ agent_id: agentId }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setRevealedSsn(data.ssn);
+        setSsnVisible(true);
+      } else {
+        console.error('[ContractingTracking] pii-read failed:', res.status);
+      }
+    } catch (err) {
+      console.error('[ContractingTracking] pii-read error:', err);
+    } finally {
+      setSsnLoading(false);
+    }
   };
 
   const downloadFile = (file: PortalUploadedFile) => {
@@ -354,7 +391,7 @@ export function ContractingTrackingTab() {
 
   // ── Render ───────────────────────────────────────────────────────────────
 
-  if (!portalSupabase) {
+  if (!portalConfigured) {
     return (
       <Card className="border-border">
         <CardContent className="p-8 text-center space-y-3">
@@ -712,14 +749,29 @@ export function ContractingTrackingTab() {
                     <div>
                       <span className="text-muted-foreground">SSN</span>
                       <p className="font-medium font-mono text-foreground inline-flex items-center gap-1.5">
-                        {formatSSN(submission.ssn, !ssnVisible)}
+                        {ssnVisible && revealedSsn
+                          ? formatSSN(revealedSsn, false)
+                          : '•••-••-••••'}
                         <button
                           type="button"
-                          onClick={() => setSsnVisible((v) => !v)}
+                          onClick={() => {
+                            if (ssnVisible) {
+                              setSsnVisible(false);
+                            } else if (revealedSsn) {
+                              setSsnVisible(true);
+                            } else if (submission?.agent_id) {
+                              fetchSsn(submission.agent_id);
+                            }
+                          }}
                           className="p-0.5 rounded hover:bg-secondary/60 transition-colors"
-                          title={ssnVisible ? 'Hide SSN' : 'Show SSN'}
+                          title={ssnVisible ? 'Hide SSN' : 'Reveal SSN (logged)'}
+                          disabled={ssnLoading}
                         >
-                          {ssnVisible ? <EyeOff size={14} className="text-muted-foreground" /> : <Eye size={14} className="text-muted-foreground" />}
+                          {ssnLoading
+                            ? <span className="inline-block w-3.5 h-3.5 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+                            : ssnVisible
+                              ? <EyeOff size={14} className="text-muted-foreground" />
+                              : <Eye size={14} className="text-muted-foreground" />}
                         </button>
                       </p>
                     </div>

@@ -141,7 +141,7 @@ export async function runCrmOnboardAutomation(
   let agentNpn = '';
   if (record.agent_id) {
     const { data: intake } = await portalSupabase
-      .from('agent_intake')
+      .from('agent_intake_safe')
       .select('npn')
       .eq('agent_id', record.agent_id)
       .maybeSingle();

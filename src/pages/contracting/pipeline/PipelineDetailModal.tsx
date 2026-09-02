@@ -29,7 +29,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { portalSupabase } from '@/lib/portal-supabase';
+import { supabase as portalSupabase, portalConfigured } from '@/lib/crm/portal-client';
 import type {
   PortalPipelineRecord,
   AgentPipelineStage,
@@ -92,7 +92,7 @@ export function PipelineDetailModal({
   const [fieldLabelMap, setFieldLabelMap] = useState<Record<string, string>>({});
   const [hiddenFields, setHiddenFields] = useState<Set<string>>(new Set());
   useEffect(() => {
-    if (!portalSupabase) return;
+    if (!portalConfigured) return;
     portalSupabase
       .from('ghl_custom_field_map')
       .select('ghl_field_id, field_name, display_name, hidden')
@@ -131,7 +131,7 @@ export function PipelineDetailModal({
   const [onboardMessage, setOnboardMessage] = useState<string | null>(null);
 
   const toggleStep = async (stepId: string) => {
-    if (!portalSupabase) return;
+    if (!portalConfigured) return;
     setTogglingStep(stepId);
     const current = { ...(record.completed_steps || {}) };
     const isToggleOn = !current[stepId];
@@ -175,7 +175,7 @@ export function PipelineDetailModal({
   };
 
   const handleSave = async () => {
-    if (!portalSupabase) return;
+    if (!portalConfigured) return;
     setSaving(true);
     const { error } = await portalSupabase
       .from('agent_pipeline')
@@ -640,7 +640,7 @@ function StageHistorySection({ pipelineId }: { pipelineId: string }) {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    if (!expanded || loaded || !portalSupabase) return;
+    if (!expanded || loaded || !portalConfigured) return;
     setLoading(true);
     portalSupabase
       .from('pipeline_stage_history')

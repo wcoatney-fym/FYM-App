@@ -23,7 +23,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { portalSupabase } from '@/lib/portal-supabase';
+import { supabase as portalSupabase, portalConfigured } from '@/lib/crm/portal-client';
 import { fetchAgentDirectory } from '@/lib/prod-api';
 
 // ── Constants ────────────────────────────────────────────────────────
@@ -295,7 +295,7 @@ export function useFymAgentDirectory(): UseFymAgentDirectoryReturn {
 
       // ── Source 2: Intake Form Completions ─────────────────────────
       let intakeCount = 0;
-      if (portalSupabase) {
+      if (portalConfigured) {
         const PAGE = 1000;
         let offset = 0;
         let allIntake: PortalAgent[] = [];
@@ -323,7 +323,7 @@ export function useFymAgentDirectory(): UseFymAgentDirectoryReturn {
           for (let i = 0; i < npnMissing.length; i += 200) {
             const batch = npnMissing.slice(i, i + 200);
             const { data: intakeRows } = await portalSupabase
-              .from('agent_intake')
+              .from('agent_intake_safe')
               .select('agent_id, npn')
               .in('agent_id', batch);
             for (const row of (intakeRows || [])) {
@@ -435,7 +435,7 @@ export function useFymAgentDirectory(): UseFymAgentDirectoryReturn {
       // ── CRM Roster cross-reference ───────────────────────────────
       // Check who already has a populated seat in the FYM CRM roster
       // so we don't show the CRM Onboard button for them.
-      if (portalSupabase) {
+      if (portalConfigured) {
         try {
           const { data: fymUpload } = await portalSupabase
             .from('crm_roster_uploads')

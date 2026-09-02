@@ -11,7 +11,7 @@
  */
 import { useState, useCallback } from 'react';
 import { Download, AlertCircle, Database } from 'lucide-react';
-import { portalSupabase } from '@/lib/portal-supabase';
+import { supabase as portalSupabase, portalConfigured } from '@/lib/crm/portal-client';
 import { parseCSV } from '@/lib/csv-parser';
 import {
   type ImportResult,
@@ -74,7 +74,7 @@ export function ContractingRosterImportTab() {
   /* ---- import ---- */
 
   const handleImport = useCallback(async () => {
-    if (!preview || !portalSupabase) return;
+    if (!preview || !portalConfigured) return;
     setImporting(true);
     setError('');
 
@@ -133,7 +133,7 @@ export function ContractingRosterImportTab() {
 
         // Dedup against agent_intake table
         const { data: intakeMatch } = await portalSupabase
-          .from('agent_intake')
+          .from('agent_intake_safe')
           .select('agent_id, npn')
           .eq('npn', npn)
           .maybeSingle();
@@ -232,7 +232,7 @@ export function ContractingRosterImportTab() {
 
   /* ---- render: no portal connection ---- */
 
-  if (!portalSupabase) {
+  if (!portalConfigured) {
     return (
       <div className="text-center py-12 text-muted-foreground">
         <Database className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />

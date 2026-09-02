@@ -134,9 +134,9 @@ export function AgentDetailModal({
                     Social Security Number:
                   </span>
                   <p className="font-medium font-mono">
-                    {submission.ssn.slice(0, 3)}-
-                    {submission.ssn.slice(3, 5)}-
-                    {submission.ssn.slice(5, 9)}
+                    {submission.ssn
+                      ? `${submission.ssn.slice(0, 3)}-${submission.ssn.slice(3, 5)}-${submission.ssn.slice(5, 9)}`
+                      : <span className="text-muted-foreground">•••-••-••••</span>}
                   </p>
                 </div>
                 <div className="col-span-2">

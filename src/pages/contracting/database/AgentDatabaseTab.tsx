@@ -43,7 +43,7 @@ import {
 } from 'lucide-react';
 import { useFymAgentDirectory, type FymAgent } from '@/hooks/useFymAgentDirectory';
 import { supabase } from '@/lib/supabase';
-import { portalSupabase } from '@/lib/portal-supabase';
+import { supabase as portalSupabase, portalConfigured } from '@/lib/crm/portal-client';
 import { HudFrame } from '@/components/ui/hud-frame';
 import { fmt$ } from '@/lib/formatUtils';
 import { CrmOnboardingModal } from './CrmOnboardingModal';
@@ -277,7 +277,7 @@ export function AgentDatabaseTab() {
           <button
             onClick={async () => {
               if (backfillState.running) return;
-              if (!portalSupabase) return;
+              if (!portalConfigured) return;
               setBackfillState({ running: true, result: null });
 
               try {
@@ -901,7 +901,7 @@ function usePortalEnrichment(agent: FymAgent): PortalEnrichment {
   });
 
   useEffect(() => {
-    if (!portalSupabase) {
+    if (!portalConfigured) {
       setState((s) => ({ ...s, loading: false }));
       return;
     }
@@ -949,7 +949,7 @@ function usePortalEnrichment(agent: FymAgent): PortalEnrichment {
             .select('carrier, writing_number, verified')
             .eq('agent_id', portalId),
           portalSupabase
-            .from('agent_intake')
+            .from('agent_intake_safe')
             .select('npn, date_of_birth, address, city, state, postal_code, resident_license_number, resident_state, agent_type, release_needed, state_licenses, submitted_at')
             .eq('agent_id', portalId)
             .maybeSingle(),
@@ -1073,7 +1073,7 @@ function CarrierWnEditor({
   };
 
   const handleSave = async () => {
-    if (!portalSupabase) {
+    if (!portalConfigured) {
       setSaveError('Portal connection not available');
       return;
     }
@@ -1406,7 +1406,7 @@ function CrmOnboardTableModal({
   };
 
   const handleConfirm = async () => {
-    if (!portalSupabase) return;
+    if (!portalConfigured) return;
     setSubmitting(true);
     setError('');
 
@@ -1439,7 +1439,7 @@ function CrmOnboardTableModal({
 
       // Resolve NPN: agent.npn → agent_intake fallback (agents table often has npn=null)
       let resolvedNpn = agent.npn || '';
-      if (!resolvedNpn && portalSupabase) {
+      if (!resolvedNpn && portalConfigured) {
         // Resolve portal agent ID
         let pid = resolvePortalAgentId(agent);
         if (!pid && agent.email) {
@@ -1453,7 +1453,7 @@ function CrmOnboardTableModal({
         }
         if (pid) {
           const { data: intakeData } = await portalSupabase
-            .from('agent_intake')
+            .from('agent_intake_safe')
             .select('npn')
             .eq('agent_id', pid)
             .maybeSingle();
@@ -1583,7 +1583,7 @@ function CrmOnboardTableModal({
         ? agent.id.replace('intake-', '')
         : null;
 
-      if (portalId && portalSupabase) {
+      if (portalId && portalConfigured) {
         await portalSupabase
           .from('agents')
           .update({ crm_onboarded: true })

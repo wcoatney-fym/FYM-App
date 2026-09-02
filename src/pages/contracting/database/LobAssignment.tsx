@@ -14,7 +14,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
-import { portalSupabase, portalUrl, portalKey } from '@/lib/portal-supabase';
+import { supabase as portalSupabase, portalConfigured, PORTAL_URL as portalUrl, PORTAL_ANON_KEY as portalKey } from '@/lib/crm/portal-client';
 import { fireHipWritingWebhook } from '@/lib/contracting/webhooks';
 import { HIP_CARRIERS } from '@/lib/contracting/types';
 
@@ -49,7 +49,7 @@ export function LobAssignment({
   const [expanded, setExpanded] = useState(true);
 
   const loadAssignments = useCallback(async () => {
-    if (!portalSupabase) return;
+    if (!portalConfigured) return;
     const { data } = await portalSupabase
       .from('agent_lob_assignments')
       .select('*')
@@ -94,7 +94,7 @@ export function LobAssignment({
   };
 
   const handleSave = async () => {
-    if (!portalSupabase) return;
+    if (!portalConfigured) return;
     setSuccess(false);
     setNpnWarning(false);
     const validationErrors = validate();
@@ -148,7 +148,7 @@ export function LobAssignment({
             let resolvedNpn = agentNpn.trim();
             if (!resolvedNpn) {
               const { data: sub } = await portalSupabase
-                .from('agent_intake')
+                .from('agent_intake_safe')
                 .select('npn')
                 .eq('agent_id', agentId)
                 .maybeSingle();
