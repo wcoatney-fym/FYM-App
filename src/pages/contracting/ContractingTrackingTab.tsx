@@ -31,7 +31,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { portalSupabase } from '@/lib/portal-supabase';
+import { supabase as portalSupabase, portalConfigured } from '@/lib/crm/portal-client';
 import { formatPhoneDisplay, formatDate, STATUS_COLORS } from '@/lib/contracting/helpers';
 import type { PortalAgent, PortalIntakeRecord, PortalUploadedFile } from '@/lib/contracting/types';
 
@@ -122,7 +122,7 @@ export function ContractingTrackingTab() {
   // ── Load agents ──────────────────────────────────────────────────────────
 
   const loadAgents = useCallback(async () => {
-    if (!portalSupabase) return;
+    if (!portalConfigured) return;
     setError(null);
 
     try {
@@ -288,7 +288,7 @@ export function ContractingTrackingTab() {
   // ── Detail modal ─────────────────────────────────────────────────────────
 
   const openDetailModal = async (agent: PortalAgent) => {
-    if (!portalSupabase) return;
+    if (!portalConfigured) return;
     setSelectedAgent(agent);
     setSubmission(null);
     setFiles([]);
@@ -299,8 +299,8 @@ export function ContractingTrackingTab() {
     try {
       const [subRes, fileRes] = await Promise.all([
         portalSupabase
-          .from('agent_intake')
-          .select('*')
+          .from('agent_intake_safe')
+          .select('id, agent_id, date_of_birth, address, city, state, postal_code, resident_license_number, npn, resident_state, ctm_acknowledgment, release_needed, state_licenses, submitted_at, agent_type, gender')
           .eq('agent_id', agent.id)
           .maybeSingle(),
         portalSupabase
@@ -354,7 +354,7 @@ export function ContractingTrackingTab() {
 
   // ── Render ───────────────────────────────────────────────────────────────
 
-  if (!portalSupabase) {
+  if (!portalConfigured) {
     return (
       <Card className="border-border">
         <CardContent className="p-8 text-center space-y-3">
