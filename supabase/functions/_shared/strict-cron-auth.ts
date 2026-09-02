@@ -1,21 +1,14 @@
 /**
- * Strict cron/server auth — for functions that MUST NOT accept the leaked
- * SERVICE_ROLE_JWT. Used on unauthenticated endpoints that are being
- * retroactively gated (lifecycle-sync, checkin-send, checkin-nudge,
- * checkin-summary, atrisk-ghl-push).
+ * Strict cron/server auth — accepts ONLY the sb_secret_ key on the
+ * `apikey` header. Used on sensitive endpoints (lifecycle-sync,
+ * checkin-send, checkin-nudge, checkin-summary, atrisk-ghl-push).
  *
- * Accepts ONLY the sb_secret_ key on the `apikey` header.
  * Rejects:
  *   - Missing credentials
- *   - Any key on Authorization: Bearer (including sb_secret_)
  *   - Legacy anon JWT
  *   - sb_publishable_ key
- *   - SERVICE_ROLE_JWT (the leaked key)
+ *   - JWT-format tokens (legacy keys were revoked; reject the format)
  *   - Any unrecognised token
- *
- * This is intentionally stricter than verifyCronAuth in cron-auth.ts.
- * The leaked JWT must never grant access to these functions, even during
- * the transition period.
  */
 
 type StrictAuthSuccess = { ok: true; matched: "SERVICE_ROLE_KEY" | "APP_SERVICE_KEY" };
@@ -46,11 +39,11 @@ export function verifyStrictCronAuth(req: Request): StrictAuthSuccess | StrictAu
     return { ok: false, error: "Publishable key not authorized" };
   }
 
-  // Reject the leaked SERVICE_ROLE_JWT explicitly
-  const legacyJwt = Deno.env.get("SERVICE_ROLE_JWT") || "";
-  if (legacyJwt && apiKey === legacyJwt) {
-    console.warn("[strict-cron-auth] REJECTED leaked SERVICE_ROLE_JWT");
-    return { ok: false, error: "Legacy JWT not authorized" };
+  // Reject any JWT-format token (legacy keys revoked — no JWT should be
+  // accepted as an apikey on these endpoints)
+  if (apiKey.startsWith("eyJ")) {
+    console.warn("[strict-cron-auth] REJECTED JWT-format token");
+    return { ok: false, error: "JWT tokens not authorized — use sb_secret_ key" };
   }
 
   // Accept recognised sb_secret_ service keys
