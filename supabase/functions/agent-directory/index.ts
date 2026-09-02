@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
   // ── Auth gate ──────────────────────────────────────────────────────
   const { user, error: authError } = await verifyAuth(req);
   if (!user) {
-    return jsonResponse({ error: authError || "Unauthorized" }, 401, req);
+    return jsonResponse(req, { error: authError || "Unauthorized" }, 401);
   }
 
   const started = performance.now();
@@ -149,7 +149,7 @@ Deno.serve(async (req) => {
     const pageResults = results.slice(startIdx, startIdx + pageSize);
 
     const elapsedMs = Math.round(performance.now() - started);
-    return jsonResponse({
+    return jsonResponse(req, {
       data: pageResults,
       pagination: {
         page,
@@ -162,7 +162,7 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     console.error("agent-directory error:", err);
-    return jsonResponse({ error: "Internal server error" }, 500, req);
+    return jsonResponse(req, { error: "Internal server error" }, 500);
   } finally {
     if (sql) await sql.end({ timeout: 5 });
   }

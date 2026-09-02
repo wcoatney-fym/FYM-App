@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
   // ── Auth gate ──────────────────────────────────────────────────────
   const { user, error: authError } = await verifyAuth(req);
   if (!user) {
-    return jsonResponse({ error: authError || "Unauthorized" }, 401, req);
+    return jsonResponse(req, { error: authError || "Unauthorized" }, 401);
   }
 
   const started = performance.now();
@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
     const appUrl = Deno.env.get("APP_SUPABASE_URL") || Deno.env.get("SUPABASE_URL") || "";
     const appKey = Deno.env.get("APP_SUPABASE_SERVICE_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
     if (!appUrl || !appKey) {
-      return jsonResponse({ error: "Missing APP_SUPABASE_URL or APP_SUPABASE_SERVICE_KEY" }, 500, req);
+      return jsonResponse(req, { error: "Missing APP_SUPABASE_URL or APP_SUPABASE_SERVICE_KEY" }, 500);
     }
     const appDb = createClient(appUrl, appKey, {
       auth: { autoRefreshToken: false, persistSession: false },
@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     const portalUrl = Deno.env.get("PORTAL_SUPABASE_URL") || "";
     const portalKey = Deno.env.get("PORTAL_SUPABASE_SERVICE_KEY") || "";
     if (!portalUrl || !portalKey) {
-      return jsonResponse({ error: "Missing PORTAL_SUPABASE_URL or PORTAL_SUPABASE_SERVICE_KEY" }, 500, req);
+      return jsonResponse(req, { error: "Missing PORTAL_SUPABASE_URL or PORTAL_SUPABASE_SERVICE_KEY" }, 500);
     }
     const portalDb = createClient(portalUrl, portalKey, {
       auth: { autoRefreshToken: false, persistSession: false },
@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
     }
 
     if (activePlans.length === 0) {
-      return jsonResponse({
+      return jsonResponse(req, {
         dry_run: dryRun,
         message: "No active coaching plans with actionable stages",
         plans_checked: 0,
@@ -320,7 +320,7 @@ Deno.serve(async (req) => {
     // ── 8. Summary ────────────────────────────────────────────────────
     const elapsed = Math.round(performance.now() - started);
 
-    return jsonResponse({
+    return jsonResponse(req, {
       dry_run: dryRun,
       plans_checked: activePlans.length,
       requirements_checked: allRequirements.filter(r => r.requirement_type === "live_attendance" && !r.is_completed).length,
@@ -337,6 +337,6 @@ Deno.serve(async (req) => {
     });
   } catch (err: unknown) {
     console.error("coaching-completion error:", err);
-    return jsonResponse({ error: "Internal server error" }, 500, req);
+    return jsonResponse(req, { error: "Internal server error" }, 500);
   }
 });

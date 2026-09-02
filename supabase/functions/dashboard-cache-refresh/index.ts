@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
   // ── Auth gate ──────────────────────────────────────────────────────
   const { user, error: authError } = await verifyAuth(req);
   if (!user) {
-    return jsonResponse({ error: authError || "Unauthorized" }, 401, req);
+    return jsonResponse(req, { error: authError || "Unauthorized" }, 401);
   }
 
   const started = performance.now();
@@ -522,7 +522,7 @@ Deno.serve(async (req) => {
 
     const totalElapsed = Math.round(performance.now() - started);
 
-    return jsonResponse({
+    return jsonResponse(req, {
       status: "ok",
       cache_keys: cacheEntries.map((e) => e.cache_key),
       agencies_processed: agencyBuckets.size,
@@ -532,7 +532,7 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     console.error("dashboard-cache-refresh error:", err);
-    return jsonResponse({ error: "Internal server error" }, 500, req);
+    return jsonResponse(req, { error: "Internal server error" }, 500);
   } finally {
     if (sql) await sql.end({ timeout: 5 });
   }

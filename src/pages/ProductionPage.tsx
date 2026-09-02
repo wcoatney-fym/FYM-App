@@ -30,11 +30,10 @@ import {
 } from 'recharts';
 import { DataFilters } from '@/components/filters/DataFilters';
 import { type DatePreset, type DateRange, type DailyRow, type TrendPoint, DEFAULT_PRESET, getDateRange, getGranularity, aggregateTrend, fmtMonth } from '@/lib/dateUtils';
-import { toast } from 'sonner';
 import { fmt$, fmtNum } from '@/lib/formatUtils';
 import {
   TrendingUp, DollarSign, FileText, Building2, Search, Download,
-  ArrowUp, ArrowDown, ShieldAlert, TrendingDown, AlertTriangle,
+  ArrowUp, ArrowDown, ShieldAlert, TrendingDown, AlertTriangle, RefreshCw,
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -108,6 +107,9 @@ export function ProductionPage() {
   const [filterAgentId, setFilterAgentId] = useState<string | null>(null);
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
+  // Error tracking — preserve stale data on failure instead of showing misleading empty states
+  const [prodError, setProdError] = useState<string | null>(null);
+  const [agentError, setAgentError] = useState<string | null>(null);
 
   const useRpc = datePreset !== 'allTime';
 
@@ -250,10 +252,12 @@ export function ProductionPage() {
     const dateParams = { ...agencyParam, start_date: startDate, end_date: endDate };
 
     setDateLoading(true);
+    setProdError(null);
     Promise.all([
       fetchAgencyProduction(dateParams),
       fetchDailyProduction(dateParams),
     ]).then(([prodAgencies, dailyData]) => {
+      setProdError(null);
       setLocalAgencies(prodAgencies.map(a => ({
         agency_id: a.agency_id,
         agency_name: agencyNameMap.get(a.agency_id) ?? null,
@@ -284,7 +288,8 @@ export function ProductionPage() {
       setDateLoading(false);
     }).catch(err => {
       console.error('Production date-filtered fetch error:', err);
-      toast.error('Failed to load production data. Showing cached results.');
+      setProdError('Failed to load production data. Showing cached results.');
+      // Don't clear local data — preserve stale values instead of showing zeros
       setDateLoading(false);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -319,16 +324,21 @@ export function ProductionPage() {
       params.end_date = dateRange.endDate.split('T')[0];
     }
 
+    setAgentError(null);
     fetchAgentProduction(params)
       .then(agents => {
         if (!cancelled) {
+          setAgentError(null);
           // Only include agents who had production during the selected period
           setAgentBreakdown(agents.filter(a => a.total_policies > 0));
         }
       })
       .catch(err => {
         console.error('Agent breakdown load error:', err);
-        if (!cancelled) setAgentBreakdown([]);
+        if (!cancelled) {
+          setAgentError('Failed to load agent data. Data shown may be stale.');
+          // Don't clear agent breakdown — preserve stale data
+        }
       })
       .finally(() => {
         if (!cancelled) setAgentBreakdownLoading(false);
@@ -660,6 +670,25 @@ export function ProductionPage() {
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <div className="h-4 w-4 border-2 border-primary/40 border-t-primary rounded-full animate-spin" />
             Updating data…
+          </div>
+        )}
+
+        {/* Error banner — production data fetch failed */}
+        {(prodError || orgData.fetchError) && !dateLoading && (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 flex items-center gap-3">
+            <AlertTriangle size={18} className="text-destructive shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-destructive">{prodError || orgData.fetchError}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Data shown may be stale. Check your connection and refresh.</p>
+            </div>
+            <button
+              onClick={() => window.location.reload()}
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground transition-colors shrink-0"
+              aria-label="Refresh page"
+              title="Refresh page"
+            >
+              <RefreshCw size={14} />
+            </button>
           </div>
         )}
 
@@ -1061,8 +1090,16 @@ export function ProductionPage() {
                 <TableBody>
                   {agentBreakdownLoading ? (
                     <TableRow><TableCell colSpan={11} className="py-8 text-center"><div className="h-6 w-48 mx-auto rounded shimmer" /></TableCell></TableRow>
-                  ) : sortedAgentBreakdown.length === 0 ? (
+                  ) : !agentError && sortedAgentBreakdown.length === 0 ? (
                     <TableRow><TableCell colSpan={11} className="py-8 text-center text-muted-foreground text-sm">No agents found</TableCell></TableRow>
+                  ) : agentError && sortedAgentBreakdown.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={11} className="py-8 text-center">
+                        <AlertTriangle size={24} className="mx-auto text-destructive mb-2 opacity-70" />
+                        <p className="text-sm font-medium text-destructive">{agentError}</p>
+                        <p className="text-xs text-muted-foreground mt-1">Check your connection and refresh.</p>
+                      </TableCell>
+                    </TableRow>
                   ) : (
                     sortedAgentBreakdown.map(agent => (
                       <TableRow key={agent.agent_id} className="hover:bg-background transition-colors">
@@ -1236,8 +1273,18 @@ export function ProductionPage() {
                   })}
                 {sortedAgencies.filter(a => a.active_policies > 0 || a.policies_this_month > 0).length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
-                      {search ? `No agencies matching "${search}"` : 'No active agencies'}
+                    <TableCell colSpan={12} className="text-center py-8">
+                      {prodError || orgData.fetchError ? (
+                        <>
+                          <AlertTriangle size={24} className="mx-auto text-destructive mb-2 opacity-70" />
+                          <p className="text-sm font-medium text-destructive">Failed to load agency data</p>
+                          <p className="text-xs text-muted-foreground mt-1">Check your connection and refresh.</p>
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">
+                          {search ? `No agencies matching "${search}"` : 'No active agencies'}
+                        </span>
+                      )}
                     </TableCell>
                   </TableRow>
                 )}

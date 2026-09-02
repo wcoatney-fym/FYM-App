@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
   // ── Auth gate ──────────────────────────────────────────────────────
   const { user, error: authError } = await verifyAuth(req);
   if (!user) {
-    return jsonResponse({ error: authError || "Unauthorized" }, 401, req);
+    return jsonResponse(req, { error: authError || "Unauthorized" }, 401);
   }
 
   const started = performance.now();
@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
   const type = url.searchParams.get("type") || "agency";
 
   if (!VALID_TYPES.has(type)) {
-    return jsonResponse({ error: `Unknown type: ${type}` }, 400, req);
+    return jsonResponse(req, { error: `Unknown type: ${type}` }, 400);
   }
 
   const agencyFilter = validateWn(url.searchParams.get("agency_id"));
@@ -73,16 +73,16 @@ Deno.serve(async (req) => {
 
   // Reject if caller supplied values that failed validation
   if (url.searchParams.get("agency_id") && !agencyFilter) {
-    return jsonResponse({ error: "Invalid agency_id format" }, 400, req);
+    return jsonResponse(req, { error: "Invalid agency_id format" }, 400);
   }
   if (url.searchParams.get("agent_id") && !agentFilter) {
-    return jsonResponse({ error: "Invalid agent_id format" }, 400, req);
+    return jsonResponse(req, { error: "Invalid agent_id format" }, 400);
   }
   if (url.searchParams.get("start_date") && !startDate) {
-    return jsonResponse({ error: "Invalid start_date format (expected YYYY-MM-DD)" }, 400, req);
+    return jsonResponse(req, { error: "Invalid start_date format (expected YYYY-MM-DD)" }, 400);
   }
   if (url.searchParams.get("end_date") && !endDate) {
-    return jsonResponse({ error: "Invalid end_date format (expected YYYY-MM-DD)" }, 400, req);
+    return jsonResponse(req, { error: "Invalid end_date format (expected YYYY-MM-DD)" }, 400);
   }
 
   let sql: ReturnType<typeof createProdConnection> | null = null;
@@ -161,7 +161,7 @@ Deno.serve(async (req) => {
         `;
 
         const elapsedMs = Math.round(performance.now() - started);
-        return jsonResponse({ data: rows, _source: "prod_direct", _elapsed_ms: elapsedMs }, req);
+        return jsonResponse(req, { data: rows, _source: "prod_direct", _elapsed_ms: elapsedMs });
       }
 
       // ── AGENCY ──────────────────────────────────────────────────────
@@ -501,14 +501,14 @@ Deno.serve(async (req) => {
       }
 
       default:
-        return jsonResponse({ error: `Unknown type: ${type}` }, 400, req);
+        return jsonResponse(req, { error: `Unknown type: ${type}` }, 400);
     }
 
     const elapsedMs = Math.round(performance.now() - started);
-    return jsonResponse({ data: result, _source: "prod_direct_sql", _elapsed_ms: elapsedMs }, req);
+    return jsonResponse(req, { data: result, _source: "prod_direct_sql", _elapsed_ms: elapsedMs });
   } catch (err) {
     console.error("prod-data error:", err);
-    return jsonResponse({ error: "Internal server error" }, 500, req);
+    return jsonResponse(req, { error: "Internal server error" }, 500);
   } finally {
     if (sql) await sql.end({ timeout: 5 });
   }

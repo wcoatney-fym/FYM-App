@@ -103,7 +103,7 @@ Deno.serve(async (req) => {
   // ── Auth gate ──────────────────────────────────────────────────────
   const { user, error: authError } = await verifyAuth(req);
   if (!user) {
-    return jsonResponse({ error: authError || "Unauthorized" }, 401, req);
+    return jsonResponse(req, { error: authError || "Unauthorized" }, 401);
   }
 
   const started = performance.now();
@@ -118,7 +118,7 @@ Deno.serve(async (req) => {
     const appUrl = Deno.env.get("APP_SUPABASE_URL") || Deno.env.get("SUPABASE_URL") || "";
     const appKey = Deno.env.get("APP_SUPABASE_SERVICE_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
     if (!appUrl || !appKey) {
-      return jsonResponse({ error: "Missing APP_SUPABASE_URL or APP_SUPABASE_SERVICE_KEY" }, 500);
+      return jsonResponse(req, { error: "Missing APP_SUPABASE_URL or APP_SUPABASE_SERVICE_KEY" }, 500);
     }
 
     const supabase = createClient(appUrl, appKey, {
@@ -133,7 +133,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (thErr) {
-      return jsonResponse({ error: `Thresholds load failed: ${thErr.message}` }, 500);
+      return jsonResponse(req, { error: `Thresholds load failed: ${thErr.message}` }, 500);
     }
 
     const thresholds: Thresholds = {
@@ -229,7 +229,7 @@ Deno.serve(async (req) => {
 
     const rosterWritingNumbers = [...rosterMap.keys()];
     if (rosterWritingNumbers.length === 0) {
-      return jsonResponse({
+      return jsonResponse(req, {
         dry_run: dryRun,
         agents_scanned: 0,
         agents_flagged: 0,
@@ -645,7 +645,7 @@ Deno.serve(async (req) => {
     };
 
     if (dryRun) {
-      return jsonResponse({
+      return jsonResponse(req, {
         ...summary,
         flags,
         note: "Dry run — no coaching plans were created or modified",
@@ -659,14 +659,14 @@ Deno.serve(async (req) => {
       no_roster_match: actions.filter(a => a.action === "no_roster_match").length,
     };
 
-    return jsonResponse({
+    return jsonResponse(req, {
       ...summary,
       actions: actionSummary,
       details: actions,
     });
   } catch (err: any) {
     console.error("coaching-trigger error:", err);
-    return jsonResponse({ error: "Internal server error" }, 500);
+    return jsonResponse(req, { error: "Internal server error" }, 500);
   } finally {
     if (sql) await sql.end();
   }

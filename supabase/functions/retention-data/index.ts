@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
   // ── Auth gate ──────────────────────────────────────────────────────
   const { user, error: authError } = await verifyAuth(req);
   if (!user) {
-    return jsonResponse({ error: authError || "Unauthorized" }, 401, req);
+    return jsonResponse(req, { error: authError || "Unauthorized" }, 401);
   }
 
   const started = performance.now();
@@ -230,7 +230,7 @@ Deno.serve(async (req) => {
       });
 
       const elapsedMs = Math.round(performance.now() - started);
-      return jsonResponse({
+      return jsonResponse(req, {
         data: {
           org_wide: {
             total_agencies: agencies.length,
@@ -824,14 +824,14 @@ Deno.serve(async (req) => {
       }
 
       default:
-        return jsonResponse({ error: `Unknown type: ${type}` }, 400, req);
+        return jsonResponse(req, { error: `Unknown type: ${type}` }, 400);
     }
 
     const elapsedMs = Math.round(performance.now() - started);
-    return jsonResponse({ data: result, _source: "prod_direct", _elapsed_ms: elapsedMs }, req);
+    return jsonResponse(req, { data: result, _source: "prod_direct", _elapsed_ms: elapsedMs });
   } catch (err) {
     console.error("retention-data error:", err);
-    return jsonResponse({ error: "Internal server error" }, 500, req);
+    return jsonResponse(req, { error: "Internal server error" }, 500);
   } finally {
     if (sql) await sql.end({ timeout: 5 });
   }
