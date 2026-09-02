@@ -33,3 +33,4 @@ tsconfig.node.tsbuildinfo
 recruiting-audit.md
 _phase1_audit.md
 specs/
+deno.lock

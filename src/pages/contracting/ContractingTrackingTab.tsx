@@ -284,6 +284,8 @@ export function ContractingTrackingTab() {
 
   // SSN visibility toggle (per modal open)
   const [ssnVisible, setSsnVisible] = useState(false);
+  const [revealedSsn, setRevealedSsn] = useState<string | null>(null);
+  const [ssnLoading, setSsnLoading] = useState(false);
 
   // ── Detail modal ─────────────────────────────────────────────────────────
 
@@ -294,6 +296,7 @@ export function ContractingTrackingTab() {
     setFiles([]);
     setModalLoading(true);
     setSsnVisible(false); // Always start masked
+    setRevealedSsn(null);
     setDownloadError(null);
 
     try {
@@ -324,7 +327,41 @@ export function ContractingTrackingTab() {
     setSubmission(null);
     setFiles([]);
     setSsnVisible(false);
+    setRevealedSsn(null);
     setDownloadError(null);
+  };
+
+  /** Fetch SSN via pii-read edge function (audit-logged, admin-only) */
+  const fetchSsn = async (agentId: string) => {
+    setSsnLoading(true);
+    try {
+      const { supabase: appClient } = await import('@/lib/supabase');
+      const session = await appClient?.auth.getSession();
+      const token = session?.data?.session?.access_token;
+      if (!token) { setSsnLoading(false); return; }
+
+      const portalBaseUrl = import.meta.env.VITE_PORTAL_SUPABASE_URL;
+      const res = await fetch(`${portalBaseUrl}/functions/v1/pii-read`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ agent_id: agentId }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setRevealedSsn(data.ssn);
+        setSsnVisible(true);
+      } else {
+        console.error('[ContractingTracking] pii-read failed:', res.status);
+      }
+    } catch (err) {
+      console.error('[ContractingTracking] pii-read error:', err);
+    } finally {
+      setSsnLoading(false);
+    }
   };
 
   const downloadFile = (file: PortalUploadedFile) => {
@@ -712,14 +749,29 @@ export function ContractingTrackingTab() {
                     <div>
                       <span className="text-muted-foreground">SSN</span>
                       <p className="font-medium font-mono text-foreground inline-flex items-center gap-1.5">
-                        {formatSSN(submission.ssn, !ssnVisible)}
+                        {ssnVisible && revealedSsn
+                          ? formatSSN(revealedSsn, false)
+                          : '•••-••-••••'}
                         <button
                           type="button"
-                          onClick={() => setSsnVisible((v) => !v)}
+                          onClick={() => {
+                            if (ssnVisible) {
+                              setSsnVisible(false);
+                            } else if (revealedSsn) {
+                              setSsnVisible(true);
+                            } else if (submission?.agent_id) {
+                              fetchSsn(submission.agent_id);
+                            }
+                          }}
                           className="p-0.5 rounded hover:bg-secondary/60 transition-colors"
-                          title={ssnVisible ? 'Hide SSN' : 'Show SSN'}
+                          title={ssnVisible ? 'Hide SSN' : 'Reveal SSN (logged)'}
+                          disabled={ssnLoading}
                         >
-                          {ssnVisible ? <EyeOff size={14} className="text-muted-foreground" /> : <Eye size={14} className="text-muted-foreground" />}
+                          {ssnLoading
+                            ? <span className="inline-block w-3.5 h-3.5 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+                            : ssnVisible
+                              ? <EyeOff size={14} className="text-muted-foreground" />
+                              : <Eye size={14} className="text-muted-foreground" />}
                         </button>
                       </p>
                     </div>
