@@ -98,8 +98,8 @@ export function aggregateAgencyProduction(
     ...allTimeMap.keys(),
   ]);
 
-  /** Zero-valued entry preserving only identity fields from all-time */
-  const zeroEntry = (agencyId: string, allTime?: AgencyProduction): AgencyProduction => ({
+  /** Zero-valued entry — all counts and premiums at 0 */
+  const zeroEntry = (agencyId: string): AgencyProduction => ({
     agency_id: agencyId,
     total_policies: 0,
     active_policies: 0,
@@ -121,11 +121,10 @@ export function aggregateAgencyProduction(
 
   for (const agencyId of allAgencyIds) {
     const daily = dailyTotals.get(agencyId);
-    const allTime = allTimeMap.get(agencyId);
 
     if (!daily) {
       // Agency has no production in this period — all fields zero
-      result.push(zeroEntry(agencyId, allTime));
+      result.push(zeroEntry(agencyId));
     } else {
       // Has production in period — set period counts from daily data.
       // Active/pending/at_risk/terminated breakdowns are not available
@@ -134,7 +133,7 @@ export function aggregateAgencyProduction(
       // from total_policies when it needs a single "Total Written" number).
       const ap = Math.round(daily.annual_premium * 100) / 100;
       result.push({
-        ...zeroEntry(agencyId, allTime),
+        ...zeroEntry(agencyId),
         total_policies: daily.policies,
         total_annual_premium: ap,
         policies_this_month: daily.policies,
