@@ -7,6 +7,7 @@
  */
 import { useState } from 'react';
 import { portalSupabase } from '@/lib/portal-supabase';
+import { supabase as portalClient, ensurePortalAuth } from '@/lib/crm/portal-client';
 import { fireCrmGhlSync } from '@/lib/crm/ghl-sync';
 import type { PortalAgent, PortalIntakeRecord } from '@/lib/contracting/types';
 
@@ -179,8 +180,9 @@ export function CrmOnboardingModal({
         }
       }
 
-      // Mark agent as CRM onboarded
-      await portalSupabase
+      // Mark agent as CRM onboarded (authenticated — trigger blocks anon writes to crm_onboarded)
+      await ensurePortalAuth();
+      await portalClient
         .from('agents')
         .update({ crm_onboarded: true })
         .eq('id', agent.id);
