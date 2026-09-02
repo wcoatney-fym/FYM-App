@@ -151,6 +151,13 @@ interface ProdDataResponse<T> {
   data: T;
   _source: string;
   _elapsed_ms: number;
+  _max_app_recvd_date?: string | null;
+}
+
+/** Wrapper returned by fetch*WithMeta functions so pages can display the latest load date. */
+export interface ProdDataResult<T> {
+  data: T;
+  maxAppRecvdDate: string | null;
 }
 
 export async function fetchAgencyProduction(params?: {
@@ -165,6 +172,19 @@ export async function fetchAgencyProduction(params?: {
   return res.data;
 }
 
+/** Like fetchAgencyProduction but also returns _max_app_recvd_date metadata. */
+export async function fetchAgencyProductionWithMeta(params?: {
+  agency_id?: string;
+  start_date?: string;
+  end_date?: string;
+}): Promise<ProdDataResult<AgencyProduction[]>> {
+  const res = await callEdgeFunction<ProdDataResponse<AgencyProduction[]>>(
+    'prod-data',
+    { type: 'agency', ...params }
+  );
+  return { data: res.data, maxAppRecvdDate: res._max_app_recvd_date ?? null };
+}
+
 export async function fetchAgentProduction(params?: {
   agency_id?: string;
   agent_id?: string;
@@ -176,6 +196,20 @@ export async function fetchAgentProduction(params?: {
     { type: 'agent', ...params }
   );
   return res.data;
+}
+
+/** Like fetchAgentProduction but also returns _max_app_recvd_date metadata. */
+export async function fetchAgentProductionWithMeta(params?: {
+  agency_id?: string;
+  agent_id?: string;
+  start_date?: string;
+  end_date?: string;
+}): Promise<ProdDataResult<AgentProduction[]>> {
+  const res = await callEdgeFunction<ProdDataResponse<AgentProduction[]>>(
+    'prod-data',
+    { type: 'agent', ...params }
+  );
+  return { data: res.data, maxAppRecvdDate: res._max_app_recvd_date ?? null };
 }
 
 export async function fetchDailyProduction(params?: {

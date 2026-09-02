@@ -17,7 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { StaggerContainer, StaggerItem, CountUp, RadialGauge } from '@/components/ui/animated';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
-import { fetchAgentProduction } from '@/lib/prod-api';
+import { fetchAgentProduction, fetchAgentProductionWithMeta } from '@/lib/prod-api';
 import { HeroPodium, type PodiumAgent } from '@/components/leaderboard/HeroPodium';
 import { LeaderboardTable, type LeaderRow } from '@/components/leaderboard/LeaderboardTable';
 import { YourPosition } from '@/components/leaderboard/YourPosition';
@@ -214,6 +214,8 @@ export function LeaderboardPage() {
   const [agentRows, setAgentRows] = useState<AgentLeaderRow[]>([]);
   const [agentLoading, setAgentLoading] = useState(false);
   const [agentError, setAgentError] = useState<string | null>(null);
+  // Latest app_recvd_date from prod-data — used in empty-state message
+  const [maxAppRecvdDate, setMaxAppRecvdDate] = useState<string | null>(null);
   // sortKey/sortAsc removed — top 10 leaderboard sorts by category
   // filter/search removed — top 10 leaderboard doesn't need manual filtering
   // Leaderboard period + category state
@@ -328,8 +330,9 @@ export function LeaderboardPage() {
     (async () => {
       try {
         // Fetch current + prior period in parallel for movement computation
-        const [agents, priorAgents] = await Promise.all([
-          fetchAgentProduction({
+        // Use WithMeta for current period to get maxAppRecvdDate for empty-state copy
+        const [currentResult, priorAgents] = await Promise.all([
+          fetchAgentProductionWithMeta({
             agency_id: agentLeaderAgencyId,
             start_date: leaderDateRange.startDate,
             end_date: leaderDateRange.endDate,
@@ -341,6 +344,8 @@ export function LeaderboardPage() {
           }),
         ]);
         if (cancelled) return;
+        const agents = currentResult.data;
+        setMaxAppRecvdDate(currentResult.maxAppRecvdDate);
 
         // Look up agency name
         let agencyName: string | null = null;
@@ -799,10 +804,12 @@ export function LeaderboardPage() {
               <div className="rounded-xl border border-border py-16 text-center">
                 <Trophy size={32} className="mx-auto text-muted-foreground mb-3 opacity-50" />
                 <p className="text-sm font-medium text-muted-foreground">
-                  No agents produced {periodLabels[leaderPeriod].toLowerCase()}
+                  No production data for {periodLabels[leaderPeriod].toLowerCase()} yet
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Try a different period or check back later.
+                <p className="text-xs text-muted-foreground/70 mt-1">
+                  {maxAppRecvdDate
+                    ? `Latest data through ${new Date(maxAppRecvdDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — new applications typically appear within a day or two of month start.`
+                    : 'Try a different period or check back later.'}
                 </p>
               </div>
             )}
