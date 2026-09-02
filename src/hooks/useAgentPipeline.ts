@@ -137,11 +137,9 @@ export function useAgentPipeline(): AgentPipelineData {
     // Try NPN match first
     if (profile.npn) {
       const { data } = await portalSupabase
-        .from('agent_intake_lookup')
-        .select('agent_id')
-        .eq('npn', profile.npn)
-        .maybeSingle();
-      if (data?.agent_id) return data.agent_id;
+        .rpc('lookup_agent_by_npn', { npn_param: profile.npn });
+      const match = Array.isArray(data) ? data[0] : data;
+      if (match?.agent_id) return match.agent_id;
     }
 
     // Fall back to pipeline record match via writing_number
@@ -185,11 +183,9 @@ export function useAgentPipeline(): AgentPipelineData {
 
       // Normal flow: try NPN match through agent_intake → agent_pipeline
       if (!pipeline && profile.npn) {
-        const { data: intake } = await portalSupabase
-          .from('agent_intake_lookup')
-          .select('agent_id')
-          .eq('npn', profile.npn)
-          .maybeSingle();
+        const { data: intakeRows } = await portalSupabase
+          .rpc('lookup_agent_by_npn', { npn_param: profile.npn });
+        const intake = Array.isArray(intakeRows) ? intakeRows[0] : intakeRows;
         if (intake?.agent_id) {
           agentId = intake.agent_id;
           const { data } = await portalSupabase
