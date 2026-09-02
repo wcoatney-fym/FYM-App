@@ -504,25 +504,30 @@ Deno.serve(async (req) => {
         return jsonResponse(req, { error: `Unknown type: ${type}` }, 400);
     }
 
-    // Fetch the latest app_recvd_date so the frontend can display
-    // an informative empty-state message when a period has no data.
-    const [maxDateRow] = await sql`
-      SELECT MAX(app_recvd_date)::text AS max_date
-      FROM typed.unl_fym_policy_latest_load
-      WHERE (
-        UPPER(TRIM(plan_code)) LIKE '%HHC%' OR UPPER(TRIM(plan_code)) LIKE '%AHH%'
-        OR UPPER(TRIM(plan_code)) LIKE '%HI%' OR UPPER(TRIM(plan_code)) LIKE '%HIP%'
-        OR UPPER(TRIM(plan_code)) LIKE '%UHL%'
-      )
-    `;
-    const maxAppRecvdDate = (maxDateRow as Record<string, unknown>)?.max_date as string | null;
+    // Only fetch max app_recvd_date when the result set is empty —
+    // that's the only time the frontend uses it (zero-state message).
+    // Avoids ~160ms overhead on every call.
+    let maxAppRecvdDate: string | null = null;
+    const resultArray = Array.isArray(result) ? result : [];
+    if (resultArray.length === 0) {
+      const [maxDateRow] = await sql`
+        SELECT MAX(app_recvd_date)::text AS max_date
+        FROM typed.unl_fym_policy_latest_load
+        WHERE (
+          UPPER(TRIM(plan_code)) LIKE '%HHC%' OR UPPER(TRIM(plan_code)) LIKE '%AHH%'
+          OR UPPER(TRIM(plan_code)) LIKE '%HI%' OR UPPER(TRIM(plan_code)) LIKE '%HIP%'
+          OR UPPER(TRIM(plan_code)) LIKE '%UHL%'
+        )
+      `;
+      maxAppRecvdDate = ((maxDateRow as Record<string, unknown>)?.max_date as string | null) ?? null;
+    }
 
     const elapsedMs = Math.round(performance.now() - started);
     return jsonResponse(req, {
       data: result,
       _source: "prod_direct_sql",
       _elapsed_ms: elapsedMs,
-      _max_app_recvd_date: maxAppRecvdDate ?? null,
+      _max_app_recvd_date: maxAppRecvdDate,
     });
   } catch (err) {
     console.error("prod-data error:", err);
