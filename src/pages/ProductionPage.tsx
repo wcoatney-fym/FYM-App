@@ -181,6 +181,13 @@ export function ProductionPage() {
   // instead of falling back to cached all-time data with a misleading period label.
   const hasLocalData = localAgencies.length > 0;
   const dateFilteredEmpty = useRpc && dateFilterComplete && !hasLocalData;
+  // Count effectuated policies from daily data even when no new applications exist.
+  // The daily endpoint returns issue_date rows separately from app_recvd_date rows,
+  // so dailyRows can have effectuated data when agency query returns empty.
+  const effectuatedCount = useMemo(() => {
+    if (!dateFilteredEmpty || localDaily.length === 0) return 0;
+    return localDaily.reduce((sum, d) => sum + (d.issued || 0), 0);
+  }, [dateFilteredEmpty, localDaily]);
   const agencies = useRpc
     ? (dateFilterComplete ? localAgencies : (hasLocalData ? localAgencies : cachedAgencies))
     : cachedAgencies;
@@ -371,8 +378,13 @@ export function ProductionPage() {
 
   // Aggregate trend data with adaptive granularity
   const filteredTrend = useMemo((): TrendPoint[] => {
-    // Date-filtered path: use dailyRows with adaptive granularity
-    if (dailyRows.length > 0) {
+    // Date-filtered path: use dailyRows with adaptive granularity.
+    // BUT: only render the chart when the agency query also returned data.
+    // The daily endpoint returns effectuated (issue_date) rows even when
+    // zero new applications exist — showing a chart line that contradicts
+    // zero KPIs is worse than suppressing it. The effectuated count is
+    // surfaced in the zero-state banner instead.
+    if (dailyRows.length > 0 && agencies.length > 0) {
       return aggregateTrend(dailyRows, granularity, {
         agencyId: filterAgencyId,
         writingNumber: filterAgentId,
@@ -420,7 +432,7 @@ export function ProductionPage() {
         .slice(-12);
     }
     return [];
-  }, [dailyRows, rawMonthly, overlayData, granularity, filterAgencyId, filterAgentId, useRpc, dateFilterComplete]);
+  }, [dailyRows, rawMonthly, overlayData, granularity, filterAgencyId, filterAgentId, useRpc, dateFilterComplete, agencies]);
 
 
   const displayStats = useMemo((): OrgStats | null => {
@@ -725,11 +737,16 @@ export function ProductionPage() {
             <CalendarClock size={18} className="text-muted-foreground shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-foreground">
-                No production data for {dateRange.label} yet
+                No new applications for {dateRange.label} yet
+                {effectuatedCount > 0 && (
+                  <span className="font-normal text-muted-foreground">
+                    {' '}&middot; {fmtNum(effectuatedCount)} {effectuatedCount === 1 ? 'policy' : 'policies'} effectuated
+                  </span>
+                )}
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {maxAppRecvdDate
-                  ? `Latest data through ${new Date(maxAppRecvdDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — new applications typically appear within a day or two of month start.`
+                  ? `Latest application data through ${new Date(maxAppRecvdDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}.`
                   : 'New applications typically appear within a day or two of month start.'}
               </p>
             </div>
