@@ -26,6 +26,7 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { HudFrame } from '@/components/ui/hud-frame';
 import { portalSupabase } from '@/lib/portal-supabase';
+import { supabase as portalClient, ensurePortalAuth } from '@/lib/crm/portal-client';
 import { timeAgo } from '@/lib/contracting/helpers';
 import type { PortalActivityLog, AgencyName } from '@/lib/contracting/types';
 
@@ -87,25 +88,20 @@ export function ContractingDashboardTab() {
   // ── Data loading ─────────────────────────────────────────────────────────
 
   const loadData = useCallback(async () => {
-    if (!portalSupabase) {
-      setError('Portal connection not configured');
-      setLoading(false);
-      return;
-    }
-
     try {
+      await ensurePortalAuth();
       // Server-side count aggregates — no need to pull every row
       const [pendingRes, inProgressRes, completedRes, expiredRes, terminatedRes, totalAgentsRes, newHiresRes, allNewHiresRes, logsRes] =
         await Promise.all([
-          portalSupabase.from('agents').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-          portalSupabase.from('agents').select('id', { count: 'exact', head: true }).eq('status', 'in-progress'),
-          portalSupabase.from('agents').select('id', { count: 'exact', head: true }).eq('status', 'completed'),
-          portalSupabase.from('agents').select('id', { count: 'exact', head: true }).eq('status', 'expired'),
-          portalSupabase.from('agents').select('id', { count: 'exact', head: true }).eq('status', 'terminated'),
-          portalSupabase.from('agents').select('id', { count: 'exact', head: true }),
-          portalSupabase.from('new_hires').select('id', { count: 'exact', head: true }).eq('processed', false),
-          portalSupabase.from('new_hires').select('id', { count: 'exact', head: true }),
-          portalSupabase.from('activity_log').select('*').order('created_at', { ascending: false }).limit(10),
+          portalClient.from('agents').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+          portalClient.from('agents').select('id', { count: 'exact', head: true }).eq('status', 'in-progress'),
+          portalClient.from('agents').select('id', { count: 'exact', head: true }).eq('status', 'completed'),
+          portalClient.from('agents').select('id', { count: 'exact', head: true }).eq('status', 'expired'),
+          portalClient.from('agents').select('id', { count: 'exact', head: true }).eq('status', 'terminated'),
+          portalClient.from('agents').select('id', { count: 'exact', head: true }),
+          portalClient.from('new_hires').select('id', { count: 'exact', head: true }).eq('processed', false),
+          portalClient.from('new_hires').select('id', { count: 'exact', head: true }),
+          portalClient.from('activity_log').select('*').order('created_at', { ascending: false }).limit(10),
         ]);
 
       // Throw on first error
