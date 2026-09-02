@@ -285,31 +285,26 @@ export async function verifyAuth(req: Request): Promise<{
     return { user: null, error: "Anon key is not sufficient — user JWT required" };
   }
 
-  // Verify the JWT using the service role key
+  // Service role key — sb_secret_ format, auto-injected by Supabase.
+  // pg_cron jobs send this via the apikey header (Vault pattern).
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || Deno.env.get("APP_SUPABASE_URL") || "";
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("APP_SUPABASE_SERVICE_KEY") || "";
-  // Supabase now auto-injects SUPABASE_SERVICE_ROLE_KEY in sb_secret_ format,
-  // but pg_cron jobs send the JWT-format key. SERVICE_ROLE_JWT stores the JWT
-  // version so we can match both formats.
-  const serviceKeyJwt = Deno.env.get("SERVICE_ROLE_JWT") || "";
 
-  if (!supabaseUrl || (!serviceKey && !serviceKeyJwt)) {
+  if (!supabaseUrl || !serviceKey) {
     return { user: null, error: "Auth not configured" };
   }
 
   // Service role key = trusted server-to-server caller (pg_cron, webhooks).
   // Skip getUser() — service keys are not user JWTs.
-  // Check both sb_secret_ format and JWT format.
-  if ((serviceKey && token === serviceKey) || (serviceKeyJwt && token === serviceKeyJwt)) {
+  if (token === serviceKey) {
     return { user: { id: "service_role", email: "cron@system" }, error: null };
   }
 
   try {
-    // createClient needs a JWT-format key for auth.getUser() to work.
-    // Supabase auto-injected keys may be in sb_secret_/sb_publishable_ format
-    // which don't work with the JS client's auth module.
-    const clientKey = serviceKeyJwt || serviceKey;
-    const supabase = createClient(supabaseUrl, clientKey);
+    // For user JWT verification, use the anon/publishable key with the client.
+    // sb_publishable_ works with createClient; sb_secret_ also works.
+    const anonPub = Deno.env.get("SUPABASE_ANON_KEY") || serviceKey;
+    const supabase = createClient(supabaseUrl, anonPub);
     const { data: { user }, error } = await supabase.auth.getUser(token);
     if (error || !user) {
       return { user: null, error: "Invalid or expired token" };
