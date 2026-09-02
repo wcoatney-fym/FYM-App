@@ -181,6 +181,13 @@ export function ProductionPage() {
   // instead of falling back to cached all-time data with a misleading period label.
   const hasLocalData = localAgencies.length > 0;
   const dateFilteredEmpty = useRpc && dateFilterComplete && !hasLocalData;
+  // Count effectuated policies from daily data even when no new applications exist.
+  // The daily endpoint returns issue_date rows separately from app_recvd_date rows,
+  // so dailyRows can have effectuated data when agency query returns empty.
+  const effectuatedCount = useMemo(() => {
+    if (!dateFilteredEmpty || localDaily.length === 0) return 0;
+    return localDaily.reduce((sum, d) => sum + (d.issued || 0), 0);
+  }, [dateFilteredEmpty, localDaily]);
   const agencies = useRpc
     ? (dateFilterComplete ? localAgencies : (hasLocalData ? localAgencies : cachedAgencies))
     : cachedAgencies;
@@ -371,8 +378,13 @@ export function ProductionPage() {
 
   // Aggregate trend data with adaptive granularity
   const filteredTrend = useMemo((): TrendPoint[] => {
-    // Date-filtered path: use dailyRows with adaptive granularity
-    if (dailyRows.length > 0) {
+    // Date-filtered path: use dailyRows with adaptive granularity.
+    // BUT: only render the chart when the agency query also returned data.
+    // The daily endpoint returns effectuated (issue_date) rows even when
+    // zero new applications exist — showing a chart line that contradicts
+    // zero KPIs is worse than suppressing it. The effectuated count is
+    // surfaced in the zero-state banner instead.
+    if (dailyRows.length > 0 && agencies.length > 0) {
       return aggregateTrend(dailyRows, granularity, {
         agencyId: filterAgencyId,
         writingNumber: filterAgentId,
@@ -420,7 +432,7 @@ export function ProductionPage() {
         .slice(-12);
     }
     return [];
-  }, [dailyRows, rawMonthly, overlayData, granularity, filterAgencyId, filterAgentId, useRpc, dateFilterComplete]);
+  }, [dailyRows, rawMonthly, overlayData, granularity, filterAgencyId, filterAgentId, useRpc, dateFilterComplete, agencies]);
 
 
   const displayStats = useMemo((): OrgStats | null => {
@@ -725,61 +737,92 @@ export function ProductionPage() {
             <CalendarClock size={18} className="text-muted-foreground shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-foreground">
-                No production data for {dateRange.label} yet
+                No new applications for {dateRange.label} yet
+                {effectuatedCount > 0 && (
+                  <span className="font-normal text-muted-foreground">
+                    {' '}&middot; {fmtNum(effectuatedCount)} {effectuatedCount === 1 ? 'policy' : 'policies'} effectuated
+                  </span>
+                )}
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {maxAppRecvdDate
-                  ? `Latest data through ${new Date(maxAppRecvdDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — new applications typically appear within a day or two of month start.`
+                  ? `Latest application data through ${new Date(maxAppRecvdDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}.`
                   : 'New applications typically appear within a day or two of month start.'}
               </p>
             </div>
           </div>
         )}
 
-        {/* Hero KPI Cards */}
-        <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            {
-              title: 'Active Policies',
-              end: displayStats.activePolicies,
-              fmt: fmtNum,
-              sub: `${fmtNum(displayStats.policiesThisMonth)} this month`,
-              icon: FileText,
-              color: 'text-primary',
-              bg: 'bg-cyan-500/10',
-              accent: 'hsl(199 89% 48%)',
-            },
-            {
-              title: 'Annual Premium',
-              end: displayStats.activeAnnualPremium,
-              fmt: fmt$,
-              sub: `${fmt$(displayStats.apThisMonth)} this month`,
-              icon: DollarSign,
-              color: 'text-emerald-400',
-              bg: 'bg-emerald-500/10',
-              accent: 'hsl(142 71% 45%)',
-            },
-            {
-              title: 'This Month',
-              end: displayStats.policiesThisMonth,
-              fmt: (n: number) => `${fmtNum(n)} policies`,
-              delta: displayStats.policiesLastMonth,
-              icon: TrendingUp,
-              color: 'text-amber-400',
-              bg: 'bg-amber-500/10',
-              accent: 'hsl(38 92% 50%)',
-            },
-            {
-              title: 'Active Agencies',
-              end: displayStats.activeAgencies,
-              fmt: fmtNum,
-              sub: `${fmtNum(displayStats.atRiskPolicies)} at-risk policies`,
-              icon: Building2,
-              color: 'text-violet-400',
-              bg: 'bg-violet-500/10',
-              accent: 'hsl(263 70% 50%)',
-            },
-          ].map(card => (
+        {/* Hero KPI Cards — period-filtered views show Total Written + AP only;
+            status breakdown (Active/Pending/At Risk/Terminated) requires per-policy
+            contract status which isn't in the daily_production cache. */}
+        <StaggerContainer className={`grid gap-4 ${useRpc ? 'grid-cols-2' : 'grid-cols-2 lg:grid-cols-4'}`}>
+          {(useRpc
+            ? [
+                {
+                  title: 'Total Written',
+                  end: displayStats.totalPolicies,
+                  fmt: fmtNum,
+                  sub: `${fmt$(displayStats.apThisMonth || displayStats.activeAnnualPremium)} AP`,
+                  icon: FileText,
+                  color: 'text-primary',
+                  bg: 'bg-cyan-500/10',
+                  accent: 'hsl(199 89% 48%)',
+                },
+                {
+                  title: 'Total AP',
+                  end: displayStats.apThisMonth || displayStats.activeAnnualPremium,
+                  fmt: fmt$,
+                  sub: 'Status breakdown available in All Time view',
+                  icon: DollarSign,
+                  color: 'text-emerald-400',
+                  bg: 'bg-emerald-500/10',
+                  accent: 'hsl(142 71% 45%)',
+                },
+              ]
+            : [
+                {
+                  title: 'Active Policies',
+                  end: displayStats.activePolicies,
+                  fmt: fmtNum,
+                  sub: `${fmtNum(displayStats.policiesThisMonth)} this month`,
+                  icon: FileText,
+                  color: 'text-primary',
+                  bg: 'bg-cyan-500/10',
+                  accent: 'hsl(199 89% 48%)',
+                },
+                {
+                  title: 'Annual Premium',
+                  end: displayStats.activeAnnualPremium,
+                  fmt: fmt$,
+                  sub: `${fmt$(displayStats.apThisMonth)} this month`,
+                  icon: DollarSign,
+                  color: 'text-emerald-400',
+                  bg: 'bg-emerald-500/10',
+                  accent: 'hsl(142 71% 45%)',
+                },
+                {
+                  title: 'This Month',
+                  end: displayStats.policiesThisMonth,
+                  fmt: (n: number) => `${fmtNum(n)} policies`,
+                  delta: displayStats.policiesLastMonth,
+                  icon: TrendingUp,
+                  color: 'text-amber-400',
+                  bg: 'bg-amber-500/10',
+                  accent: 'hsl(38 92% 50%)',
+                },
+                {
+                  title: 'Active Agencies',
+                  end: displayStats.activeAgencies,
+                  fmt: fmtNum,
+                  sub: `${fmtNum(displayStats.atRiskPolicies)} at-risk policies`,
+                  icon: Building2,
+                  color: 'text-violet-400',
+                  bg: 'bg-violet-500/10',
+                  accent: 'hsl(263 70% 50%)',
+                },
+              ]
+          ).map(card => (
             <StaggerItem key={card.title}>
               <HudFrame accentColor={card.accent}>
                 <Card className="border-border h-full">
@@ -812,25 +855,28 @@ export function ProductionPage() {
           ))}
         </StaggerContainer>
 
-        {/* Book of Business Status Strip */}
-        <Card className="border-border">
-          <CardContent className="p-4">
-            <div className="grid grid-cols-5 gap-4 text-center">
-              {[
-                { label: 'Active', value: displayStats.activePolicies, color: 'text-emerald-400' },
-                { label: 'Pending', value: displayStats.pendingPolicies, color: 'text-amber-400' },
-                { label: 'At Risk', value: displayStats.atRiskPolicies, color: 'text-red-400' },
-                { label: 'Terminated', value: displayStats.terminatedPolicies, color: 'text-muted-foreground' },
-                { label: 'Total', value: displayStats.totalPolicies, color: 'text-foreground' },
-              ].map(s => (
-                <div key={s.label}>
-                  <p className="text-xs text-muted-foreground">{s.label}</p>
-                  <p className={`text-lg font-bold font-data ${s.color}`}>{fmtNum(s.value)}</p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        {/* Book of Business Status Strip — all-time only (status breakdown
+            not available from daily_production cache) */}
+        {!useRpc && (
+          <Card className="border-border">
+            <CardContent className="p-4">
+              <div className="grid grid-cols-5 gap-4 text-center">
+                {[
+                  { label: 'Active', value: displayStats.activePolicies, color: 'text-emerald-400' },
+                  { label: 'Pending', value: displayStats.pendingPolicies, color: 'text-amber-400' },
+                  { label: 'At Risk', value: displayStats.atRiskPolicies, color: 'text-red-400' },
+                  { label: 'Terminated', value: displayStats.terminatedPolicies, color: 'text-muted-foreground' },
+                  { label: 'Total', value: displayStats.totalPolicies, color: 'text-foreground' },
+                ].map(s => (
+                  <div key={s.label}>
+                    <p className="text-xs text-muted-foreground">{s.label}</p>
+                    <p className={`text-lg font-bold font-data ${s.color}`}>{fmtNum(s.value)}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Production Trend Chart — Policies Sold vs Effectuated */}
         <Card className="border-border">

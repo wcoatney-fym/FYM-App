@@ -141,6 +141,8 @@ export function DashboardPage() {
     Array<{ month: string; agency_id: string; policies: number; annual_premium: number }>
   >([]);
   const [localAgencyProd, setLocalAgencyProd] = useState<AgencyProduction[]>([]);
+  // Track whether date-filtered fetch completed (to distinguish loading vs genuinely empty)
+  const [dateFilterComplete, setDateFilterComplete] = useState(false);
   const [nameMap, setNameMap] = useState<Map<string, string>>(new Map());
   const [datePreset, setDatePreset] = useState<DatePreset>(DEFAULT_PRESET);
   const [dateRange, setDateRange] = useState<DateRange>(() => getDateRange(DEFAULT_PRESET));
@@ -153,13 +155,21 @@ export function DashboardPage() {
 
   const useRpc = datePreset !== 'allTime';
 
-  // Use org cache for all-time; date-filtered local data when available
+  // Use org cache for all-time; date-filtered local data when available.
+  // When the date-filtered fetch completed with zero results, show zeros honestly
+  // instead of falling back to cached all-time data with a misleading period label.
   const rawAgencies = orgData.retentionAgencies;
   const hasLocalProd = localDailyProd.length > 0 || localMonthlyProd.length > 0;
-  const rawDailyProd = useRpc && hasLocalProd ? localDailyProd : orgData.dailyProduction;
-  const rawMonthlyProd = useRpc && hasLocalProd ? localMonthlyProd : orgData.monthlyProduction;
+  const rawDailyProd = useRpc
+    ? (dateFilterComplete ? localDailyProd : (hasLocalProd ? localDailyProd : orgData.dailyProduction))
+    : orgData.dailyProduction;
+  const rawMonthlyProd = useRpc
+    ? (dateFilterComplete ? localMonthlyProd : (hasLocalProd ? localMonthlyProd : orgData.monthlyProduction))
+    : orgData.monthlyProduction;
   const hasLocalAgencyProd = localAgencyProd.length > 0;
-  const rawAgencyProd = useRpc && hasLocalAgencyProd ? localAgencyProd : orgData.agencyProduction;
+  const rawAgencyProd = useRpc
+    ? (dateFilterComplete ? localAgencyProd : (hasLocalAgencyProd ? localAgencyProd : orgData.agencyProduction))
+    : orgData.agencyProduction;
   const hasAnyData =
     rawAgencies.length > 0 || rawDailyProd.length > 0 || rawMonthlyProd.length > 0;
   const loading = orgData.initialLoading && !hasAnyData;
@@ -205,6 +215,7 @@ export function DashboardPage() {
       setLocalDailyProd([]);
       setLocalMonthlyProd([]);
       setLocalAgencyProd([]);
+      setDateFilterComplete(false);
       return;
     }
     const startDateStr = dateRange.startDate.split('T')[0];
@@ -217,6 +228,7 @@ export function DashboardPage() {
       setLocalDailyProd(filtered);
       setLocalMonthlyProd([]);
       setLocalAgencyProd(agencyStats);
+      setDateFilterComplete(true);
       return;
     }
 
@@ -226,16 +238,19 @@ export function DashboardPage() {
         ? { agency_id: effectiveAgencyWritingNumber }
         : {};
     setDateLoading(true);
+    setDateFilterComplete(false);
     const dateParams = { ...agencyParam, start_date: startDateStr, end_date: endDateStr };
     Promise.all([fetchDailyProduction(dateParams), fetchAgencyProduction(dateParams)])
       .then(([dailyData, agencyData]) => {
         setLocalDailyProd(dailyData);
         setLocalMonthlyProd([]);
         setLocalAgencyProd(agencyData);
+        setDateFilterComplete(true);
         setDateLoading(false);
       })
       .catch((err) => {
         console.error('Dashboard date-filtered fetch error:', err);
+        setDateFilterComplete(true);
         setDateLoading(false);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps

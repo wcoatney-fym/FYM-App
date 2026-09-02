@@ -48,6 +48,13 @@ interface ProductionSnapshotProps {
 }
 
 export function ProductionSnapshot({ snapshot, datePreset, comparing, prevSnapshot }: ProductionSnapshotProps) {
+  // Status breakdown (Active/Pending/At Risk/Terminated) is only available
+  // for all-time views. Period-filtered views derive production from the
+  // daily_production cache which only carries total policies + AP, not
+  // per-policy contract status. Show Total Written + AP for period views;
+  // show the full 5-column breakdown for all-time.
+  const showStatusBreakdown = datePreset === 'allTime';
+
   return (
     <FadeIn delay={0.35}>
       <Card className="border-border" role="region" aria-label="Production snapshot">
@@ -60,7 +67,7 @@ export function ProductionSnapshot({ snapshot, datePreset, comparing, prevSnapsh
               <p className="text-xs text-muted-foreground mt-0.5">
                 {datePreset === 'allTime'
                   ? 'All time'
-                  : 'Policies issued in selected period'}
+                  : 'Policies written in selected period'}
               </p>
             </div>
             <Link
@@ -72,7 +79,11 @@ export function ProductionSnapshot({ snapshot, datePreset, comparing, prevSnapsh
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+          <div className={`grid gap-4 ${
+            showStatusBreakdown
+              ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'
+              : 'grid-cols-1 sm:grid-cols-2'
+          }`}>
             <div className="space-y-1">
               <p className="text-sm text-muted-foreground">Total Written</p>
               <div className="flex items-center gap-2">
@@ -87,54 +98,65 @@ export function ProductionSnapshot({ snapshot, datePreset, comparing, prevSnapsh
                 {fmt$(snapshot.totalAP)} AP
               </p>
             </div>
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Active</p>
-              <div className="flex items-center gap-2">
-                <p className="text-3xl font-bold text-cyan-400 font-data">
-                  {snapshot.active.toLocaleString()}
+            {showStatusBreakdown && (
+              <>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Active</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-3xl font-bold text-cyan-400 font-data">
+                      {snapshot.active.toLocaleString()}
+                    </p>
+                    {comparing && prevSnapshot && (
+                      <DeltaBadge current={snapshot.active} previous={prevSnapshot.active} />
+                    )}
+                  </div>
+                  <p className="text-sm text-cyan-400/70 font-data">
+                    {fmt$(snapshot.activeAP)} AP
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Pending</p>
+                  <p className="text-3xl font-bold text-amber-400 font-data">
+                    {snapshot.pending.toLocaleString()}
+                  </p>
+                  <p className="text-sm text-amber-400/70 font-data">
+                    {fmt$(snapshot.pendingAP)} AP
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">At Risk</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-3xl font-bold text-red-400 font-data">
+                      {snapshot.atRisk.toLocaleString()}
+                    </p>
+                    {comparing && prevSnapshot && (
+                      <DeltaBadge current={snapshot.atRisk} previous={prevSnapshot.atRisk} invertColor />
+                    )}
+                  </div>
+                  <p className="text-sm text-red-400/70 font-data">
+                    {fmt$(snapshot.atRiskAP)} AP
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Terminated</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-3xl font-bold text-purple-400 font-data">
+                      {snapshot.terminated.toLocaleString()}
+                    </p>
+                    {comparing && prevSnapshot && (
+                      <DeltaBadge current={snapshot.terminated} previous={prevSnapshot.terminated} invertColor />
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+            {!showStatusBreakdown && (
+              <div className="flex items-end">
+                <p className="text-xs text-muted-foreground">
+                  Status breakdown available in All Time view
                 </p>
-                {comparing && prevSnapshot && (
-                  <DeltaBadge current={snapshot.active} previous={prevSnapshot.active} />
-                )}
               </div>
-              <p className="text-sm text-cyan-400/70 font-data">
-                {fmt$(snapshot.activeAP)} AP
-              </p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Pending</p>
-              <p className="text-3xl font-bold text-amber-400 font-data">
-                {snapshot.pending.toLocaleString()}
-              </p>
-              <p className="text-sm text-amber-400/70 font-data">
-                {fmt$(snapshot.pendingAP)} AP
-              </p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">At Risk</p>
-              <div className="flex items-center gap-2">
-                <p className="text-3xl font-bold text-red-400 font-data">
-                  {snapshot.atRisk.toLocaleString()}
-                </p>
-                {comparing && prevSnapshot && (
-                  <DeltaBadge current={snapshot.atRisk} previous={prevSnapshot.atRisk} invertColor />
-                )}
-              </div>
-              <p className="text-sm text-red-400/70 font-data">
-                {fmt$(snapshot.atRiskAP)} AP
-              </p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Terminated</p>
-              <div className="flex items-center gap-2">
-                <p className="text-3xl font-bold text-purple-400 font-data">
-                  {snapshot.terminated.toLocaleString()}
-                </p>
-                {comparing && prevSnapshot && (
-                  <DeltaBadge current={snapshot.terminated} previous={prevSnapshot.terminated} invertColor />
-                )}
-              </div>
-            </div>
+            )}
           </div>
           {/* Trend chart */}
           {snapshot.trend.length > 1 && (
