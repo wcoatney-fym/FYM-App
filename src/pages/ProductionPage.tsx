@@ -753,50 +753,76 @@ export function ProductionPage() {
           </div>
         )}
 
-        {/* Hero KPI Cards */}
-        <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            {
-              title: 'Active Policies',
-              end: displayStats.activePolicies,
-              fmt: fmtNum,
-              sub: `${fmtNum(displayStats.policiesThisMonth)} this month`,
-              icon: FileText,
-              color: 'text-primary',
-              bg: 'bg-cyan-500/10',
-              accent: 'hsl(199 89% 48%)',
-            },
-            {
-              title: 'Annual Premium',
-              end: displayStats.activeAnnualPremium,
-              fmt: fmt$,
-              sub: `${fmt$(displayStats.apThisMonth)} this month`,
-              icon: DollarSign,
-              color: 'text-emerald-400',
-              bg: 'bg-emerald-500/10',
-              accent: 'hsl(142 71% 45%)',
-            },
-            {
-              title: 'This Month',
-              end: displayStats.policiesThisMonth,
-              fmt: (n: number) => `${fmtNum(n)} policies`,
-              delta: displayStats.policiesLastMonth,
-              icon: TrendingUp,
-              color: 'text-amber-400',
-              bg: 'bg-amber-500/10',
-              accent: 'hsl(38 92% 50%)',
-            },
-            {
-              title: 'Active Agencies',
-              end: displayStats.activeAgencies,
-              fmt: fmtNum,
-              sub: `${fmtNum(displayStats.atRiskPolicies)} at-risk policies`,
-              icon: Building2,
-              color: 'text-violet-400',
-              bg: 'bg-violet-500/10',
-              accent: 'hsl(263 70% 50%)',
-            },
-          ].map(card => (
+        {/* Hero KPI Cards — period-filtered views show Total Written + AP only;
+            status breakdown (Active/Pending/At Risk/Terminated) requires per-policy
+            contract status which isn't in the daily_production cache. */}
+        <StaggerContainer className={`grid gap-4 ${useRpc ? 'grid-cols-2' : 'grid-cols-2 lg:grid-cols-4'}`}>
+          {(useRpc
+            ? [
+                {
+                  title: 'Total Written',
+                  end: displayStats.totalPolicies,
+                  fmt: fmtNum,
+                  sub: `${fmt$(displayStats.apThisMonth || displayStats.activeAnnualPremium)} AP`,
+                  icon: FileText,
+                  color: 'text-primary',
+                  bg: 'bg-cyan-500/10',
+                  accent: 'hsl(199 89% 48%)',
+                },
+                {
+                  title: 'Total AP',
+                  end: displayStats.apThisMonth || displayStats.activeAnnualPremium,
+                  fmt: fmt$,
+                  sub: 'Status breakdown available in All Time view',
+                  icon: DollarSign,
+                  color: 'text-emerald-400',
+                  bg: 'bg-emerald-500/10',
+                  accent: 'hsl(142 71% 45%)',
+                },
+              ]
+            : [
+                {
+                  title: 'Active Policies',
+                  end: displayStats.activePolicies,
+                  fmt: fmtNum,
+                  sub: `${fmtNum(displayStats.policiesThisMonth)} this month`,
+                  icon: FileText,
+                  color: 'text-primary',
+                  bg: 'bg-cyan-500/10',
+                  accent: 'hsl(199 89% 48%)',
+                },
+                {
+                  title: 'Annual Premium',
+                  end: displayStats.activeAnnualPremium,
+                  fmt: fmt$,
+                  sub: `${fmt$(displayStats.apThisMonth)} this month`,
+                  icon: DollarSign,
+                  color: 'text-emerald-400',
+                  bg: 'bg-emerald-500/10',
+                  accent: 'hsl(142 71% 45%)',
+                },
+                {
+                  title: 'This Month',
+                  end: displayStats.policiesThisMonth,
+                  fmt: (n: number) => `${fmtNum(n)} policies`,
+                  delta: displayStats.policiesLastMonth,
+                  icon: TrendingUp,
+                  color: 'text-amber-400',
+                  bg: 'bg-amber-500/10',
+                  accent: 'hsl(38 92% 50%)',
+                },
+                {
+                  title: 'Active Agencies',
+                  end: displayStats.activeAgencies,
+                  fmt: fmtNum,
+                  sub: `${fmtNum(displayStats.atRiskPolicies)} at-risk policies`,
+                  icon: Building2,
+                  color: 'text-violet-400',
+                  bg: 'bg-violet-500/10',
+                  accent: 'hsl(263 70% 50%)',
+                },
+              ]
+          ).map(card => (
             <StaggerItem key={card.title}>
               <HudFrame accentColor={card.accent}>
                 <Card className="border-border h-full">
@@ -829,25 +855,28 @@ export function ProductionPage() {
           ))}
         </StaggerContainer>
 
-        {/* Book of Business Status Strip */}
-        <Card className="border-border">
-          <CardContent className="p-4">
-            <div className="grid grid-cols-5 gap-4 text-center">
-              {[
-                { label: 'Active', value: displayStats.activePolicies, color: 'text-emerald-400' },
-                { label: 'Pending', value: displayStats.pendingPolicies, color: 'text-amber-400' },
-                { label: 'At Risk', value: displayStats.atRiskPolicies, color: 'text-red-400' },
-                { label: 'Terminated', value: displayStats.terminatedPolicies, color: 'text-muted-foreground' },
-                { label: 'Total', value: displayStats.totalPolicies, color: 'text-foreground' },
-              ].map(s => (
-                <div key={s.label}>
-                  <p className="text-xs text-muted-foreground">{s.label}</p>
-                  <p className={`text-lg font-bold font-data ${s.color}`}>{fmtNum(s.value)}</p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        {/* Book of Business Status Strip — all-time only (status breakdown
+            not available from daily_production cache) */}
+        {!useRpc && (
+          <Card className="border-border">
+            <CardContent className="p-4">
+              <div className="grid grid-cols-5 gap-4 text-center">
+                {[
+                  { label: 'Active', value: displayStats.activePolicies, color: 'text-emerald-400' },
+                  { label: 'Pending', value: displayStats.pendingPolicies, color: 'text-amber-400' },
+                  { label: 'At Risk', value: displayStats.atRiskPolicies, color: 'text-red-400' },
+                  { label: 'Terminated', value: displayStats.terminatedPolicies, color: 'text-muted-foreground' },
+                  { label: 'Total', value: displayStats.totalPolicies, color: 'text-foreground' },
+                ].map(s => (
+                  <div key={s.label}>
+                    <p className="text-xs text-muted-foreground">{s.label}</p>
+                    <p className={`text-lg font-bold font-data ${s.color}`}>{fmtNum(s.value)}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Production Trend Chart — Policies Sold vs Effectuated */}
         <Card className="border-border">
