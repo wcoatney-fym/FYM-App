@@ -7,6 +7,7 @@
  */
 import { useState } from 'react';
 import { portalSupabase } from '@/lib/portal-supabase';
+import { supabase as portalClient, ensurePortalAuth } from '@/lib/crm/portal-client';
 import { fireCrmGhlSync } from '@/lib/crm/ghl-sync';
 import type { PortalAgent } from '@/lib/contracting/types';
 
@@ -142,8 +143,9 @@ export function TerminateAgentModal({
 
       const now = new Date().toISOString();
 
-      // Update agent status
-      await portalSupabase
+      // Update agent status (authenticated — trigger blocks anon writes to crm_onboarded, terminated_at, updated_at)
+      await ensurePortalAuth();
+      await portalClient
         .from('agents')
         .update({
           status: 'terminated',

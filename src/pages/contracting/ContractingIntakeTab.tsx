@@ -54,6 +54,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { portalSupabase } from '@/lib/portal-supabase';
+import { supabase as portalClient, ensurePortalAuth } from '@/lib/crm/portal-client';
 import { timeAgo, formatPhoneDisplay } from '@/lib/contracting/helpers';
 import { firePopulateWebhook } from '@/lib/contracting/portal-webhooks';
 import type {
@@ -295,12 +296,13 @@ export function ContractingIntakeTab() {
     setSendResult(null);
 
     try {
+      await ensurePortalAuth();
       const securityCode = generateSecurityCode();
       const expiration = new Date();
       expiration.setHours(expiration.getHours() + 72);
 
-      // Create agent record in portal DB
-      const { data: agent, error: insertErr } = await portalSupabase
+      // Create agent record in portal DB (authenticated — anon INSERT removed)
+      const { data: agent, error: insertErr } = await portalClient
         .from('agents')
         .insert({
           first_name: formData.firstName.trim(),
@@ -322,8 +324,8 @@ export function ContractingIntakeTab() {
 
       const generatedUrl = `${PORTAL_BASE_URL}/${formData.formType}?id=${agent.id}`;
 
-      // Update the agent record with the full URL
-      await portalSupabase
+      // Update the agent record with the full URL (authenticated)
+      await portalClient
         .from('agents')
         .update({ form_url: generatedUrl })
         .eq('id', agent.id);
@@ -414,7 +416,8 @@ export function ContractingIntakeTab() {
       const expiration = new Date();
       expiration.setHours(expiration.getHours() + 72);
 
-      const { data: agent, error: insertErr } = await portalSupabase
+      await ensurePortalAuth();
+      const { data: agent, error: insertErr } = await portalClient
         .from('agents')
         .insert({
           first_name: hire.first_name.trim(),
@@ -436,7 +439,7 @@ export function ContractingIntakeTab() {
 
       const generatedUrl = `${PORTAL_BASE_URL}/field?id=${agent.id}`;
 
-      await portalSupabase
+      await portalClient
         .from('agents')
         .update({ form_url: generatedUrl })
         .eq('id', agent.id);

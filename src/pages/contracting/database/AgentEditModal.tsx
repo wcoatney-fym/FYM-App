@@ -6,7 +6,7 @@
  */
 import { useState } from 'react';
 import { X, Save } from 'lucide-react';
-import { portalSupabase } from '@/lib/portal-supabase';
+import { supabase as portalClient, ensurePortalAuth } from '@/lib/crm/portal-client';
 import type { PortalAgent } from '@/lib/contracting/types';
 
 interface AgentEditModalProps {
@@ -78,9 +78,10 @@ export function AgentEditModal({ agent, onClose, onSaved }: AgentEditModalProps)
   };
 
   const handleSave = async () => {
-    if (!portalSupabase || !validate()) return;
+    if (!validate()) return;
     setSaving(true);
     try {
+      await ensurePortalAuth();
       const patch = {
         first_name: draft.first_name.trim(),
         last_name: draft.last_name.trim(),
@@ -90,7 +91,7 @@ export function AgentEditModal({ agent, onClose, onSaved }: AgentEditModalProps)
         agency: draft.agency,
         updated_at: new Date().toISOString(),
       };
-      const { error } = await portalSupabase
+      const { error } = await portalClient
         .from('agents')
         .update(patch)
         .eq('id', agent.id);
