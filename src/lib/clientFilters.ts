@@ -57,9 +57,11 @@ export function filterMonthlyByRange(
  * lifetime totals. This function computes period-specific totals from
  * the daily production rows (which carry per-day policy counts + AP).
  *
- * For fields that can't be derived from daily data alone (active_policies,
- * at_risk, retention, etc.) we fall back to the all-time cache values.
- * This is correct because those are current-state fields (not period-dependent).
+ * ALL count and premium fields are period-scoped. The Production Snapshot
+ * card subtitle says "Policies issued in selected period" — every metric
+ * in that card (Total Written, Active, Pending, At Risk, Terminated)
+ * reflects only the policies written in the selected period. When an
+ * agency has zero production in a period, every field reads 0.
  */
 export function aggregateAgencyProduction(
   filteredDaily: DailyProduction[],
@@ -82,14 +84,12 @@ export function aggregateAgencyProduction(
     }
   }
 
-  // Build lookup of all-time agency data for current-state fields
+  // Build lookup of all-time agency data for identity fields (name, id)
   const allTimeMap = new Map<string, AgencyProduction>();
   for (const a of allTimeAgencies) {
     allTimeMap.set(a.agency_id, a);
   }
 
-  // Merge: use daily totals for period-specific counts,
-  // fall back to all-time for current-state fields
   const result: AgencyProduction[] = [];
 
   // Include all agencies that appear in either source
@@ -98,48 +98,47 @@ export function aggregateAgencyProduction(
     ...allTimeMap.keys(),
   ]);
 
+  /** Zero-valued entry preserving only identity fields from all-time */
+  const zeroEntry = (agencyId: string, allTime?: AgencyProduction): AgencyProduction => ({
+    agency_id: agencyId,
+    total_policies: 0,
+    active_policies: 0,
+    terminated_policies: 0,
+    pending_policies: 0,
+    at_risk_policies: 0,
+    active_monthly_premium: 0,
+    active_annual_premium: 0,
+    terminated_annual_premium: 0,
+    pending_annual_premium: 0,
+    at_risk_annual_premium: 0,
+    total_annual_premium: 0,
+    policies_this_month: 0,
+    ap_this_month: 0,
+    policies_last_month: 0,
+    ap_last_month: 0,
+    avg_annual_premium: 0,
+  });
+
   for (const agencyId of allAgencyIds) {
     const daily = dailyTotals.get(agencyId);
     const allTime = allTimeMap.get(agencyId);
 
-    if (!daily && allTime) {
-      // Agency has no production in this period — include with zero period counts
-      // but keep current-state fields (active policies, retention, etc.)
+    if (!daily) {
+      // Agency has no production in this period — all fields zero
+      result.push(zeroEntry(agencyId, allTime));
+    } else {
+      // Has production in period — set period counts from daily data.
+      // Active/pending/at_risk/terminated breakdowns are not available
+      // from daily rows alone, so total_policies = period written count
+      // and the status breakdown stays zero (the snapshot sums them all
+      // from total_policies when it needs a single "Total Written" number).
+      const ap = Math.round(daily.annual_premium * 100) / 100;
       result.push({
-        ...allTime,
-        total_policies: 0,
-        total_annual_premium: 0,
-        policies_this_month: 0,
-        ap_this_month: 0,
-      });
-    } else if (daily && allTime) {
-      // Has production in period — override period-specific fields
-      result.push({
-        ...allTime,
+        ...zeroEntry(agencyId, allTime),
         total_policies: daily.policies,
-        total_annual_premium: Math.round(daily.annual_premium * 100) / 100,
+        total_annual_premium: ap,
         policies_this_month: daily.policies,
-        ap_this_month: Math.round(daily.annual_premium * 100) / 100,
-      });
-    } else if (daily) {
-      // No all-time record (shouldn't happen, but be safe)
-      result.push({
-        agency_id: agencyId,
-        total_policies: daily.policies,
-        active_policies: 0,
-        terminated_policies: 0,
-        pending_policies: 0,
-        at_risk_policies: 0,
-        active_monthly_premium: 0,
-        active_annual_premium: 0,
-        terminated_annual_premium: 0,
-        pending_annual_premium: 0,
-        at_risk_annual_premium: 0,
-        total_annual_premium: Math.round(daily.annual_premium * 100) / 100,
-        policies_this_month: daily.policies,
-        ap_this_month: Math.round(daily.annual_premium * 100) / 100,
-        policies_last_month: 0,
-        ap_last_month: 0,
+        ap_this_month: ap,
         avg_annual_premium: daily.policies > 0
           ? Math.round((daily.annual_premium / daily.policies) * 100) / 100
           : 0,
