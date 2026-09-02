@@ -10,7 +10,7 @@ import { StaggerContainer, StaggerItem, CountUp } from '@/components/ui/animated
 import { HudFrame } from '@/components/ui/hud-frame';
 import { supabase } from '@/lib/supabase';
 import {
-  fetchAgencyProduction,
+  fetchAgencyProductionWithMeta,
   fetchAgentProduction,
   fetchDailyProduction,
   fetchMonthlyOverlay,
@@ -33,7 +33,7 @@ import { type DatePreset, type DateRange, type DailyRow, type TrendPoint, DEFAUL
 import { fmt$, fmtNum } from '@/lib/formatUtils';
 import {
   TrendingUp, DollarSign, FileText, Building2, Search, Download,
-  ArrowUp, ArrowDown, ShieldAlert, TrendingDown, AlertTriangle, RefreshCw,
+  ArrowUp, ArrowDown, ShieldAlert, TrendingDown, AlertTriangle, RefreshCw, CalendarClock,
 } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -110,6 +110,10 @@ export function ProductionPage() {
   // Error tracking — preserve stale data on failure instead of showing misleading empty states
   const [prodError, setProdError] = useState<string | null>(null);
   const [agentError, setAgentError] = useState<string | null>(null);
+  // Track whether date-filtered fetch completed (to distinguish loading vs genuinely empty)
+  const [dateFilterComplete, setDateFilterComplete] = useState(false);
+  // Latest app_recvd_date from prod-data — used in empty-state messages
+  const [maxAppRecvdDate, setMaxAppRecvdDate] = useState<string | null>(null);
 
   const useRpc = datePreset !== 'allTime';
 
@@ -172,12 +176,20 @@ export function ProductionPage() {
     }));
   }, [orgData.monthlyProduction]);
 
-  // Use date-filtered local data when available; fall back to cache data
-  // so we never render zeros while the date-filtered fetch is in flight.
+  // Use date-filtered local data when available.
+  // When the date-filtered fetch completed with zero results, show zeros honestly
+  // instead of falling back to cached all-time data with a misleading period label.
   const hasLocalData = localAgencies.length > 0;
-  const agencies = useRpc && hasLocalData ? localAgencies : cachedAgencies;
-  const rawMonthly = useRpc && hasLocalData ? localMonthly : cachedMonthly;
-  const dailyRows = useRpc && hasLocalData ? localDaily : [];
+  const dateFilteredEmpty = useRpc && dateFilterComplete && !hasLocalData;
+  const agencies = useRpc
+    ? (dateFilterComplete ? localAgencies : (hasLocalData ? localAgencies : cachedAgencies))
+    : cachedAgencies;
+  const rawMonthly = useRpc
+    ? (dateFilterComplete ? localMonthly : (hasLocalData ? localMonthly : cachedMonthly))
+    : cachedMonthly;
+  const dailyRows = useRpc
+    ? (dateFilterComplete ? localDaily : [])
+    : [];
   // Show loading only when we have no data at all
   const hasAnyData = agencies.length > 0 || rawMonthly.length > 0 || dailyRows.length > 0;
   const loading = orgData.initialLoading && !hasAnyData;
@@ -207,6 +219,7 @@ export function ProductionPage() {
       setLocalAgencies([]);
       setLocalDaily([]);
       setLocalMonthly([]);
+      setDateFilterComplete(false);
       return;
     }
     const startDate = dateRange.startDate.split('T')[0];
@@ -243,6 +256,7 @@ export function ProductionPage() {
         issued: d.issued || 0,
       })));
       setLocalMonthly([]);
+      setDateFilterComplete(true);
       return;
     }
 
@@ -253,10 +267,13 @@ export function ProductionPage() {
 
     setDateLoading(true);
     setProdError(null);
+    setDateFilterComplete(false);
     Promise.all([
-      fetchAgencyProduction(dateParams),
+      fetchAgencyProductionWithMeta(dateParams),
       fetchDailyProduction(dateParams),
-    ]).then(([prodAgencies, dailyData]) => {
+    ]).then(([prodResult, dailyData]) => {
+      const prodAgencies = prodResult.data;
+      setMaxAppRecvdDate(prodResult.maxAppRecvdDate);
       setProdError(null);
       setLocalAgencies(prodAgencies.map(a => ({
         agency_id: a.agency_id,
@@ -285,11 +302,13 @@ export function ProductionPage() {
         issued: d.issued || 0,
       })));
       setLocalMonthly([]);
+      setDateFilterComplete(true);
       setDateLoading(false);
     }).catch(err => {
       console.error('Production date-filtered fetch error:', err);
       setProdError('Failed to load production data. Showing cached results.');
       // Don't clear local data — preserve stale values instead of showing zeros
+      setDateFilterComplete(true);
       setDateLoading(false);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -359,8 +378,13 @@ export function ProductionPage() {
         writingNumber: filterAgentId,
       });
     }
-    // All-time fallback: use overlay data (submitted vs issued by month)
-    if (overlayData.length > 0) {
+    // If we're in a date-filtered mode and the fetch completed with no data,
+    // return empty — do NOT fall back to overlay/monthly data under the wrong label.
+    if (useRpc && dateFilterComplete) {
+      return [];
+    }
+    // All-time view: use overlay data (submitted vs issued by month)
+    if (!useRpc && overlayData.length > 0) {
       return overlayData
         .slice(-12)
         .map(row => ({
@@ -372,28 +396,31 @@ export function ProductionPage() {
         }))
         .sort((a, b) => a.bucket.localeCompare(b.bucket));
     }
-    // Final fallback: monthly production (no issued data available)
-    let rows = rawMonthly;
-    if (filterAgencyId) rows = rows.filter(r => r.agency_id === filterAgencyId);
-    if (filterAgentId) rows = rows.filter(r => r.writing_number === filterAgentId);
-    const byMonth = new Map<string, { policies: number; ap: number }>();
-    rows.forEach(r => {
-      const existing = byMonth.get(r.month) || { policies: 0, ap: 0 };
-      existing.policies += Number(r.policies);
-      existing.ap += Number(r.annual_premium);
-      byMonth.set(r.month, existing);
-    });
-    return Array.from(byMonth.entries())
-      .map(([month, v]) => ({
-        bucket: month,
-        label: fmtMonth(month),
-        policies: v.policies,
-        ap: v.ap,
-        issued: 0,
-      }))
-      .sort((a, b) => a.bucket.localeCompare(b.bucket))
-      .slice(-12);
-  }, [dailyRows, rawMonthly, overlayData, granularity, filterAgencyId, filterAgentId]);
+    // All-time fallback: monthly production (no issued data available)
+    if (!useRpc) {
+      let rows = rawMonthly;
+      if (filterAgencyId) rows = rows.filter(r => r.agency_id === filterAgencyId);
+      if (filterAgentId) rows = rows.filter(r => r.writing_number === filterAgentId);
+      const byMonth = new Map<string, { policies: number; ap: number }>();
+      rows.forEach(r => {
+        const existing = byMonth.get(r.month) || { policies: 0, ap: 0 };
+        existing.policies += Number(r.policies);
+        existing.ap += Number(r.annual_premium);
+        byMonth.set(r.month, existing);
+      });
+      return Array.from(byMonth.entries())
+        .map(([month, v]) => ({
+          bucket: month,
+          label: fmtMonth(month),
+          policies: v.policies,
+          ap: v.ap,
+          issued: 0,
+        }))
+        .sort((a, b) => a.bucket.localeCompare(b.bucket))
+        .slice(-12);
+    }
+    return [];
+  }, [dailyRows, rawMonthly, overlayData, granularity, filterAgencyId, filterAgentId, useRpc, dateFilterComplete]);
 
 
   const displayStats = useMemo((): OrgStats | null => {
@@ -692,6 +719,23 @@ export function ProductionPage() {
           </div>
         )}
 
+        {/* Zero-state banner — date-filtered query returned no data (e.g. start of month) */}
+        {dateFilteredEmpty && !prodError && !orgData.fetchError && !dateLoading && (
+          <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 flex items-center gap-3">
+            <CalendarClock size={18} className="text-muted-foreground shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-foreground">
+                No production data for {dateRange.label} yet
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {maxAppRecvdDate
+                  ? `Latest data through ${new Date(maxAppRecvdDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — new applications typically appear within a day or two of month start.`
+                  : 'New applications typically appear within a day or two of month start.'}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Hero KPI Cards */}
         <StaggerContainer className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
@@ -800,56 +844,72 @@ export function ProductionPage() {
           </CardHeader>
           <CardContent className="pb-2">
             <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={filteredTrend}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 33% 17%)" />
-                  <XAxis
-                    dataKey="label"
-                    stroke="hsl(215 20% 55%)"
-                    fontSize={11}
-                    interval={filteredTrend.length > 15 ? Math.floor(filteredTrend.length / 10) : 0}
-                    angle={filteredTrend.length > 12 ? -45 : 0}
-                    textAnchor={filteredTrend.length > 12 ? 'end' : 'middle'}
-                    height={filteredTrend.length > 12 ? 50 : 30}
-                  />
-                  <YAxis
-                    stroke="hsl(215 20% 55%)"
-                    fontSize={11}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: '8px',
-                      border: '1px solid hsl(217 33% 20%)',
-                      background: 'hsl(222 47% 9%)',
-                      color: 'hsl(210 40% 98%)',
-                      fontSize: 12,
-                    }}
-                    formatter={(value: number, name: string) => [
-                      fmtNum(value),
-                      name === 'policies' ? 'Policies Sold' : 'Policies Effectuated',
-                    ]}
-                    labelFormatter={(label: string) => label}
-                  />
-                  <Legend
-                    formatter={(value: string) => value === 'policies' ? 'Policies Sold' : 'Policies Effectuated'}
-                    wrapperStyle={{ color: 'hsl(215 20% 65%)' }}
-                  />
-                  <Bar
-                    dataKey="policies"
-                    fill="hsl(199 89% 48%)"
-                    fillOpacity={0.4}
-                    stroke="hsl(199 89% 48%)"
-                    radius={[3, 3, 0, 0]}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="issued"
-                    stroke="hsl(142 71% 45%)"
-                    strokeWidth={2.5}
-                    dot={{ r: 3, fill: 'hsl(142 71% 45%)' }}
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
+              {filteredTrend.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={filteredTrend}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 33% 17%)" />
+                    <XAxis
+                      dataKey="label"
+                      stroke="hsl(215 20% 55%)"
+                      fontSize={11}
+                      interval={filteredTrend.length > 15 ? Math.floor(filteredTrend.length / 10) : 0}
+                      angle={filteredTrend.length > 12 ? -45 : 0}
+                      textAnchor={filteredTrend.length > 12 ? 'end' : 'middle'}
+                      height={filteredTrend.length > 12 ? 50 : 30}
+                    />
+                    <YAxis
+                      stroke="hsl(215 20% 55%)"
+                      fontSize={11}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        borderRadius: '8px',
+                        border: '1px solid hsl(217 33% 20%)',
+                        background: 'hsl(222 47% 9%)',
+                        color: 'hsl(210 40% 98%)',
+                        fontSize: 12,
+                      }}
+                      formatter={(value: number, name: string) => [
+                        fmtNum(value),
+                        name === 'policies' ? 'Policies Sold' : 'Policies Effectuated',
+                      ]}
+                      labelFormatter={(label: string) => label}
+                    />
+                    <Legend
+                      formatter={(value: string) => value === 'policies' ? 'Policies Sold' : 'Policies Effectuated'}
+                      wrapperStyle={{ color: 'hsl(215 20% 65%)' }}
+                    />
+                    <Bar
+                      dataKey="policies"
+                      fill="hsl(199 89% 48%)"
+                      fillOpacity={0.4}
+                      stroke="hsl(199 89% 48%)"
+                      radius={[3, 3, 0, 0]}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="issued"
+                      stroke="hsl(142 71% 45%)"
+                      strokeWidth={2.5}
+                      dot={{ r: 3, fill: 'hsl(142 71% 45%)' }}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center">
+                  <div className="text-center">
+                    <CalendarClock size={32} className="mx-auto text-muted-foreground/50 mb-2" />
+                    <p className="text-sm text-muted-foreground">
+                      No chart data for {dateRange.label}
+                    </p>
+                    {maxAppRecvdDate && (
+                      <p className="text-xs text-muted-foreground/70 mt-1">
+                        Latest data through {new Date(maxAppRecvdDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

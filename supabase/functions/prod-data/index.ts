@@ -504,8 +504,26 @@ Deno.serve(async (req) => {
         return jsonResponse(req, { error: `Unknown type: ${type}` }, 400);
     }
 
+    // Fetch the latest app_recvd_date so the frontend can display
+    // an informative empty-state message when a period has no data.
+    const [maxDateRow] = await sql`
+      SELECT MAX(app_recvd_date)::text AS max_date
+      FROM typed.unl_fym_policy_latest_load
+      WHERE (
+        UPPER(TRIM(plan_code)) LIKE '%HHC%' OR UPPER(TRIM(plan_code)) LIKE '%AHH%'
+        OR UPPER(TRIM(plan_code)) LIKE '%HI%' OR UPPER(TRIM(plan_code)) LIKE '%HIP%'
+        OR UPPER(TRIM(plan_code)) LIKE '%UHL%'
+      )
+    `;
+    const maxAppRecvdDate = (maxDateRow as Record<string, unknown>)?.max_date as string | null;
+
     const elapsedMs = Math.round(performance.now() - started);
-    return jsonResponse(req, { data: result, _source: "prod_direct_sql", _elapsed_ms: elapsedMs });
+    return jsonResponse(req, {
+      data: result,
+      _source: "prod_direct_sql",
+      _elapsed_ms: elapsedMs,
+      _max_app_recvd_date: maxAppRecvdDate ?? null,
+    });
   } catch (err) {
     console.error("prod-data error:", err);
     return jsonResponse(req, { error: "Internal server error" }, 500);
