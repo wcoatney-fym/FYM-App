@@ -1434,7 +1434,7 @@ function CrmOnboardTableModal({
         .eq('upload_id', upload.id);
 
       const numericRows = (rosterRows || []).filter(
-        (r) => /^\d+$/.test(r.row_data['Seat Number'] || '')
+        (r: { id: string; row_data: Record<string, string> }) => /^\d+$/.test(r.row_data['Seat Number'] || '')
       );
 
       // Resolve NPN: agent.npn → agent_intake fallback (agents table often has npn=null)
@@ -1462,7 +1462,7 @@ function CrmOnboardTableModal({
       }
 
       // Derive shared fields — roster rows first, hierarchy_agencies fallback
-      const crmNumber = numericRows.find((r) => r.row_data['All Templates | Agent CRM #']?.trim())
+      const crmNumber = numericRows.find((r: { row_data: Record<string, string> }) => r.row_data['All Templates | Agent CRM #']?.trim())
         ?.row_data['All Templates | Agent CRM #'] || '';
 
       // Fetch agency config for fallback values (calendar embed, URL prefix)
@@ -1472,10 +1472,10 @@ function CrmOnboardTableModal({
         .eq('name', 'FYM')
         .maybeSingle();
 
-      const calendarEmbed = numericRows.find((r) => r.row_data['Calendar Embed Code']?.trim())
+      const calendarEmbed = numericRows.find((r: { row_data: Record<string, string> }) => r.row_data['Calendar Embed Code']?.trim())
         ?.row_data['Calendar Embed Code'] || agencyConfig?.calendar_embed_code || '';
       const urlPrefix = (() => {
-        const sample = numericRows.find((r) => r.row_data['Digital Business Card Home Page']?.trim());
+        const sample = numericRows.find((r: { row_data: Record<string, string> }) => r.row_data['Digital Business Card Home Page']?.trim());
         if (sample) {
           return sample.row_data['Digital Business Card Home Page'].replace(/\/r\d+-.*$/, '');
         }
@@ -1484,8 +1484,8 @@ function CrmOnboardTableModal({
 
       // Find closest open seat to 1
       const openSeat = numericRows
-        .filter((r) => !r.row_data['First Name']?.trim() || r.row_data['CSR Placeholder'] === 'true')
-        .sort((a, b) => Number(a.row_data['Seat Number']) - Number(b.row_data['Seat Number']))[0];
+        .filter((r: { row_data: Record<string, string> }) => !r.row_data['First Name']?.trim() || r.row_data['CSR Placeholder'] === 'true')
+        .sort((a: { row_data: Record<string, string> }, b: { row_data: Record<string, string> }) => Number(a.row_data['Seat Number']) - Number(b.row_data['Seat Number']))[0];
 
       let seatNumber: string;
 
@@ -1521,7 +1521,7 @@ function CrmOnboardTableModal({
       } else {
         // All seats filled — create max+1
         const maxSeat = numericRows.reduce(
-          (max, r) => Math.max(max, Number(r.row_data['Seat Number'])),
+          (max: number, r: { row_data: Record<string, string> }) => Math.max(max, Number(r.row_data['Seat Number'])),
           0
         );
         seatNumber = String(maxSeat + 1);

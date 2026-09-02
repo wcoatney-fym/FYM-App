@@ -96,7 +96,7 @@ export function PipelineDetailModal({
     portalSupabase
       .from('ghl_custom_field_map')
       .select('ghl_field_id, field_name, display_name, hidden')
-      .then(({ data }) => {
+      .then(({ data }: { data: Array<{ ghl_field_id: string; field_name: string; display_name: string; hidden: boolean }> | null }) => {
         if (data) {
           const idMap: Record<string, string> = {};
           const nameMap: Record<string, string> = {};
@@ -153,7 +153,7 @@ export function PipelineDetailModal({
       setOnboardStatus('running');
       setOnboardMessage('Finding open seat & onboarding to CRM...');
       try {
-        const result = await runCrmOnboardAutomation(portalSupabase, record);
+        const result = await runCrmOnboardAutomation(portalSupabase as unknown as import('@supabase/supabase-js').SupabaseClient, record);
         if (result.success) {
           setOnboardStatus('success');
           const parts = [`Seat #${result.seatNumber} assigned`];
@@ -648,8 +648,8 @@ function StageHistorySection({ pipelineId }: { pipelineId: string }) {
       .eq('pipeline_id', pipelineId)
       .order('created_at', { ascending: false })
       .limit(50)
-      .then(({ data }) => {
-        setHistory((data as StageHistoryEntry[]) || []);
+      .then(({ data }: { data: StageHistoryEntry[] | null }) => {
+        setHistory(data || []);
         setLoaded(true);
         setLoading(false);
       });

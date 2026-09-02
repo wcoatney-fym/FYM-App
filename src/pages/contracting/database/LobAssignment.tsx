@@ -58,7 +58,7 @@ export function LobAssignment({
     if (data && data.length > 0) {
       setHipEnabled(true);
       const updated = { ...carriers };
-      data.forEach((row) => {
+      data.forEach((row: { carrier: string; writing_number: string }) => {
         if (updated[row.carrier] !== undefined) {
           updated[row.carrier] = {
             selected: true,
