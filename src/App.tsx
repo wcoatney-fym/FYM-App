@@ -48,6 +48,7 @@ import { DirectPay as DirectPayForm } from '@/pages/forms/DirectPay';
 import { Telesales as TelesalesForm } from '@/pages/forms/Telesales';
 import { HIP as HIPForm } from '@/pages/forms/HIP';
 import { ThankYou } from '@/pages/forms/ThankYou';
+import ResetPasswordPage from '@/pages/ResetPasswordPage';
 
 function App() {
   return (
@@ -66,6 +67,7 @@ function App() {
           <Route path="/direct-pay-hip" element={<HIPForm />} />
           <Route path="/telesales-hip" element={<HIPForm />} />
           <Route path="/thank-you" element={<ThankYou />} />
+          <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
 
           {/* Public — Auth */}
           <Route path="/login" element={<LoginPage />} />
