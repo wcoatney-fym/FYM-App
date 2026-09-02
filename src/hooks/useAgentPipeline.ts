@@ -137,7 +137,7 @@ export function useAgentPipeline(): AgentPipelineData {
     // Try NPN match first
     if (profile.npn) {
       const { data } = await portalSupabase
-        .from('agent_intake')
+        .from('agent_intake_lookup')
         .select('agent_id')
         .eq('npn', profile.npn)
         .maybeSingle();
@@ -186,7 +186,7 @@ export function useAgentPipeline(): AgentPipelineData {
       // Normal flow: try NPN match through agent_intake → agent_pipeline
       if (!pipeline && profile.npn) {
         const { data: intake } = await portalSupabase
-          .from('agent_intake')
+          .from('agent_intake_lookup')
           .select('agent_id')
           .eq('npn', profile.npn)
           .maybeSingle();
