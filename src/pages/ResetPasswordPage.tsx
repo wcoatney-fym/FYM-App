@@ -179,7 +179,7 @@ export default function ResetPasswordPage() {
 
             {state.agencySlug && (
               <a
-                href={`https://agency.teamfym.com/agency/${state.agencySlug}`}
+                href={`https://contracting.teamfym.com/agency/${state.agencySlug}`}
                 style={{
                   display: 'inline-block', marginTop: '1.5rem', padding: '0.75rem 1.5rem',
                   backgroundColor: '#3b82f6', color: '#fff', borderRadius: '8px',
