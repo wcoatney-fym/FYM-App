@@ -65,17 +65,17 @@ GRANT ALL ON _hierarchy_agencies TO authenticated;
 
 -- Step 6: Default password trigger for new agency registration
 -- External self-registration (ContractingPortalView) can no longer include portal_password
--- in the INSERT payload (column not in view). This trigger auto-sets the predictable
--- default password on INSERT when portal_password is NULL.
--- NOTE: This preserves existing behavior — passwords were already '{name}CRMPortal!'
--- The password randomization project will replace this trigger.
+-- in the INSERT payload (column not in view). This trigger auto-sets a random password
+-- on INSERT when portal_password is NULL.
+-- Random password = 20 chars of base64 from 15 cryptographic random bytes.
+-- Agency gets a reset link to view their password, never a derivable one.
 CREATE OR REPLACE FUNCTION set_default_portal_password()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
     IF NEW.portal_password IS NULL THEN
-        NEW.portal_password := NEW.name || 'CRMPortal!';
+        NEW.portal_password := encode(gen_random_bytes(15), 'base64');
     END IF;
     RETURN NEW;
 END;
