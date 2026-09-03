@@ -87,7 +87,40 @@ CREATE TRIGGER trg_set_default_portal_password
     WHEN (NEW.portal_password IS NULL)
     EXECUTE FUNCTION set_default_portal_password();
 
--- Step 7: Verify the view is auto-updatable
+-- Step 7: SECURITY DEFINER RPC for portal password verification
+-- This RPC is the ONLY path for verifying portal passwords. It reads portal_password
+-- from the base table (which anon cannot SELECT) and returns a boolean match.
+-- The edge function verify-portal-password calls this RPC instead of reading
+-- from a table — eliminating any deploy ordering dependency.
+-- Created atomically in this migration transaction: the RPC and the rename
+-- land together, so there is never a window where the edge function points
+-- at a missing object.
+CREATE OR REPLACE FUNCTION verify_portal_password(p_slug text, p_password text)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  stored_password text;
+BEGIN
+  SELECT portal_password INTO stored_password
+  FROM _hierarchy_agencies
+  WHERE name = p_slug;
+
+  IF stored_password IS NULL THEN
+    RETURN false;
+  END IF;
+
+  RETURN stored_password = p_password;
+END;
+$$;
+
+-- anon needs EXECUTE to call this via PostgREST rpc()
+GRANT EXECUTE ON FUNCTION verify_portal_password(text, text) TO anon;
+GRANT EXECUTE ON FUNCTION verify_portal_password(text, text) TO authenticated;
+
+-- Step 8: Verify the view is auto-updatable
 -- (This will raise an error if the view is not auto-updatable, preventing a broken deploy)
 DO $$
 BEGIN
