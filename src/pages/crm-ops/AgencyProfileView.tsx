@@ -1133,7 +1133,7 @@ const PortalSettingsCard: React.FC<{
       .select('portal_password')
       .eq('id', agency.id)
       .single()
-      .then(({ data }) => {
+      .then(({ data }: { data: { portal_password?: string } | null }) => {
         if (data?.portal_password) setPassword(data.portal_password);
       });
   }, [agency.id]);

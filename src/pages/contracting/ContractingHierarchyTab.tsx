@@ -377,8 +377,6 @@ export function ContractingHierarchyTab() {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '');
-    const portalPassword = `${name}CRMPortal!`;
-
     const { data, error } = await (portalSupabase as any)
       .from('hierarchy_agencies')
       .upsert(

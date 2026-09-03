@@ -68,7 +68,6 @@ export const TestingTab: React.FC = () => {
     const now = new Date().toISOString();
     const name = 'Test';
     const slug = generateSlug(name);
-    const portalPassword = `${name}CRMPortal!`;
     const { data } = await supabase
       .from('hierarchy_agencies')
       .insert({

@@ -63,8 +63,6 @@ export const AddAgencyModal: React.FC<AddAgencyModalProps> = ({ onClose, onSucce
     const { ensurePortalAuth } = await import('@/lib/crm/portal-client');
     await ensurePortalAuth();
 
-    const portalPassword = `${trimmedName}CRMPortal!`;
-
     const { data: newAgency, error: insertError } = await supabase
       .from('hierarchy_agencies')
       .insert({
