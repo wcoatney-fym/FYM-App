@@ -1121,15 +1121,30 @@ const PortalSettingsCard: React.FC<{
   onAgencyUpdated: (a: CrmAgency) => void;
 }> = ({ agency, onAgencyUpdated }) => {
   const [editing, setEditing] = useState(false);
-  const [password, setPassword] = useState(agency.portal_password || '');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // portal_password is excluded from the hierarchy_agencies view (barrier view).
+  // Fetch it separately from the base table using the authenticated client.
+  React.useEffect(() => {
+    supabase
+      .from('_hierarchy_agencies')
+      .select('portal_password')
+      .eq('id', agency.id)
+      .single()
+      .then(({ data }) => {
+        if (data?.portal_password) setPassword(data.portal_password);
+      });
+  }, [agency.id]);
 
   const handleSave = async () => {
     if (!password.trim()) return;
     setSaving(true);
+    // portal_password is excluded from the hierarchy_agencies view (barrier view).
+    // Write directly to the base table using the authenticated client.
     const { error } = await supabase
-      .from('hierarchy_agencies')
+      .from('_hierarchy_agencies')
       .update({ portal_password: password.trim(), updated_at: new Date().toISOString() })
       .eq('id', agency.id);
 
@@ -1213,7 +1228,7 @@ const PortalSettingsCard: React.FC<{
                 {saving ? 'Saving...' : 'Save'}
               </button>
               <button
-                onClick={() => { setEditing(false); setPassword(agency.portal_password || ''); }}
+                onClick={() => { setEditing(false); /* password state already holds the fetched value */ }}
                 className="px-2 py-1.5 text-xs font-medium text-muted-foreground hover:bg-secondary rounded-lg transition-colors"
               >
                 Cancel
@@ -1221,7 +1236,7 @@ const PortalSettingsCard: React.FC<{
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <span className="text-sm text-foreground font-mono">{agency.portal_password || '--'}</span>
+              <span className="text-sm text-foreground font-mono">{password || '--'}</span>
               <button
                 onClick={() => setEditing(true)}
                 className="text-xs text-primary hover:underline"

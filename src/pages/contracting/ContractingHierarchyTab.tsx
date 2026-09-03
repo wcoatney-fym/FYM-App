@@ -315,7 +315,7 @@ export function ContractingHierarchyTab() {
         is_active: true,
         crm_enabled: false,
         slug,
-        portal_password: portalPassword,
+        // portal_password removed — DB trigger auto-sets '{name}CRMPortal!'
         date_created: new Date().toISOString().slice(0, 10),
         agency_npn: contracting.agency_npn.trim() || null,
         agency_ein: contracting.agency_ein.trim() || null,
@@ -390,7 +390,7 @@ export function ContractingHierarchyTab() {
           is_active: true,
           crm_enabled: false,
           slug,
-          portal_password: portalPassword,
+          // portal_password removed — DB trigger auto-sets '{name}CRMPortal!'
           date_created: new Date().toISOString().slice(0, 10),
           agency_npn: submission.agency_npn?.trim() || null,
           agency_ein: submission.agency_ein?.trim() || null,

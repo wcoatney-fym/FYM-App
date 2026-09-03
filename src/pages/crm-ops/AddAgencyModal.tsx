@@ -74,7 +74,7 @@ export const AddAgencyModal: React.FC<AddAgencyModalProps> = ({ onClose, onSucce
         agency_type: agencyType,
         parent_agency_id: agencyType === 'sub' ? parentAgencyId : null,
         slug,
-        portal_password: portalPassword,
+        // portal_password removed — DB trigger auto-sets '{name}CRMPortal!'
         date_created: dateCreated || null,
         zaps_paused: existingAgency,
         crm_enabled: true,
