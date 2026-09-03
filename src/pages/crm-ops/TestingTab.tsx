@@ -82,7 +82,7 @@ export const TestingTab: React.FC = () => {
         dba_confirmed: false,
         seat_count: 200,
         slug,
-        portal_password: portalPassword,
+        // portal_password removed — DB trigger auto-sets '{name}CRMPortal!'
         date_added: now,
         created_at: now,
         updated_at: now,
