@@ -35,7 +35,7 @@ import {
   Package,
   Zap,
 } from 'lucide-react';
-import { supabase } from '@/lib/crm/portal-client';
+import { supabase, ensurePortalAuth } from '@/lib/crm/portal-client';
 import { fireCrmGhlSync } from '@/lib/crm/ghl-sync';
 import type { CrmTicket, CrmTicketMessage } from '@/lib/crm/types';
 
@@ -380,6 +380,7 @@ const CancellationApprovalsSection: React.FC = () => {
   const [submittingReject, setSubmittingReject] = useState(false);
 
   const loadPending = useCallback(async () => {
+    await ensurePortalAuth();
     const { data } = await supabase
       .from('agency_cancellation_uploads')
       .select('id, agency_id, file_name, row_count, created_at, hierarchy_agencies!inner(name)')
@@ -407,6 +408,7 @@ const CancellationApprovalsSection: React.FC = () => {
     }
     setPreviewUploadId(uploadId);
     setLoadingPreview(true);
+    await ensurePortalAuth();
     const { data } = await supabase
       .from('agency_cancellations')
       .select('first_name, last_name, phone, tag')
@@ -419,6 +421,7 @@ const CancellationApprovalsSection: React.FC = () => {
   const handleConfirm = async (upload: PendingCancellationUpload) => {
     setProcessingId(upload.id);
     const confirmedAt = new Date().toISOString();
+    await ensurePortalAuth();
 
     await supabase
       .from('agency_cancellation_uploads')
@@ -460,6 +463,7 @@ const CancellationApprovalsSection: React.FC = () => {
 
   const handleReject = async () => {
     if (!rejectingUpload || !rejectReason.trim()) return;
+    await ensurePortalAuth();
     setSubmittingReject(true);
 
     await supabase

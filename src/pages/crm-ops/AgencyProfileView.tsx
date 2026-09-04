@@ -52,7 +52,7 @@ import {
   Copy,
   ExternalLink,
 } from 'lucide-react';
-import { supabase } from '@/lib/crm/portal-client';
+import { supabase, ensurePortalAuth } from '@/lib/crm/portal-client';
 import { formatPhoneDisplay } from '@/lib/crm/helpers';
 import { avgContactsPerWeek, avgContactsPerMonth } from '@/lib/crm/helpers';
 import { backfillCrossSellDefaults } from '@/lib/crm/cross-sell-helpers';
@@ -119,6 +119,7 @@ export const AgencyProfileView: React.FC<AgencyProfileViewProps> = ({
 
   useEffect(() => {
     const load = async () => {
+      await ensurePortalAuth();
       const [ghlRes, dealsRes, kpiRes, onboardedRes, pipelineRes] = await Promise.all([
         supabase.from('agency_ghl_configs').select('*').eq('agency_id', agency.id).maybeSingle(),
         supabase.from('agency_deals').select('*').eq('agency_id', agency.id),

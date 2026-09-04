@@ -22,7 +22,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
-import { supabase } from '@/lib/crm/portal-client';
+import { supabase, ensurePortalAuth } from '@/lib/crm/portal-client';
 import type { AgencyClient } from '@/lib/crm/types';
 
 interface AgencyContactsTabProps {
@@ -57,6 +57,7 @@ export const AgencyContactsTab: React.FC<AgencyContactsTabProps> = ({ agencyId, 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
+      await ensurePortalAuth();
       const { data, count } = await supabase
         .from('agency_clients')
         .select('*', { count: 'exact' })
@@ -192,6 +193,7 @@ export const AgencyContactsTab: React.FC<AgencyContactsTabProps> = ({ agencyId, 
       }
     }
 
+    await ensurePortalAuth();
     const { data, count } = await supabase
       .from('agency_clients')
       .select('*', { count: 'exact' })
