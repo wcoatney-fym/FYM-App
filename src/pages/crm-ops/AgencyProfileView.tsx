@@ -12,7 +12,7 @@ import {
   LayoutDashboard,
   Rocket,
   Link2,
-  TrendingUp,
+
   Users,
   FolderOpen,
   Building2,
@@ -62,16 +62,16 @@ import {
   type RosterRepushRow,
   type RepushRowStatus,
 } from '@/lib/crm/roster-repush';
-import type { CrmAgency, AgencyGhlConfig, AgencyDeal, AgencyKpi, CrmTicket, CrmTicketMessage } from '@/lib/crm/types';
+import type { CrmAgency, AgencyGhlConfig, AgencyKpi, CrmTicket, CrmTicketMessage } from '@/lib/crm/types';
 import { AgencyOnboardingView } from './AgencyOnboardingView';
 import { AgencyGhlTab } from './AgencyGhlTab';
-import { AgencyDealsTab } from './AgencyDealsTab';
+
 import { AgencyAgentsTab } from './AgencyAgentsTab';
 import { AgencyAssetsTab } from './AgencyAssetsTab';
-import { AgencyContactsTab } from './AgencyContactsTab';
+
 import { CrossSellSection } from './CrossSellSection';
 
-type ProfileTab = 'overview' | 'onboarding' | 'cross-sell' | 'ghl' | 'deals' | 'agents' | 'contacts' | 'assets' | 'tickets';
+type ProfileTab = 'overview' | 'onboarding' | 'cross-sell' | 'ghl' | 'agents' | 'assets' | 'tickets';
 
 interface AgencyProfileViewProps {
   agency: CrmAgency;
@@ -86,9 +86,7 @@ const PROFILE_TABS: { key: ProfileTab; label: string; icon: React.FC<{ className
   { key: 'onboarding', label: 'Onboarding', icon: Rocket },
   { key: 'cross-sell', label: 'Cross-Sell', icon: Package },
   { key: 'ghl', label: 'GHL Connection', icon: Link2 },
-  { key: 'deals', label: 'Deals', icon: TrendingUp },
   { key: 'agents', label: 'Agents', icon: Users },
-  { key: 'contacts', label: 'Contacts', icon: Contact },
   { key: 'assets', label: 'Roster & Assets', icon: FolderOpen },
   { key: 'tickets', label: 'Tickets', icon: MessageSquareText },
 ];
@@ -103,7 +101,7 @@ export const AgencyProfileView: React.FC<AgencyProfileViewProps> = ({
   const [agency, setAgency] = useState<CrmAgency>(initialAgency);
   const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
   const [ghlConfig, setGhlConfig] = useState<AgencyGhlConfig | null>(null);
-  const [deals, setDeals] = useState<AgencyDeal[]>([]);
+
   const [showBusinessInfoModal, setShowBusinessInfoModal] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [kpi, setKpi] = useState<AgencyKpi | null>(null);
@@ -120,16 +118,14 @@ export const AgencyProfileView: React.FC<AgencyProfileViewProps> = ({
   useEffect(() => {
     const load = async () => {
       await ensurePortalAuth();
-      const [ghlRes, dealsRes, kpiRes, onboardedRes, pipelineRes] = await Promise.all([
+      const [ghlRes, kpiRes, onboardedRes, pipelineRes] = await Promise.all([
         supabase.from('agency_ghl_configs').select('*').eq('agency_id', agency.id).maybeSingle(),
-        supabase.from('agency_deals').select('*').eq('agency_id', agency.id),
         supabase.from('agency_kpis').select('*').eq('agency_id', agency.id).order('computed_at', { ascending: false }).limit(1).maybeSingle(),
         supabase.from('crm_pipeline').select('id', { count: 'exact', head: true }).eq('agency', agency.name).eq('stage', 'completed'),
         supabase.from('crm_pipeline').select('id', { count: 'exact', head: true }).eq('agency', agency.name).neq('stage', 'completed').neq('stage', 'terminated'),
       ]);
 
       setGhlConfig(ghlRes.data || null);
-      setDeals(dealsRes.data || []);
       setKpi(kpiRes.data || null);
       setAgentsOnboarded(onboardedRes.count || 0);
       setAgentsInPipeline(pipelineRes.count || 0);
@@ -184,12 +180,8 @@ export const AgencyProfileView: React.FC<AgencyProfileViewProps> = ({
         );
       case 'ghl':
         return <AgencyGhlTab agencyId={agency.id} config={ghlConfig} onConfigUpdated={setGhlConfig} />;
-      case 'deals':
-        return <AgencyDealsTab agencyId={agency.id} deals={deals} onDealsUpdated={setDeals} />;
       case 'agents':
         return <AgencyAgentsTab agencyName={agency.name} agencyId={agency.id} />;
-      case 'contacts':
-        return <AgencyContactsTab agencyId={agency.id} agencyName={agency.name} />;
       case 'assets':
         return <AgencyAssetsTab agencyName={agency.name} />;
       case 'tickets':
@@ -985,7 +977,6 @@ const OverviewTab: React.FC<{
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <QuickLink label="Onboarding" onClick={() => onTabChange('onboarding')} />
         <QuickLink label="GHL Connection" onClick={() => onTabChange('ghl')} />
-        <QuickLink label="Deals" onClick={() => onTabChange('deals')} />
         <QuickLink label="Roster & Assets" onClick={() => onTabChange('assets')} />
       </div>
     </div>
