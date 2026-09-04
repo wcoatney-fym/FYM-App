@@ -8,7 +8,7 @@ import {
   Upload, Download, FileText, AlertTriangle, CheckCircle2,
   XCircle, RefreshCw, Building2, Clock,
 } from 'lucide-react';
-import { supabase as portalSupabase } from '@/lib/crm/portal-client';
+import { supabase as portalSupabase, ensurePortalAuth } from '@/lib/crm/portal-client';
 import type { PortalAgency } from '@/hooks/usePortalAgency';
 
 interface CancellationUploadTabProps {
@@ -108,21 +108,22 @@ export function CancellationUploadTab({ agency, agencyIds }: CancellationUploadT
   useEffect(() => {
     if (agency.agency_type === 'main') {
       setLoadingAgencies(true);
-      portalSupabase
-        .from('hierarchy_agencies')
-        .select('id, name')
-        .eq('parent_agency_id', agency.id)
-        .eq('is_active', true)
-        .order('name')
-        .then(({ data }: { data: { id: string; name: string }[] | null }) => {
-          const children = data || [];
-          if (children.length > 0) {
-            setChildAgencies([{ id: agency.id, name: agency.name }, ...children]);
-          } else {
-            setSelectedUploadAgency({ id: agency.id, name: agency.name });
-          }
-          setLoadingAgencies(false);
-        });
+      (async () => {
+        await ensurePortalAuth();
+        const { data } = await portalSupabase
+          .from('hierarchy_agencies')
+          .select('id, name')
+          .eq('parent_agency_id', agency.id)
+          .eq('is_active', true)
+          .order('name') as { data: { id: string; name: string }[] | null };
+        const children = data || [];
+        if (children.length > 0) {
+          setChildAgencies([{ id: agency.id, name: agency.name }, ...children]);
+        } else {
+          setSelectedUploadAgency({ id: agency.id, name: agency.name });
+        }
+        setLoadingAgencies(false);
+      })();
     } else {
       setSelectedUploadAgency({ id: agency.id, name: agency.name });
     }
@@ -130,6 +131,7 @@ export function CancellationUploadTab({ agency, agencyIds }: CancellationUploadT
 
   const fetchHistory = useCallback(async () => {
     setLoadingHistory(true);
+    await ensurePortalAuth();
     const { data } = await portalSupabase
       .from('agency_cancellation_uploads')
       .select('id, file_name, row_count, status, errors, rejection_reason, created_at')
@@ -166,6 +168,7 @@ export function CancellationUploadTab({ agency, agencyIds }: CancellationUploadT
 
   const logRejection = async (name: string, rowCount: number, errors: ValidationError[]) => {
     const targetId = selectedUploadAgency?.id || agency.id;
+    await ensurePortalAuth();
     await portalSupabase.from('agency_cancellation_uploads').insert({
       agency_id: targetId, file_name: name, row_count: rowCount, status: 'rejected',
       errors: errors as unknown as Record<string, unknown>[],
@@ -176,6 +179,7 @@ export function CancellationUploadTab({ agency, agencyIds }: CancellationUploadT
   const handleSubmit = async () => {
     if (!parsedRows || validationErrors.length > 0 || !selectedUploadAgency) return;
     setSubmitting(true);
+    await ensurePortalAuth();
     const targetId = selectedUploadAgency.id;
     const uploadId = crypto.randomUUID();
     const { error: insertError } = await portalSupabase.from('agency_cancellation_uploads').insert({

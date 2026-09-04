@@ -25,7 +25,7 @@ import {
   AlertCircle,
   TrendingUp,
 } from 'lucide-react';
-import { supabase } from '@/lib/crm/portal-client';
+import { supabase, ensurePortalAuth } from '@/lib/crm/portal-client';
 import type { CrmAgency, CrmNotification, AgencyKpi } from '@/lib/crm/types';
 import { avgContactsPerWeek, avgContactsPerMonth } from '@/lib/crm/helpers';
 
@@ -96,6 +96,7 @@ export const KpiDashboardTab: React.FC<KpiDashboardTabProps> = ({ onNavigate }) 
   const [actionCounts, setActionCounts] = useState<ActionCount>({ pendingCsr: 0, pendingRoster: 0, openTickets: 0, pendingCancellations: 0 });
 
   const loadData = async () => {
+    await ensurePortalAuth();
     const [agencyRes, kpiRes, notifRes, pipelineRes, ghlRes, ticketRes, cancelRes] = await Promise.all([
       supabase.from('hierarchy_agencies').select('*').eq('crm_enabled', true).order('name'),
       supabase.from('agency_kpis').select('*').order('computed_at', { ascending: false }),
