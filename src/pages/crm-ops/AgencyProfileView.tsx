@@ -1683,9 +1683,7 @@ const AgencyCrossSellAdminCard: React.FC<{
 };
 
 const PORTAL_TAB_OPTIONS: { key: string; label: string }[] = [
-  { key: 'dashboard', label: 'Dashboard' },
   { key: 'agents', label: 'Agent Management' },
-  { key: 'book', label: 'Book of Business' },
   { key: 'intake', label: 'New Business Intake' },
   { key: 'cancellations', label: 'Cancellation Upload' },
   { key: 'cross-sell', label: 'Cross-Sell' },

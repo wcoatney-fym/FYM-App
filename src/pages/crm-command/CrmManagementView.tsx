@@ -1,5 +1,5 @@
 /**
- * CrmManagementView — The 8-tab CRM Management portal view.
+ * CrmManagementView — The 6-tab CRM Management portal view.
  *
  * Ported 1:1 from contracting-portal/src/pages/AgencyPortal.tsx.
  * Styled to match FYM App's dark theme design system.
@@ -9,33 +9,35 @@
  *   2. FYM admins in "View As" mode for a CRM-onboarded agency
  *   3. FYM admins who click "View CRM" from CRM Ops → Agencies
  *
- * Tabs mirror the existing CRM Management portal exactly:
- *   Dashboard, Agent Management, Book of Business, New Business,
- *   Cancellation Upload, Cross-Sell, Support, CSR Contact
+ * Tabs:
+ *   Agent Management, New Business, Cancellation Upload,
+ *   Cross-Sell, Support, CSR Contact
+ *
+ * Removed (2026-09-04): Dashboard (CrmDashboardTab) and Book of Business
+ * (BookOfBusinessTab) — dead agency-facing features, toggled off as
+ * "Coming Soon" for all CRM-enabled agencies. Admin CRM Ops dashboard
+ * (KpiDashboardTab) and admin Book of Business page (BookOfBusinessPage)
+ * are unaffected.
  */
 import { useState } from 'react';
 import {
-  BarChart3, Users, BookOpen, FileText,
+  Users, FileText,
   Upload, Package, MessageSquareText, Headphones,
   ArrowLeft,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePortalAgency } from '@/hooks/usePortalAgency';
 import { AgentManagementTab } from './AgentManagementTab';
-import { CrmDashboardTab } from './CrmDashboardTab';
 import { SupportTab } from './SupportTab';
 import { CsrContactTab } from './CsrContactTab';
 import { NewBusinessTab } from './NewBusinessTab';
-import { BookOfBusinessTab } from './BookOfBusinessTab';
 import { CancellationUploadTab } from './CancellationUploadTab';
 import { CrossSellTab } from './CrossSellTab';
 
-type PortalTab = 'dashboard' | 'agents' | 'book' | 'intake' | 'cancellations' | 'cross-sell' | 'tickets' | 'csr';
+type PortalTab = 'agents' | 'intake' | 'cancellations' | 'cross-sell' | 'tickets' | 'csr';
 
 const TAB_ITEMS: { key: PortalTab; label: string; icon: React.FC<{ className?: string }> }[] = [
-  { key: 'dashboard', label: 'Dashboard', icon: BarChart3 },
   { key: 'agents', label: 'Agent Management', icon: Users },
-  { key: 'book', label: 'Book of Business', icon: BookOpen },
   { key: 'intake', label: 'New Business', icon: FileText },
   { key: 'cancellations', label: 'Cancellation Upload', icon: Upload },
   { key: 'cross-sell', label: 'Cross-Sell', icon: Package },
@@ -51,7 +53,7 @@ interface CrmManagementViewProps {
 }
 
 export function CrmManagementView({ agencyName, agencyId: _agencyId, onBack }: CrmManagementViewProps) {
-  const [activeTab, setActiveTab] = useState<PortalTab>('dashboard');
+  const [activeTab, setActiveTab] = useState<PortalTab>('agents');
   const { loading, agency, allAgencies, agencyIds, agencyNames, refresh } = usePortalAgency(agencyName);
 
   if (loading) {
@@ -139,14 +141,8 @@ export function CrmManagementView({ agencyName, agencyId: _agencyId, onBack }: C
 
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto">
-        {activeTab === 'dashboard' && (
-          <CrmDashboardTab agencyName={agencyName} agencyId={agency.id} agencyIds={agencyIds} agencyNames={agencyNames} />
-        )}
         {activeTab === 'agents' && (
           <AgentManagementTab agencyName={agencyName} agencyId={agency.id} agency={agency} agencyIds={agencyIds} agencyNames={agencyNames} />
-        )}
-        {activeTab === 'book' && (
-          <BookOfBusinessTab agencyName={agencyName} agencyId={agency.id} agencyIds={agencyIds} agencyNames={agencyNames} />
         )}
         {activeTab === 'intake' && (
           <NewBusinessTab agencyName={agencyName} agencyId={agency.id} agencyIds={agencyIds} agencyNames={agencyNames} agency={agency} />
