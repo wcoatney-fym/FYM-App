@@ -37,7 +37,7 @@ function corsHeaders(req?: Request | null): Record<string, string> {
     headers["Vary"] = "Origin";
   }
   return headers;
-};
+}
 
 const supabaseUrl = Deno.env.get("APP_SUPABASE_URL")!;
 const supabaseKey = Deno.env.get("APP_SUPABASE_SERVICE_KEY")!;
@@ -61,7 +61,7 @@ function generateCode(): string {
 
 // --- Handlers ---
 
-async function handleGenerate(body: { manager_id: string; date?: string }): Promise<Response> {
+async function handleGenerate(req: Request, body: { manager_id: string; date?: string }): Promise<Response> {
   const sb = createClient(supabaseUrl, supabaseKey);
   const date = body.date || getTodayET();
   const code = generateCode();
@@ -107,7 +107,7 @@ async function handleGenerate(body: { manager_id: string; date?: string }): Prom
   });
 }
 
-async function handleData(code: string): Promise<Response> {
+async function handleData(req: Request, code: string): Promise<Response> {
   const sb = createClient(supabaseUrl, supabaseKey);
 
   // Look up the code
@@ -211,7 +211,7 @@ serve(async (req) => {
     if (req.method === "POST") {
       const body = await req.json();
       if (body.action === "generate") {
-        return handleGenerate(body);
+        return handleGenerate(req, body);
       }
       return new Response(JSON.stringify({ error: "Unknown action" }), {
         status: 400,
@@ -228,7 +228,7 @@ serve(async (req) => {
         headers: { "Content-Type": "application/json", ...corsHeaders(req) },
       });
     }
-    return handleData(code);
+    return handleData(req, code);
   } catch (err) {
     console.error("checkin-more-page error:", err);
     return new Response(JSON.stringify({ error: "Internal server error" }), {
