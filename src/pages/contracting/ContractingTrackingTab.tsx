@@ -132,7 +132,21 @@ export function ContractingTrackingTab() {
         .order('date_sent', { ascending: false });
 
       if (fetchErr) throw fetchErr;
-      setAgents((data as PortalAgent[]) ?? []);
+      const agentList = (data as PortalAgent[]) ?? [];
+
+      // Fetch security codes from barrier table (anon-unreadable)
+      // Codes were moved out of agents table to close the REST API leak
+      if (agentList.length > 0) {
+        try {
+          const { getSecurityCodes } = await import('@/lib/contracting/getSecurityCodes');
+          const codes = await getSecurityCodes(agentList.map(a => a.id));
+          agentList.forEach(a => { a.security_code = codes[a.id] ?? a.security_code ?? ''; });
+        } catch {
+          // Fallback: codes may still be in agents table during migration transition
+        }
+      }
+
+      setAgents(agentList);
     } catch (err) {
       console.error('[Contracting Tracking] Load error:', err);
       setError('Failed to load agents. Try refreshing.');
