@@ -2,12 +2,13 @@
  * SecurityCodeGate — ported from contracting-portal
  *
  * Verifies the agent's 6-digit security code before showing the intake form.
- * Uses portalSupabase to read/write the portal DB (akhojh…).
+ * Calls the verify-security-code edge function for server-side validation —
+ * security_code is never fetched by the anon client.
  * Styled for FYM App dark theme.
  */
 import { useState } from 'react';
 import { Lock } from 'lucide-react';
-import { portalSupabase } from '@/lib/portal-supabase';
+import { PORTAL_URL, PORTAL_ANON_KEY } from '@/lib/crm';
 import type { PortalAgent } from '@/lib/contracting/types';
 
 interface SecurityCodeGateProps {
@@ -26,50 +27,38 @@ export function SecurityCodeGate({ onSuccess, formId }: SecurityCodeGateProps) {
     setLoading(true);
 
     try {
-      if (!portalSupabase) {
+      if (!PORTAL_URL || !PORTAL_ANON_KEY) {
         setError('Portal connection not configured.');
         setLoading(false);
         return;
       }
 
-      const { data: agent, error: fetchError } = await portalSupabase
-        .from('agents')
-        .select('*')
-        .eq('id', formId)
-        .eq('security_code', code)
-        .single();
+      // Server-side validation via edge function — security_code is never
+      // fetched from the agents table by the anon client.
+      const res = await fetch(
+        `${PORTAL_URL}/functions/v1/verify-security-code`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${PORTAL_ANON_KEY}`,
+          },
+          body: JSON.stringify({ formId, securityCode: code }),
+        },
+      );
+      const result = await res.json();
 
-      if (fetchError || !agent) {
-        setError('Invalid security code. Please try again.');
+      if (!result.valid) {
+        if (result.expired) {
+          setError('This link has expired. Please contact Contracting@teamfym.com');
+        } else {
+          setError('Invalid security code. Please try again.');
+        }
         setLoading(false);
         return;
       }
 
-      const now = new Date();
-      const expirationDate = new Date(agent.expiration_date);
-
-      if (now > expirationDate) {
-        setError('This link has expired. Please contact Contracting@teamfym.com');
-        setLoading(false);
-        return;
-      }
-
-      if (agent.status === 'pending') {
-        await portalSupabase
-          .from('agents')
-          .update({ status: 'in-progress' })
-          .eq('id', agent.id);
-
-        await portalSupabase.from('activity_log').insert({
-          agent_id: agent.id,
-          action: 'form_accessed',
-          details: `${agent.first_name} ${agent.last_name} accessed the form`,
-        });
-
-        agent.status = 'in-progress';
-      }
-
-      onSuccess(agent as PortalAgent);
+      onSuccess(result.agent as PortalAgent);
     } catch {
       setError('An error occurred. Please try again.');
     } finally {

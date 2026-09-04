@@ -322,6 +322,12 @@ export function ContractingIntakeTab() {
 
       if (insertErr) throw insertErr;
 
+      // Write security code to barrier table (anon-unreadable)
+      await portalSupabase!.from('agent_security_codes').insert({
+        agent_id: agent.id,
+        security_code: securityCode,
+      });
+
       const generatedUrl = `${PORTAL_BASE_URL}/${formData.formType}?id=${agent.id}`;
 
       // Update the agent record with the full URL (authenticated)
@@ -436,6 +442,11 @@ export function ContractingIntakeTab() {
         .single();
 
       if (insertErr) throw insertErr;
+
+      // Write security code to barrier table (anon-unreadable)
+      await portalClient
+        .from('agent_security_codes')
+        .insert({ agent_id: agent.id, security_code: securityCode });
 
       const generatedUrl = `${PORTAL_BASE_URL}/field?id=${agent.id}`;
 
